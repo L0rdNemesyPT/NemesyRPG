@@ -2,7 +2,7 @@
 // depois da primeira visita. Muda o número da versão (CACHE_NAME) sempre
 // que publicares uma atualização do jogo, para forçar o telemóvel a
 // descarregar a nova versão em vez de continuar a mostrar a antiga.
-const CACHE_NAME = 'nemesy-rpg-v1';
+const CACHE_NAME = 'nemesy-rpg-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -33,18 +33,30 @@ self.addEventListener('activate', (event) => {
 // próxima vez, sem bloquear a resposta atual.
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
-  );
+  const requestUrl = new URL(event.request.url);
+  if (requestUrl.origin !== self.location.origin) return;
+
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(event.request);
+
+    if (event.request.mode === 'navigate') {
+      try {
+        const response = await fetch(event.request);
+        if (response.ok) await cache.put(event.request, response.clone());
+        return response;
+      } catch (error) {
+        return cached || cache.match('./index.html');
+      }
+    }
+
+    if (cached) return cached;
+    try {
+      const response = await fetch(event.request);
+      if (response.ok) await cache.put(event.request, response.clone());
+      return response;
+    } catch (error) {
+      return Response.error();
+    }
+  })());
 });

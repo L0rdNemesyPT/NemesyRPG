@@ -98,6 +98,12 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 }
 .nav-row{ display:flex; }
 .nav-row + .nav-row{ border-top:1px solid var(--line); }
+.install-prompt{display:flex; align-items:center; gap:10px; padding:10px 12px; background:var(--bg-raised); border-bottom:1px solid var(--line);}
+.install-prompt[hidden]{display:none;}
+.install-copy{flex:1; min-width:0;}
+.install-copy strong{display:block; font-size:12px;}
+.install-copy span{display:block; color:var(--muted); font-size:10.5px; margin-top:2px;}
+.install-close{width:32px; height:32px; border-radius:8px; color:var(--muted); font-size:20px;}
 .nav-btn{
   flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
   padding:8px 1px 7px; color:var(--dim); font-size:9.5px; font-weight:600;
@@ -337,6 +343,11 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
   <!-- MAIN HUB -->
   <div class="screen" id="screen-hub">
     <div id="statusbar"></div>
+    <div class="install-prompt" id="install-prompt" hidden>
+      <div class="install-copy"><strong>Instalar Nemesy RPG</strong><span>Joga em ecrã inteiro no teu Android.</span></div>
+      <button class="btn primary small" id="btn-install">Instalar</button>
+      <button class="install-close" id="btn-dismiss-install" aria-label="Fechar aviso">×</button>
+    </div>
     <div id="toastwrap"></div>
     <div class="scroll pad" id="hub-content"></div>
     <div id="nav">
@@ -1719,6 +1730,7 @@ const App = {
   combat: null,
   createClass: null
 };
+let pendingInstallPrompt = null;
 
 function saveGame() {
   try {
@@ -5413,6 +5425,17 @@ function wireStaticEvents() {
   $('cb-btn-attack').addEventListener('click', useNormalAttackAction);
   $('cb-btn-flee').addEventListener('click', () => { sfx.flee(); App.combat = null; goHub(); toast('Fugiste do combate.'); });
   $('modal-overlay').addEventListener('click', (e) => { if (e.target.id === 'modal-overlay') closeModal(); });
+  $('btn-install').addEventListener('click', async () => {
+    if (!pendingInstallPrompt) return;
+    pendingInstallPrompt.prompt();
+    await pendingInstallPrompt.userChoice;
+    pendingInstallPrompt = null;
+    $('install-prompt').hidden = true;
+  });
+  $('btn-dismiss-install').addEventListener('click', () => {
+    $('install-prompt').hidden = true;
+    try { sessionStorage.setItem('nemesy_install_dismissed', '1'); } catch (e) {}
+  });
 
   // long-press-free settings access: tap the status bar portrait
   $('statusbar').addEventListener('click', (e) => { if (App.player) openSettingsModal(); });
@@ -5489,6 +5512,17 @@ function init() {
 
 if (typeof document !== 'undefined') {
   applyTheme(loadThemePref());
+  window.addEventListener('beforeinstallprompt', (event) => {
+    event.preventDefault();
+    pendingInstallPrompt = event;
+    let dismissed = false;
+    try { dismissed = sessionStorage.getItem('nemesy_install_dismissed') === '1'; } catch (e) {}
+    if (!dismissed) $('install-prompt').hidden = false;
+  });
+  window.addEventListener('appinstalled', () => {
+    pendingInstallPrompt = null;
+    $('install-prompt').hidden = true;
+  });
   document.addEventListener('DOMContentLoaded', init);
 }
 
@@ -5518,7 +5552,7 @@ if (typeof module !== 'undefined' && module.exports) {
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('./sw.js').catch(() => {});
     });
   }
 </script>
