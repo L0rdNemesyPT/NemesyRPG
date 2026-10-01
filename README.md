@@ -71,7 +71,8 @@ Edita `index.html` para alterar o jogo. Mantém os outros ficheiros na
 mesma pasta e publica as alterações no mesmo repositório/hosting; o link do
 jogo não muda. Para forçar a atualização da cache offline em todos os
 dispositivos, incrementa o nome em `CACHE_NAME` no início de `sw.js` (por
-exemplo, de `nemesy-rpg-v1` para `nemesy-rpg-v2`).
+exemplo, de `nemesy-rpg-v2` para `nemesy-rpg-v3`). O ficheiro
+`Nemesy-RPG.html` redireciona instalações antigas para o novo endereço do jogo.
 
 ## Nota sobre os saves
 

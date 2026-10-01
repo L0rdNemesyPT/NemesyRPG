@@ -4,7 +4,7 @@
   "short_name": "Nemesy RPG",
   "description": "Aventura de fantasia com combates por turnos, classes e progressão.",
   "lang": "pt-PT",
-  "start_url": "./Nemesy-RPG.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "background_color": "#100D0A",

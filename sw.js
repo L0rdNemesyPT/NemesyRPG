@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nemesy-rpg-v1';
+const CACHE_NAME = 'nemesy-rpg-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -42,7 +42,7 @@ self.addEventListener('fetch', event => {
       return response;
     } catch {
       if (request.mode === 'navigate') {
-        return caches.match(new URL('./Nemesy-RPG.html', self.registration.scope).href);
+        return caches.match(new URL('./index.html', self.registration.scope).href);
       }
       return Response.error();
     }
