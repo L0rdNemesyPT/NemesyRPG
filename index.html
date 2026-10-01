@@ -302,6 +302,23 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 /* ---------- Boot screen ---------- */
 #screen-boot{align-items:center; justify-content:center; text-align:center; gap:6px;}
 #screen-boot .glyph{font-size:54px; margin-bottom:10px;}
+#screen-account{align-items:center; justify-content:center; overflow-y:auto; padding:calc(22px + var(--safe-top)) 18px calc(22px + var(--safe-bottom)); background:radial-gradient(ellipse 110% 70% at 50% 0%, rgba(201,162,39,0.13), transparent 62%), var(--bg-void);}
+.account-panel{width:min(100%, 420px); margin:auto; padding:26px 22px 22px; background:var(--bg-panel); border:1px solid var(--line); border-top:2px solid var(--gold); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,0.28); animation:accountEnter .35s ease both;}
+.account-mark{width:54px; height:54px; display:grid; place-items:center; margin:0 auto 14px; border:1px solid var(--gold); border-radius:14px; background:var(--bg-void); color:var(--gold-bright); font-size:28px;}
+.account-panel h1{text-align:center; color:var(--gold-bright); font-size:24px;}
+.account-subtitle{text-align:center; color:var(--muted); font-size:12.5px; line-height:1.5; margin:7px 0 22px;}
+.account-mode-switch{display:grid; grid-template-columns:1fr 1fr; gap:4px; padding:4px; margin-bottom:18px; background:var(--bg-void); border:1px solid var(--line-soft); border-radius:10px;}
+.account-mode-switch button{min-height:38px; border-radius:7px; color:var(--muted); font-size:12px; font-weight:700;}
+.account-mode-switch button.active{background:var(--bg-raised-2); color:var(--gold-bright); box-shadow:inset 0 0 0 1px var(--line);}
+.account-field{display:block; margin:0 0 13px; color:var(--muted); font-size:11px; font-weight:700;}
+.account-field input{display:block; width:100%; margin-top:6px; padding:12px 13px; border:1px solid var(--line); border-radius:9px; background:var(--bg-void); color:var(--parchment); font:400 14px var(--font-body);}
+.account-field input:focus{outline:none; border-color:var(--gold);}
+.account-status{min-height:18px; margin-top:12px; color:var(--muted); font-size:11px; line-height:1.5; text-align:center;}
+.account-session-state{text-align:center; padding:8px 0 2px;}
+.account-session-state .glyph{font-size:30px; margin-bottom:10px;}
+.account-session-state p{color:var(--muted); font-size:12px; line-height:1.5; margin-bottom:14px;}
+.account-footnote{margin-top:18px; color:var(--dim); font-size:10px; line-height:1.5; text-align:center;}
+@keyframes accountEnter{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
 </style>
 </head>
 <body>
@@ -312,6 +329,37 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
     <div class="glyph">⚔️</div>
     <h1 style="font-size:24px;color:var(--gold-bright);">Nemesy RPG</h1>
     <p class="muted" style="margin-top:6px;">A carregar a tua lenda…</p>
+  </div>
+
+  <!-- ACCOUNT ENTRY -->
+  <div class="screen" id="screen-account">
+    <div class="account-panel">
+      <div class="account-mark">⚔</div>
+      <h1>Nemesy RPG</h1>
+      <p class="account-subtitle">Entra na tua conta para continuar a aventura.</p>
+      <div class="account-mode-switch" id="account-mode-switch" role="tablist" aria-label="Acesso à conta">
+        <button type="button" class="active" data-account-mode="login" role="tab" aria-selected="true">Iniciar sessão</button>
+        <button type="button" data-account-mode="signup" role="tab" aria-selected="false">Criar conta</button>
+      </div>
+      <form id="account-entry-form">
+        <label class="account-field" for="account-entry-email">Email
+          <input id="account-entry-email" type="email" autocomplete="email" required placeholder="nome@exemplo.com">
+        </label>
+        <label class="account-field" for="account-entry-password">Palavra-passe
+          <input id="account-entry-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Pelo menos 6 caracteres">
+        </label>
+        <button class="btn primary block" id="account-entry-submit" type="submit">Iniciar sessão</button>
+      </form>
+      <div class="account-session-state" id="account-session-state" hidden>
+        <div class="glyph">☁️</div>
+        <p id="account-session-message">A verificar a sessão…</p>
+        <button class="btn primary block" id="account-retry" type="button" hidden>Tentar carregar progresso</button>
+        <button class="btn ghost block" id="account-signout" type="button" hidden>Terminar sessão</button>
+      </div>
+      <p class="account-status" id="account-screen-message" role="status" aria-live="polite"></p>
+      <p class="account-footnote" id="account-config-message" hidden>O serviço de contas não está configurado. Confirma o ficheiro supabase-config.js e executa supabase/schema.sql no projeto.</p>
+      <p class="account-footnote">O teu progresso fica associado à tua conta.</p>
+    </div>
   </div>
 
   <!-- CHARACTER CREATION -->
@@ -393,6 +441,8 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
   </div>
 
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./supabase-config.js"></script>
 <script>
 
 
@@ -1777,6 +1827,9 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
 // APP STATE, SAVE / LOAD
 // ============================================================
 const SAVE_KEY = 'nemesy_rpg_save_v1';
+const SAVE_UPDATED_KEY = 'nemesy_rpg_save_updated_at_v1';
+const CLOUD_SYNC_KEY = 'nemesy_rpg_cloud_sync_v1';
+const CLOUD_SAVE_TABLE = 'game_saves';
 const App = {
   player: null,
   screen: 'boot',
@@ -1789,22 +1842,44 @@ const App = {
   combat: null,
   createClass: null
 };
+let cloudClient = null;
+let cloudUser = null;
+let cloudSaveReady = false;
+let cloudSaveTimer = null;
+let cloudHydrationUserId = null;
+let cloudSaveErrorShown = false;
+let accountGateActive = false;
+let cloudHydrationFailed = false;
+let accountFormMode = 'login';
+let localSaveUpdatedAt = 0;
+let localSaveRevision = 0;
 
 function saveGame() {
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(App.player));
+    localSaveUpdatedAt = Date.now();
+    localSaveRevision += 1;
+    localStorage.setItem(SAVE_UPDATED_KEY, String(localSaveUpdatedAt));
+    queueCloudSave();
     return true;
   } catch (e) { console.warn('Falha ao guardar:', e); return false; }
 }
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
+    localSaveUpdatedAt = Number(localStorage.getItem(SAVE_UPDATED_KEY)) || 0;
     if (!raw) return null;
     return JSON.parse(raw);
   } catch (e) { return null; }
 }
 function wipeSave() {
-  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  try {
+    localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem(SAVE_UPDATED_KEY);
+    localStorage.removeItem(CLOUD_SYNC_KEY);
+  } catch (e) {}
+  localSaveUpdatedAt = 0;
+  localSaveRevision += 1;
 }
 
 function exportSave() {
@@ -1830,6 +1905,349 @@ function importSaveFromFile(file) {
     } catch (e) { toast('Não foi possível ler este ficheiro de save.'); }
   };
   reader.readAsText(file);
+}
+
+function readCloudSyncMeta(userId) {
+  try {
+    const meta = JSON.parse(localStorage.getItem(CLOUD_SYNC_KEY) || 'null');
+    return meta && meta.userId === userId ? meta : null;
+  } catch (e) { return null; }
+}
+
+function queueCloudSave() {
+  if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSaveTimer = setTimeout(() => { syncCloudSaveNow(); }, 1000);
+}
+
+async function syncCloudSaveNow() {
+  if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player) return false;
+  const userId = cloudUser.id;
+  const revision = localSaveRevision;
+  const localUpdatedAt = localSaveUpdatedAt;
+  const cloudUpdatedAt = new Date().toISOString();
+  const saveData = JSON.parse(JSON.stringify(App.player));
+  try {
+    const { data, error } = await cloudClient.from(CLOUD_SAVE_TABLE)
+      .upsert({ user_id: userId, save_data: saveData, updated_at: cloudUpdatedAt }, { onConflict: 'user_id' })
+      .select('updated_at')
+      .single();
+    if (error) throw error;
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
+      userId,
+      localUpdatedAt,
+      cloudUpdatedAt: Date.parse(data.updated_at) || Date.parse(cloudUpdatedAt)
+    }));
+    cloudSaveErrorShown = false;
+    if (revision !== localSaveRevision) queueCloudSave();
+    return true;
+  } catch (error) {
+    console.error('Falha ao sincronizar save:', error);
+    if (!cloudSaveErrorShown) {
+      toast('Save local guardado, mas não foi possível sincronizar com a conta.');
+      cloudSaveErrorShown = true;
+    }
+    return false;
+  }
+}
+
+async function deleteCloudSave() {
+  if (!cloudClient || !cloudUser) return true;
+  const { error } = await cloudClient.from(CLOUD_SAVE_TABLE).delete().eq('user_id', cloudUser.id);
+  if (error) {
+    toast('Não foi possível apagar o save da conta. O progresso não foi reiniciado.');
+    return false;
+  }
+  return true;
+}
+
+function applyCloudSave(saveData, cloudUpdatedAt) {
+  if (!saveData || !CLASSES[saveData.class]) {
+    cloudSaveReady = true;
+    toast('O save da conta não é válido. O save deste dispositivo foi mantido.');
+    return;
+  }
+  App.player = saveData;
+  applyPlayerMigrations(App.player);
+  App.selectedRegionIndex = App.player.regionIndex || 0;
+  cloudSaveReady = false;
+  saveGame();
+  localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
+    userId: cloudUser.id,
+    localUpdatedAt,
+    cloudUpdatedAt: Date.parse(cloudUpdatedAt) || 0
+  }));
+  cloudSaveReady = true;
+  accountGateActive = false;
+  goHub();
+  closeModal();
+  queueCloudSave();
+  toast('Progresso da conta carregado.');
+}
+
+function openSaveConflictModal(localSave, cloudSave, cloudUpdatedAt) {
+  openModal(`
+    <h3 style="margin-bottom:10px;">☁️ Escolhe o progresso</h3>
+    <p class="muted" style="margin-bottom:14px;">Encontrámos saves diferentes neste dispositivo e na tua conta. Escolhe qual queres manter; o outro será substituído na sincronização.</p>
+    <button class="btn primary block" id="btn-use-cloud-save" style="margin-bottom:8px;">Usar progresso da conta · Nv. ${Number(cloudSave.level) || 1}</button>
+    <button class="btn block" id="btn-use-local-save" style="margin-bottom:8px;">Usar progresso deste dispositivo · Nv. ${Number(localSave.level) || 1}</button>
+  `);
+  $('btn-use-cloud-save').addEventListener('click', () => applyCloudSave(cloudSave, cloudUpdatedAt));
+  $('btn-use-local-save').addEventListener('click', () => {
+    accountGateActive = false;
+    cloudSaveReady = true;
+    closeModal();
+    finishAccountGate();
+    queueCloudSave();
+    toast('O progresso deste dispositivo será sincronizado.');
+  });
+}
+
+async function hydrateCloudSave(user) {
+  if (!cloudClient || !user || cloudHydrationUserId === user.id) return;
+  cloudHydrationUserId = user.id;
+  cloudHydrationFailed = false;
+  cloudSaveReady = false;
+  try {
+    const { data, error } = await cloudClient.from(CLOUD_SAVE_TABLE)
+      .select('save_data, updated_at')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (error) throw error;
+
+    const localSave = loadGame();
+    const cloudSave = data && data.save_data;
+    if (cloudSave && !CLASSES[cloudSave.class]) throw new Error('O save na conta não tem uma classe válida.');
+
+    if (localSave && cloudSave) {
+      const syncMeta = readCloudSyncMeta(user.id);
+      const localPending = !syncMeta || localSaveUpdatedAt > syncMeta.localUpdatedAt;
+      const remoteUpdatedAt = Date.parse(data.updated_at) || 0;
+      const cloudPending = !syncMeta || remoteUpdatedAt > syncMeta.cloudUpdatedAt;
+      if (localPending && cloudPending) {
+        openSaveConflictModal(localSave, cloudSave, data.updated_at);
+        return;
+      }
+      if (cloudPending) {
+        applyCloudSave(cloudSave, data.updated_at);
+        return;
+      }
+      cloudSaveReady = true;
+      if (localPending) queueCloudSave();
+      finishAccountGate();
+      return;
+    }
+
+    if (cloudSave) {
+      applyCloudSave(cloudSave, data.updated_at);
+      return;
+    }
+
+    cloudSaveReady = true;
+    if (localSave) await syncCloudSaveNow();
+    finishAccountGate();
+  } catch (error) {
+    cloudSaveReady = false;
+    cloudHydrationUserId = null;
+    cloudHydrationFailed = true;
+    console.error('Falha ao carregar save da conta:', error);
+    renderAccountScreen('Não foi possível carregar o save. Confirma se executaste supabase/schema.sql e tenta novamente.');
+  }
+}
+
+function setAccountScreenMessage(message, isError) {
+  const element = $('account-screen-message');
+  element.textContent = message;
+  element.style.color = isError ? 'var(--blood-bright)' : 'var(--muted)';
+}
+
+function renderAccountScreen(message = '') {
+  const configured = Boolean(cloudClient);
+  const authenticated = Boolean(cloudUser);
+  $('account-entry-form').hidden = authenticated || !configured;
+  $('account-mode-switch').hidden = authenticated || !configured;
+  $('account-session-state').hidden = !authenticated;
+  $('account-config-message').hidden = configured;
+  $('account-session-message').textContent = cloudHydrationFailed
+    ? 'Não foi possível carregar o progresso da conta.'
+    : 'A verificar a sessão e o progresso…';
+  $('account-retry').hidden = !(authenticated && cloudHydrationFailed);
+  $('account-signout').hidden = !authenticated;
+  $('account-entry-submit').textContent = accountFormMode === 'signup' ? 'Criar conta' : 'Iniciar sessão';
+  $('account-entry-password').autocomplete = accountFormMode === 'signup' ? 'new-password' : 'current-password';
+  els('[data-account-mode]').forEach(button => {
+    const selected = button.dataset.accountMode === accountFormMode;
+    button.classList.toggle('active', selected);
+    button.setAttribute('aria-selected', String(selected));
+  });
+  setAccountScreenMessage(message, false);
+  showScreen('screen-account');
+}
+
+function finishAccountGate() {
+  accountGateActive = false;
+  closeModal();
+  if (App.player) {
+    goHub();
+    return;
+  }
+  App.createClass = null;
+  showScreen('screen-create');
+  renderClassList();
+}
+
+function wireAccountScreenEvents() {
+  els('[data-account-mode]').forEach(button => button.addEventListener('click', () => {
+    accountFormMode = button.dataset.accountMode;
+    setAccountScreenMessage('');
+    renderAccountScreen();
+  }));
+  $('account-entry-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!cloudClient) return;
+    const email = $('account-entry-email').value.trim();
+    const password = $('account-entry-password').value;
+    const submit = $('account-entry-submit');
+    submit.disabled = true;
+    setAccountScreenMessage(accountFormMode === 'signup' ? 'A criar a conta…' : 'A iniciar sessão…');
+    try {
+      const result = accountFormMode === 'signup'
+        ? await cloudClient.auth.signUp({ email, password })
+        : await cloudClient.auth.signInWithPassword({ email, password });
+      if (result.error) throw result.error;
+      if (accountFormMode === 'signup' && !result.data.session) {
+        accountFormMode = 'login';
+        renderAccountScreen('Conta criada. Confirma o email e depois inicia sessão.');
+        return;
+      }
+      cloudUser = result.data.user;
+      accountGateActive = true;
+      cloudHydrationFailed = false;
+      renderAccountScreen('Conta validada. A carregar o progresso…');
+      if (cloudUser) setTimeout(() => hydrateCloudSave(cloudUser), 0);
+    } catch (error) {
+      setAccountScreenMessage(error.message || 'Não foi possível aceder à conta.', true);
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  $('account-retry').addEventListener('click', () => {
+    if (!cloudUser) return;
+    cloudHydrationUserId = null;
+    cloudHydrationFailed = false;
+    renderAccountScreen('A carregar o progresso da conta…');
+    hydrateCloudSave(cloudUser);
+  });
+  $('account-signout').addEventListener('click', async () => {
+    const { error } = await cloudClient.auth.signOut();
+    if (error) setAccountScreenMessage(error.message, true);
+  });
+}
+
+function initializeCloudAccounts() {
+  accountGateActive = true;
+  const config = window.NEMESY_SUPABASE_CONFIG;
+  if (!config || !config.url || !config.publishableKey || !window.supabase || !window.supabase.createClient) {
+    renderAccountScreen();
+    return;
+  }
+  cloudClient = window.supabase.createClient(config.url, config.publishableKey);
+  renderAccountScreen('A verificar a sessão…');
+  cloudClient.auth.onAuthStateChange((event, session) => {
+    cloudUser = session ? session.user : null;
+    if (!cloudUser) {
+      cloudSaveReady = false;
+      cloudHydrationUserId = null;
+      cloudHydrationFailed = false;
+      accountGateActive = true;
+      if (event === 'SIGNED_OUT') $('modal-overlay').classList.remove('active');
+      renderAccountScreen(event === 'INITIAL_SESSION' ? '' : 'Sessão terminada. Inicia sessão para continuar.');
+      return;
+    }
+    if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+      accountGateActive = true;
+      cloudHydrationFailed = false;
+      renderAccountScreen('A carregar o progresso da conta…');
+      setTimeout(() => hydrateCloudSave(cloudUser), 0);
+    }
+  });
+  window.addEventListener('online', queueCloudSave);
+}
+
+function setAccountMessage(message, isError) {
+  const element = $('account-message');
+  if (!element) return;
+  element.textContent = message;
+  element.style.color = isError ? 'var(--blood-bright)' : 'var(--arcane-bright)';
+}
+
+function openAccountModal(message = '') {
+  const content = !cloudClient ? `
+    <p class="muted">O serviço de contas ainda não está configurado. Preenche o URL do projeto e a chave pública em <b>supabase-config.js</b>, e executa <b>supabase/schema.sql</b> no SQL Editor do projeto.</p>
+  ` : cloudUser ? `
+    <p class="muted" style="margin-bottom:12px;">Sessão iniciada como <b>${esc(cloudUser.email || 'jogador')}</b>.</p>
+    ${accountGateActive ? (cloudHydrationFailed ? '<button class="btn primary block" id="btn-account-retry" style="margin-bottom:8px;">Tentar carregar progresso</button>' : '<p class="tiny" style="margin-bottom:8px;">A carregar o progresso da conta…</p>') : '<button class="btn primary block" id="btn-account-sync" style="margin-bottom:8px;">☁️ Sincronizar agora</button>'}
+    <button class="btn block" id="btn-account-signout">Terminar sessão</button>
+  ` : `
+    <label class="tiny" for="account-email">Email</label>
+    <input class="name-input" id="account-email" type="email" autocomplete="email" required placeholder="nome@exemplo.com" style="margin:4px 0 10px;">
+    <label class="tiny" for="account-password">Palavra-passe</label>
+    <input class="name-input" id="account-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Pelo menos 6 caracteres" style="margin:4px 0 10px;">
+    <button class="btn primary block" id="btn-account-login" style="margin-bottom:8px;">Iniciar sessão</button>
+    <button class="btn block" id="btn-account-signup">Criar conta</button>
+  `;
+  openModal(`
+    <h3 style="margin-bottom:10px;">👤 Conta e sincronização</h3>
+    ${content}
+    <p class="tiny" id="account-message" role="status" aria-live="polite" style="margin-top:10px;">${esc(message)}</p>
+    ${accountGateActive ? '' : '<button class="btn ghost block" id="btn-close-modal" style="margin-top:12px;">Fechar</button>'}
+  `);
+  const closeButton = $('btn-close-modal');
+  if (closeButton) closeButton.addEventListener('click', closeModal);
+
+  if (!cloudClient) return;
+  if (cloudUser) {
+    if (accountGateActive) {
+      $('btn-account-retry').addEventListener('click', () => {
+        cloudHydrationUserId = null;
+        cloudHydrationFailed = false;
+        openAccountModal('A carregar o progresso da conta...');
+        hydrateCloudSave(cloudUser);
+      });
+    } else {
+      $('btn-account-sync').addEventListener('click', async () => {
+        const synced = await syncCloudSaveNow();
+        setAccountMessage(synced ? 'Progresso sincronizado.' : 'Não foi possível sincronizar. O save local continua guardado.', !synced);
+      });
+    }
+    $('btn-account-signout').addEventListener('click', async () => {
+      const { error } = await cloudClient.auth.signOut();
+      if (error) setAccountMessage(error.message, true);
+      else { accountGateActive = true; renderAccountScreen('Sessão terminada. Inicia sessão para continuar.'); }
+    });
+    return;
+  }
+
+  $('btn-account-login').addEventListener('click', async () => {
+    const email = $('account-email').value.trim();
+    const password = $('account-password').value;
+    const { data, error } = await cloudClient.auth.signInWithPassword({ email, password });
+    if (error) { setAccountMessage(error.message, true); return; }
+    cloudUser = data.user;
+    openAccountModal('Sessão iniciada. A verificar o progresso guardado.');
+  });
+  $('btn-account-signup').addEventListener('click', async () => {
+    const email = $('account-email').value.trim();
+    const password = $('account-password').value;
+    const { data, error } = await cloudClient.auth.signUp({ email, password });
+    if (error) { setAccountMessage(error.message, true); return; }
+    if (data.session && data.user) {
+      cloudUser = data.user;
+      openAccountModal('Conta criada. A verificar o progresso deste dispositivo.');
+    } else {
+      setAccountMessage('Conta criada. Confirma o email para poderes iniciar sessão.');
+    }
+  });
 }
 
 // ============================================================
@@ -1864,6 +2282,7 @@ function openModal(html) {
   $('modal-overlay').classList.add('active');
 }
 function closeModal() {
+  if (accountGateActive) return;
   sfx.close();
   $('modal-overlay').classList.remove('active');
 }
@@ -2173,6 +2592,11 @@ function renderClassList() {
 }
 
 function startNewGame() {
+  if (!cloudUser || accountGateActive || !cloudSaveReady) {
+    accountGateActive = true;
+    renderAccountScreen('Inicia sessão e aguarda o carregamento do progresso para jogar.');
+    return;
+  }
   const name = $('hero-name').value.trim().slice(0, 16) || 'Herói';
   if (!App.createClass) { toast('Escolhe uma classe primeiro.'); return; }
   App.player = newPlayer(name, App.createClass);
@@ -5544,8 +5968,12 @@ function openSettingsModal() {
       <span style="font-weight:700;">🎨 Cor do menu</span>
       <div class="theme-swatch-grid" style="margin-top:10px;">${themeSwatches}</div>
     </div>
+    <div class="card raised" style="margin-bottom:12px;">
+      <p class="tiny" style="margin-bottom:8px;">A tua conta sincroniza o progresso para poderes continuar noutro dispositivo.</p>
+      <button class="btn block" id="btn-open-account">👤 Conta e sincronização</button>
+    </div>
     <div class="card raised">
-      <p class="tiny" style="margin-bottom:8px;">O progresso é guardado automaticamente neste dispositivo. Podes ainda exportar um ficheiro de segurança ou carregar um save existente.</p>
+      <p class="tiny" style="margin-bottom:8px;">O progresso é guardado automaticamente. Também podes exportar um ficheiro de segurança ou carregar um save existente.</p>
       <button class="btn block" id="btn-export-save" style="margin-bottom:8px;">⬇️ Exportar save (.json)</button>
       <button class="btn block" id="btn-import-save" style="margin-bottom:8px;">⬆️ Importar save</button>
       <input type="file" id="file-import" accept="application/json" style="display:none;">
@@ -5558,14 +5986,16 @@ function openSettingsModal() {
   `;
   openModal(html);
   $('btn-close-modal').addEventListener('click', closeModal);
+  $('btn-open-account').addEventListener('click', openAccountModal);
   $('btn-toggle-sound').addEventListener('click', () => { toggleMute(); openSettingsModal(); });
   els('[data-music-key]').forEach(b => b.addEventListener('click', () => { setMusicTheme(b.dataset.musicKey); openSettingsModal(); }));
   els('[data-theme-key]').forEach(b => b.addEventListener('click', () => { setTheme(b.dataset.themeKey); openSettingsModal(); }));
   $('btn-export-save').addEventListener('click', exportSave);
   $('btn-import-save').addEventListener('click', () => $('file-import').click());
   $('file-import').addEventListener('change', (e) => { if (e.target.files[0]) importSaveFromFile(e.target.files[0]); });
-  $('btn-reset-save').addEventListener('click', () => {
+  $('btn-reset-save').addEventListener('click', async () => {
     if (confirm('Isto vai apagar o teu herói atual. Tens a certeza?')) {
+      if (!await deleteCloudSave()) return;
       wipeSave();
       App.player = null;
       closeModal();
@@ -5580,6 +6010,7 @@ function openSettingsModal() {
 // INIT
 // ============================================================
 function wireStaticEvents() {
+  wireAccountScreenEvents();
   $('btn-start-game').addEventListener('click', () => { sfx.click(); startNewGame(); });
   els('.nav-btn').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
   $('cb-btn-potion').addEventListener('click', () => { sfx.click(); openPotionModal(); });
@@ -5666,6 +6097,7 @@ if (typeof document !== 'undefined') {
   applyTheme(loadThemePref());
   document.addEventListener('DOMContentLoaded', () => {
     init();
+    initializeCloudAccounts();
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Não foi possível registar o modo offline:', error));
     }

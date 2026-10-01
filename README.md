@@ -71,21 +71,38 @@ Edita `index.html` para alterar o jogo. Mantém os outros ficheiros na
 mesma pasta e publica as alterações no mesmo repositório/hosting; o link do
 jogo não muda. Para forçar a atualização da cache offline em todos os
 dispositivos, incrementa o nome em `CACHE_NAME` no início de `sw.js` (por
-exemplo, de `nemesy-rpg-v2` para `nemesy-rpg-v3`). O ficheiro
+exemplo, de `nemesy-rpg-v3` para `nemesy-rpg-v4`). O ficheiro
 `Nemesy-RPG.html` redireciona instalações antigas para o novo endereço do jogo.
 
 ## Nota sobre os saves
 
-O jogo guarda o progresso em `localStorage`, isolado por app instalada —
-não sincroniza entre telemóveis nem sobrevive a desinstalar a app. Usa o
-botão de exportar/importar save (já existe nas Definições do jogo) antes de
-desinstalar ou trocar de telemóvel.
+É necessário criar conta ou iniciar sessão para jogar. O progresso é guardado
+neste dispositivo e sincronizado com a conta. É necessária ligação à internet
+para iniciar sessão e carregar o save da conta. Se a ligação cair durante uma
+sessão aberta, o progresso continua a ser guardado localmente e sincroniza
+quando a ligação voltar. Exporta também um ficheiro de segurança antes de
+desinstalar a app ou limpar os dados do browser.
+
+## Contas e sincronização Supabase
+
+O jogo está ligado ao projeto Supabase configurado em `supabase-config.js`.
+Para criar a tabela de saves, abre **SQL Editor** nesse projeto e executa o
+conteúdo de `supabase/schema.sql` uma vez. A chave publishable usada pelo jogo
+não tem permissões para criar tabelas; essa operação tem de ser feita no painel.
+
+Em **Authentication → URL Configuration**, define como **Site URL**:
+   `https://l0rdnemesypt.github.io/NemesyRPG/`
+Confirma também que a confirmação por email está configurada como desejas. Nunca
+coloques a chave `service_role` no jogo ou no GitHub.
+
+A tabela aplica Row Level Security: cada conta só pode ler ou alterar o seu
+próprio save. Cria uma conta ou inicia sessão no ecrã de entrada. Se já existir
+progresso neste dispositivo e na conta, o jogo pergunta qual dos dois saves deve
+manter.
 
 ## Jogar com outras pessoas
 
-Depois de publicares o PWA, qualquer pessoa com o link pode jogar no seu
-próprio dispositivo. O jogo continua a ser individual e offline: não tem
-contas, ranking global, partidas em tempo real nem saves sincronizados. A
-secção Amigos permite trocar itens por códigos, mas não valida as trocas num
-servidor. Para essas funcionalidades é necessário criar e alojar um backend
-com autenticação e armazenamento partilhado.
+Qualquer pessoa com o link pode jogar no seu próprio dispositivo. As contas
+sincronizam o progresso individual, mas não há ranking global nem partidas em
+tempo real. A secção Amigos permite trocar itens por códigos, mas não valida
+as trocas num servidor; para isso é necessário um backend próprio.
