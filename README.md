@@ -42,29 +42,20 @@ A história do jogo é orientada por uma progressão de poder, onde o herói ava
 
 ## Ficheiros do projeto
 
-- `Nemesy-RPG.html` — ficheiro principal; contém o jogo e é onde podes editar o código.
-- `index.html` — entrada do site; encaminha o link principal para o jogo.
+- `index.html` — ficheiro principal; contém o jogo e é onde podes editar o código.
 - `manifest.webmanifest` — nome, ícones e definições da app instalável.
 - `sw.js` — guarda os ficheiros do jogo para utilização offline após a primeira visita.
 - `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` — ícones da app.
 
-## Passo 1 — Colocar estes ficheiros online (é obrigatório usar HTTPS)
+## Publicação
 
-Um PWA só funciona servido por HTTPS (não abre como PWA em `file://`).
-A forma mais simples e gratuita é o **GitHub Pages**:
+O jogo está publicado no GitHub Pages em:
 
-1. Cria uma conta no GitHub (github.com) se ainda não tiveres.
-2. Cria um repositório novo, por exemplo `nemesy-rpg`.
-3. Faz upload de todos os ficheiros do projeto para a raiz desse repositório
-   (botão "Add file" → "Upload files" no site do GitHub).
-4. Vai a **Settings → Pages** do repositório, em "Branch" escolhe `main` e
-   pasta `/ (root)`, e grava.
-5. Ao fim de 1-2 minutos o GitHub dá-te um link tipo:
-   `https://o-teu-utilizador.github.io/nemesy-rpg/`
+https://l0rdnemesypt.github.io/NemesyRPG/
 
-Alternativas igualmente boas e gratuitas: **Netlify** ou **Vercel** — nesses
-basta arrastar a pasta para o browser deles (drag & drop), sem precisares
-sequer de conta no GitHub.
+O GitHub Pages serve o site por HTTPS, necessário para instalar a app e usar
+o modo offline. A configuração do Pages publica a branch `main`, na pasta
+raiz (`/(root)`).
 
 ## Passo 2 — Instalar no telemóvel Android
 
@@ -76,7 +67,7 @@ sequer de conta no GitHub.
 
 ## Editar e publicar atualizações
 
-Edita `Nemesy-RPG.html` para alterar o jogo. Mantém os outros ficheiros na
+Edita `index.html` para alterar o jogo. Mantém os outros ficheiros na
 mesma pasta e publica as alterações no mesmo repositório/hosting; o link do
 jogo não muda. Para forçar a atualização da cache offline em todos os
 dispositivos, incrementa o nome em `CACHE_NAME` no início de `sw.js` (por
