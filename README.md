@@ -42,10 +42,11 @@ A história do jogo é orientada por uma progressão de poder, onde o herói ava
 
 ## Ficheiros do projeto
 
-- `index.html` — o jogo (com o manifest e o service worker já ligados)
-- `manifest.json` — nome, ícone e cor da app
-- `sw.js` — permite abrir o jogo offline depois da primeira visita
-- `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` — ícones da app
+- `Nemesy-RPG.html` — ficheiro principal; contém o jogo e é onde podes editar o código.
+- `index.html` — entrada do site; encaminha o link principal para o jogo.
+- `manifest.webmanifest` — nome, ícones e definições da app instalável.
+- `sw.js` — guarda os ficheiros do jogo para utilização offline após a primeira visita.
+- `icon-192.png`, `icon-512.png`, `icon-512-maskable.png` — ícones da app.
 
 ## Passo 1 — Colocar estes ficheiros online (é obrigatório usar HTTPS)
 
@@ -54,8 +55,8 @@ A forma mais simples e gratuita é o **GitHub Pages**:
 
 1. Cria uma conta no GitHub (github.com) se ainda não tiveres.
 2. Cria um repositório novo, por exemplo `nemesy-rpg`.
-3. Faz upload destes 6 ficheiros para esse repositório (botão "Add file" →
-   "Upload files" no site do GitHub — não precisas de linha de comandos).
+3. Faz upload de todos os ficheiros do projeto para a raiz desse repositório
+   (botão "Add file" → "Upload files" no site do GitHub).
 4. Vai a **Settings → Pages** do repositório, em "Branch" escolhe `main` e
    pasta `/ (root)`, e grava.
 5. Ao fim de 1-2 minutos o GitHub dá-te um link tipo:
@@ -73,13 +74,13 @@ sequer de conta no GitHub.
 3. Confirma — fica com ícone próprio, abre em ecrã inteiro, sem barra do
    browser, e depois da primeira vez continua a abrir mesmo sem internet.
 
-## Publicar uma atualização mais tarde
+## Editar e publicar atualizações
 
-Sempre que fizeres alterações ao jogo:
-1. Substitui o `index.html` pela nova versão no repositório/hosting.
-2. Abre `sw.js` e muda `nemesy-rpg-v1` para `nemesy-rpg-v2` (ou seguinte) —
-   isto é importante, porque é o que faz o telemóvel descarregar a versão
-   nova em vez de continuar a mostrar a antiga a partir da cache.
+Edita `Nemesy-RPG.html` para alterar o jogo. Mantém os outros ficheiros na
+mesma pasta e publica as alterações no mesmo repositório/hosting; o link do
+jogo não muda. Para forçar a atualização da cache offline em todos os
+dispositivos, incrementa o nome em `CACHE_NAME` no início de `sw.js` (por
+exemplo, de `nemesy-rpg-v1` para `nemesy-rpg-v2`).
 
 ## Nota sobre os saves
 

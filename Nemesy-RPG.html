@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Nemesy RPG</title>
-<link rel="icon" href="data:,">
+<meta name="theme-color" content="#100D0A">
+<meta name="description" content="Nemesy RPG: aventura de fantasia com combates por turnos, classes e progressão.">
+<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="manifest" href="./manifest.webmanifest">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -5661,7 +5664,12 @@ function init() {
 
 if (typeof document !== 'undefined') {
   applyTheme(loadThemePref());
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => {
+    init();
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Não foi possível registar o modo offline:', error));
+    }
+  });
 }
 
 if (typeof module !== 'undefined' && module.exports) {

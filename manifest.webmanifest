@@ -1,0 +1,30 @@
+{
+  "id": "./Nemesy-RPG.html",
+  "name": "Nemesy RPG",
+  "short_name": "Nemesy RPG",
+  "description": "Aventura de fantasia com combates por turnos, classes e progressão.",
+  "lang": "pt-PT",
+  "start_url": "./Nemesy-RPG.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#100D0A",
+  "theme_color": "#100D0A",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "./icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
