@@ -86,8 +86,10 @@ desinstalar a app ou limpar os dados do browser.
 ## Contas e sincronização Supabase
 
 O jogo está ligado ao projeto Supabase configurado em `supabase-config.js`.
-Para criar a tabela de saves, abre **SQL Editor** nesse projeto e executa o
-conteúdo de `supabase/schema.sql` uma vez. A chave publishable usada pelo jogo
+Para preparar os saves e o mercado, abre **SQL Editor** nesse projeto e executa
+a versão atual de `supabase/schema.sql`. Se já executaste uma versão anterior,
+executa novamente o ficheiro atualizado para criar as funções e tabelas de Trades.
+A chave publishable usada pelo jogo
 não tem permissões para criar tabelas; essa operação tem de ser feita no painel.
 
 Em **Authentication → URL Configuration**, define como **Site URL**:
@@ -97,12 +99,15 @@ coloques a chave `service_role` no jogo ou no GitHub.
 
 A tabela aplica Row Level Security: cada conta só pode ler ou alterar o seu
 próprio save. Cria uma conta ou inicia sessão no ecrã de entrada. Se já existir
-progresso neste dispositivo e na conta, o jogo pergunta qual dos dois saves deve
-manter.
+progresso neste dispositivo e na conta, o progresso do servidor prevalece.
+Uma sessão não fica guardada entre aberturas do jogo: é necessário iniciar
+sessão novamente sempre que a app for aberta.
 
 ## Jogar com outras pessoas
 
-Qualquer pessoa com o link pode jogar no seu próprio dispositivo. As contas
-sincronizam o progresso individual, mas não há ranking global nem partidas em
-tempo real. A secção Amigos permite trocar itens por códigos, mas não valida
-as trocas num servidor; para isso é necessário um backend próprio.
+Qualquer pessoa com o link pode jogar no seu próprio dispositivo. Na tab
+**Trades**, cada jogador pode manter até 3 itens anunciados por ouro, comprar
+itens de outros jogadores ou retirar os próprios anúncios. As compras e
+transferências são executadas em transações na base de dados. O jogo e os
+ganhos continuam a ser calculados no cliente; um sistema anti-cheat completo
+exigiria validar a progressão do jogo num servidor.

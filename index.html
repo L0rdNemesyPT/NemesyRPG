@@ -393,7 +393,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
       <div class="nav-row">
         <button class="nav-btn" data-tab="loja"><span class="ic">🏙️</span>Cidade</button>
         <button class="nav-btn" data-tab="upplus"><span class="ic">🧬</span>Up+</button>
-        <button class="nav-btn" data-tab="amigos"><span class="ic">👥</span>Amigos</button>
+        <button class="nav-btn" data-tab="trades"><span class="ic">💱</span>Trades</button>
         <button class="nav-btn" data-tab="wiki"><span class="ic">📚</span>Wiki</button>
       </div>
     </div>
@@ -1926,23 +1926,35 @@ async function syncCloudSaveNow() {
   const revision = localSaveRevision;
   const localUpdatedAt = localSaveUpdatedAt;
   const cloudUpdatedAt = new Date().toISOString();
+  const syncMeta = readCloudSyncMeta(userId);
+  const expectedRevision = syncMeta && syncMeta.cloudRevision !== null && Number.isSafeInteger(Number(syncMeta.cloudRevision))
+    ? Number(syncMeta.cloudRevision) : null;
   const saveData = JSON.parse(JSON.stringify(App.player));
   try {
-    const { data, error } = await cloudClient.from(CLOUD_SAVE_TABLE)
-      .upsert({ user_id: userId, save_data: saveData, updated_at: cloudUpdatedAt }, { onConflict: 'user_id' })
-      .select('updated_at')
-      .single();
+    const { data, error } = await cloudClient.rpc('save_player_game', {
+      p_save_data: saveData,
+      p_expected_revision: expectedRevision
+    });
     if (error) throw error;
     localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
       userId,
       localUpdatedAt,
-      cloudUpdatedAt: Date.parse(data.updated_at) || Date.parse(cloudUpdatedAt)
+      cloudUpdatedAt: Date.parse(data.updated_at) || Date.parse(cloudUpdatedAt),
+      cloudRevision: Number(data.revision)
     }));
     cloudSaveErrorShown = false;
     if (revision !== localSaveRevision) queueCloudSave();
     return true;
   } catch (error) {
     console.error('Falha ao sincronizar save:', error);
+    if (String(error.message || '').includes('SAVE_CONFLICT')) {
+      cloudSaveReady = false;
+      cloudHydrationUserId = null;
+      setTimeout(() => {
+        if (cloudUser && cloudUser.id === userId) hydrateCloudSave(cloudUser);
+      }, 0);
+      return false;
+    }
     if (!cloudSaveErrorShown) {
       toast('Save local guardado, mas não foi possível sincronizar com a conta.');
       cloudSaveErrorShown = true;
@@ -1961,45 +1973,83 @@ async function deleteCloudSave() {
   return true;
 }
 
-function applyCloudSave(saveData, cloudUpdatedAt) {
+function applyCloudSave(saveData, cloudUpdatedAt, cloudRevision) {
   if (!saveData || !CLASSES[saveData.class]) {
     cloudSaveReady = true;
     toast('O save da conta não é válido. O save deste dispositivo foi mantido.');
     return;
   }
+  const originalSave = JSON.stringify(saveData);
   App.player = saveData;
   applyPlayerMigrations(App.player);
+  const saveWasMigrated = JSON.stringify(App.player) !== originalSave;
   App.selectedRegionIndex = App.player.regionIndex || 0;
   cloudSaveReady = false;
   saveGame();
   localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
     userId: cloudUser.id,
-    localUpdatedAt,
-    cloudUpdatedAt: Date.parse(cloudUpdatedAt) || 0
+    localUpdatedAt: localSaveUpdatedAt,
+    cloudUpdatedAt: Date.parse(cloudUpdatedAt) || 0,
+    cloudRevision: Number(cloudRevision) || 0
   }));
   cloudSaveReady = true;
   accountGateActive = false;
   goHub();
   closeModal();
-  queueCloudSave();
+  if (saveWasMigrated) queueCloudSave();
   toast('Progresso da conta carregado.');
 }
 
-function openSaveConflictModal(localSave, cloudSave, cloudUpdatedAt) {
+function openSaveConflictModal(localSave, cloudSave, cloudUpdatedAt, cloudRevision) {
   openModal(`
     <h3 style="margin-bottom:10px;">☁️ Escolhe o progresso</h3>
     <p class="muted" style="margin-bottom:14px;">Encontrámos saves diferentes neste dispositivo e na tua conta. Escolhe qual queres manter; o outro será substituído na sincronização.</p>
     <button class="btn primary block" id="btn-use-cloud-save" style="margin-bottom:8px;">Usar progresso da conta · Nv. ${Number(cloudSave.level) || 1}</button>
     <button class="btn block" id="btn-use-local-save" style="margin-bottom:8px;">Usar progresso deste dispositivo · Nv. ${Number(localSave.level) || 1}</button>
   `);
-  $('btn-use-cloud-save').addEventListener('click', () => applyCloudSave(cloudSave, cloudUpdatedAt));
+  $('btn-use-cloud-save').addEventListener('click', () => applyCloudSave(cloudSave, cloudUpdatedAt, cloudRevision));
   $('btn-use-local-save').addEventListener('click', () => {
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
+      userId: cloudUser.id,
+      localUpdatedAt: localSaveUpdatedAt,
+      cloudUpdatedAt: Date.parse(cloudUpdatedAt) || 0,
+      cloudRevision: Number(cloudRevision) || 0
+    }));
     accountGateActive = false;
     cloudSaveReady = true;
     closeModal();
     finishAccountGate();
     queueCloudSave();
     toast('O progresso deste dispositivo será sincronizado.');
+  });
+}
+
+function openLocalSaveImportModal(localSave, user) {
+  openModal(`
+    <h3 style="margin-bottom:10px;">☁️ Progresso neste dispositivo</h3>
+    <p class="muted" style="margin-bottom:14px;">Esta conta ainda não tem um save. Encontrámos um herói de nível ${Number(localSave.level) || 1} guardado neste dispositivo. Queres associá-lo a esta conta?</p>
+    <button class="btn primary block" id="btn-link-local-save" style="margin-bottom:8px;">Usar este progresso na conta</button>
+    <button class="btn block" id="btn-leave-local-save">Terminar sessão sem transferir</button>
+  `);
+  $('btn-link-local-save').addEventListener('click', () => {
+    if (!cloudUser || cloudUser.id !== user.id) return;
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
+      userId: user.id,
+      localUpdatedAt: localSaveUpdatedAt,
+      cloudUpdatedAt: 0,
+      cloudRevision: null
+    }));
+    cloudSaveReady = true;
+    accountGateActive = false;
+    closeModal();
+    finishAccountGate();
+    queueCloudSave();
+    toast('O progresso deste dispositivo será associado à conta.');
+  });
+  $('btn-leave-local-save').addEventListener('click', async () => {
+    cloudSaveReady = false;
+    const { error } = await cloudClient.auth.signOut();
+    if (error) toast('Não foi possível terminar sessão.');
   });
 }
 
@@ -2010,7 +2060,7 @@ async function hydrateCloudSave(user) {
   cloudSaveReady = false;
   try {
     const { data, error } = await cloudClient.from(CLOUD_SAVE_TABLE)
-      .select('save_data, updated_at')
+      .select('save_data, updated_at, revision')
       .eq('user_id', user.id)
       .maybeSingle();
     if (error) throw error;
@@ -2019,32 +2069,16 @@ async function hydrateCloudSave(user) {
     const cloudSave = data && data.save_data;
     if (cloudSave && !CLASSES[cloudSave.class]) throw new Error('O save na conta não tem uma classe válida.');
 
-    if (localSave && cloudSave) {
-      const syncMeta = readCloudSyncMeta(user.id);
-      const localPending = !syncMeta || localSaveUpdatedAt > syncMeta.localUpdatedAt;
-      const remoteUpdatedAt = Date.parse(data.updated_at) || 0;
-      const cloudPending = !syncMeta || remoteUpdatedAt > syncMeta.cloudUpdatedAt;
-      if (localPending && cloudPending) {
-        openSaveConflictModal(localSave, cloudSave, data.updated_at);
-        return;
-      }
-      if (cloudPending) {
-        applyCloudSave(cloudSave, data.updated_at);
-        return;
-      }
-      cloudSaveReady = true;
-      if (localPending) queueCloudSave();
-      finishAccountGate();
-      return;
-    }
-
     if (cloudSave) {
-      applyCloudSave(cloudSave, data.updated_at);
+      applyCloudSave(cloudSave, data.updated_at, data.revision);
       return;
     }
 
     cloudSaveReady = true;
-    if (localSave) await syncCloudSaveNow();
+    if (localSave) {
+      openLocalSaveImportModal(localSave, user);
+      return;
+    }
     finishAccountGate();
   } catch (error) {
     cloudSaveReady = false;
@@ -2151,7 +2185,13 @@ function initializeCloudAccounts() {
     renderAccountScreen();
     return;
   }
-  cloudClient = window.supabase.createClient(config.url, config.publishableKey);
+  cloudClient = window.supabase.createClient(config.url, config.publishableKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: true,
+      detectSessionInUrl: false
+    }
+  });
   renderAccountScreen('A verificar a sessão…');
   cloudClient.auth.onAuthStateChange((event, session) => {
     cloudUser = session ? session.user : null;
@@ -2217,6 +2257,7 @@ function openAccountModal(message = '') {
     } else {
       $('btn-account-sync').addEventListener('click', async () => {
         const synced = await syncCloudSaveNow();
+        if (!synced && !cloudSaveReady) return;
         setAccountMessage(synced ? 'Progresso sincronizado.' : 'Não foi possível sincronizar. O save local continua guardado.', !synced);
       });
     }
@@ -2654,7 +2695,7 @@ function renderHubTab() {
   else if (App.tab === 'loja') renderTabLoja();
   else if (App.tab === 'mapa') renderTabMapa();
   else if (App.tab === 'upplus') renderTabUpPlus();
-  else if (App.tab === 'amigos') renderTabAmigos();
+  else if (App.tab === 'trades') renderTabTrades();
   else if (App.tab === 'wiki') renderTabWiki();
 }
 
@@ -2898,65 +2939,177 @@ function renderWikiBody() {
 
 
 // ============================================================
-// TAB: AMIGOS (comércio com amigos)
-// ------------------------------------------------------------
-// Nota: chegou a existir aqui um "Posto de Comércio" partilhado (uma
-// página à parte com base de dados em tempo real). Foi removido porque
-// esse tipo de página só pode ser aberta por gente da mesma organização
-// Anthropic que eu — ou seja, nunca teria funcionado entre amigos reais.
-// Fica só a troca direta por código, que funciona sempre, sem depender
-// de mais nada.
+// TAB: TRADES (marketplace de itens por ouro)
 // ============================================================
-function renderTabAmigos() {
+let tradeRenderToken = 0;
+
+function renderTradeItem(listing, isMine) {
+  const item = listing.item || {};
+  const icon = SLOT_ICONS[item.slot] || '📦';
+  const rarity = esc(item.rarityName || 'Item');
+  const name = esc(item.name || 'Item sem nome');
+  const seller = esc(listing.seller_name || 'Jogador');
+  const id = esc(listing.id);
+  const rawStats = item.stats && typeof item.stats === 'object' ? item.stats : {};
+  const rawBaseStats = item.baseStats && typeof item.baseStats === 'object' ? item.baseStats : {};
+  const statKeys = ['hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'crit', 'regenPct', 'dmgReducedFromBossPct'];
+  const stats = Object.fromEntries(statKeys.map(key => [key, Number.isFinite(Number(rawStats[key])) ? Number(rawStats[key]) : 0]));
+  const baseStats = Object.fromEntries(statKeys.map(key => [key, Number.isFinite(Number(rawBaseStats[key])) ? Number(rawBaseStats[key]) : 0]));
+  if (rawStats.dmgMin === undefined || rawStats.dmgMax === undefined) {
+    delete stats.dmgMin;
+    delete stats.dmgMax;
+    delete baseStats.dmgMin;
+    delete baseStats.dmgMax;
+  }
+  const upgrade = Number.isFinite(Number(item.upgrade)) ? Math.max(0, Math.min(9, Number(item.upgrade))) : 0;
+  const statsLine = esc(formatStatTotals(itemStatsAtUpgrade({ stats, baseStats }, upgrade)));
+  return `<div class="item-row">
+    <div class="item-ic">${icon}</div>
+    <div class="item-mid">
+      <div class="item-name"><span class="rarity-ic">${esc(item.rarityIcon || '⚪')}</span>${name}${item.upgrade ? ` +${Number(item.upgrade)}` : ''}</div>
+      <div class="item-sub tiny">${rarity} · ${esc(SLOT_NAMES[item.slot] || 'Equipamento')}${isMine ? '' : ` · ${seller}`}</div>
+      <div class="item-stats">Nível ${Number(item.itemLevel) || 1} · ${Number(listing.price)} ouro</div>
+      <div class="item-stats">${statsLine}</div>
+    </div>
+    <button class="btn small ${isMine ? '' : 'primary'}" data-trade-action="${isMine ? 'cancel' : 'buy'}" data-trade-id="${id}">${isMine ? 'Retirar' : 'Comprar'}</button>
+  </div>`;
+}
+
+function updateTradeSave(saveData, cloudRevision, cloudUpdatedAt) {
+  if (!saveData || !CLASSES[saveData.class]) throw new Error('O save devolvido pelo servidor não é válido.');
+  App.player = saveData;
+  applyPlayerMigrations(App.player);
+  App.selectedRegionIndex = App.player.regionIndex || 0;
+  const wasReady = cloudSaveReady;
+  cloudSaveReady = false;
+  saveGame();
+  if (cloudUser) {
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
+      userId: cloudUser.id,
+      localUpdatedAt: localSaveUpdatedAt,
+      cloudUpdatedAt: Date.parse(cloudUpdatedAt) || 0,
+      cloudRevision: Number(cloudRevision) || 0
+    }));
+  }
+  cloudSaveReady = wasReady;
+  renderStatusBar();
+}
+
+async function listTradeItem(itemId) {
+  const priceInput = $(`trade-price-${itemId}`);
+  const price = Number(priceInput && priceInput.value);
+  if (!Number.isSafeInteger(price) || price < 1 || price > 2147483647) {
+    toast('Define um preço inteiro entre 1 e 2 147 483 647 ouro.');
+    return;
+  }
+  const button = els('[data-trade-list]').find(element => element.dataset.tradeList === itemId);
+  if (button) button.disabled = true;
+  try {
+    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de anunciar.');
+    const { data, error } = await cloudClient.rpc('create_trade_listing', { p_item_id: itemId, p_price: price });
+    if (error) throw error;
+    updateTradeSave(data.save_data, data.revision, data.updated_at);
+    sfx.gold();
+    toast('Item colocado à venda.');
+    await renderTabTrades();
+  } catch (error) {
+    toast(error.message || 'Não foi possível criar o anúncio.');
+    if (button) button.disabled = false;
+  }
+}
+
+async function buyTradeItem(listingId, button) {
+  button.disabled = true;
+  try {
+    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes da compra.');
+    const { data, error } = await cloudClient.rpc('purchase_trade_listing', { p_listing_id: listingId });
+    if (error) throw error;
+    updateTradeSave(data.save_data, data.revision, data.updated_at);
+    sfx.gold();
+    toast('Compra concluída. O item está na tua mochila.');
+    await renderTabTrades();
+  } catch (error) {
+    toast(error.message || 'Não foi possível concluir a compra.');
+    button.disabled = false;
+  }
+}
+
+async function cancelTradeItem(listingId, button) {
+  button.disabled = true;
+  try {
+    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de retirar o anúncio.');
+    const { data, error } = await cloudClient.rpc('cancel_trade_listing', { p_listing_id: listingId });
+    if (error) throw error;
+    updateTradeSave(data.save_data, data.revision, data.updated_at);
+    toast('Anúncio retirado. O item voltou para a mochila.');
+    await renderTabTrades();
+  } catch (error) {
+    toast(error.message || 'Não foi possível retirar o anúncio.');
+    button.disabled = false;
+  }
+}
+
+async function renderTabTrades() {
+  const token = ++tradeRenderToken;
   const p = App.player;
-  const itemsHtml = p.inventory.length ? p.inventory.map(item => `
-    <div class="item-row" data-export-item="${item.id}" style="${rarityBoxStyle(item)}">
-      <div class="item-ic">${SLOT_ICONS[item.slot]}</div>
-      <div class="item-mid">
-        <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name}${item.upgrade ? ` +${item.upgrade}` : ''}</div>
-        <div class="item-sub tiny" style="color:${item.rarityColor}">${item.rarityName}</div>
+  $('hub-content').innerHTML = '<div class="section-title">💱 Trades</div><p class="muted">A carregar anúncios…</p>';
+  if (!cloudClient || !cloudUser) {
+    $('hub-content').innerHTML += '<p class="muted">Inicia sessão para consultar o mercado.</p>';
+    return;
+  }
+  try {
+    const { data, error } = await cloudClient.from('player_trade_listings')
+      .select('id,seller_id,seller_name,item,price,created_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    if (token !== tradeRenderToken || App.tab !== 'trades') return;
+    const listings = data || [];
+    const ownListings = listings.filter(listing => listing.seller_id === cloudUser.id);
+    const marketListings = listings.filter(listing => listing.seller_id !== cloudUser.id);
+    const inventory = Array.isArray(p.inventory) ? p.inventory : [];
+    const slotsLeft = Math.max(0, 3 - ownListings.length);
+    const inventoryHtml = inventory.length && slotsLeft ? inventory.map(item => `
+      <div class="item-row">
+        <div class="item-ic">${SLOT_ICONS[item.slot] || '📦'}</div>
+        <div class="item-mid">
+          <div class="item-name"><span class="rarity-ic">${esc(item.rarityIcon || '⚪')}</span>${esc(item.name || 'Item')}${item.upgrade ? ` +${Number(item.upgrade)}` : ''}</div>
+          <div class="item-sub tiny">${esc(item.rarityName || 'Item')} · ${esc(SLOT_NAMES[item.slot] || 'Equipamento')}</div>
+          <label class="item-stats" for="trade-price-${esc(item.id)}">Preço em ouro</label>
+          <input class="name-input" id="trade-price-${esc(item.id)}" type="number" inputmode="numeric" min="1" max="2147483647" step="1" value="${Math.max(1, itemSellValue(item))}" style="margin:4px 0 0; padding:8px; font-size:12px;">
+        </div>
+        <button class="btn small primary" data-trade-list="${esc(item.id)}">Vender</button>
+      </div>`).join('') : '<p class="muted">' + (slotsLeft ? 'A tua mochila está vazia.' : 'Já tens 3 anúncios ativos. Retira um para colocar outro item à venda.') + '</p>';
+
+    $('hub-content').innerHTML = `
+      <div class="row between" style="margin-bottom:4px;">
+        <div class="section-title" style="margin:4px 0 10px;">💱 Trades</div>
+        <button class="btn small ghost" id="btn-refresh-trades" title="Atualizar anúncios">↻ Atualizar</button>
       </div>
-      <button class="btn small primary">Exportar</button>
-    </div>`).join('') : `<p class="muted">A tua mochila está vazia — não tens itens para dar.</p>`;
-
-  $('hub-content').innerHTML = `
-    <div class="section-title">👥 Comércio com amigos</div>
-    <div class="card raised">
-      <p class="tiny">Este jogo corre offline no teu telemóvel, sem servidor — por isso a troca funciona por código: exportas um item, envias o código ao teu amigo (por WhatsApp, Mensagens, etc.), e ele importa-o do lado dele.</p>
-      <p class="tiny" style="margin-top:8px; color:var(--gold-bright);">⚠️ Combina sempre primeiro o que cada um vai dar — depois de enviares o código, não há como desfazer, e nada impede tecnicamente que um código seja usado mais do que uma vez fora deste dispositivo. Só confies em amigos de boa-fé.</p>
-    </div>
-
-    <div class="section-title">📤 Exportar um item</div>
-    <p class="muted" style="margin-bottom:10px;">Escolhe um item da tua mochila para gerar um código e enviares ao teu amigo.</p>
-    ${itemsHtml}
-
-    <div class="section-title">📥 Importar um item</div>
-    <p class="muted" style="margin-bottom:8px;">Recebeste um código de um amigo? Cola-o aqui.</p>
-    <div class="card raised">
-      <textarea id="import-item-code" placeholder="Cola aqui o código do item…" style="width:100%; min-height:70px; background:var(--bg-void); border:1px solid var(--line); border-radius:8px; color:var(--parchment); padding:10px; font-family:var(--font-body); font-size:12.5px; resize:vertical;"></textarea>
-      <button class="btn primary block" id="btn-import-item" style="margin-top:8px;">Importar item</button>
-    </div>
-  `;
-
-  els('[data-export-item]').forEach(row => row.addEventListener('click', () => openExportItemModal(row.dataset.exportItem)));
-  $('btn-import-item').addEventListener('click', () => {
-    const raw = $('import-item-code').value;
-    const code = raw && raw.trim();
-    if (!code) { sfx.error(); toast('Cola primeiro um código de item.'); return; }
-    if (!p.importedTradeCodes) p.importedTradeCodes = [];
-    if (p.importedTradeCodes.includes(code)) { sfx.error(); toast('Já importaste este código antes — não pode ser usado outra vez.'); return; }
-    const item = importItemFromCode(code);
-    if (!item) { sfx.error(); toast('Código inválido — verifica se copiaste tudo.'); return; }
-    migrateWeaponDmgRange(item); // cobre códigos de troca gerados antes do Dano em intervalo existir
-    p.inventory.push(item);
-    p.importedTradeCodes.push(code);
-    if (p.importedTradeCodes.length > 300) p.importedTradeCodes.splice(0, p.importedTradeCodes.length - 300);
-    saveGame();
-    sfx.equip();
-    renderTabAmigos();
-    renderStatusBar();
-    toast(`${item.name} importado para a tua mochila!`);
-  });
+      <p class="muted" style="margin-bottom:8px;">Compra itens de outros jogadores com ouro. Podes manter até 3 anúncios ativos.</p>
+      <div class="section-title">🛒 Mercado (${marketListings.length})</div>
+      ${marketListings.length ? marketListings.map(listing => renderTradeItem(listing, false)).join('') : '<p class="muted">Ainda não há anúncios disponíveis.</p>'}
+      <div class="section-title">📦 Os meus anúncios (${ownListings.length}/3)</div>
+      ${ownListings.length ? ownListings.map(listing => renderTradeItem(listing, true)).join('') : '<p class="muted">Ainda não tens itens à venda.</p>'}
+      <div class="section-title">🪙 Vender um item</div>
+      ${inventoryHtml}
+      <p class="tiny" style="margin-top:10px;">O item sai da mochila enquanto estiver anunciado. Ao vender, recebes o ouro; ao retirar, o item regressa.</p>
+    `;
+    $('btn-refresh-trades').addEventListener('click', renderTabTrades);
+    els('[data-trade-list]').forEach(button => button.addEventListener('click', () => listTradeItem(button.dataset.tradeList)));
+    els('[data-trade-action]').forEach(button => button.addEventListener('click', () => {
+      if (button.dataset.tradeAction === 'buy') buyTradeItem(button.dataset.tradeId, button);
+      else cancelTradeItem(button.dataset.tradeId, button);
+    }));
+  } catch (error) {
+    if (token !== tradeRenderToken || App.tab !== 'trades') return;
+    $('hub-content').innerHTML = `
+      <div class="section-title">💱 Trades</div>
+      <p class="muted">Não foi possível carregar o mercado. Confirma se executaste a versão atualizada de <b>supabase/schema.sql</b>.</p>
+      <p class="tiny" style="margin-top:8px;">${esc(error.message || 'Erro desconhecido')}</p>
+      <button class="btn block" id="btn-refresh-trades" style="margin-top:12px;">Tentar novamente</button>
+    `;
+    $('btn-refresh-trades').addEventListener('click', renderTabTrades);
+  }
 }
 
 function openExportItemModal(itemId) {
@@ -2978,7 +3131,7 @@ function openExportItemModal(itemId) {
     p.inventory.splice(idx, 1);
     saveGame();
     sfx.gold();
-    renderTabAmigos();
+    renderTabTrades();
     renderStatusBar();
     showExportedCodeModal(item, code);
   });
@@ -6099,7 +6252,25 @@ if (typeof document !== 'undefined') {
     init();
     initializeCloudAccounts();
     if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-      navigator.serviceWorker.register('./sw.js').catch(error => console.warn('Não foi possível registar o modo offline:', error));
+      const hadServiceWorkerController = !!navigator.serviceWorker.controller;
+      let serviceWorkerReloading = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!hadServiceWorkerController || serviceWorkerReloading) return;
+        serviceWorkerReloading = true;
+        location.reload();
+      });
+
+      navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+        .then(registration => {
+          const checkForUpdates = () => registration.update().catch(error => {
+            console.warn('Não foi possível verificar atualizações:', error);
+          });
+          checkForUpdates();
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdates();
+          });
+        })
+        .catch(error => console.warn('Não foi possível registar o modo offline:', error));
     }
   });
 }
