@@ -716,7 +716,63 @@ const MOB_SKILLS = {
 
   'Dríade': { chance: 0.22, type: 'lifesteal', icon: '🧝🏽‍♂️', label: 'Dreno da Natureza' },
   'Escorpião Negro': { chance: 0.22, type: 'poison', icon: '🦂', label: 'Ferrão Mortífero' },
-  'Minotauro da Escuridão': { chance: 0.22, type: 'heavy', icon: '🦬', label: 'Investida Brutal' }
+  'Minotauro da Escuridão': { chance: 0.22, type: 'heavy', icon: '🦬', label: 'Investida Brutal' },
+
+  'Lobo Lunar': { chance: 0.18, type: 'bleed', icon: '🌙', label: 'Mordida da Lua' },
+  'Espectro Prateado': { chance: 0.18, type: 'defbreak', icon: '👻', label: 'Toque Etéreo' },
+  'Sacerdotisa da Lua': { chance: 0.18, type: 'lifesteal', icon: '🌙', label: 'Ritual Vital' },
+  'Coruja Mística': { chance: 0.18, type: 'crit_guaranteed', icon: '🦉', label: 'Mergulho Preciso' },
+  'Cruzado Renegado': { chance: 0.18, type: 'heavy', icon: '⚔️', label: 'Martelo de Guerra' },
+  'Freira Amaldiçoada': { chance: 0.18, type: 'burn', icon: '🩸', label: 'Chama Profana' },
+  'Monge Corrompido': { chance: 0.18, type: 'defbreak', icon: '📿', label: 'Punho Quebrador' },
+  'Inquisidor das Trevas': { chance: 0.18, type: 'crit_guaranteed', icon: '⚖️', label: 'Sentença Final' },
+  'Escorpião do Deserto': { chance: 0.18, type: 'poison', icon: '🦂', label: 'Ferrão das Dunas' },
+  'Saqueador das Dunas': { chance: 0.18, type: 'multi', icon: '🏹', label: 'Rajada de Flechas' },
+  'Elemental de Areia': { chance: 0.18, type: 'defbreak', icon: '🌪️', label: 'Erosão Arenosa' },
+  'Múmia Errante': { chance: 0.18, type: 'lifesteal', icon: '🧟', label: 'Dreno Ancestral' },
+  'Súcubo': { chance: 0.18, type: 'lifesteal', icon: '😈', label: 'Beijo Drenante' },
+  'Cão Infernal': { chance: 0.18, type: 'burn', icon: '🐕‍🦺', label: 'Mordida Incendiária' },
+  'Espectro Flamejante': { chance: 0.18, type: 'burn', icon: '🔥', label: 'Toque Flamejante' }
+};
+
+const DUNGEON_WAVE_SKILLS = {
+  cripta: { chance: 0.18, type: 'bleed', icon: '💀', label: 'Golpe Sepulcral' },
+  vulcao: { chance: 0.18, type: 'burn', icon: '🌋', label: 'Explosão Vulcânica' },
+  cidadela: { chance: 0.18, type: 'crit_guaranteed', icon: '✨', label: 'Raio Celestial' },
+  abismo: { chance: 0.18, type: 'defbreak', icon: '🌀', label: 'Fenda do Caos' }
+};
+
+const BOSS_SKILL_CHANCE = 0.12;
+const BOSS_SKILLS = {
+  'Rei Goblin': { chance: BOSS_SKILL_CHANCE, type: 'multi', icon: '👑', label: 'Comando dos Goblins' },
+  'Capitão Bandido': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '🏴‍☠️', label: 'Emboscada do Capitão' },
+  'Dragão Flamejante': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '🐉', label: 'Sopro Flamejante' },
+  'Golem Ancestral': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🗿', label: 'Punho Ancestral' },
+  Fenrir: { chance: BOSS_SKILL_CHANCE, type: 'bleed', icon: '🐺', label: 'Rasgo de Fenrir' },
+  'Kraken do Gelo': { chance: BOSS_SKILL_CHANCE, type: 'defbreak', icon: '🐙', label: 'Turbilhão Glacial' },
+  'Titã da Tempestade': { chance: BOSS_SKILL_CHANCE, type: 'multi', icon: '⛈️', label: 'Trovões Consecutivos' },
+  'Fênix Imortal': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '🔥', label: 'Renascimento em Chamas' },
+  'Wyvern Alfa': { chance: BOSS_SKILL_CHANCE, type: 'poison', icon: '🐲', label: 'Ferrão Alfa' },
+  'Senhor das Trevas': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '🌑', label: 'Dreno das Trevas' },
+  'Urso Alfa': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🐻', label: 'Patada Alfa' },
+  'Hydra Corrompida': { chance: BOSS_SKILL_CHANCE, type: 'poison', icon: '🐍', label: 'Veneno de Múltiplas Cabeças' },
+  'Arcanjo Caído': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '😇', label: 'Lança Caída' },
+  'Demônio Maior': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '👿', label: 'Colheita de Almas' },
+  'Rei Lich': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '💀', label: 'Fogo Fúnebre' },
+  'Deus da Destruição': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '☠️', label: 'Aniquilação' },
+  'Avatar do Caos': { chance: BOSS_SKILL_CHANCE, type: 'defbreak', icon: '🌀', label: 'Ruptura do Caos' },
+  Nemesis: { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '⚡', label: 'Julgamento de Nemesis' },
+  'Dríade Ancestral': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '🌳', label: 'Seiva Vital' },
+  'Soberano da Floresta Negra': { chance: BOSS_SKILL_CHANCE, type: 'defbreak', icon: '🌚', label: 'Raízes Devoradoras' },
+  'Lich Guardião': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '💀', label: 'Dreno do Guardião' },
+  'Dragão de Magma': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '🐲', label: 'Maré de Magma' },
+  'Arcanjo Corrompido': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '😇', label: 'Luz Corrompida' },
+  'Guardião Lunar': { chance: BOSS_SKILL_CHANCE, type: 'bleed', icon: '🌕', label: 'Corte Lunar' },
+  'O Herege Coroado': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '👑', label: 'Decreto do Herege' },
+  'Djinn do Oásis': { chance: BOSS_SKILL_CHANCE, type: 'defbreak', icon: '🧞', label: 'Tempestade de Areia' },
+  'Guardião do Altar': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🛡️', label: 'Impacto do Altar' },
+  'Guardião da Tumba': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '🗿', label: 'Sentinela da Tumba' },
+  'Senhor Demônio Primordial': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '😈', label: 'Dreno Primordial' }
 };
 
 const RARITIES = [
@@ -2869,6 +2925,10 @@ function renderWikiBody() {
       <div class="card raised">
         <span style="font-weight:700;">🔥 Tier 2</span>
         <p class="tiny" style="margin-top:6px;">Mais difíceis do que as Tier 1 em todos os aspetos (ondas normais e chefe final com HP, Dano e Defesa extra), e têm uma onda de <b>mini-chefe</b> antes do chefe final. Recompensa de equipamento semelhante à Tier 1, mas <b>sem</b> peça de set garantida — o verdadeiro prémio de uma Tier 2 é o acesso ao Altar.</p>
+      </div>
+      <div class="card raised">
+        <span style="font-weight:700;">⚡ Habilidades dos inimigos</span>
+        <p class="tiny" style="margin-top:6px;">Os monstros nomeados das dungeons podem usar uma habilidade própria em 18% dos turnos inimigos. As ondas genéricas Tier 1 usam um padrão temático da dungeon. Cada boss e mini-chefe tem uma habilidade própria (12% de hipótese); quando ela ativa, substitui o golpe pesado periódico desse turno. A fúria aumenta o dano abaixo de 30% de HP.</p>
       </div>
       ${tier2.map(d => `
         <div class="card raised">
@@ -5331,7 +5391,7 @@ function spawnDungeonWave() {
   const d = c.dungeonDef;
   const isLastWave = c.waveIndex === c.totalWaves - 1;
   const isMiniBossWave = !!d.miniBossName && c.waveIndex === c.totalWaves - 2;
-  let lvl, name, icon, mult, monsterName = null, category = 'outro';
+  let lvl, name, icon, mult, monsterName = null, dungeonWaveSkill = null, category = 'outro';
 
   if (isLastWave) {
     lvl = d.bossLv || (d.minLv + c.waveIndex * 2);
@@ -5349,6 +5409,7 @@ function spawnDungeonWave() {
   } else {
     lvl = d.minLv + c.waveIndex * 2;
     name = `${d.name} · Onda ${c.waveIndex + 1}`; icon = d.icon; category = d.category || 'outro';
+    dungeonWaveSkill = DUNGEON_WAVE_SKILLS[d.key] || null;
   }
 
   const enemy = enemyStatsFor(lvl, isLastWave || isMiniBossWave);
@@ -5359,7 +5420,7 @@ function spawnDungeonWave() {
   }
   c.enemy = Object.assign(enemy, { element: null, critImmune: false, category });
   c.level = lvl; c.isBoss = isLastWave; c.isMiniBoss = isMiniBossWave;
-  c.name = name; c.icon = icon; c.monsterName = monsterName;
+  c.name = name; c.icon = icon; c.monsterName = monsterName; c.dungeonWaveSkill = dungeonWaveSkill;
   c.battleState = { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: App.player.critBuffBattles > 0, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false };
   c.cooldowns = {};
 }
@@ -5628,8 +5689,8 @@ function resolveEnemyTurn() {
   if (p.hp <= 0) return;
 
   const isBossFight = c.isBoss || c.isMiniBoss;
-  const mobSkill = (!isBossFight && c.monsterName) ? MOB_SKILLS[c.monsterName] : null;
-  const mobSkillTriggered = !!(mobSkill && Math.random() < mobSkill.chance);
+  const enemySkill = isBossFight ? BOSS_SKILLS[c.name] : (c.monsterName ? MOB_SKILLS[c.monsterName] : c.dungeonWaveSkill);
+  const enemySkillTriggered = !!(enemySkill && Math.random() < enemySkill.chance);
 
   // Fúria: ao cair abaixo de 30% de HP, o boss entra em fúria pela primeira vez
   // e o dano dele sobe permanentemente — combates deixam de "acalmar" no fim.
@@ -5648,41 +5709,41 @@ function resolveEnemyTurn() {
   // A cada 3ª ação, o boss desfere um ataque especial muito mais forte —
   // dá ritmo ao combate e obriga a gerir HP/defesa em vez de ignorar o boss.
   c.battleState.enemyTurnCount = (c.battleState.enemyTurnCount || 0) + 1;
-  const heavyAttack = isBossFight && c.battleState.enemyTurnCount % 3 === 0;
+  const heavyAttack = isBossFight && c.battleState.enemyTurnCount % 3 === 0 && !enemySkillTriggered;
 
   let elementEffect = c.enemy.element;
   if (elementEffect === 'caos') elementEffect = ['fogo', 'gelo', 'eletricidade'][Math.floor(Math.random() * 3)];
   let dmgMult = 1;
   if (elementEffect === 'eletricidade' && Math.random() < 0.20) { dmgMult = 1.5; addCombatLog({ text: '⚡ Descarga elétrica surpreendente!', cls: 'hit' }); }
   if (heavyAttack) { dmgMult *= 1.8; addCombatLog({ text: `💥 ${c.name} desfere um ataque especial devastador!`, cls: 'hit' }); }
-  if (mobSkillTriggered && mobSkill.type === 'heavy') dmgMult *= 1.7;
-  if (mobSkillTriggered && mobSkill.type === 'defbreak') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 2; }
+  if (enemySkillTriggered && enemySkill.type === 'heavy') dmgMult *= 1.7;
+  if (enemySkillTriggered && enemySkill.type === 'defbreak') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 2; }
 
-  const forcedCrit = mobSkillTriggered && mobSkill.type === 'crit_guaranteed';
+  const forcedCrit = enemySkillTriggered && enemySkill.type === 'crit_guaranteed';
   const enemyCrit = forcedCrit || Math.random() < (c.enemy.critChance || 0.05);
   if (enemyCrit) dmgMult *= 1.8;
 
   const defMult = getPlayerDefMultiplier(c.battleState);
   let dmg;
-  if (mobSkillTriggered && mobSkill.type === 'multi') {
+  if (enemySkillTriggered && enemySkill.type === 'multi') {
     if (isBossFight && pStats.dmgReducedFromBossPct) dmgMult *= (1 - pStats.dmgReducedFromBossPct);
     const d1 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
     const d2 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
     dmg = d1 + d2;
     p.hp -= dmg;
-    addCombatLog({ text: `${mobSkill.icon} ${c.name} usa ${mobSkill.label}: dois golpes, ${d1} + ${d2} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
+    addCombatLog({ text: `${enemySkill.icon} ${c.name} usa ${enemySkill.label}: dois golpes, ${d1} + ${d2} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   } else {
     let incomingDmg = c.enemy.dmg * dmgMult;
     if (isBossFight && pStats.dmgReducedFromBossPct) incomingDmg *= (1 - pStats.dmgReducedFromBossPct);
     dmg = applyDamage(incomingDmg, pStats.def * defMult, p.level);
     p.hp -= dmg;
-    const verb = mobSkillTriggered ? `usa ${mobSkill.label}` : 'ataca';
-    addCombatLog({ text: `${mobSkillTriggered ? mobSkill.icon : c.icon} ${c.name} ${verb}: ${dmg} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
+    const verb = enemySkillTriggered ? `usa ${enemySkill.label}` : 'ataca';
+    addCombatLog({ text: `${enemySkillTriggered ? enemySkill.icon : c.icon} ${c.name} ${verb}: ${dmg} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   }
   if (enemyCrit) sfx.crit(); else sfx.hit();
 
-  if (mobSkillTriggered && mobSkill.type === 'defbreak') addCombatLog({ text: '🧊 A tua defesa está a enfraquecer.', cls: 'hit' });
-  if (mobSkillTriggered && mobSkill.type === 'bleed' && !c.battleState.playerBleed && !pStats.bleedImmune) {
+  if (enemySkillTriggered && enemySkill.type === 'defbreak') addCombatLog({ text: '🧊 A tua defesa está a enfraquecer.', cls: 'hit' });
+  if (enemySkillTriggered && enemySkill.type === 'bleed' && !c.battleState.playerBleed && !pStats.bleedImmune) {
     c.battleState.playerBleed = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.22)) };
     addCombatLog({ text: '🩸 Estás a sangrar!', cls: 'hit' });
   }
@@ -5693,18 +5754,18 @@ function resolveEnemyTurn() {
     c.battleState.playerBleed = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.22)) };
     addCombatLog({ text: '👹🩸 Os Atormentados fazem-te sangrar!', cls: 'hit' });
   }
-  if (mobSkillTriggered && mobSkill.type === 'poison' && !c.battleState.playerPoison && !pStats.poisonImmune) {
+  if (enemySkillTriggered && enemySkill.type === 'poison' && !c.battleState.playerPoison && !pStats.poisonImmune) {
     c.battleState.playerPoison = { duration: 3, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.18)) };
     addCombatLog({ text: '☣️ Foste envenenado! O veneno também impede a tua regeneração de HP.', cls: 'hit' });
   }
-  if (mobSkillTriggered && mobSkill.type === 'burn' && !c.battleState.playerBurn) {
+  if (enemySkillTriggered && enemySkill.type === 'burn' && !c.battleState.playerBurn) {
     c.battleState.playerBurn = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.22)) };
     addCombatLog({ text: '🔥 Ficaste a arder!', cls: 'hit' });
   }
-  if (mobSkillTriggered && mobSkill.type === 'lifesteal') {
+  if (enemySkillTriggered && enemySkill.type === 'lifesteal') {
     const healAmt = Math.max(1, Math.round(dmg * 0.5));
     c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + healAmt);
-    addCombatLog({ text: `${mobSkill.icon} ${c.name} recupera ${healAmt} HP!`, cls: 'hit' });
+    addCombatLog({ text: `${enemySkill.icon} ${c.name} recupera ${healAmt} HP!`, cls: 'hit' });
   }
 
   if (elementEffect === 'fogo') { c.battleState.playerBurn = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.2)) }; addCombatLog({ text: '🔥 Ficaste a arder!', cls: 'hit' }); }
