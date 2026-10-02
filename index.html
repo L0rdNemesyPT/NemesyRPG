@@ -2131,6 +2131,10 @@ function finishAccountGate() {
   renderClassList();
 }
 
+function getEmailConfirmationRedirectUrl() {
+  return new URL('./email-confirmed.html', window.location.href).href;
+}
+
 function wireAccountScreenEvents() {
   els('[data-account-mode]').forEach(button => button.addEventListener('click', () => {
     accountFormMode = button.dataset.accountMode;
@@ -2147,7 +2151,7 @@ function wireAccountScreenEvents() {
     setAccountScreenMessage(accountFormMode === 'signup' ? 'A criar a conta…' : 'A iniciar sessão…');
     try {
       const result = accountFormMode === 'signup'
-        ? await cloudClient.auth.signUp({ email, password })
+        ? await cloudClient.auth.signUp({ email, password, options: { emailRedirectTo: getEmailConfirmationRedirectUrl() } })
         : await cloudClient.auth.signInWithPassword({ email, password });
       if (result.error) throw result.error;
       if (accountFormMode === 'signup' && !result.data.session) {
@@ -2281,7 +2285,7 @@ function openAccountModal(message = '') {
   $('btn-account-signup').addEventListener('click', async () => {
     const email = $('account-email').value.trim();
     const password = $('account-password').value;
-    const { data, error } = await cloudClient.auth.signUp({ email, password });
+    const { data, error } = await cloudClient.auth.signUp({ email, password, options: { emailRedirectTo: getEmailConfirmationRedirectUrl() } });
     if (error) { setAccountMessage(error.message, true); return; }
     if (data.session && data.user) {
       cloudUser = data.user;

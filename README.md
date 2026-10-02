@@ -97,6 +97,10 @@ não tem permissões para criar tabelas; essa operação tem de ser feita no pai
 
 Em **Authentication → URL Configuration**, define como **Site URL**:
    `https://l0rdnemesypt.github.io/NemesyRPG/`
+Adiciona também às **Redirect URLs**:
+   `https://l0rdnemesypt.github.io/NemesyRPG/email-confirmed.html`
+O template de confirmação deve manter o link `{{ .ConfirmationURL }}` para o
+Supabase aplicar o destino de retorno enviado pelo jogo.
 Confirma também que a confirmação por email está configurada como desejas. Nunca
 coloques a chave `service_role` no jogo ou no GitHub.
 
