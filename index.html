@@ -765,11 +765,14 @@ const EQUIP_SLOTS = ['weapon', 'offhand', 'head', 'chest', 'cape', 'boots', 'glo
 const ARMOR_SLOTS = ['offhand', 'head', 'chest', 'cape', 'boots', 'gloves'];
 const SLOT_NAMES = {
   weapon: 'Arma', offhand: 'Secundária', head: 'Cabeça', chest: 'Peitoral',
-  cape: 'Capa', boots: 'Botas', gloves: 'Luvas', amulet: 'Amuleto', artifact: 'Artefacto'
+  cape: 'Capa', boots: 'Botas', gloves: 'Luvas', amulet: 'Amuleto', artifact: 'Artefacto', talisman: 'Talismã'
 };
 const SLOT_ICONS = {
   weapon: '🗡️', offhand: '🛡️', head: '🪖', chest: '👕',
-  cape: '🧣', boots: '🥾', gloves: '🧤', amulet: '📿', artifact: '🔯'
+  cape: '🧣', boots: '🥾', gloves: '🧤', amulet: '📿', artifact: '🔯', talisman: '🍀'
+};
+const TALISMAN_DEFS = {
+  fortune: { name: '[Talismã da Fortuna 🍀]', hp: 100, dropLuck: 0.02, duration: 50 }
 };
 
 const ITEM_NAME_PARTS = {
@@ -1246,7 +1249,7 @@ function newPlayer(name, cls) {
     potions: { hp: 3, def: 0, atk: 0, fortune: 0 },
     abilities,
     masteredAbility: null,
-    equipment: {}, inventory: [],
+    equipment: { talisman: null }, inventory: [], talismans: [],
     gems: { defesa: [0, 0, 0], dano: [0, 0, 0], vida: [0, 0, 0], critico: [0, 0, 0] },
     alchemySlots: new Array(ALCHEMY_SLOT_COUNT).fill(null),
     alchemyStones: newAlchemyStonesBag(),
@@ -1266,6 +1269,26 @@ function newPlayer(name, cls) {
     quest: null,
     stats: { wins: 0, losses: 0, bossesKilled: 0 }
   };
+}
+
+function getEquippedTalisman(player) {
+  if (!player || !player.equipment || !player.equipment.talisman) return null;
+  return (player.talismans || []).find(talisman =>
+    talisman.id === player.equipment.talisman && TALISMAN_DEFS[talisman.key] && talisman.battlesRemaining > 0
+  ) || null;
+}
+
+function grantTalisman(player, key) {
+  const definition = TALISMAN_DEFS[key];
+  if (!definition) return null;
+  const talisman = {
+    id: `tal_${Math.random().toString(36).slice(2, 10)}`,
+    key,
+    battlesRemaining: definition.duration
+  };
+  player.talismans = player.talismans || [];
+  player.talismans.push(talisman);
+  return talisman;
 }
 
 function getEvoBonus(player) {
@@ -1299,6 +1322,8 @@ function effectiveStats(player) {
   const base = statsAtLevel(player.class, player.level);
   const evoBonus = getEvoBonus(player);
   let hp = base.hp + evoBonus.hp;
+  const talisman = getEquippedTalisman(player);
+  if (talisman) hp += TALISMAN_DEFS[talisman.key].hp;
   let dmg = base.dmg + evoBonus.dmg;
   // Intervalo de dano (mín–máx) do golpe, alimentado sobretudo pela arma equipada;
   // começa igual ao dano fixo (base de classe/evolução não tem variação própria).
@@ -1415,6 +1440,7 @@ function effectiveStats(player) {
   const setBonuses = activeSetBonuses(player);
   let dmgPctTotal = itemDmgPct / 100, hpPctTotal = 0, defPctTotal = 0, setRegenPct = 0, poisonImmune = false;
   let professionRegenPct = 0, dropLuckBonus = 0;
+  if (talisman) dropLuckBonus += TALISMAN_DEFS[talisman.key].dropLuck;
   setBonuses.forEach(b => {
     if (b.dmgPct) dmgPctTotal += b.dmgPct;
     if (b.hpPct) hpPctTotal += b.hpPct;
@@ -3638,6 +3664,7 @@ function renderTabMochila() {
     <div class="tab-strip">
       <button class="tab-chip${App.invTab==='equip'?' active':''}" data-invtab="equip">Equipamento</button>
       <button class="tab-chip${App.invTab==='itens'?' active':''}" data-invtab="itens">Itens (${p.inventory.length})</button>
+      <button class="tab-chip${App.invTab==='talismas'?' active':''}" data-invtab="talismas">Talismãs (${(p.talismans || []).length})</button>
       <button class="tab-chip${App.invTab==='baus'?' active':''}" data-invtab="baus">Baús${p.chests.length ? ` (${p.chests.length})` : ''}</button>
       <button class="tab-chip${App.invTab==='gemas'?' active':''}" data-invtab="gemas">Gemas${gemTotal ? ` (${gemTotal})` : ''}</button>
       <button class="tab-chip${App.invTab==='alquimia'?' active':''}" data-invtab="alquimia">Alquimia (${alchemyFilled}/${ALCHEMY_SLOT_COUNT})</button>
@@ -3653,7 +3680,8 @@ function renderMochilaBody() {
   const p = App.player;
   const body = $('mochila-body');
   if (App.invTab === 'equip') {
-    const equippedCount = EQUIP_SLOTS.filter(s => p.equipment[s]).length;
+    const equippedTalisman = getEquippedTalisman(p);
+    const equippedCount = EQUIP_SLOTS.filter(s => p.equipment[s]).length + (equippedTalisman ? 1 : 0);
     const setBonuses = activeSetBonuses(p);
     const setGroups = {};
     setBonuses.forEach(b => { (setGroups[b.setKey] = setGroups[b.setKey] || { icon: b.setIcon, name: b.setName, bonuses: [] }).bonuses.push(b); });
@@ -3661,7 +3689,7 @@ function renderMochilaBody() {
     const summaryCard = `<div class="card raised" style="margin-bottom:14px;">
       <div class="row between" style="align-items:center;">
         <span style="font-weight:700;">🧍 Equipamento</span>
-        <span class="pill" style="${equippedCount === 9 ? 'border-color:var(--gold-bright); color:var(--gold-bright);' : ''}">${equippedCount}/9</span>
+        <span class="pill" style="${equippedCount === 10 ? 'border-color:var(--gold-bright); color:var(--gold-bright);' : ''}">${equippedCount}/10</span>
       </div>
       ${Object.keys(setGroups).length ? `
         <div style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft); display:flex; flex-direction:column; gap:6px;">
@@ -3687,8 +3715,13 @@ function renderMochilaBody() {
 
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Toca num espaço para veres detalhes, encaixares gemas ou desequipares.</p>`
       + summaryCard
-      + GROUPS.map(g => `<div class="section-title">${g.title}</div>${slotGrid(g.slots)}`).join('');
+      + GROUPS.map(g => `<div class="section-title">${g.title}</div>${slotGrid(g.slots)}`).join('')
+      + `<div class="section-title">🍀 Talismã</div><div class="slot-grid"><button class="equip-slot${equippedTalisman ? ' filled' : ''}" data-manage-talisman type="button">
+        <div class="ic">🍀</div><div class="lbl">Talismã</div>
+        ${equippedTalisman ? `<div class="itemname">${esc(TALISMAN_DEFS[equippedTalisman.key].name)}</div><div class="tiny">${equippedTalisman.battlesRemaining}/50 batalhas</div>` : '<div class="tiny">Vazio</div>'}
+      </button></div>`;
     els('[data-equip-slot]').forEach(s => { s.style.position = 'relative'; s.addEventListener('click', () => openEquipSlotModal(s.dataset.equipSlot)); });
+    $('[data-manage-talisman]').addEventListener('click', () => { App.invTab = 'talismas'; renderTabMochila(); });
   } else if (App.invTab === 'itens') {
     if (!p.inventory.length) {
       body.innerHTML = `<div class="empty-hint">🎒 A tua mochila está vazia.<br>Derrota monstros e abre baús para encontrar equipamento.</div>`;
@@ -3820,7 +3853,38 @@ function renderMochilaBody() {
     renderChestsBody(body, p);
   } else if (App.invTab === 'feiticos') {
     renderFeiticosBody(body, p);
+  } else if (App.invTab === 'talismas') {
+    renderTalismasBody(body, p);
   }
+}
+
+function renderTalismasBody(body, p) {
+  const talismans = p.talismans || [];
+  if (!talismans.length) {
+    body.innerHTML = `<div class="empty-hint">🍀 Ainda não tens Talismãs.<br>O Djinn do Oásis pode deixar cair o [Talismã da Fortuna 🍀] ao ser derrotado.</div>`;
+    return;
+  }
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Os Talismãs não têm raridade. As batalhas de duração só contam enquanto estiverem equipados.</p>` + talismans.map(talisman => {
+    const definition = TALISMAN_DEFS[talisman.key];
+    const equipped = p.equipment.talisman === talisman.id;
+    return `<div class="item-row">
+      <div class="item-ic">🍀</div>
+      <div class="item-mid">
+        <div class="item-name">${esc(definition.name)}</div>
+        <div class="item-stats">+${definition.hp} HP · +${Math.round(definition.dropLuck * 100)}% Sorte de drop de itens</div>
+        <div class="tiny">${talisman.battlesRemaining}/50 batalhas restantes${equipped ? ' · equipado' : ''}</div>
+      </div>
+      <button class="btn small ${equipped ? '' : 'primary'}" data-talisman-toggle="${esc(talisman.id)}">${equipped ? 'Desequipar' : 'Equipar'}</button>
+    </div>`;
+  }).join('');
+  els('[data-talisman-toggle]').forEach(button => button.addEventListener('click', () => {
+    const id = button.dataset.talismanToggle;
+    p.equipment.talisman = p.equipment.talisman === id ? null : id;
+    saveGame();
+    renderMochilaBody();
+    renderStatusBar();
+    toast(p.equipment.talisman ? `${TALISMAN_DEFS[talismans.find(t => t.id === id).key].name} equipado.` : 'Talismã desequipado.');
+  }));
 }
 
 function pearlsSummaryHtml(p) {
@@ -5643,6 +5707,8 @@ function handleEnemyDefeated() {
   addCombatLog({ text: `${c.icon} ${c.name} foi derrotado!`, cls: 'crit' });
   if (c.isDungeon) {
     if (c.waveIndex < c.totalWaves - 1) {
+      consumeTalismanBattle();
+      saveGame();
       c.waveIndex++;
       const p = App.player, pStats = effectiveStats(p);
       p.hp = Math.min(pStats.hp, p.hp + Math.round(pStats.hp * 0.25));
@@ -5660,6 +5726,19 @@ function handleEnemyDefeated() {
     return;
   }
   finishWildOrBossVictory();
+}
+
+function consumeTalismanBattle() {
+  const p = App.player;
+  const talisman = getEquippedTalisman(p);
+  if (!talisman) return;
+  talisman.battlesRemaining--;
+  if (talisman.battlesRemaining <= 0) {
+    p.talismans = p.talismans.filter(owned => owned.id !== talisman.id);
+    p.equipment.talisman = null;
+    p.hp = Math.min(p.hp, effectiveStats(p).hp);
+    toast(`${TALISMAN_DEFS[talisman.key].name} desapareceu após 50 batalhas.`);
+  }
 }
 
 function tickProfessionCooldowns(p) {
@@ -5796,6 +5875,7 @@ function finishWildOrBossVictory() {
   if (p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
   if (p.critBuffBattles > 0) p.critBuffBattles--;
   tickProfessionCooldowns(p);
+  consumeTalismanBattle();
 
   saveGame();
   if (isBoss) sfx.evolve(); else sfx.victory();
@@ -5837,6 +5917,7 @@ function finishCatacumba() {
   }
 
   tickProfessionCooldowns(p);
+  consumeTalismanBattle();
   saveGame();
   sfx.evolve();
   showCombatEnd(true, { xpGain, goldGain, drops, isBoss: true, dungeon: true });
@@ -5852,6 +5933,11 @@ function finishDungeon() {
   const rewardSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
   const item = generateItem(rewardSlot, d.minLv, d.setKey || null, true);
   p.inventory.push(item);
+  const drops = [`${item.name} · ${item.rarityName}${d.setKey ? ' · ' + SET_DEFS[d.setKey].name : ''}`];
+  if (d.key === 'oasis' && Math.random() < 0.20) {
+    const talisman = grantTalisman(p, 'fortune');
+    drops.push(`🍀 O Djinn do Oásis deixou cair ${TALISMAN_DEFS[talisman.key].name}!`);
+  }
   if (!p.clearedDungeons.includes(d.key)) p.clearedDungeons.push(d.key);
   let altarMsg = '';
   if (d.tier === 2) {
@@ -5861,16 +5947,14 @@ function finishDungeon() {
   const stoneType = randomAlchemyType();
   const stoneLevel = clamp(1 + Math.floor(d.minLv / 20), 1, ALCHEMY_MAX_LEVEL);
   grantAlchemyStone(p, stoneType, stoneLevel);
+  drops.push(`${ALCHEMY_STONE_DEFS[stoneType].icon} Pedra de Alquimia: ${ALCHEMY_STONE_DEFS[stoneType].name} (Nv. ${stoneLevel})`);
+  if (altarMsg) drops.push(altarMsg);
   tickProfessionCooldowns(p);
+  consumeTalismanBattle();
   saveGame();
   sfx.evolve();
   showCombatEnd(true, {
-    xpGain, goldGain,
-    drops: [
-      `${item.name} · ${item.rarityName}${d.setKey ? ' · ' + SET_DEFS[d.setKey].name : ''}`,
-      `${ALCHEMY_STONE_DEFS[stoneType].icon} Pedra de Alquimia: ${ALCHEMY_STONE_DEFS[stoneType].name} (Nv. ${stoneLevel})`,
-      ...(altarMsg ? [altarMsg] : [])
-    ],
+    xpGain, goldGain, drops,
     isBoss: true, dungeon: true
   });
 }
@@ -5884,6 +5968,7 @@ function handlePlayerDefeated() {
   p.stats.losses++;
   if (p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
   tickProfessionCooldowns(p);
+  consumeTalismanBattle();
   saveGame();
   sfx.defeat();
   showCombatEnd(false, {});
@@ -6093,12 +6178,21 @@ function wireStaticEvents() {
   document.addEventListener('pointerdown', startAudio, { once: true });
 }
 
-// Aplica valores por defeito e migrações a um objeto "player" carregado de
-// qualquer fonte (localStorage no arranque, ou um ficheiro .json importado
-// manualmente nas Definições) — para nunca faltar um campo que o resto do
+// Aplica valores por defeito e migrações a um objeto "player" carregado do
+// armazenamento local ou da conta — para nunca faltar um campo que o resto do
 // código já assume existir (pérolas, pergaminhos, baús, intervalo de Dano
 // das armas, etc.), venha de que versão do save vier.
 function applyPlayerMigrations(player) {
+  if (!player.equipment) player.equipment = {};
+  if (!Array.isArray(player.talismans)) player.talismans = [];
+  player.talismans = player.talismans
+    .filter(talisman => talisman && TALISMAN_DEFS[talisman.key] && Number(talisman.battlesRemaining) > 0)
+    .map(talisman => ({
+      id: typeof talisman.id === 'string' && talisman.id ? talisman.id : `tal_${Math.random().toString(36).slice(2, 10)}`,
+      key: talisman.key,
+      battlesRemaining: clamp(Math.floor(Number(talisman.battlesRemaining) || TALISMAN_DEFS[talisman.key].duration), 1, TALISMAN_DEFS[talisman.key].duration)
+    }));
+  if (!player.talismans.some(talisman => talisman.id === player.equipment.talisman)) player.equipment.talisman = null;
   if (!player.gems) player.gems = { defesa: [0,0,0], dano: [0,0,0], vida: [0,0,0], critico: [0,0,0] };
   if (!player.pets) player.pets = [];
   if (!player.clearedDungeons) player.clearedDungeons = [];

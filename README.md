@@ -15,7 +15,7 @@ Nemesy RPG combina elementos clássicos de RPG com um fluxo rápido e acessível
 - Tipo: RPG de navegador / PWA
 - Estilo: fantasia sombria, combate por turnos e progressão por nível
 - Plataforma: web, mobile e offline após instalação
-- Sistema principal: combate, loot, habilidades, upgrades e equipamento
+- Sistema principal: combate, loot, habilidades, upgrades, equipamento e Talismãs
 - Objetivo: superar monstros, completar tarefas e tornar o herói cada vez mais forte
 
 ## Mini wiki
@@ -30,6 +30,7 @@ Nemesy RPG combina elementos clássicos de RPG com um fluxo rápido e acessível
 
 - Combate: batalhas por turnos com ataques normais, habilidades especiais, buffs, status e critico.
 - Equipamento: armas e itens com impacto direto no dano, defesa e estatísticas.
+- Talismãs: o Djinn do Oásis pode deixar cair o [Talismã da Fortuna 🍀] (20% de hipótese); equipado, dá +100 HP e +2% de sorte no drop de itens durante 50 batalhas.
 - Habilidades: cada classe tem uma árvore de habilidades que evolui com o tempo e oferece estilos de jogo distintos.
 - Progressão: XP, ouro, nível, missões e itens raros ajudam a fortalecer o personagem.
 - PWA: o jogo pode ser instalado como app e continuar a funcionar mesmo sem ligação ativa após a primeira visita.
