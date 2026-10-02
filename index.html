@@ -1882,31 +1882,6 @@ function wipeSave() {
   localSaveRevision += 1;
 }
 
-function exportSave() {
-  const data = JSON.stringify(App.player, null, 2);
-  const blob = new Blob([data], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `nemesy-save-${App.player.name}.json`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-function importSaveFromFile(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(reader.result);
-      if (!parsed || !parsed.class || !CLASSES[parsed.class]) throw new Error('save inválido');
-      App.player = parsed;
-      applyPlayerMigrations(App.player);
-      saveGame();
-      goHub();
-      toast('Progresso importado com sucesso.');
-    } catch (e) { toast('Não foi possível ler este ficheiro de save.'); }
-  };
-  reader.readAsText(file);
-}
-
 function readCloudSyncMeta(userId) {
   try {
     const meta = JSON.parse(localStorage.getItem(CLOUD_SYNC_KEY) || 'null');
@@ -2000,59 +1975,6 @@ function applyCloudSave(saveData, cloudUpdatedAt, cloudRevision) {
   toast('Progresso da conta carregado.');
 }
 
-function openSaveConflictModal(localSave, cloudSave, cloudUpdatedAt, cloudRevision) {
-  openModal(`
-    <h3 style="margin-bottom:10px;">☁️ Escolhe o progresso</h3>
-    <p class="muted" style="margin-bottom:14px;">Encontrámos saves diferentes neste dispositivo e na tua conta. Escolhe qual queres manter; o outro será substituído na sincronização.</p>
-    <button class="btn primary block" id="btn-use-cloud-save" style="margin-bottom:8px;">Usar progresso da conta · Nv. ${Number(cloudSave.level) || 1}</button>
-    <button class="btn block" id="btn-use-local-save" style="margin-bottom:8px;">Usar progresso deste dispositivo · Nv. ${Number(localSave.level) || 1}</button>
-  `);
-  $('btn-use-cloud-save').addEventListener('click', () => applyCloudSave(cloudSave, cloudUpdatedAt, cloudRevision));
-  $('btn-use-local-save').addEventListener('click', () => {
-    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
-      userId: cloudUser.id,
-      localUpdatedAt: localSaveUpdatedAt,
-      cloudUpdatedAt: Date.parse(cloudUpdatedAt) || 0,
-      cloudRevision: Number(cloudRevision) || 0
-    }));
-    accountGateActive = false;
-    cloudSaveReady = true;
-    closeModal();
-    finishAccountGate();
-    queueCloudSave();
-    toast('O progresso deste dispositivo será sincronizado.');
-  });
-}
-
-function openLocalSaveImportModal(localSave, user) {
-  openModal(`
-    <h3 style="margin-bottom:10px;">☁️ Progresso neste dispositivo</h3>
-    <p class="muted" style="margin-bottom:14px;">Esta conta ainda não tem um save. Encontrámos um herói de nível ${Number(localSave.level) || 1} guardado neste dispositivo. Queres associá-lo a esta conta?</p>
-    <button class="btn primary block" id="btn-link-local-save" style="margin-bottom:8px;">Usar este progresso na conta</button>
-    <button class="btn block" id="btn-leave-local-save">Terminar sessão sem transferir</button>
-  `);
-  $('btn-link-local-save').addEventListener('click', () => {
-    if (!cloudUser || cloudUser.id !== user.id) return;
-    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
-      userId: user.id,
-      localUpdatedAt: localSaveUpdatedAt,
-      cloudUpdatedAt: 0,
-      cloudRevision: null
-    }));
-    cloudSaveReady = true;
-    accountGateActive = false;
-    closeModal();
-    finishAccountGate();
-    queueCloudSave();
-    toast('O progresso deste dispositivo será associado à conta.');
-  });
-  $('btn-leave-local-save').addEventListener('click', async () => {
-    cloudSaveReady = false;
-    const { error } = await cloudClient.auth.signOut();
-    if (error) toast('Não foi possível terminar sessão.');
-  });
-}
-
 async function hydrateCloudSave(user) {
   if (!cloudClient || !user || cloudHydrationUserId === user.id) return;
   cloudHydrationUserId = user.id;
@@ -2065,7 +1987,6 @@ async function hydrateCloudSave(user) {
       .maybeSingle();
     if (error) throw error;
 
-    const localSave = loadGame();
     const cloudSave = data && data.save_data;
     if (cloudSave && !CLASSES[cloudSave.class]) throw new Error('O save na conta não tem uma classe válida.');
 
@@ -2074,11 +1995,9 @@ async function hydrateCloudSave(user) {
       return;
     }
 
+    wipeSave();
+    App.player = null;
     cloudSaveReady = true;
-    if (localSave) {
-      openLocalSaveImportModal(localSave, user);
-      return;
-    }
     finishAccountGate();
   } catch (error) {
     cloudSaveReady = false;
@@ -6125,12 +6044,6 @@ function openSettingsModal() {
       <p class="tiny" style="margin-bottom:8px;">A tua conta sincroniza o progresso para poderes continuar noutro dispositivo.</p>
       <button class="btn block" id="btn-open-account">👤 Conta e sincronização</button>
     </div>
-    <div class="card raised">
-      <p class="tiny" style="margin-bottom:8px;">O progresso é guardado automaticamente. Também podes exportar um ficheiro de segurança ou carregar um save existente.</p>
-      <button class="btn block" id="btn-export-save" style="margin-bottom:8px;">⬇️ Exportar save (.json)</button>
-      <button class="btn block" id="btn-import-save" style="margin-bottom:8px;">⬆️ Importar save</button>
-      <input type="file" id="file-import" accept="application/json" style="display:none;">
-    </div>
     <div class="card raised" style="margin-top:12px;">
       <p class="tiny" style="margin-bottom:8px;">Vitórias: ${p.stats.wins} · Derrotas: ${p.stats.losses} · Chefes derrotados: ${p.stats.bossesKilled}</p>
     </div>
@@ -6143,9 +6056,6 @@ function openSettingsModal() {
   $('btn-toggle-sound').addEventListener('click', () => { toggleMute(); openSettingsModal(); });
   els('[data-music-key]').forEach(b => b.addEventListener('click', () => { setMusicTheme(b.dataset.musicKey); openSettingsModal(); }));
   els('[data-theme-key]').forEach(b => b.addEventListener('click', () => { setTheme(b.dataset.themeKey); openSettingsModal(); }));
-  $('btn-export-save').addEventListener('click', exportSave);
-  $('btn-import-save').addEventListener('click', () => $('file-import').click());
-  $('file-import').addEventListener('change', (e) => { if (e.target.files[0]) importSaveFromFile(e.target.files[0]); });
   $('btn-reset-save').addEventListener('click', async () => {
     if (confirm('Isto vai apagar o teu herói atual. Tens a certeza?')) {
       if (!await deleteCloudSave()) return;

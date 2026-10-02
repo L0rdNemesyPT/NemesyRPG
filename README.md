@@ -77,11 +77,13 @@ exemplo, de `nemesy-rpg-v3` para `nemesy-rpg-v4`). O ficheiro
 ## Nota sobre os saves
 
 É necessário criar conta ou iniciar sessão para jogar. O progresso é guardado
-neste dispositivo e sincronizado com a conta. É necessária ligação à internet
-para iniciar sessão e carregar o save da conta. Se a ligação cair durante uma
-sessão aberta, o progresso continua a ser guardado localmente e sincroniza
-quando a ligação voltar. Exporta também um ficheiro de segurança antes de
-desinstalar a app ou limpar os dados do browser.
+na conta Supabase e sincronizado automaticamente. O browser mantém uma cópia
+local temporária para suportar a sincronização durante falhas de rede. Não existe
+importação nem exportação de ficheiros de save; uma conta sem save na nuvem começa
+um herói novo. É necessária ligação à internet para iniciar sessão e carregar o
+save da conta. Se a ligação cair durante uma sessão aberta, o progresso continua
+a ser guardado localmente e sincroniza quando a ligação voltar. Não limpes os
+dados do browser enquanto houver alterações por sincronizar.
 
 ## Contas e sincronização Supabase
 
@@ -97,9 +99,9 @@ Em **Authentication → URL Configuration**, define como **Site URL**:
 Confirma também que a confirmação por email está configurada como desejas. Nunca
 coloques a chave `service_role` no jogo ou no GitHub.
 
-A tabela aplica Row Level Security: cada conta só pode ler ou alterar o seu
-próprio save. Cria uma conta ou inicia sessão no ecrã de entrada. Se já existir
-progresso neste dispositivo e na conta, o progresso do servidor prevalece.
+A tabela aplica Row Level Security: cada conta só pode ler ou eliminar o seu
+próprio save diretamente; as gravações passam pelo RPC autenticado. Cria uma
+conta ou inicia sessão no ecrã de entrada. O save da nuvem é a fonte de verdade.
 Uma sessão não fica guardada entre aberturas do jogo: é necessário iniciar
 sessão novamente sempre que a app for aberta.
 
@@ -108,6 +110,8 @@ sessão novamente sempre que a app for aberta.
 Qualquer pessoa com o link pode jogar no seu próprio dispositivo. Na tab
 **Trades**, cada jogador pode manter até 3 itens anunciados por ouro, comprar
 itens de outros jogadores ou retirar os próprios anúncios. As compras e
-transferências são executadas em transações na base de dados. O jogo e os
-ganhos continuam a ser calculados no cliente; um sistema anti-cheat completo
-exigiria validar a progressão do jogo num servidor.
+transferências são executadas em transações na base de dados. O servidor valida
+campos básicos do save e controla as operações de Trades. Como a progressão do
+jogo ainda é calculada no browser, um utilizador determinado pode alterar dados
+antes da sincronização; impedir isso por completo exige mover a lógica de jogo
+para o servidor.

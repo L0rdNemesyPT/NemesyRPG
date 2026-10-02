@@ -7,7 +7,7 @@ create table if not exists public.game_saves (
 alter table public.game_saves enable row level security;
 
 revoke all on public.game_saves from anon, authenticated;
-grant select, insert, update, delete on public.game_saves to authenticated;
+grant select, delete on public.game_saves to authenticated;
 
 drop policy if exists "Players can access their own save" on public.game_saves;
 create policy "Players can access their own save"
@@ -35,6 +35,21 @@ declare
 begin
   if v_user_id is null then raise exception 'É necessário iniciar sessão.'; end if;
   if coalesce(jsonb_typeof(p_save_data), '') <> 'object' then raise exception 'O save não é válido.'; end if;
+  if coalesce(jsonb_typeof(p_save_data->'class'), '') <> 'string'
+    or p_save_data->>'class' not in ('guerreiro', 'arqueiro', 'mago') then
+    raise exception 'A classe do save não é válida.';
+  end if;
+  if coalesce(jsonb_typeof(p_save_data->'inventory'), '') <> 'array' then
+    raise exception 'A mochila do save não é válida.';
+  end if;
+  if coalesce(p_save_data->>'level', '') !~ '^[1-9][0-9]*$'
+    or (p_save_data->>'level')::numeric > 1000000 then
+    raise exception 'O nível do save não é válido.';
+  end if;
+  if coalesce(p_save_data->>'gold', '') !~ '^(0|[1-9][0-9]*)$'
+    or (p_save_data->>'gold')::numeric > 9007199254740991 then
+    raise exception 'O ouro do save não é válido.';
+  end if;
 
   select revision into v_revision
   from public.game_saves
