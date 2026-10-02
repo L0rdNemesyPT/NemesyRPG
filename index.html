@@ -2135,6 +2135,10 @@ function getEmailConfirmationRedirectUrl() {
   return new URL('./email-confirmed.html', window.location.href).href;
 }
 
+function getEmailConfirmationSentMessage(email) {
+  return `Conta criada. Enviámos um email de confirmação para ${email}. Verifica a caixa de entrada e a pasta de spam; depois confirma o endereço para iniciar sessão.`;
+}
+
 function wireAccountScreenEvents() {
   els('[data-account-mode]').forEach(button => button.addEventListener('click', () => {
     accountFormMode = button.dataset.accountMode;
@@ -2156,7 +2160,7 @@ function wireAccountScreenEvents() {
       if (result.error) throw result.error;
       if (accountFormMode === 'signup' && !result.data.session) {
         accountFormMode = 'login';
-        renderAccountScreen('Conta criada. Confirma o email e depois inicia sessão.');
+        renderAccountScreen(getEmailConfirmationSentMessage(email));
         return;
       }
       cloudUser = result.data.user;
@@ -2291,7 +2295,7 @@ function openAccountModal(message = '') {
       cloudUser = data.user;
       openAccountModal('Conta criada. A verificar o progresso deste dispositivo.');
     } else {
-      setAccountMessage('Conta criada. Confirma o email para poderes iniciar sessão.');
+      setAccountMessage(getEmailConfirmationSentMessage(email), false);
     }
   });
 }
@@ -4731,9 +4735,12 @@ function renderLojaBody() {
   if (App.lojaTab === 'loja') {
     const potionsHtml = Object.keys(POTION_DEFS).map(key => {
       const d = POTION_DEFS[key];
+      const hpStats = key === 'hp' ? effectiveStats(p) : null;
+      const hpPotionDisabled = key === 'hp' && (p.potions.hp <= 0 || p.hp >= hpStats.hp);
       return `<div class="item-row">
         <div class="item-ic">${d.icon}</div>
-        <div class="item-mid"><div class="item-name">${d.name} (${p.potions[key]})</div><div class="tiny">${d.desc}</div></div>
+        <div class="item-mid"><div class="item-name">${d.name} (${p.potions[key]})</div><div class="tiny">${d.desc}</div>${key === 'hp' ? `<div class="tiny" style="margin-top:4px;">HP: ${p.hp}/${hpStats.hp}</div>` : ''}</div>
+        ${key === 'hp' ? `<button class="btn small ${hpPotionDisabled ? 'ghost' : 'primary'}" data-use-hp-outside ${hpPotionDisabled ? 'disabled' : ''}>${p.hp >= hpStats.hp ? 'HP cheio' : 'Usar'}</button>` : ''}
         <button class="btn small primary" data-buy-potion="${key}">🪙${d.cost}</button>
       </div>`;
     }).join('');
@@ -4743,6 +4750,7 @@ function renderLojaBody() {
       ${potionsHtml}
     `;
     els('[data-buy-potion]').forEach(b => b.addEventListener('click', () => buyPotion(b.dataset.buyPotion)));
+    els('[data-use-hp-outside]').forEach(b => b.addEventListener('click', () => usePotionAction('hp')));
   } else if (App.lojaTab === 'profissao') {
     body.innerHTML = `
       <div class="section-title" style="margin-top:0;">⛏️ Profissão</div>
@@ -5576,9 +5584,22 @@ function useNormalAttackAction() {
 
 function usePotionAction(key) {
   const c = App.combat;
-  if (!c || c.ended) return;
   const p = App.player;
   if (p.potions[key] <= 0) { sfx.error(); toast('Não tens esta poção.'); return; }
+  if (!c || c.ended) {
+    if (key !== 'hp') { sfx.error(); toast('Esta poção só pode ser usada em combate.'); return; }
+    const pStats = effectiveStats(p);
+    if (p.hp >= pStats.hp) { sfx.error(); toast('Já tens o HP cheio.'); return; }
+    p.potions.hp--;
+    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * 0.4));
+    p.hp += heal;
+    saveGame();
+    sfx.potion();
+    renderStatusBar();
+    if (App.tab === 'loja') renderLojaBody();
+    toast(`Poção de HP usada: +${heal} HP.`);
+    return;
+  }
   // Máximo de 2 Poções de HP por batalha: sem isto, dá para "spammar" cura e
   // tornar qualquer combate — incluindo bosses — trivial enquanto houver ouro.
   if (key === 'hp' && (c.battleState.hpPotionsUsed || 0) >= 2) {
