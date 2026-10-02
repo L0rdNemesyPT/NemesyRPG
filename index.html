@@ -1933,6 +1933,7 @@ let cloudSaveErrorShown = false;
 let accountGateActive = false;
 let cloudHydrationFailed = false;
 let accountFormMode = 'login';
+let accountSignupInProgress = false;
 let localSaveUpdatedAt = 0;
 let localSaveRevision = 0;
 
@@ -2139,6 +2140,27 @@ function getEmailConfirmationSentMessage(email) {
   return `Conta criada. Enviámos um email de confirmação para ${email}. Verifica a caixa de entrada e a pasta de spam; depois confirma o endereço para iniciar sessão.`;
 }
 
+function isValidEmailAddress(email) {
+  if (email.length > 254) return false;
+  const parts = email.split('@');
+  if (parts.length !== 2) return false;
+  const [local, domain] = parts;
+  if (local.length > 64 || local.startsWith('.') || local.endsWith('.') || local.includes('..')) return false;
+  if (!/^[A-Z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(local)) return false;
+  const labels = domain.split('.');
+  return labels.length > 1 && labels.every(label =>
+    label.length <= 63 && /^[A-Z0-9](?:[A-Z0-9-]*[A-Z0-9])?$/i.test(label)
+  ) && /^[A-Z]{2,}$/i.test(labels[labels.length - 1]);
+}
+
+function getAccountAuthErrorMessage(error) {
+  const message = String(error && error.message || '');
+  if (/email rate limit exceeded/i.test(message)) {
+    return 'O serviço atingiu o limite de emails de confirmação. Aguarda antes de tentar novamente.';
+  }
+  return message || 'Não foi possível aceder à conta.';
+}
+
 function wireAccountScreenEvents() {
   els('[data-account-mode]').forEach(button => button.addEventListener('click', () => {
     accountFormMode = button.dataset.accountMode;
@@ -2147,18 +2169,24 @@ function wireAccountScreenEvents() {
   }));
   $('account-entry-form').addEventListener('submit', async event => {
     event.preventDefault();
-    if (!cloudClient) return;
+    if (!cloudClient || accountSignupInProgress) return;
     const email = $('account-entry-email').value.trim();
     const password = $('account-entry-password').value;
+    const isSignup = accountFormMode === 'signup';
+    if (isSignup && !isValidEmailAddress(email)) {
+      setAccountScreenMessage('Introduz um email válido antes de criares a conta.', true);
+      return;
+    }
     const submit = $('account-entry-submit');
+    if (isSignup) accountSignupInProgress = true;
     submit.disabled = true;
-    setAccountScreenMessage(accountFormMode === 'signup' ? 'A criar a conta…' : 'A iniciar sessão…');
+    setAccountScreenMessage(isSignup ? 'A criar a conta…' : 'A iniciar sessão…');
     try {
-      const result = accountFormMode === 'signup'
+      const result = isSignup
         ? await cloudClient.auth.signUp({ email, password, options: { emailRedirectTo: getEmailConfirmationRedirectUrl() } })
         : await cloudClient.auth.signInWithPassword({ email, password });
       if (result.error) throw result.error;
-      if (accountFormMode === 'signup' && !result.data.session) {
+      if (isSignup && !result.data.session) {
         accountFormMode = 'login';
         renderAccountScreen(getEmailConfirmationSentMessage(email));
         return;
@@ -2169,8 +2197,9 @@ function wireAccountScreenEvents() {
       renderAccountScreen('Conta validada. A carregar o progresso…');
       if (cloudUser) setTimeout(() => hydrateCloudSave(cloudUser), 0);
     } catch (error) {
-      setAccountScreenMessage(error.message || 'Não foi possível aceder à conta.', true);
+      setAccountScreenMessage(getAccountAuthErrorMessage(error), true);
     } finally {
+      if (isSignup) accountSignupInProgress = false;
       submit.disabled = false;
     }
   });
@@ -2289,13 +2318,34 @@ function openAccountModal(message = '') {
   $('btn-account-signup').addEventListener('click', async () => {
     const email = $('account-email').value.trim();
     const password = $('account-password').value;
-    const { data, error } = await cloudClient.auth.signUp({ email, password, options: { emailRedirectTo: getEmailConfirmationRedirectUrl() } });
-    if (error) { setAccountMessage(error.message, true); return; }
-    if (data.session && data.user) {
-      cloudUser = data.user;
-      openAccountModal('Conta criada. A verificar o progresso deste dispositivo.');
-    } else {
-      setAccountMessage(getEmailConfirmationSentMessage(email), false);
+    if (accountSignupInProgress) return;
+    if (!isValidEmailAddress(email)) {
+      setAccountMessage('Introduz um email válido antes de criares a conta.', true);
+      return;
+    }
+    const submit = $('btn-account-signup');
+    accountSignupInProgress = true;
+    submit.disabled = true;
+    submit.textContent = 'A criar a conta…';
+    try {
+      const { data, error } = await cloudClient.auth.signUp({ email, password, options: { emailRedirectTo: getEmailConfirmationRedirectUrl() } });
+      if (error) throw error;
+      if (data.session && data.user) {
+        cloudUser = data.user;
+        openAccountModal('Conta criada. A verificar o progresso deste dispositivo.');
+      } else {
+        setAccountMessage(getEmailConfirmationSentMessage(email), false);
+        submit.textContent = 'Email enviado';
+      }
+    } catch (error) {
+      setAccountMessage(getAccountAuthErrorMessage(error), true);
+    } finally {
+      accountSignupInProgress = false;
+      const currentSubmit = $('btn-account-signup');
+      if (currentSubmit && currentSubmit.textContent !== 'Email enviado') {
+        currentSubmit.disabled = false;
+        currentSubmit.textContent = 'Criar conta';
+      }
     }
   });
 }
