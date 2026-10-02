@@ -2659,6 +2659,7 @@ function renderTabWiki() {
     { key: 'mascotes', label: 'Mascotes' },
     { key: 'eventos', label: 'Eventos' },
     { key: 'catacumbas', label: 'Catacumbas' },
+    { key: 'talismas', label: 'Talismãs' },
     { key: 'dungeons', label: 'Dungeons' },
     { key: 'profissoes', label: 'Profissões' }
   ];
@@ -2841,6 +2842,20 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:4px;">❤️ Entre 40 e 80 HP</p>
       </div>
     `;
+  } else if (t === 'talismas') {
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">Talismãs são equipamento especial sem raridade. Existe um único espaço de Talismã, separado dos slots normais.</p>
+      ${Object.keys(TALISMAN_DEFS).map(key => {
+        const talisman = TALISMAN_DEFS[key];
+        return `<div class="card raised">
+          <span style="font-weight:700;">🍀 ${talisman.name}</span>
+          <p class="tiny" style="margin-top:6px;">Bónus enquanto equipado: <b>+${talisman.hp} HP</b> e <b>+${Math.round(talisman.dropLuck * 100)}% de sorte no drop de itens</b>.</p>
+          <p class="tiny" style="margin-top:6px;">Duração: ${talisman.duration} batalhas concluídas enquanto equipado. Desequipá-lo pausa a contagem; ao chegar a zero, desaparece.</p>
+          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">Como obter: ${DUNGEONS.find(d => d.key === 'oasis').bossIcon} ${DUNGEONS.find(d => d.key === 'oasis').bossName}, chefe final de ${DUNGEONS.find(d => d.key === 'oasis').name} — ${Math.round(0.20 * 100)}% de hipótese por conclusão.</p>
+        </div>`;
+      }).join('')}
+      <p class="tiny muted" style="margin-top:10px;">Equipa e consulta a duração em Mochila → Talismãs.</p>
+    `;
   } else if (t === 'dungeons') {
     const tier1 = DUNGEONS.filter(d => d.tier !== 2);
     const tier2 = DUNGEONS.filter(d => d.tier === 2);
@@ -2860,6 +2875,7 @@ function renderWikiBody() {
           <span style="font-weight:700;">${d.icon} ${d.name}</span>
           <p class="tiny" style="margin-top:6px;">Nível mínimo ${d.minLv} · ${d.mobWaves} monstros (Nv.${d.monsterLvMin}–${d.monsterLvMax}) → ${d.miniBossIcon} ${d.miniBossName} (Nv.${d.miniBossLv}) → ${d.bossIcon} ${d.bossName} (Nv.${d.bossLv})</p>
           <p class="tiny" style="margin-top:6px; color:var(--muted);">Monstros: ${d.monsters.map(m => `${m.icon} ${m.name}`).join(' · ')}</p>
+          ${d.key === 'oasis' ? `<p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🍀 Drop exclusivo: [Talismã da Fortuna 🍀] — 20% de hipótese ao derrotar o chefe final.</p>` : ''}
         </div>
       `).join('')}
       <div class="card raised">
