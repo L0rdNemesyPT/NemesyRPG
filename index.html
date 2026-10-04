@@ -8,6 +8,11 @@
 <meta name="description" content="Nemesy RPG: aventura de fantasia com combates por turnos, classes e progressão.">
 <link rel="icon" href="./icon-192.png" type="image/png">
 <link rel="manifest" href="./manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Nemesy RPG">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -6450,6 +6455,57 @@ function renderCombat() {
 // ============================================================
 // SETTINGS MODAL (save/export/import/reset) + misc hub wiring
 // ============================================================
+// --- Instalar a app / ecrã inteiro -----------------------------------------
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstallPrompt = e; });
+window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; });
+
+function isStandaloneApp() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || (window.matchMedia && window.matchMedia('(display-mode: fullscreen)').matches)
+    || window.navigator.standalone === true;
+}
+function isIosDevice() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent)
+    || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function canUseFullscreenApi() {
+  const el = document.documentElement;
+  return !!(document.fullscreenEnabled && el.requestFullscreen);
+}
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+  } catch (error) {
+    toast('Não foi possível ativar o ecrã inteiro neste dispositivo.');
+  }
+}
+function installCardHtml() {
+  if (isStandaloneApp()) {
+    return `<p class="tiny">✅ Estás a jogar em modo app (ecrã inteiro, sem barra do navegador).</p>`;
+  }
+  let html = '';
+  if (isIosDevice()) {
+    html += `<p class="tiny" style="margin-bottom:8px;">No iPhone/iPad não existe botão de ecrã inteiro no navegador. Para jogar em ecrã inteiro, instala o jogo no ecrã principal:</p>
+      <ol class="tiny" style="margin:0 0 8px 18px; line-height:1.6;">
+        <li>Toca em <b>Partilhar</b> (o quadrado com a seta ⬆︎) na barra do Safari.</li>
+        <li>Escolhe <b>Adicionar ao ecrã principal</b>.</li>
+        <li>Abre o jogo pelo novo ícone <b>Nemesy RPG</b>.</li>
+      </ol>
+      <p class="tiny muted">Se não vires essa opção, abre este endereço no Safari e repete. A conta e o progresso são os mesmos.</p>`;
+  } else if (deferredInstallPrompt) {
+    html += `<p class="tiny" style="margin-bottom:8px;">Instala o Nemesy RPG como app: abre em ecrã inteiro, com ícone no ecrã principal.</p>
+      <button class="btn primary block" id="btn-install-app">📲 Instalar app</button>`;
+  } else {
+    html += `<p class="tiny" style="margin-bottom:8px;">Para instalar como app: no menu do Chrome (⋮) escolhe <b>Instalar app</b> ou <b>Adicionar ao ecrã principal</b>.</p>`;
+  }
+  if (canUseFullscreenApi()) {
+    html += `<button class="btn ${document.fullscreenElement ? 'ghost' : 'primary'} block" id="btn-toggle-fullscreen" style="margin-top:8px;">${document.fullscreenElement ? '⤢ Sair do ecrã inteiro' : '⛶ Ecrã inteiro'}</button>`;
+  }
+  return html;
+}
+
 function openSettingsModal() {
   const p = App.player;
   const themeSwatches = THEME_PRESETS.map(t => `
@@ -6478,6 +6534,10 @@ function openSettingsModal() {
       <div class="theme-swatch-grid" style="margin-top:10px;">${themeSwatches}</div>
     </div>
     <div class="card raised" style="margin-bottom:12px;">
+      <span style="font-weight:700;">📲 Instalar e ecrã inteiro</span>
+      <div style="margin-top:8px;">${installCardHtml()}</div>
+    </div>
+    <div class="card raised" style="margin-bottom:12px;">
       <p class="tiny" style="margin-bottom:8px;">A tua conta sincroniza o progresso para poderes continuar noutro dispositivo.</p>
       <button class="btn block" id="btn-open-account">👤 Conta e sincronização</button>
     </div>
@@ -6490,6 +6550,16 @@ function openSettingsModal() {
   openModal(html);
   $('btn-close-modal').addEventListener('click', closeModal);
   $('btn-open-account').addEventListener('click', openAccountModal);
+  const installBtn = $('btn-install-app');
+  if (installBtn) installBtn.addEventListener('click', async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try { await deferredInstallPrompt.userChoice; } catch (e) { /* ignorado */ }
+    deferredInstallPrompt = null;
+    openSettingsModal();
+  });
+  const fsBtn = $('btn-toggle-fullscreen');
+  if (fsBtn) fsBtn.addEventListener('click', async () => { await toggleFullscreen(); openSettingsModal(); });
   $('btn-toggle-sound').addEventListener('click', () => { toggleMute(); openSettingsModal(); });
   els('[data-music-key]').forEach(b => b.addEventListener('click', () => { setMusicTheme(b.dataset.musicKey); openSettingsModal(); }));
   els('[data-theme-key]').forEach(b => b.addEventListener('click', () => { setTheme(b.dataset.themeKey); openSettingsModal(); }));
