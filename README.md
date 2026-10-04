@@ -120,3 +120,26 @@ campos básicos do save e controla as operações de Trades. Como a progressão 
 jogo ainda é calculada no browser, um utilizador determinado pode alterar dados
 antes da sincronização; impedir isso por completo exige mover a lógica de jogo
 para o servidor.
+
+## Proteção contra adulteração e Trades (v13)
+
+**Atualiza primeiro a base de dados:** abre o **SQL Editor** do Supabase e executa o `supabase/schema.sql`
+atualizado (é seguro voltar a executar). Só depois publica o `index.html` e o `sw.js`.
+
+- **Consola do Chrome:** o código do jogo corre dentro de uma função fechada, por isso `App`, `cloudClient`
+  etc. já não estão acessíveis na consola.
+- **Validação no servidor** (`save_player_game`): o servidor compara cada save com o anterior e recusa
+  (`SAVE_REJECTED`) subidas de nível, de ouro ou de itens mais rápidas do que é possível jogar, mudanças
+  de classe, itens de troca fabricados e heróis novos com valores impossíveis. Os limites ficam na tabela
+  `anticheat_config` (ex.: `update public.anticheat_config set gold_rate_per_level = 10;`).
+  Com `enforce = false` só se registam avisos nos logs, sem recusar nada.
+  Quando um save é recusado, o save local é mantido e o jogo avisa o jogador (nada é apagado).
+- **Limite honesto:** isto trava quem altera valores no browser ou chama a API à mão, mas a lógica do
+  combate continua no cliente. Para impedir tudo é preciso mover o combate e os drops para o servidor.
+- **Trades:** o ouro de uma venda fica em `trade_proceeds` e o vendedor recebe-o com `claim_trade_proceeds()`
+  (ao entrar, ao abrir Trades e a cada minuto). Assim uma venda deixa de invalidar o save aberto do vendedor
+  (antes causava `SAVE_CONFLICT` e perda do progresso por sincronizar).
+- As sincronizações passam a ser feitas em série e as operações de Trades bloqueiam o ecrã até terminarem.
+- **Recomeçar aventura** passa por `reset_player_game()`: é recusado enquanto houver anúncios ativos
+  (antes o item anunciado perdia-se). Apagar diretamente a linha do save deixou de ser permitido.
+

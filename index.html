@@ -444,6 +444,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./supabase-config.js"></script>
 <script>
+(function () {
 
 
 
@@ -1936,6 +1937,10 @@ let accountFormMode = 'login';
 let accountSignupInProgress = false;
 let localSaveUpdatedAt = 0;
 let localSaveRevision = 0;
+let tradeBusy = false;
+let proceedsClaiming = false;
+let saveRejectedShown = false;
+let syncChain = Promise.resolve();
 
 function saveGame() {
   try {
@@ -1975,10 +1980,19 @@ function readCloudSyncMeta(userId) {
 function queueCloudSave() {
   if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player) return;
   clearTimeout(cloudSaveTimer);
-  cloudSaveTimer = setTimeout(() => { syncCloudSaveNow(); }, 1000);
+  cloudSaveTimer = setTimeout(() => {
+    if (tradeBusy) { queueCloudSave(); return; }
+    syncCloudSaveNow();
+  }, 1000);
 }
 
-async function syncCloudSaveNow() {
+function syncCloudSaveNow() {
+  const run = syncChain.then(doSyncCloudSave, doSyncCloudSave);
+  syncChain = run.catch(() => {});
+  return run;
+}
+
+async function doSyncCloudSave() {
   if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player) return false;
   const userId = cloudUser.id;
   const revision = localSaveRevision;
@@ -2001,6 +2015,7 @@ async function syncCloudSaveNow() {
       cloudRevision: Number(data.revision)
     }));
     cloudSaveErrorShown = false;
+    saveRejectedShown = false;
     if (revision !== localSaveRevision) queueCloudSave();
     return true;
   } catch (error) {
@@ -2013,6 +2028,13 @@ async function syncCloudSaveNow() {
       }, 0);
       return false;
     }
+    if (String(error.message || '').includes('SAVE_REJECTED')) {
+      if (!saveRejectedShown) {
+        toast('O servidor recusou este progresso (valores acima do limite). O save local foi mantido; tenta de novo mais tarde.');
+        saveRejectedShown = true;
+      }
+      return false;
+    }
     if (!cloudSaveErrorShown) {
       toast('Save local guardado, mas não foi possível sincronizar com a conta.');
       cloudSaveErrorShown = true;
@@ -2023,9 +2045,9 @@ async function syncCloudSaveNow() {
 
 async function deleteCloudSave() {
   if (!cloudClient || !cloudUser) return true;
-  const { error } = await cloudClient.from(CLOUD_SAVE_TABLE).delete().eq('user_id', cloudUser.id);
+  const { error } = await cloudClient.rpc('reset_player_game');
   if (error) {
-    toast('Não foi possível apagar o save da conta. O progresso não foi reiniciado.');
+    toast(error.code === 'P0001' && error.message ? error.message : 'Não foi possível apagar o save da conta. O progresso não foi reiniciado.');
     return false;
   }
   return true;
@@ -2056,6 +2078,7 @@ function applyCloudSave(saveData, cloudUpdatedAt, cloudRevision) {
   closeModal();
   if (saveWasMigrated) queueCloudSave();
   toast('Progresso da conta carregado.');
+  setTimeout(() => { claimTradeProceeds(); }, 1500);
 }
 
 async function hydrateCloudSave(user) {
@@ -2231,6 +2254,10 @@ function initializeCloudAccounts() {
     }
   });
   renderAccountScreen('A verificar a sessão…');
+  setInterval(() => { claimTradeProceeds(); }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') claimTradeProceeds();
+  });
   cloudClient.auth.onAuthStateChange((event, session) => {
     cloudUser = session ? session.user : null;
     if (!cloudUser) {
@@ -3074,15 +3101,65 @@ function updateTradeSave(saveData, cloudRevision, cloudUpdatedAt) {
   renderStatusBar();
 }
 
+function setTradeBusy(on, message) {
+  tradeBusy = on;
+  let overlay = document.getElementById('trade-busy-overlay');
+  if (on && message) {
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'trade-busy-overlay';
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(16,13,10,.72);color:var(--parchment);font-weight:700;text-align:center;padding:24px;';
+      document.body.appendChild(overlay);
+    }
+    overlay.textContent = message;
+  } else if (overlay) {
+    overlay.remove();
+  }
+}
+
+// Recebe o ouro das vendas feitas enquanto o jogador jogava. O servidor guarda-o à parte
+// (trade_proceeds) para nunca mexer no save aberto do vendedor; aqui soma-se ao ouro local.
+async function claimTradeProceeds() {
+  if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player || tradeBusy || proceedsClaiming || App.combat) return;
+  const userId = cloudUser.id;
+  proceedsClaiming = true;
+  tradeBusy = true;
+  try {
+    const pending = await cloudClient.from('trade_proceeds').select('id', { count: 'exact', head: true });
+    if (pending.error || !pending.count) return;
+    if (!await syncCloudSaveNow()) return;
+    const { data, error } = await cloudClient.rpc('claim_trade_proceeds');
+    if (error) throw error;
+    if (!data || !data.count || !cloudUser || cloudUser.id !== userId || !App.player) return;
+    App.player.gold += Number(data.claimed) || 0;
+    saveGame();
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify({
+      userId,
+      localUpdatedAt: localSaveUpdatedAt,
+      cloudUpdatedAt: Date.parse(data.updated_at) || 0,
+      cloudRevision: Number(data.revision) || 0
+    }));
+    sfx.gold();
+    toast(`Vendeste ${data.count} item(ns): +${data.claimed} ouro.`);
+    renderStatusBar();
+    if (App.tab === 'trades') setTimeout(renderTabTrades, 0);
+  } catch (error) {
+    console.warn('Não foi possível receber o ouro das vendas:', error);
+  } finally {
+    proceedsClaiming = false;
+    tradeBusy = false;
+  }
+}
+
 async function listTradeItem(itemId) {
+  if (tradeBusy) { toast('Aguarda um momento…'); return; }
   const priceInput = $(`trade-price-${itemId}`);
   const price = Number(priceInput && priceInput.value);
   if (!Number.isSafeInteger(price) || price < 1 || price > 2147483647) {
     toast('Define um preço inteiro entre 1 e 2 147 483 647 ouro.');
     return;
   }
-  const button = els('[data-trade-list]').find(element => element.dataset.tradeList === itemId);
-  if (button) button.disabled = true;
+  setTradeBusy(true, 'A colocar o item à venda…');
   try {
     if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de anunciar.');
     const { data, error } = await cloudClient.rpc('create_trade_listing', { p_item_id: itemId, p_price: price });
@@ -3090,15 +3167,17 @@ async function listTradeItem(itemId) {
     updateTradeSave(data.save_data, data.revision, data.updated_at);
     sfx.gold();
     toast('Item colocado à venda.');
-    await renderTabTrades();
   } catch (error) {
     toast(error.message || 'Não foi possível criar o anúncio.');
-    if (button) button.disabled = false;
+  } finally {
+    setTradeBusy(false);
   }
+  await renderTabTrades();
 }
 
 async function buyTradeItem(listingId, button) {
-  button.disabled = true;
+  if (tradeBusy) { toast('Aguarda um momento…'); return; }
+  setTradeBusy(true, 'A concluir a compra…');
   try {
     if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes da compra.');
     const { data, error } = await cloudClient.rpc('purchase_trade_listing', { p_listing_id: listingId });
@@ -3106,30 +3185,34 @@ async function buyTradeItem(listingId, button) {
     updateTradeSave(data.save_data, data.revision, data.updated_at);
     sfx.gold();
     toast('Compra concluída. O item está na tua mochila.');
-    await renderTabTrades();
   } catch (error) {
     toast(error.message || 'Não foi possível concluir a compra.');
-    button.disabled = false;
+  } finally {
+    setTradeBusy(false);
   }
+  await renderTabTrades();
 }
 
 async function cancelTradeItem(listingId, button) {
-  button.disabled = true;
+  if (tradeBusy) { toast('Aguarda um momento…'); return; }
+  setTradeBusy(true, 'A retirar o anúncio…');
   try {
     if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de retirar o anúncio.');
     const { data, error } = await cloudClient.rpc('cancel_trade_listing', { p_listing_id: listingId });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
     toast('Anúncio retirado. O item voltou para a mochila.');
-    await renderTabTrades();
   } catch (error) {
     toast(error.message || 'Não foi possível retirar o anúncio.');
-    button.disabled = false;
+  } finally {
+    setTradeBusy(false);
   }
+  await renderTabTrades();
 }
 
 async function renderTabTrades() {
   const token = ++tradeRenderToken;
+  claimTradeProceeds();
   const p = App.player;
   $('hub-content').innerHTML = '<div class="section-title">💱 Trades</div><p class="muted">A carregar anúncios…</p>';
   if (!cloudClient || !cloudUser) {
@@ -6453,6 +6536,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
 
 
+})();
 </script>
 </body>
 </html>
