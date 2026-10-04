@@ -1252,6 +1252,14 @@ const ORE_TABLE = [
   { name: 'Mithril', gold: 100, chance: 0.05 }
 ];
 
+const WOOD_TABLE = [
+  { name: 'Pinho', gold: 6, chance: 0.38 },
+  { name: 'Carvalho', gold: 13, chance: 0.27 },
+  { name: 'Nogueira', gold: 26, chance: 0.19 },
+  { name: 'Ébano', gold: 50, chance: 0.11 },
+  { name: 'Árvore Ancestral', gold: 100, chance: 0.05 }
+];
+
 const FISH_TABLE = [
   { name: 'Comum', gold: 8, chance: 0.42 },
   { name: 'Incomum', gold: 18, chance: 0.22 },
@@ -1265,9 +1273,11 @@ const FISH_TABLE = [
 // Pesca e mineração ganham-se lutando: cada batalha concluída reduz a recarga em 1.
 const MINE_COOLDOWN_BATTLES = 3;
 const FISH_COOLDOWN_BATTLES = 3;
+const WOOD_COOLDOWN_BATTLES = 3;
 // Nº de usos seguidos antes de a recarga (em batalhas) começar.
 const FISH_USES_PER_COOLDOWN = 2;
 const MINE_USES_PER_COOLDOWN = 2;
+const WOOD_USES_PER_COOLDOWN = 2;
 function professionGoldMult(level) { return 1 + level * 0.15; }
 
 function newAlchemyStonesBag() {
@@ -1314,7 +1324,7 @@ function newPlayer(name, cls) {
     chests: [],
     scrolls: { feitico: 0, reforco: 0 },
     pearls: newPearlsBag(),
-    mineCooldown: 0, fishCooldown: 0, mineUses: 0, fishUses: 0,
+    mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
     pets: [], activePet: null,
     critBuffBattles: 0,
     regionIndex: 0,
@@ -4940,9 +4950,17 @@ function renderLojaBody() {
         </div>
         <p class="tiny" style="margin-top:6px;">Ouro, com chance de gema ou Pedra de Alquimia.</p>
       </div>
+      <div class="card raised">
+        <div class="row between">
+          <span style="font-weight:700;">🪓 Lenhador</span>
+          <button class="btn small ${(p.woodCooldown||0) > 0 ? 'ghost' : 'primary'}" id="btn-wood" ${(p.woodCooldown||0) > 0 ? 'disabled' : ''}>${(p.woodCooldown||0) > 0 ? `${p.woodCooldown} 🔒` : `Cortar (${WOOD_USES_PER_COOLDOWN - (p.woodUses||0)}/${WOOD_USES_PER_COOLDOWN})`}</button>
+        </div>
+        <p class="tiny" style="margin-top:6px;">Corta madeira e vende-a por ouro. Quanto mais rara a árvore, mais rende.</p>
+      </div>
     `;
     if ((p.fishCooldown||0) <= 0) $('btn-fish').addEventListener('click', doFish);
     if ((p.mineCooldown||0) <= 0) $('btn-mine').addEventListener('click', doMine);
+    if ((p.woodCooldown||0) <= 0) $('btn-wood').addEventListener('click', doWood);
   } else if (App.lojaTab === 'ferreiro') {
     const equippedItems = EQUIP_SLOTS.filter(s => p.equipment[s]);
     const maxedCount = equippedItems.filter(s => p.equipment[s].upgrade >= 9).length;
@@ -5128,6 +5146,22 @@ function doMine() {
   sfx.gold();
   renderHubTab();
   toast(`⛏️ Minaste ${chosen.name}! +${gold} ouro.`);
+}
+
+function doWood() {
+  const p = App.player;
+  if ((p.woodCooldown || 0) > 0) { sfx.error(); toast(`Precisas de lutar mais ${p.woodCooldown} batalha(s) antes de voltar a cortar lenha.`); return; }
+  p.woodUses = (p.woodUses || 0) + 1;
+  if (p.woodUses >= WOOD_USES_PER_COOLDOWN) { p.woodCooldown = WOOD_COOLDOWN_BATTLES; p.woodUses = 0; }
+  const r = Math.random();
+  let acc = 0, chosen = WOOD_TABLE[0];
+  for (const wood of WOOD_TABLE) { acc += wood.chance; if (r <= acc) { chosen = wood; break; } }
+  const gold = Math.round(chosen.gold * professionGoldMult(p.level));
+  p.gold += gold;
+  saveGame();
+  sfx.gold();
+  renderHubTab();
+  toast(`🪓 Cortaste ${chosen.name}! +${gold} ouro.`);
 }
 
 // ============================================================
@@ -6017,6 +6051,7 @@ function consumeTalismanBattle() {
 function tickProfessionCooldowns(p) {
   if ((p.mineCooldown||0) > 0) p.mineCooldown--;
   if ((p.fishCooldown||0) > 0) p.fishCooldown--;
+  if ((p.woodCooldown||0) > 0) p.woodCooldown--;
 }
 
 function finishWildOrBossVictory() {
@@ -6489,6 +6524,8 @@ function applyPlayerMigrations(player) {
   if (player.fishCooldown === undefined) player.fishCooldown = 0;
   if (player.mineUses === undefined) player.mineUses = 0;
   if (player.fishUses === undefined) player.fishUses = 0;
+  if (!Number.isFinite(player.woodCooldown)) player.woodCooldown = 0;
+  if (!Number.isFinite(player.woodUses)) player.woodUses = 0;
   if (!player.potions) player.potions = { hp: 0, hp2: 0, def: 0, atk: 0, fortune: 0 };
   if (!Number.isFinite(player.potions.hp2)) player.potions.hp2 = 0;
   if (!player.pearls) player.pearls = newPearlsBag();
