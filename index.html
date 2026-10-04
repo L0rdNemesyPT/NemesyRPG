@@ -1078,26 +1078,49 @@ function biologoPlusRewardFor(level) {
   };
 }
 
+// Cada mascote tem um papel próprio: `mult` diz que fatia da fórmula base cada atributo
+// recebe (hp/def/crit/dmg/dodge). A soma dos multiplicadores é ~3 (3,3 nos mascotes mais
+// raros), por isso nenhum é melhor em tudo: escolhe-se pelo estilo de jogo.
 const PET_DEFS = {
-  wolf: { name: 'Lobo', icon: '🐺' }, icewolf: { name: 'Lobo do Gelo', icon: '🐺' },
-  lizard: { name: 'Salamandra', icon: '🦎' }, phoenix: { name: 'Fênix', icon: '🐦' },
-  yeti: { name: 'Yeti', icon: '🦍' }, harpy: { name: 'Harpia', icon: '🦅' },
-  wyvern: { name: 'Wyvern', icon: '🐉' }, griffin: { name: 'Grifo', icon: '🦁' },
-  dragon: { name: 'Dragão', icon: '🐲' }, bear: { name: 'Urso', icon: '🐻' },
-  dragaonegro: { name: 'Dragão Negro', icon: '🐉' }, minotauro: { name: 'Minotauro', icon: '🦬' }
+  wolf:        { name: 'Lobo',         icon: '🐺', role: 'Caçador',     mult: { hp: 0.5, def: 0.5, crit: 1.0, dmg: 1.0 } },
+  icewolf:     { name: 'Lobo do Gelo', icon: '🐺', role: 'Resistente',  mult: { hp: 1.0, def: 1.5, crit: 0.5 } },
+  lizard:      { name: 'Salamandra',   icon: '🦎', role: 'Brasa',       mult: { hp: 0.5, crit: 1.0, dmg: 1.5 } },
+  phoenix:     { name: 'Fênix',        icon: '🐦', role: 'Vitalidade',  mult: { hp: 2.0, def: 0.5, crit: 0.5 } },
+  yeti:        { name: 'Yeti',         icon: '🦍', role: 'Baluarte',    mult: { hp: 1.5, def: 1.5 } },
+  harpy:       { name: 'Harpia',       icon: '🦅', role: 'Esquiva',     mult: { hp: 0.3, crit: 1.0, dmg: 0.7, dodge: 1.0 } },
+  wyvern:      { name: 'Wyvern',       icon: '🐉', role: 'Ágil',        mult: { hp: 0.5, def: 0.5, crit: 0.5, dmg: 1.0, dodge: 0.5 } },
+  griffin:     { name: 'Grifo',        icon: '🦁', role: 'Equilibrado', mult: { hp: 1.0, def: 0.5, crit: 0.5, dmg: 0.5, dodge: 0.5 } },
+  dragon:      { name: 'Dragão',       icon: '🐲', role: 'Soberano',    mult: { hp: 1.0, def: 0.6, crit: 0.7, dmg: 1.0 } },
+  bear:        { name: 'Urso',         icon: '🐻', role: 'Tanque',      mult: { hp: 2.0, def: 1.0 } },
+  dragaonegro: { name: 'Dragão Negro', icon: '🐉', role: 'Fúria',       mult: { hp: 0.6, def: 0.4, crit: 1.0, dmg: 1.3 } },
+  minotauro:   { name: 'Minotauro',    icon: '🦬', role: 'Brutamontes', mult: { hp: 1.2, def: 0.8, crit: 0.3, dmg: 1.0 } }
 };
 
-// Bónus que um mascote dá ao herói (só quando está ativo). Todos os mascotes usam
-// a mesma fórmula, ligada apenas ao nível e a ser bebé (<15) ou adulto (>=15).
-function petBonusAt(level) {
+// Bónus que um mascote dá ao herói (só quando está ativo): depende do nível, de ser
+// bebé (<15) ou adulto (>=15) e do papel do mascote (`type`).
+function petBonusAt(level, type) {
   const petLv = Math.min(level, 50);
   const adult = petLv >= 15;
+  const m = (PET_DEFS[type] && PET_DEFS[type].mult) || { hp: 1, def: 1, crit: 1 };
   return {
-    hp: Math.round(petLv * (adult ? 1.5 : 0.8)),
-    def: Math.round(petLv * (adult ? 0.3 : 0.15)),
-    crit: petLv * (adult ? 0.002 : 0.001),
+    hp: Math.round(petLv * (adult ? 1.5 : 0.8) * (m.hp || 0)),
+    def: Math.round(petLv * (adult ? 0.3 : 0.15) * (m.def || 0)),
+    crit: petLv * (adult ? 0.002 : 0.001) * (m.crit || 0),
+    dmg: Math.round(petLv * (adult ? 0.3 : 0.15) * (m.dmg || 0)),
+    dodge: petLv * (adult ? 0.0015 : 0.00075) * (m.dodge || 0),
     adult
   };
+}
+
+// Texto com só os bónus que o mascote realmente dá.
+function petBonusText(b) {
+  const parts = [];
+  if (b.hp) parts.push(`+${b.hp} HP`);
+  if (b.def) parts.push(`+${b.def} Defesa`);
+  if (b.dmg) parts.push(`+${b.dmg} Dano`);
+  if (b.crit) parts.push(`+${pct(b.crit)} Crítico`);
+  if (b.dodge) parts.push(`+${pct(b.dodge)} Esquiva`);
+  return parts.join(' · ') || 'Sem bónus';
 }
 
 // Profissões: escolha única e permanente (aba Herói → Profissões). Desbloqueia-se
@@ -1486,10 +1509,12 @@ function effectiveStats(player) {
   if (player.activePet) {
     const pet = player.pets.find(p => p.id === player.activePet);
     if (pet) {
-      const petBonus = petBonusAt(pet.level);
+      const petBonus = petBonusAt(pet.level, pet.type);
       hp += petBonus.hp;
       def += petBonus.def;
       crit += petBonus.crit;
+      dmg += petBonus.dmg; dmgMin += petBonus.dmg; dmgMax += petBonus.dmg;
+      dodge += petBonus.dodge;
     }
   }
 
@@ -2451,21 +2476,22 @@ function showEventInfoModal(ev) {
 
 function showPetInfoModal(pet, isActive) {
   const def = PET_DEFS[pet.type];
-  const bonus = petBonusAt(pet.level);
+  const bonus = petBonusAt(pet.level, pet.type);
   const statusLine = isActive
     ? `<p class="tiny" style="color:var(--gold-bright); font-weight:700;">✅ Ativo — estes bónus estão a ser aplicados a ti agora.</p>`
     : `<p class="tiny">⏸️ Não ativo — estes bónus só se aplicam quando o pões como mascote ativo (botão "Usar").</p>`;
   const refLevels = [1, 5, 10, 14, 15, 25, 35, 50];
   const rows = refLevels.map(lv => {
-    const b = petBonusAt(lv);
+    const b = petBonusAt(lv, pet.type);
     const isNow = lv === pet.level;
-    return `<p class="tiny" style="margin-top:4px;${isNow ? ' color:var(--gold-bright); font-weight:700;' : ''}">Nv.${lv} ${b.adult ? '🌟 adulto' : '🥚 bebé'} — +${b.hp} HP · +${b.def} Defesa · +${pct(b.crit)} Crítico${isNow ? ' ← nível atual' : ''}</p>`;
+    return `<p class="tiny" style="margin-top:4px;${isNow ? ' color:var(--gold-bright); font-weight:700;' : ''}">Nv.${lv} ${b.adult ? '🌟 adulto' : '🥚 bebé'} — ${petBonusText(b)}${isNow ? ' ← nível atual' : ''}</p>`;
   }).join('');
   showInfoModal(def.icon, `${def.name} (Nv.${pet.level}/50)`, `
+    <p class="tiny" style="font-weight:700;">Papel: ${def.role}</p>
     ${statusLine}
     <div class="divider"></div>
     <p class="tiny" style="font-weight:700;">Buffs atuais:</p>
-    <p class="tiny" style="color:var(--gold-bright); margin-top:2px;">+${bonus.hp} HP · +${bonus.def} Defesa · +${pct(bonus.crit)} Crítico</p>
+    <p class="tiny" style="color:var(--gold-bright); margin-top:2px;">${petBonusText(bonus)}</p>
     <div class="divider"></div>
     <p class="tiny" style="font-weight:700;">Evolução do bónus por nível:</p>
     ${rows}
@@ -2946,13 +2972,14 @@ function renderWikiBody() {
         const pet = PET_DEFS[k];
         const src = petSources[k];
         return `<div class="card raised">
-          <span style="font-weight:700;">${pet.icon} ${pet.name}</span>
+          <span style="font-weight:700;">${pet.icon} ${pet.name}</span> <span class="tiny" style="opacity:.75;">· ${pet.role}</span>
+          <p class="tiny" style="margin-top:4px; color:var(--gold-bright);">Nv.50 adulto: ${petBonusText(petBonusAt(50, k))}</p>
           <p class="tiny" style="margin-top:6px;">${src ? `Cai ao derrotar: ${src.icon} ${src.name} (${src.region})` : 'Ainda não disponível no jogo.'}</p>
         </div>`;
       }).join('')}
       <div class="card raised">
         <span style="font-weight:700;">Crescimento</span>
-        <p class="tiny" style="margin-top:6px;">Nível máximo 50, torna-se adulto (bónus maiores) a partir do nível 15. Alimentar custa ouro, e o custo sobe com o nível do mascote.</p>
+        <p class="tiny" style="margin-top:6px;">Cada mascote tem um papel e bónus diferentes. Nível máximo 50, torna-se adulto (bónus maiores) a partir do nível 15. Alimentar custa ouro, e o custo sobe com o nível do mascote.</p>
       </div>
     `;
   } else if (t === 'eventos') {
@@ -3691,15 +3718,15 @@ function renderHeroiPerfilBody() {
   if (p.pets.length) {
     petsHtml = p.pets.map(pet => {
       const def = PET_DEFS[pet.type];
-      const bonus = petBonusAt(pet.level);
+      const bonus = petBonusAt(pet.level, pet.type);
       const active = p.activePet === pet.id;
       return `
         <div class="item-row" data-pet-card="${pet.id}" style="cursor:pointer;">
           <div class="item-ic">${def.icon}</div>
           <div class="item-mid">
-            <div class="item-name">${def.name} ${bonus.adult ? '(adulto)' : '(bebé)'}</div>
+            <div class="item-name">${def.name} ${bonus.adult ? '(adulto)' : '(bebé)'} <span class="tiny" style="opacity:.75;">· ${def.role}</span></div>
             <div class="tiny">Nível ${pet.level}/50 ${active ? '· ativo' : ''}</div>
-            <div class="tiny" style="color:var(--gold-bright); margin-top:2px;">+${bonus.hp} HP · +${bonus.def} Defesa · +${pct(bonus.crit)} Crítico ${active ? '· aplicado agora' : '· só quando ativo'}</div>
+            <div class="tiny" style="color:var(--gold-bright); margin-top:2px;">${petBonusText(bonus)} ${active ? '· aplicado agora' : '· só quando ativo'}</div>
           </div>
           <div style="display:flex; gap:6px;">
             <button class="btn small" data-feed-pet="${pet.id}">🐟 Alimentar</button>
