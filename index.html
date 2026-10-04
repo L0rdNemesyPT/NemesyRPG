@@ -1280,6 +1280,47 @@ const ORE_TABLE = [
   { name: 'Mithril', gold: 100, chance: 0.05 }
 ];
 
+// ---- Agricultura -----------------------------------------------------------
+const FARM_SLOTS = 2;
+const FARM_GROW_BATTLES = 3;
+const FARM_SEED_REGIONS = ['planicies', 'florestanegra'];
+const FARM_SEED_CHANCE = 0.06;
+const FARM_SEED_BOSS_CHANCE = 0.20;
+// Quantidade colhida: 1 (55%), 2 (30%) ou 3 (15%).
+const FARM_YIELD_TABLE = [{ qty: 1, chance: 0.55 }, { qty: 2, chance: 0.30 }, { qty: 3, chance: 0.15 }];
+// `sell` é o valor base (multiplicado por professionGoldMult como nas outras profissões).
+// `duration` conta rondas de combate depois de comer (dano/crítico/regeneração têm +1
+// porque a ronda em que se come não ataca nem regenera ainda).
+const CROP_DEFS = {
+  onion:  { name: 'Cebola',  plant: 'Cebolas',   icon: '🧅', sell: 8,  stat: 'def',   duration: 4, effect: '+3% Defesa por 4 rondas' },
+  carrot: { name: 'Cenoura', plant: 'Cenouras',  icon: '🥕', sell: 8,  stat: 'crit',  duration: 5, effect: '+3% Crítico por 4 rondas' },
+  potato: { name: 'Batata',  plant: 'Batatas',   icon: '🥔', sell: 9,  stat: 'dmg',   duration: 5, effect: '+3% Dano por 4 rondas' },
+  tomato: { name: 'Tomate',  plant: 'Tomates',   icon: '🍅', sell: 10, stat: 'dodge', duration: 4, effect: '+3% Esquiva por 4 rondas' },
+  corn:   { name: 'Milho',   plant: 'Milho',     icon: '🌽', sell: 12, stat: 'xp',    duration: 0, effect: '+3% de XP de recompensa no fim do combate' },
+  apple:  { name: 'Maçã',    plant: 'Macieiras', icon: '🍎', sell: 14, stat: 'regen', duration: 5, effect: '+3% de Regeneração de HP por 4 rondas' }
+};
+function newFarm() {
+  const seeds = {}, crops = {};
+  Object.keys(CROP_DEFS).forEach(k => { seeds[k] = 0; crops[k] = 0; });
+  return { slots: Array.from({ length: FARM_SLOTS }, () => null), seeds, crops };
+}
+function ensureFarm(p) {
+  if (!p.farm || typeof p.farm !== 'object') p.farm = newFarm();
+  const f = p.farm;
+  if (!f.seeds || typeof f.seeds !== 'object') f.seeds = {};
+  if (!f.crops || typeof f.crops !== 'object') f.crops = {};
+  Object.keys(CROP_DEFS).forEach(k => {
+    if (!Number.isFinite(f.seeds[k]) || f.seeds[k] < 0) f.seeds[k] = 0;
+    if (!Number.isFinite(f.crops[k]) || f.crops[k] < 0) f.crops[k] = 0;
+  });
+  if (!Array.isArray(f.slots)) f.slots = [];
+  while (f.slots.length < FARM_SLOTS) f.slots.push(null);
+  f.slots.length = FARM_SLOTS;
+  f.slots = f.slots.map(sl => (sl && CROP_DEFS[sl.crop]) ? { crop: sl.crop, left: Math.max(0, Math.floor(Number(sl.left) || 0)) } : null);
+  return f;
+}
+function cropSellPrice(p, key) { return Math.round(CROP_DEFS[key].sell * professionGoldMult(p.level)); }
+
 const WOOD_TABLE = [
   { name: 'Pinho', gold: 6, chance: 0.38 },
   { name: 'Carvalho', gold: 13, chance: 0.27 },
@@ -1361,7 +1402,7 @@ function newPlayer(name, cls) {
     chests: [],
     scrolls: { feitico: 0, reforco: 0 },
     pearls: newPearlsBag(),
-    mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
+    farm: newFarm(), mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
     pets: [], activePet: null,
     critBuffBattles: 0,
     regionIndex: 0,
@@ -2853,7 +2894,8 @@ function renderTabWiki() {
     { key: 'eventos', label: 'Eventos' },
     { key: 'catacumbas', label: 'Catacumbas' },
     { key: 'dungeons', label: 'Dungeons' },
-    { key: 'profissoes', label: 'Profissões' }
+    { key: 'profissoes', label: 'Profissões' },
+    { key: 'agricultura', label: 'Agricultura' }
   ];
   $('hub-content').innerHTML = `
     <div class="section-title">📚 Wiki do Nemesy</div>
@@ -3079,6 +3121,27 @@ function renderWikiBody() {
         <span style="font-weight:700;">🔥 O Altar</span>
         <p class="tiny" style="margin-top:6px;">Cada vez que derrotas o chefe final de uma dungeon Tier 2, ganhas <b>1 tentativa</b> no Altar (não se acumula desbloqueio permanente — para ganhares outra tentativa, tens de voltar a vencer a dungeon). Lá podes colocar o teu <b>Artefacto equipado</b> — cada tentativa gasta uma "carga" e dá ${Math.round(ALTAR_SUCCESS_CHANCE * 100)}% de hipótese de ligar, para sempre, <b>um</b> dos seguintes Bónus de Altar (só um bónus por artefacto):</p>
         ${ALTAR_BONUS_POOL.map(b => `<p class="tiny" style="margin-top:4px;">${b.icon} <b>${b.name}</b> — ${b.desc}</p>`).join('')}
+      </div>
+    `;
+  } else if (t === 'agricultura') {
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">Cidade → Profissão → Agricultura. Tens ${FARM_SLOTS} espaços para plantar.</p>
+      <div class="card raised">
+        <span style="font-weight:700;">🌱 Sementes</span>
+        <p class="tiny" style="margin-top:6px;">Caem com baixa chance (cerca de ${pct(FARM_SEED_CHANCE)}) ao derrotar monstros das <b>Planícies Verdes</b> e da <b>Floresta Negra</b>, e com mais chance (cerca de ${pct(FARM_SEED_BOSS_CHANCE)}) ao derrotar os chefes dessas regiões. A semente que cai é aleatória.</p>
+      </div>
+      <div class="card raised">
+        <span style="font-weight:700;">🧺 Plantar e colher</span>
+        <p class="tiny" style="margin-top:6px;">Depois de plantar, espera ${FARM_GROW_BATTLES} batalhas (vitórias ou derrotas contam). Ao colher recebes 1 a 3 alimentos e o espaço fica livre: tens de voltar a plantar. Os alimentos ficam guardados e vêem-se na Mochila.</p>
+      </div>
+      <div class="card raised">
+        <span style="font-weight:700;">🪙 Vender</span>
+        <p class="tiny" style="margin-top:6px;">Cada alimento vende-se por ouro (o valor sobe com o teu nível, como nas outras profissões): ${Object.keys(CROP_DEFS).map(k => `${CROP_DEFS[k].icon} ${CROP_DEFS[k].sell}`).join(' · ')} (valor base).</p>
+      </div>
+      <div class="card raised">
+        <span style="font-weight:700;">🍽️ Comer em combate</span>
+        <p class="tiny" style="margin-top:6px;">Abre 🧪 Poção durante um combate e escolhe um alimento (gasta a tua ação). Não se acumula com o mesmo efeito já ativo, e o milho só conta uma vez por combate.</p>
+        ${Object.keys(CROP_DEFS).map(k => `<p class="tiny" style="margin-top:4px;">${CROP_DEFS[k].icon} ${CROP_DEFS[k].name}: ${CROP_DEFS[k].effect}</p>`).join('')}
       </div>
     `;
   } else if (t === 'profissoes') {
@@ -4200,7 +4263,7 @@ function pearlsSummaryHtml(p) {
 }
 function renderChestsBody(body, p) {
   if (!p.chests.length) {
-    body.innerHTML = pearlsSummaryHtml(p) + `<div class="empty-hint">🎁 Ainda não tens baús.<br>Derrota monstros e explora dungeons para encontrares alguns.</div>`;
+    body.innerHTML = pearlsSummaryHtml(p) + farmSummaryHtml(p) + `<div class="empty-hint">🎁 Ainda não tens baús.<br>Derrota monstros e explora dungeons para encontrares alguns.</div>`;
     return;
   }
   const typeGroups = Object.keys(CHEST_DEFS).map(key => {
@@ -4216,7 +4279,7 @@ function renderChestsBody(body, p) {
     </div>
   </div>`;
 
-  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Abre os teus baús gastando ouro para revelar o que contêm.</p>` + pearlsSummaryHtml(p) + openAllBar + p.chests.map(chest => {
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Abre os teus baús gastando ouro para revelar o que contêm.</p>` + pearlsSummaryHtml(p) + farmSummaryHtml(p) + openAllBar + p.chests.map(chest => {
     const def = CHEST_DEFS[chest.type];
     const cost = chestCost(chest.type, chest.level);
     const canAfford = p.gold >= cost;
@@ -5006,7 +5069,9 @@ function renderLojaBody() {
         </div>
         <p class="tiny" style="margin-top:6px;">Corta madeira e vende-a por ouro. Quanto mais rara a árvore, mais rende.</p>
       </div>
+      ${farmCardHtml(p)}
     `;
+    bindFarmHandlers();
     if ((p.fishCooldown||0) <= 0) $('btn-fish').addEventListener('click', doFish);
     if ((p.mineCooldown||0) <= 0) $('btn-mine').addEventListener('click', doMine);
     if ((p.woodCooldown||0) <= 0) $('btn-wood').addEventListener('click', doWood);
@@ -5199,6 +5264,99 @@ function doMine() {
   sfx.gold();
   renderHubTab();
   toast(`⛏️ Minaste ${chosen.name}! +${gold} ouro.`);
+}
+
+// --- Agricultura -----------------------------------------------------------
+function farmCardHtml(p) {
+  const farm = ensureFarm(p);
+  const seedKeys = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
+  const slotsHtml = farm.slots.map((slot, i) => {
+    if (!slot) {
+      const plantBtns = seedKeys.length
+        ? seedKeys.map(k => `<button class="btn small primary" data-farm-plant="${i}:${k}" style="margin:4px 4px 0 0;">${CROP_DEFS[k].icon} ${CROP_DEFS[k].plant} (${farm.seeds[k]})</button>`).join('')
+        : `<span class="tiny muted">Sem sementes. Derrota monstros e chefes das Planícies Verdes e da Floresta Negra.</span>`;
+      return `<div class="item-row" style="display:block;"><div class="tiny" style="font-weight:700; margin-bottom:2px;">🌱 Espaço ${i + 1} — vazio</div>${plantBtns}</div>`;
+    }
+    const d = CROP_DEFS[slot.crop];
+    const ready = slot.left <= 0;
+    return `<div class="item-row"><div class="item-ic">${d.icon}</div>
+      <div class="item-mid"><div class="item-name">${d.plant}</div><div class="tiny">${ready ? 'Pronto a colher!' : `A crescer: faltam ${slot.left} batalha(s)`}</div></div>
+      <button class="btn small ${ready ? 'primary' : 'ghost'}" data-farm-harvest="${i}" ${ready ? '' : 'disabled'}>${ready ? 'Colher' : '⏳'}</button></div>`;
+  }).join('');
+  const cropKeys = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
+  const cropsHtml = cropKeys.length ? cropKeys.map(k => {
+    const d = CROP_DEFS[k], n = farm.crops[k], price = cropSellPrice(p, k);
+    return `<div class="item-row"><div class="item-ic">${d.icon}</div>
+      <div class="item-mid"><div class="item-name">${d.name} ×${n}</div><div class="tiny">${d.effect} (usa em combate)</div></div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <button class="btn small ghost" data-farm-sell="${k}:1">Vender 🪙${price}</button>
+        ${n > 1 ? `<button class="btn small primary" data-farm-sell="${k}:all">Tudo 🪙${price * n}</button>` : ''}
+      </div></div>`;
+  }).join('') : `<p class="tiny muted">Ainda não tens alimentos. Planta sementes e colhe ao fim de ${FARM_GROW_BATTLES} batalhas.</p>`;
+  const seedsLine = seedKeys.length ? `<p class="tiny" style="margin-bottom:6px;">Sementes: ${seedKeys.map(k => `${CROP_DEFS[k].icon} ${farm.seeds[k]}`).join(' · ')}</p>` : '';
+  return `<div class="card raised">
+    <span style="font-weight:700;">🌾 Agricultura</span>
+    <p class="tiny" style="margin:6px 0 8px;">Planta sementes (caem de monstros das Planícies Verdes e da Floresta Negra). Ao fim de ${FARM_GROW_BATTLES} batalhas colhes 1 a 3 alimentos: vende-os ou come-os em combate.</p>
+    ${seedsLine}${slotsHtml}
+    <div class="section-title" style="margin-top:12px;">🧺 Alimentos</div>
+    ${cropsHtml}
+  </div>`;
+}
+
+function farmRefresh() {
+  saveGame();
+  if (App.tab === 'loja') renderLojaBody();
+}
+
+function bindFarmHandlers() {
+  els('[data-farm-plant]').forEach(b => b.addEventListener('click', () => {
+    const [idx, key] = b.dataset.farmPlant.split(':');
+    const farm = ensureFarm(App.player), i = Number(idx);
+    if (!CROP_DEFS[key] || farm.slots[i] || !(farm.seeds[key] > 0)) { sfx.error(); return; }
+    farm.seeds[key]--;
+    farm.slots[i] = { crop: key, left: FARM_GROW_BATTLES };
+    sfx.click();
+    toast(`${CROP_DEFS[key].icon} Plantaste ${CROP_DEFS[key].plant}. Colhe em ${FARM_GROW_BATTLES} batalhas.`);
+    farmRefresh();
+  }));
+  els('[data-farm-harvest]').forEach(b => b.addEventListener('click', () => {
+    const farm = ensureFarm(App.player), i = Number(b.dataset.farmHarvest), slot = farm.slots[i];
+    if (!slot || slot.left > 0) { sfx.error(); return; }
+    let r = Math.random(), qty = 1, acc = 0;
+    for (const y of FARM_YIELD_TABLE) { acc += y.chance; if (r <= acc) { qty = y.qty; break; } }
+    farm.crops[slot.crop] += qty;
+    farm.slots[i] = null;
+    sfx.gold();
+    toast(`${CROP_DEFS[slot.crop].icon} Colheste ${qty}× ${CROP_DEFS[slot.crop].name}! Volta a plantar para colher de novo.`);
+    farmRefresh();
+  }));
+  els('[data-farm-sell]').forEach(b => b.addEventListener('click', () => {
+    const [key, mode] = b.dataset.farmSell.split(':');
+    const p = App.player, farm = ensureFarm(p);
+    const n = mode === 'all' ? farm.crops[key] : 1;
+    if (!CROP_DEFS[key] || !(n > 0) || farm.crops[key] < n) { sfx.error(); return; }
+    const gold = cropSellPrice(p, key) * n;
+    farm.crops[key] -= n;
+    p.gold += gold;
+    sfx.gold();
+    renderStatusBar();
+    toast(`Vendeste ${n}× ${CROP_DEFS[key].name}: +${gold} ouro.`);
+    farmRefresh();
+  }));
+}
+
+function farmSummaryHtml(p) {
+  const farm = ensureFarm(p);
+  const seeds = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
+  const crops = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
+  if (!seeds.length && !crops.length) return '';
+  return `<div class="card raised" style="margin-bottom:12px;">
+    <p class="tiny" style="margin-bottom:8px; font-weight:700; color:var(--parchment);">🌾 Agricultura</p>
+    <div class="row" style="gap:14px; flex-wrap:wrap;">
+      ${seeds.map(k => `<span class="tiny">🌱 ${CROP_DEFS[k].name}: <b>${farm.seeds[k]}</b></span>`).join('')}
+      ${crops.map(k => `<span class="tiny">${CROP_DEFS[k].icon} ${CROP_DEFS[k].name}: <b>${farm.crops[k]}</b></span>`).join('')}
+    </div>
+  </div>`;
 }
 
 // --- Classificação (top 3 por nível e por ouro) ------------------------------
@@ -5819,14 +5977,17 @@ function applyTempBuffsToStats(stats, bs, enemyCategory) {
     ? stats.dmgMin + Math.floor(Math.random() * (stats.dmgMax - stats.dmgMin + 1))
     : stats.dmg;
   if (bs.potionAtkBuff) dmg = dmg * (1 + bs.potionAtkBuff.pct);
+  if (bs.food && bs.food.dmg > 0) dmg *= 1.03;
   if (enemyCategory === 'animal' && stats.dmgVsAnimaisPct) dmg *= (1 + stats.dmgVsAnimaisPct / 100);
   if (enemyCategory === 'humano' && stats.dmgVsHumanosPct) dmg *= (1 + stats.dmgVsHumanosPct / 100);
-  return Object.assign({}, stats, { dmg });
+  const crit = stats.crit + ((bs.food && bs.food.crit > 0) ? 0.03 : 0);
+  return Object.assign({}, stats, { dmg, crit });
 }
 function getPlayerDefMultiplier(bs) {
   let mult = 1;
   if (bs.playerDefBuff) mult += bs.playerDefBuff.pct;
   if (bs.potionDefBuff) mult += bs.potionDefBuff.pct;
+  if (bs.food && bs.food.def > 0) mult += 0.03;
   if (bs.elementDefShred) mult -= Math.min(0.30, bs.elementDefShred * 0.05);
   return Math.max(0.2, mult);
 }
@@ -5941,12 +6102,36 @@ function usePotionAction(key) {
   postPlayerAction();
 }
 
+function useFoodAction(key) {
+  const c = App.combat, p = App.player, d = CROP_DEFS[key];
+  if (!c || c.ended || !d || !(ensureFarm(p).crops[key] > 0)) { sfx.error(); toast('Só podes comer alimentos durante um combate.'); return; }
+  if (d.stat === 'xp') {
+    if (c.foodXpPct) { sfx.error(); toast('Já comeste milho neste combate.'); return; }
+  } else if (c.battleState.food && c.battleState.food[d.stat] > 0) {
+    sfx.error(); toast('Esse efeito já está ativo.'); return;
+  }
+  tickCooldowns();
+  p.farm.crops[key]--;
+  sfx.potion();
+  if (d.stat === 'xp') {
+    c.foodXpPct = 0.03;
+    addCombatLog({ text: `${d.icon} Comeste ${d.name}: +3% de XP de recompensa no fim do combate.`, cls: 'good' });
+  } else {
+    c.battleState.food = c.battleState.food || {};
+    c.battleState.food[d.stat] = d.duration;
+    addCombatLog({ text: `${d.icon} Comeste ${d.name}: ${d.effect}.`, cls: 'good' });
+  }
+  closeModal();
+  postPlayerAction();
+}
+
 function openPotionModal() {
   const p = App.player;
   const c = App.combat;
   const hpUsed = (c && c.battleState && c.battleState.hpPotionsUsed) || 0;
   const hpLocked = c && hpUsed >= HP_POTIONS_PER_BATTLE;
   const keys = Object.keys(POTION_DEFS).filter(k => p.potions[k] > 0);
+  const foodKeys = c ? Object.keys(CROP_DEFS).filter(k => ensureFarm(p).crops[k] > 0) : [];
   let html = `<h3 style="margin-bottom:12px;">Usar poção</h3>`;
   if (!keys.length) html += `<p class="muted">Não tens poções. Compra na Cidade → Loja.</p>`;
   else html += keys.map(k => {
@@ -5955,9 +6140,17 @@ function openPotionModal() {
     const limitTag = isHpPotion(k) && c ? ` <span class="tiny" style="opacity:0.7;">(${hpUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha)</span>` : '';
     return `<div class="item-row" ${locked ? '' : `data-use-potion="${k}"`}><div class="item-ic">${d.icon}</div><div class="item-mid"><div class="item-name">${d.name} (${p.potions[k]})${limitTag}</div><div class="tiny">${d.desc}</div></div><button class="btn small ${locked ? 'ghost' : 'primary'}" ${locked ? 'disabled' : ''}>${locked ? '🔒' : 'Usar'}</button></div>`;
   }).join('');
+  if (foodKeys.length) {
+    html += `<div class="section-title" style="margin-top:12px;">🍽️ Alimentos</div>` + foodKeys.map(k => {
+      const d = CROP_DEFS[k];
+      const active = d.stat === 'xp' ? !!c.foodXpPct : !!(c.battleState.food && c.battleState.food[d.stat] > 0);
+      return `<div class="item-row" ${active ? 'style="opacity:.5;"' : `data-use-food="${k}"`}><div class="item-ic">${d.icon}</div><div class="item-mid"><div class="item-name">${d.name} (${p.farm.crops[k]})${active ? ' <span class="tiny">· ativo</span>' : ''}</div><div class="tiny">${d.effect}</div></div></div>`;
+    }).join('');
+  }
   html += `<button class="btn ghost block" id="btn-close-modal" style="margin-top:8px;">Fechar</button>`;
   openModal(html);
   $('btn-close-modal').addEventListener('click', closeModal);
+  els('[data-use-food]').forEach(row => row.addEventListener('click', () => useFoodAction(row.dataset.useFood)));
   els('[data-use-potion]').forEach(row => row.addEventListener('click', () => usePotionAction(row.dataset.usePotion)));
 }
 
@@ -5985,17 +6178,20 @@ function postPlayerAction() {
   ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff'].forEach(k => {
     if (c.battleState[k]) { c.battleState[k].duration--; if (c.battleState[k].duration <= 0) c.battleState[k] = null; }
   });
+  if (c.battleState.food) Object.keys(c.battleState.food).forEach(k => { if (c.battleState.food[k] > 0) c.battleState.food[k]--; });
   if (c.battleState.enemyRegenBlocked > 0) { c.battleState.enemyRegenBlocked--; }
   if (p.hp > 0) {
     const pStats = effectiveStats(p);
     const poisoned = c.battleState.playerPoison && c.battleState.playerPoison.duration > 0;
-    if (pStats.regenPct && !poisoned) {
-      const heal = Math.round(pStats.hp * pStats.regenPct / 100);
+    const foodRegen = (c.battleState.food && c.battleState.food.regen > 0) ? 3 : 0;
+    const regenPct = Math.min(REGEN_CAP, (pStats.regenPct || 0) + foodRegen);
+    if (regenPct && !poisoned) {
+      const heal = Math.round(pStats.hp * regenPct / 100);
       if (heal > 0 && p.hp < pStats.hp) {
         p.hp = Math.min(pStats.hp, p.hp + heal);
         addCombatLog({ text: `💚 Regeneraste ${heal} HP.`, cls: 'good' });
       }
-    } else if (pStats.regenPct && poisoned) {
+    } else if (regenPct && poisoned) {
       addCombatLog({ text: `☣️ O veneno impede a tua regeneração este turno.`, cls: 'hit' });
     }
   }
@@ -6038,7 +6234,9 @@ function resolveEnemyTurn() {
     addCombatLog({ text: `😡 ${c.name} entra em fúria! O dano dele aumenta drasticamente.`, cls: 'hit' });
   }
 
-  if (pStats.dodge && Math.random() < pStats.dodge) {
+  const foodDodge = (c.battleState.food && c.battleState.food.dodge > 0) ? 0.03 : 0;
+  const dodgeChance = Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge);
+  if (dodgeChance && Math.random() < dodgeChance) {
     addCombatLog({ text: `Esquivaste do ataque de ${c.name}!`, cls: 'good' });
     sfx.dodge();
     return;
@@ -6160,6 +6358,7 @@ function tickProfessionCooldowns(p) {
   if ((p.mineCooldown||0) > 0) p.mineCooldown--;
   if ((p.fishCooldown||0) > 0) p.fishCooldown--;
   if ((p.woodCooldown||0) > 0) p.woodCooldown--;
+  if (p.farm && Array.isArray(p.farm.slots)) p.farm.slots.forEach(sl => { if (sl && sl.left > 0) sl.left--; });
 }
 
 function finishWildOrBossVictory() {
@@ -6174,7 +6373,7 @@ function finishWildOrBossVictory() {
   // Rift: adversário ×3 mais forte, por isso a recompensa também é bastante superior
   // à de um combate normal do mesmo nível (mas ainda abaixo de um chefe de dungeon).
   const riftMult = isRift ? 1.8 : 1;
-  const xpGain = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * riftMult * diff.xpMult);
+  const xpGain = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * riftMult * diff.xpMult * (1 + (c.foodXpPct || 0)));
   const goldGain = Math.round((isBoss ? (40 + c.level * 6) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * riftMult * diff.goldMult);
   p.gold += goldGain;
   grantXp(xpGain);
@@ -6215,6 +6414,14 @@ function finishWildOrBossVictory() {
   }
 
   const monsterDef = REGIONS.flatMap(r => r.monsters).find(m => m.name === c.name);
+  // Sementes: só monstros e chefes das Planícies Verdes e da Floresta Negra.
+  const killRegion = REGIONS.find(r => r.monsters.some(m => m.name === c.name));
+  if (killRegion && FARM_SEED_REGIONS.includes(killRegion.key) && Math.random() < ((isBoss ? FARM_SEED_BOSS_CHANCE : FARM_SEED_CHANCE) * fortuneMult) + luck) {
+    const cropKeys = Object.keys(CROP_DEFS);
+    const seedKey = cropKeys[Math.floor(Math.random() * cropKeys.length)];
+    ensureFarm(p).seeds[seedKey]++;
+    drops.push(`🌱 Encontraste: Semente de ${CROP_DEFS[seedKey].name}! (Cidade → Profissão → Agricultura)`);
+  }
   if (!isBoss && monsterDef && monsterDef.pet && Math.random() < 0.08 + luck && !p.pets.find(pp => pp.type === monsterDef.pet)) {
     p.pets.push({ id: 'pet_' + Math.random().toString(36).slice(2, 8), type: monsterDef.pet, level: 1 });
     if (!p.activePet) p.activePet = p.pets[p.pets.length - 1].id;
@@ -6301,7 +6508,7 @@ function finishWildOrBossVictory() {
 function finishCatacumba() {
   const c = App.combat, p = App.player, cat = c.catacumbaDef;
   // Base ~3.5x mais generosa que um chefe normal do mesmo nível, por ser muito mais difícil.
-  const xpGain = Math.round((35 + cat.bossLv * 4.5) * 3.5);
+  const xpGain = Math.round((35 + cat.bossLv * 4.5) * 3.5 * (1 + (c.foodXpPct || 0)));
   const goldGain = Math.round((40 + cat.bossLv * 6) * 3.5);
   p.gold += goldGain;
   grantXp(xpGain);
@@ -6341,7 +6548,7 @@ function finishCatacumba() {
 
 function finishDungeon() {
   const c = App.combat, p = App.player, d = c.dungeonDef;
-  const xpGain = 60 + d.minLv * 3.5;
+  const xpGain = Math.round((60 + d.minLv * 3.5) * (1 + (c.foodXpPct || 0)));
   const goldGain = 80 + d.minLv * 4;
   p.gold += goldGain;
   grantXp(xpGain);
@@ -6467,7 +6674,8 @@ function renderCombat() {
   $('cb-player-lv').textContent = 'Nv. ' + p.level;
   if (c._lastPlayerHp !== undefined && p.hp < c._lastPlayerHp) flashFx(document.querySelector('.player-panel'), 'fx-hurt');
   c._lastPlayerHp = p.hp;
-  const potionTotal = Object.values(p.potions || {}).reduce((a, b) => a + b, 0);
+  const potionTotal = Object.values(p.potions || {}).reduce((a, b) => a + b, 0)
+    + Object.values(ensureFarm(p).crops).reduce((a, b) => a + b, 0);
   $('cb-btn-potion').textContent = `🧪 Poção (${potionTotal})`;
   $('cb-player-hp').textContent = `${Math.max(0, p.hp)}/${pStats.hp}`;
   $('cb-player-hpfill').style.width = clamp(p.hp / pStats.hp * 100, 0, 100) + '%';
@@ -6728,6 +6936,7 @@ function applyPlayerMigrations(player) {
   if (player.mineUses === undefined) player.mineUses = 0;
   if (player.fishUses === undefined) player.fishUses = 0;
   if (player.nameChanged !== true) player.nameChanged = false;
+  ensureFarm(player);
   if (!Number.isFinite(player.woodCooldown)) player.woodCooldown = 0;
   if (!Number.isFinite(player.woodUses)) player.woodUses = 0;
   if (!player.potions) player.potions = { hp: 0, hp2: 0, def: 0, atk: 0, fortune: 0 };
@@ -6807,7 +7016,7 @@ if (typeof module !== 'undefined' && module.exports) {
     BONUS_PLUS_POOL, ITEM_BONUS_MAX_SLOTS, bonusPlusLabel, rollNewBonusForItem, applyFeitico, applyReforco, CATEGORY_NAMES, DODGE_CAP, STUN_ON_HIT_CAP,
     xpForLevel, statsAtLevel, newPlayer, getEvoBonus, equippedSetCounts, activeSetBonuses, effectiveStats,
     rollRarity, generateItem, blacksmithCost, blacksmithSuccessChance, socketSlotCost, migrateItemRarity,
-    enemyStatsFor, bossGapMultiplier, rollRandomEvent, applyDamage, useAbility, exportItemCode, importItemFromCode, migrateItemLevel,
+    enemyStatsFor, bossGapMultiplier, rollRandomEvent, applyDamage, useAbility, exportItemCode, importItemFromCode, migrateItemLevel, ensureFarm, newFarm, CROP_DEFS, cropSellPrice, tickProfessionCooldowns, applyTempBuffsToStats, getPlayerDefMultiplier,
     RANDOM_EVENTS, EVENT_DROPS, ARMOR_SLOTS
   };
 }
