@@ -157,6 +157,19 @@ begin
       v_reason := 'a classe do herói não pode mudar';
     end if;
 
+    -- O nome do herói só pode mudar uma vez (nameChanged passa a true e nunca volta a false).
+    if v_reason is null and p_save_data->>'name' is distinct from v_row.save_data->>'name' then
+      if coalesce(v_row.save_data->>'nameChanged', 'false') = 'true'
+        or coalesce(p_save_data->>'nameChanged', 'false') <> 'true'
+        or char_length(btrim(coalesce(p_save_data->>'name', ''))) not between 1 and 16 then
+        v_reason := 'o nome do herói só pode ser alterado uma vez';
+      end if;
+    elsif v_reason is null
+      and coalesce(v_row.save_data->>'nameChanged', 'false') = 'true'
+      and coalesce(p_save_data->>'nameChanged', 'false') <> 'true' then
+      v_reason := 'o nome do herói só pode ser alterado uma vez';
+    end if;
+
     v_old_level := case when v_row.save_data->>'level' ~ '^[1-9][0-9]*$' then (v_row.save_data->>'level')::numeric else v_level end;
     v_old_gold := case when v_row.save_data->>'gold' ~ '^(0|[1-9][0-9]*)$' then (v_row.save_data->>'gold')::numeric else v_gold end;
     v_elapsed := greatest(0, extract(epoch from (v_now - coalesce(v_row.budget_at, v_now))));
