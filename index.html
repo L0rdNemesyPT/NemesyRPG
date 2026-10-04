@@ -4944,6 +4944,7 @@ function renderTabLoja() {
       <button class="tab-chip${App.lojaTab === 'loja' ? ' active' : ''}" data-lojatab="loja">Loja</button>
       <button class="tab-chip${App.lojaTab === 'ferreiro' ? ' active' : ''}" data-lojatab="ferreiro">Ferreiro</button>
       <button class="tab-chip${App.lojaTab === 'profissao' ? ' active' : ''}" data-lojatab="profissao">Profissão</button>
+      <button class="tab-chip${App.lojaTab === 'classificacao' ? ' active' : ''}" data-lojatab="classificacao">Classificação</button>
     </div>
     <div id="loja-body"></div>
   `;
@@ -5008,6 +5009,8 @@ function renderLojaBody() {
     if ((p.fishCooldown||0) <= 0) $('btn-fish').addEventListener('click', doFish);
     if ((p.mineCooldown||0) <= 0) $('btn-mine').addEventListener('click', doMine);
     if ((p.woodCooldown||0) <= 0) $('btn-wood').addEventListener('click', doWood);
+  } else if (App.lojaTab === 'classificacao') {
+    renderLeaderboardBody(body);
   } else if (App.lojaTab === 'ferreiro') {
     const equippedItems = EQUIP_SLOTS.filter(s => p.equipment[s]);
     const maxedCount = equippedItems.filter(s => p.equipment[s].upgrade >= 9).length;
@@ -5195,6 +5198,61 @@ function doMine() {
   sfx.gold();
   renderHubTab();
   toast(`⛏️ Minaste ${chosen.name}! +${gold} ouro.`);
+}
+
+// --- Classificação (top 3 por nível e por ouro) ------------------------------
+let leaderboardCache = null;
+let leaderboardToken = 0;
+const LEADERBOARD_TTL_MS = 60000;
+
+function leaderboardRowsHtml(rows, valueFn) {
+  if (!rows || !rows.length) return `<p class="tiny muted">Ainda não há jogadores na classificação.</p>`;
+  const medals = ['🥇', '🥈', '🥉'];
+  return rows.map((r, i) => {
+    const cls = CLASSES[r.class] || CLASSES.guerreiro;
+    return `<div class="item-row"${r.is_me ? ' style="border-color:var(--gold-bright);"' : ''}>
+      <div class="item-ic">${medals[i] || (i + 1)}</div>
+      <div class="item-mid">
+        <div class="item-name">${esc(r.name)}${r.is_me ? ' <span class="tiny" style="color:var(--gold-bright);">(tu)</span>' : ''}</div>
+        <div class="tiny">${cls.icon} ${cls.name} · Nível ${Number(r.level) || 1}</div>
+      </div>
+      <div style="font-weight:800; color:var(--gold-bright); white-space:nowrap;">${valueFn(r)}</div>
+    </div>`;
+  }).join('');
+}
+
+function paintLeaderboard(body, data) {
+  body.innerHTML = `
+    <div class="section-title" style="margin-top:0;">🏆 Top Nível</div>
+    ${leaderboardRowsHtml(data.levels, r => `Nv. ${Number(r.level) || 1}`)}
+    <div class="section-title">💰 Top Ouro</div>
+    ${leaderboardRowsHtml(data.gold, r => `🪙 ${Number(r.gold || 0).toLocaleString('pt-PT')}`)}
+    <p class="tiny muted" style="margin-top:10px;">Atualiza a cada minuto. Só aparecem o nome da personagem, a classe e o nível.</p>
+  `;
+}
+
+async function renderLeaderboardBody(body) {
+  const token = ++leaderboardToken;
+  if (!cloudClient || !cloudUser) {
+    body.innerHTML = `<p class="muted">Inicia sessão na tua conta para veres a classificação.</p>`;
+    return;
+  }
+  if (leaderboardCache && Date.now() - leaderboardCache.at < LEADERBOARD_TTL_MS && leaderboardCache.userId === cloudUser.id) {
+    paintLeaderboard(body, leaderboardCache.data);
+    return;
+  }
+  body.innerHTML = `<p class="muted">A carregar classificação…</p>`;
+  try {
+    const { data, error } = await cloudClient.rpc('get_leaderboard');
+    if (error) throw error;
+    if (token !== leaderboardToken || App.lojaTab !== 'classificacao' || !$('loja-body')) return;
+    leaderboardCache = { at: Date.now(), userId: cloudUser.id, data: data || { levels: [], gold: [] } };
+    paintLeaderboard($('loja-body'), leaderboardCache.data);
+  } catch (error) {
+    console.warn('Não foi possível carregar a classificação:', error);
+    if (token !== leaderboardToken || !$('loja-body')) return;
+    $('loja-body').innerHTML = `<p class="muted">Não foi possível carregar a classificação agora. Tenta novamente daqui a pouco.</p>`;
+  }
 }
 
 function doWood() {
