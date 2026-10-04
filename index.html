@@ -1304,7 +1304,7 @@ function newPlayer(name, cls) {
   return {
     name: name || 'Herói', class: cls, evolution: null, level: 1, xp: 0,
     hp: base.hp, gold: 50,
-    potions: { hp: 3, def: 0, atk: 0, fortune: 0 },
+    potions: { hp: 3, hp2: 0, def: 0, atk: 0, fortune: 0 },
     abilities,
     masteredAbility: null,
     equipment: { talisman: null }, inventory: [], talismans: [],
@@ -4873,11 +4873,16 @@ function openGemPicker(slot, socketIdx) {
 // TAB: LOJA (poções, ferreiro, profissões)
 // ============================================================
 const POTION_DEFS = {
-  hp: { name: 'Poção de HP', icon: '🧪', desc: 'Cura 40% do HP máximo', cost: 12 },
+  hp: { name: 'Poção de HP', icon: '🧪', desc: 'Cura 30% do HP máximo', cost: 10, heal: 0.30 },
+  hp2: { name: 'Poção de HP Maior', icon: '⚗️', desc: 'Cura 50% do HP máximo', cost: 22, heal: 0.50 },
   def: { name: 'Poção da Defesa', icon: '🔵', desc: '+5% defesa por 3 rondas', cost: 15 },
   atk: { name: 'Poção do Ataque', icon: '🔴', desc: '+5% dano por 3 rondas', cost: 15 },
   fortune: { name: 'Poção da Fortuna', icon: '🍀', desc: 'Dobra chances de drop (5 batalhas)', cost: 40 }
 };
+
+const HP_POTION_KEYS = ['hp', 'hp2'];
+const HP_POTIONS_PER_BATTLE = 2;
+function isHpPotion(key) { return HP_POTION_KEYS.includes(key); }
 
 function renderTabLoja() {
   $('hub-content').innerHTML = `
@@ -4900,12 +4905,13 @@ function renderLojaBody() {
   if (App.lojaTab === 'loja') {
     const potionsHtml = Object.keys(POTION_DEFS).map(key => {
       const d = POTION_DEFS[key];
-      const hpStats = key === 'hp' ? effectiveStats(p) : null;
-      const hpPotionDisabled = key === 'hp' && (p.potions.hp <= 0 || p.hp >= hpStats.hp);
+      const isHp = isHpPotion(key);
+      const hpStats = isHp ? effectiveStats(p) : null;
+      const hpPotionDisabled = isHp && ((p.potions[key] || 0) <= 0 || p.hp >= hpStats.hp);
       return `<div class="item-row">
         <div class="item-ic">${d.icon}</div>
-        <div class="item-mid"><div class="item-name">${d.name} (${p.potions[key]})</div><div class="tiny">${d.desc}</div>${key === 'hp' ? `<div class="tiny" style="margin-top:4px;">HP: ${p.hp}/${hpStats.hp}</div>` : ''}</div>
-        ${key === 'hp' ? `<button class="btn small ${hpPotionDisabled ? 'ghost' : 'primary'}" data-use-hp-outside ${hpPotionDisabled ? 'disabled' : ''}>${p.hp >= hpStats.hp ? 'HP cheio' : 'Usar'}</button>` : ''}
+        <div class="item-mid"><div class="item-name">${d.name} (${p.potions[key] || 0})</div><div class="tiny">${d.desc}</div>${isHp ? `<div class="tiny" style="margin-top:4px;">HP: ${p.hp}/${hpStats.hp}</div>` : ''}</div>
+        ${isHp ? `<button class="btn small ${hpPotionDisabled ? 'ghost' : 'primary'}" data-use-hp-outside="${key}" ${hpPotionDisabled ? 'disabled' : ''}>${p.hp >= hpStats.hp ? 'HP cheio' : 'Usar'}</button>` : ''}
         <button class="btn small primary" data-buy-potion="${key}">🪙${d.cost}</button>
       </div>`;
     }).join('');
@@ -4915,7 +4921,7 @@ function renderLojaBody() {
       ${potionsHtml}
     `;
     els('[data-buy-potion]').forEach(b => b.addEventListener('click', () => buyPotion(b.dataset.buyPotion)));
-    els('[data-use-hp-outside]').forEach(b => b.addEventListener('click', () => usePotionAction('hp')));
+    els('[data-use-hp-outside]').forEach(b => b.addEventListener('click', () => usePotionAction(b.dataset.useHpOutside)));
   } else if (App.lojaTab === 'profissao') {
     body.innerHTML = `
       <div class="section-title" style="margin-top:0;">⛏️ Profissão</div>
@@ -5021,7 +5027,7 @@ function buyPotion(key) {
   const d = POTION_DEFS[key];
   if (p.gold < d.cost) { sfx.error(); toast('Ouro insuficiente.'); return; }
   p.gold -= d.cost;
-  p.potions[key]++;
+  p.potions[key] = (p.potions[key] || 0) + 1;
   saveGame();
   sfx.gold();
   renderHubTab();
@@ -5750,35 +5756,35 @@ function useNormalAttackAction() {
 function usePotionAction(key) {
   const c = App.combat;
   const p = App.player;
-  if (p.potions[key] <= 0) { sfx.error(); toast('Não tens esta poção.'); return; }
+  if (!POTION_DEFS[key] || !(p.potions[key] > 0)) { sfx.error(); toast('Não tens esta poção.'); return; }
   if (!c || c.ended) {
-    if (key !== 'hp') { sfx.error(); toast('Esta poção só pode ser usada em combate.'); return; }
+    if (!isHpPotion(key)) { sfx.error(); toast('Esta poção só pode ser usada em combate.'); return; }
     const pStats = effectiveStats(p);
     if (p.hp >= pStats.hp) { sfx.error(); toast('Já tens o HP cheio.'); return; }
-    p.potions.hp--;
-    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * 0.4));
+    p.potions[key]--;
+    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * POTION_DEFS[key].heal));
     p.hp += heal;
     saveGame();
     sfx.potion();
     renderStatusBar();
     if (App.tab === 'loja') renderLojaBody();
-    toast(`Poção de HP usada: +${heal} HP.`);
+    toast(`${POTION_DEFS[key].name} usada: +${heal} HP.`);
     return;
   }
   // Máximo de 2 Poções de HP por batalha: sem isto, dá para "spammar" cura e
   // tornar qualquer combate — incluindo bosses — trivial enquanto houver ouro.
-  if (key === 'hp' && (c.battleState.hpPotionsUsed || 0) >= 2) {
-    sfx.error(); toast('Só podes usar 2 Poções de HP por batalha.'); return;
+  if (isHpPotion(key) && (c.battleState.hpPotionsUsed || 0) >= HP_POTIONS_PER_BATTLE) {
+    sfx.error(); toast(`Só podes usar ${HP_POTIONS_PER_BATTLE} Poções de HP por batalha.`); return;
   }
   tickCooldowns();
   p.potions[key]--;
   sfx.potion();
   const pStats = effectiveStats(p);
-  if (key === 'hp') {
+  if (isHpPotion(key)) {
     c.battleState.hpPotionsUsed = (c.battleState.hpPotionsUsed || 0) + 1;
-    const heal = Math.round(pStats.hp * 0.4);
+    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal);
     p.hp = Math.min(pStats.hp, p.hp + heal);
-    addCombatLog({ text: `🧪 Bebeste uma Poção de HP (${c.battleState.hpPotionsUsed}/2 nesta batalha): +${heal} HP.`, cls: 'good' });
+    addCombatLog({ text: `${POTION_DEFS[key].icon} Bebeste uma ${POTION_DEFS[key].name} (${c.battleState.hpPotionsUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha): +${heal} HP.`, cls: 'good' });
   } else if (key === 'def') {
     c.battleState.potionDefBuff = { pct: 0.05, duration: 3 };
     addCombatLog({ text: '🔵 Poção da Defesa: +5% defesa por 3 rondas.', cls: 'good' });
@@ -5797,14 +5803,14 @@ function openPotionModal() {
   const p = App.player;
   const c = App.combat;
   const hpUsed = (c && c.battleState && c.battleState.hpPotionsUsed) || 0;
-  const hpLocked = c && hpUsed >= 2;
+  const hpLocked = c && hpUsed >= HP_POTIONS_PER_BATTLE;
   const keys = Object.keys(POTION_DEFS).filter(k => p.potions[k] > 0);
   let html = `<h3 style="margin-bottom:12px;">Usar poção</h3>`;
   if (!keys.length) html += `<p class="muted">Não tens poções. Compra na Cidade → Loja.</p>`;
   else html += keys.map(k => {
     const d = POTION_DEFS[k];
-    const locked = k === 'hp' && hpLocked;
-    const limitTag = k === 'hp' && c ? ` <span class="tiny" style="opacity:0.7;">(${hpUsed}/2 nesta batalha)</span>` : '';
+    const locked = isHpPotion(k) && hpLocked;
+    const limitTag = isHpPotion(k) && c ? ` <span class="tiny" style="opacity:0.7;">(${hpUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha)</span>` : '';
     return `<div class="item-row" ${locked ? '' : `data-use-potion="${k}"`}><div class="item-ic">${d.icon}</div><div class="item-mid"><div class="item-name">${d.name} (${p.potions[k]})${limitTag}</div><div class="tiny">${d.desc}</div></div><button class="btn small ${locked ? 'ghost' : 'primary'}" ${locked ? 'disabled' : ''}>${locked ? '🔒' : 'Usar'}</button></div>`;
   }).join('');
   html += `<button class="btn ghost block" id="btn-close-modal" style="margin-top:8px;">Fechar</button>`;
@@ -6483,6 +6489,8 @@ function applyPlayerMigrations(player) {
   if (player.fishCooldown === undefined) player.fishCooldown = 0;
   if (player.mineUses === undefined) player.mineUses = 0;
   if (player.fishUses === undefined) player.fishUses = 0;
+  if (!player.potions) player.potions = { hp: 0, hp2: 0, def: 0, atk: 0, fortune: 0 };
+  if (!Number.isFinite(player.potions.hp2)) player.potions.hp2 = 0;
   if (!player.pearls) player.pearls = newPearlsBag();
   if (!player.fightDifficulty) player.fightDifficulty = 'comum';
   if (player.masteredAbility === undefined) {
