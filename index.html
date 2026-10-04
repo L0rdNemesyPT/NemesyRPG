@@ -4933,6 +4933,7 @@ const POTION_DEFS = {
 
 const POTION_QTY_OPTIONS = [1, 5, 10];
 function potionQty() { return POTION_QTY_OPTIONS.includes(App.potionQty) ? App.potionQty : 1; }
+const RENAME_COST = 1000;
 const HP_POTION_KEYS = ['hp', 'hp2'];
 const HP_POTIONS_PER_BATTLE = 2;
 function isHpPotion(key) { return HP_POTION_KEYS.includes(key); }
@@ -6564,6 +6565,25 @@ function installCardHtml() {
   return html;
 }
 
+function renameHero() {
+  const p = App.player;
+  if (!p || p.nameChanged) { sfx.error(); toast('Já usaste a tua mudança de nome.'); return; }
+  const input = $('rename-input');
+  const newName = String((input && input.value) || '').replace(/\s+/g, ' ').trim().slice(0, 16);
+  if (!newName) { sfx.error(); toast('Escreve o novo nome do herói.'); return; }
+  if (newName === p.name) { sfx.error(); toast('Esse já é o nome do teu herói.'); return; }
+  if (p.gold < RENAME_COST) { sfx.error(); toast(`Precisas de ${RENAME_COST} de ouro.`); return; }
+  if (!window.confirm(`Mudar o nome para "${newName}" por ${RENAME_COST} de ouro?\nSó podes fazer isto uma vez.`)) return;
+  p.gold -= RENAME_COST;
+  p.name = newName;
+  p.nameChanged = true;
+  saveGame();
+  sfx.gold();
+  renderStatusBar();
+  toast(`Agora és ${newName}.`);
+  openSettingsModal();
+}
+
 function openSettingsModal() {
   const p = App.player;
   const themeSwatches = THEME_PRESETS.map(t => `
@@ -6582,6 +6602,15 @@ function openSettingsModal() {
         <span style="font-weight:700;">🔊 Som do jogo</span>
         <button class="btn small ${Audio8.muted ? 'ghost' : 'primary'}" id="btn-toggle-sound">${Audio8.muted ? 'Desligado' : 'Ligado'}</button>
       </div>
+    </div>
+    <div class="card raised" style="margin-bottom:12px;">
+      <span style="font-weight:700;">✏️ Nome do herói</span>
+      <p class="tiny" style="margin-top:6px;">Nome atual: <b>${esc(p.name)}</b></p>
+      ${p.nameChanged
+        ? `<p class="tiny muted" style="margin-top:6px;">Já usaste a tua mudança de nome. Só é possível mudar uma vez.</p>`
+        : `<p class="tiny" style="margin:6px 0 8px;">Podes mudar o nome <b>uma única vez</b>, por 🪙${RENAME_COST} (tens 🪙${p.gold}).</p>
+           <input class="name-input" id="rename-input" maxlength="16" placeholder="Novo nome (até 16 letras)" autocomplete="off" style="margin-bottom:8px;">
+           <button class="btn primary block" id="btn-rename-hero" ${p.gold < RENAME_COST ? 'disabled' : ''}>Mudar nome (🪙${RENAME_COST})</button>`}
     </div>
     <div class="card raised" style="margin-bottom:12px;">
       <span style="font-weight:700;">🎼 Tema musical</span>
@@ -6608,6 +6637,8 @@ function openSettingsModal() {
   openModal(html);
   $('btn-close-modal').addEventListener('click', closeModal);
   $('btn-open-account').addEventListener('click', openAccountModal);
+  const renameBtn = $('btn-rename-hero');
+  if (renameBtn) renameBtn.addEventListener('click', renameHero);
   const installBtn = $('btn-install-app');
   if (installBtn) installBtn.addEventListener('click', async () => {
     if (!deferredInstallPrompt) return;
@@ -6696,6 +6727,7 @@ function applyPlayerMigrations(player) {
   if (player.fishCooldown === undefined) player.fishCooldown = 0;
   if (player.mineUses === undefined) player.mineUses = 0;
   if (player.fishUses === undefined) player.fishUses = 0;
+  if (player.nameChanged !== true) player.nameChanged = false;
   if (!Number.isFinite(player.woodCooldown)) player.woodCooldown = 0;
   if (!Number.isFinite(player.woodUses)) player.woodUses = 0;
   if (!player.potions) player.potions = { hp: 0, hp2: 0, def: 0, atk: 0, fortune: 0 };
