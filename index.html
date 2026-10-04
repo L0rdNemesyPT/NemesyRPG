@@ -320,6 +320,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 .account-footnote{margin-top:18px; color:var(--dim); font-size:10px; line-height:1.5; text-align:center;}
 @keyframes accountEnter{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
 </style>
+<link rel="stylesheet" href="./nemesy-theme.css">
 </head>
 <body>
 <div id="app">
@@ -3708,7 +3709,38 @@ function renderHeroiPerfilBody() {
     </div></div>` : ''}
   ` : '';
 
-  $('heroi-body').innerHTML = `
+  const sheetName = esc(p.name || 'Herói');
+  const sheetMaxHp = Math.max(1, Number(stats.hp) || 1);
+  const sheetHpPct = Math.max(0, Math.min(100, Math.round((Number(p.hp) || 0) / sheetMaxHp * 100)));
+  const sheetXpNeed = Math.max(1, xpForLevel(p.level));
+  const sheetXpPct = Math.max(0, Math.min(100, Math.round((Number(p.xp) || 0) / sheetXpNeed * 100)));
+  const sheetSlots = EQUIP_SLOTS.map(slot => {
+    const it = p.equipment[slot];
+    return `<div class="sheet-slot${it ? ' filled' : ''}" ${it ? `style="${rarityBoxStyle(it)}"` : ''}>
+      <div class="sl">${SLOT_NAMES[slot]}</div><div class="si">${SLOT_ICONS[slot]}</div>
+      <div class="sn" ${it ? `style="color:${esc(it.rarityColor || '')}"` : ''}>${it ? esc(it.name) : 'Vazio'}</div></div>`;
+  }).join('');
+  const heroSheetHtml = `
+    <div class="hero-sheet">
+      <div class="hero-plate">${sheetName}</div>
+      <div class="hero-main">
+        <div class="hero-portrait"><span>${cls.icon}</span><em>${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}</em></div>
+        <div class="hero-vitals">
+          <div class="hv-row"><span>Nível</span><b>${p.level}</b></div>
+          <div class="hv-row"><span>Vida</span><b class="hp">${Math.round(p.hp)}/${stats.hp}</b></div>
+          <div class="bar bar-hp"><div class="bar-fill" style="width:${sheetHpPct}%"></div></div>
+          <div class="hv-row"><span>Experiência</span><b class="xp">${p.xp}/${sheetXpNeed}</b></div>
+          <div class="bar bar-xp"><div class="bar-fill" style="width:${sheetXpPct}%"></div></div>
+          <div class="hv-rule"></div>
+          <div class="hv-row"><span>Dano</span><b>${stats.dmgMin}–${stats.dmgMax}</b></div>
+          <div class="hv-row"><span>Defesa</span><b>${stats.def}</b></div>
+          <div class="hv-row"><span>Crítico</span><b>${pct(stats.crit)}</b></div>
+        </div>
+      </div>
+      <div class="sheet-strip">${sheetSlots}</div>
+    </div>`;
+
+  $('heroi-body').innerHTML = heroSheetHtml + `
     <div class="section-title">${cls.icon} ${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
     <div class="stat-grid">
       <div class="stat-box"><div class="v">${stats.hp}</div><div class="k">HP máximo</div></div>
