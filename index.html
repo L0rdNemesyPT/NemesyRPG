@@ -4890,6 +4890,8 @@ const POTION_DEFS = {
   fortune: { name: 'Poção da Fortuna', icon: '🍀', desc: 'Dobra chances de drop (5 batalhas)', cost: 40 }
 };
 
+const POTION_QTY_OPTIONS = [1, 5, 10];
+function potionQty() { return POTION_QTY_OPTIONS.includes(App.potionQty) ? App.potionQty : 1; }
 const HP_POTION_KEYS = ['hp', 'hp2'];
 const HP_POTIONS_PER_BATTLE = 2;
 function isHpPotion(key) { return HP_POTION_KEYS.includes(key); }
@@ -4922,14 +4924,18 @@ function renderLojaBody() {
         <div class="item-ic">${d.icon}</div>
         <div class="item-mid"><div class="item-name">${d.name} (${p.potions[key] || 0})</div><div class="tiny">${d.desc}</div>${isHp ? `<div class="tiny" style="margin-top:4px;">HP: ${p.hp}/${hpStats.hp}</div>` : ''}</div>
         ${isHp ? `<button class="btn small ${hpPotionDisabled ? 'ghost' : 'primary'}" data-use-hp-outside="${key}" ${hpPotionDisabled ? 'disabled' : ''}>${p.hp >= hpStats.hp ? 'HP cheio' : 'Usar'}</button>` : ''}
-        <button class="btn small primary" data-buy-potion="${key}">🪙${d.cost}</button>
+        <button class="btn small primary" data-buy-potion="${key}">🪙${d.cost * potionQty()}</button>
       </div>`;
     }).join('');
 
     body.innerHTML = `
       <div class="section-title" style="margin-top:0;">🧪 Poções</div>
+      <div class="tab-strip" style="margin-bottom:10px;">
+        ${POTION_QTY_OPTIONS.map(n => `<button class="tab-chip${potionQty() === n ? ' active' : ''}" data-potion-qty="${n}">×${n}</button>`).join('')}
+      </div>
       ${potionsHtml}
     `;
+    els('[data-potion-qty]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.potionQty = Number(b.dataset.potionQty); renderLojaBody(); }));
     els('[data-buy-potion]').forEach(b => b.addEventListener('click', () => buyPotion(b.dataset.buyPotion)));
     els('[data-use-hp-outside]').forEach(b => b.addEventListener('click', () => usePotionAction(b.dataset.useHpOutside)));
   } else if (App.lojaTab === 'profissao') {
@@ -5043,13 +5049,15 @@ function renderLojaBody() {
 function buyPotion(key) {
   const p = App.player;
   const d = POTION_DEFS[key];
-  if (p.gold < d.cost) { sfx.error(); toast('Ouro insuficiente.'); return; }
-  p.gold -= d.cost;
-  p.potions[key] = (p.potions[key] || 0) + 1;
+  const qty = potionQty();
+  const total = d.cost * qty;
+  if (p.gold < total) { sfx.error(); toast(`Ouro insuficiente: ${qty > 1 ? `${qty} poções custam` : 'custa'} ${total}.`); return; }
+  p.gold -= total;
+  p.potions[key] = (p.potions[key] || 0) + qty;
   saveGame();
   sfx.gold();
   renderHubTab();
-  toast(`${d.name} comprada.`);
+  toast(qty > 1 ? `${qty}× ${d.name} compradas (-${total} ouro).` : `${d.name} comprada.`);
 }
 
 function upgradeItem(slot) {
