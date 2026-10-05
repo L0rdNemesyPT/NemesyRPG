@@ -1402,7 +1402,7 @@ function newPlayer(name, cls) {
     chests: [],
     scrolls: { feitico: 0, reforco: 0 },
     pearls: newPearlsBag(),
-    farm: newFarm(), mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
+    farm: newFarm(), amnesiaBooks: 0, mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
     pets: [], activePet: null,
     critBuffBattles: 0,
     regionIndex: 0,
@@ -4056,7 +4056,8 @@ function renderTabMochila() {
     { key: 'baus', label: 'Baús', icon: '🎁', badge: p.chests.length },
     { key: 'gemas', label: 'Gemas', icon: '💠', badge: gemTotal },
     { key: 'alquimia', label: 'Alquimia', icon: '⚗️', badge: `${alchemyFilled}/${ALCHEMY_SLOT_COUNT}` },
-    { key: 'feiticos', label: 'Feitiços', icon: '📜', badge: scrollTotal }
+    { key: 'feiticos', label: 'Feitiços', icon: '📜', badge: scrollTotal },
+    { key: 'livros', label: 'Livros', icon: '📙', badge: p.amnesiaBooks || 0 }
   ];
   const current = sections.find(s => s.key === App.invTab);
   if (!current) {
@@ -4263,6 +4264,10 @@ function renderMochilaBody() {
     renderChestsBody(body, p);
   } else if (App.invTab === 'feiticos') {
     renderFeiticosBody(body, p);
+  } else if (App.invTab === 'livros') {
+    body.innerHTML = booksSectionHtml(p);
+    const useBtn = body.querySelector('[data-use-amnesia]');
+    if (useBtn) useBtn.addEventListener('click', openAmnesiaModal);
   } else if (App.invTab === 'talismas') {
     renderTalismasBody(body, p);
   }
@@ -5044,6 +5049,7 @@ const POTION_DEFS = {
 const POTION_QTY_OPTIONS = [1, 5, 10];
 function potionQty() { return POTION_QTY_OPTIONS.includes(App.potionQty) ? App.potionQty : 1; }
 const RENAME_COST = 1000;
+const AMNESIA_BOOK_COST = 15000;
 const HP_POTION_KEYS = ['hp', 'hp2'];
 const HP_POTIONS_PER_BATTLE = 2;
 function isHpPotion(key) { return HP_POTION_KEYS.includes(key); }
@@ -5087,7 +5093,18 @@ function renderLojaBody() {
         ${POTION_QTY_OPTIONS.map(n => `<button class="tab-chip${potionQty() === n ? ' active' : ''}" data-potion-qty="${n}">×${n}</button>`).join('')}
       </div>
       ${potionsHtml}
+      <div class="section-title">📙 Livros especiais</div>
+      <div class="item-row">
+        <div class="item-ic">📙</div>
+        <div class="item-mid">
+          <div class="item-name">Livro da Amnésia (${p.amnesiaBooks || 0})</div>
+          <div class="tiny">Esquece a tua habilidade Mestra ou a tua profissão, para poderes escolher outra. Fica guardado na Mochila.</div>
+        </div>
+        <button class="btn small primary" data-buy-amnesia ${p.gold < AMNESIA_BOOK_COST ? 'disabled' : ''}>🪙${AMNESIA_BOOK_COST}</button>
+      </div>
     `;
+    const buyAmnesiaBtn = body.querySelector('[data-buy-amnesia]');
+    if (buyAmnesiaBtn) buyAmnesiaBtn.addEventListener('click', buyAmnesiaBook);
     els('[data-potion-qty]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.potionQty = Number(b.dataset.potionQty); renderLojaBody(); }));
     els('[data-buy-potion]').forEach(b => b.addEventListener('click', () => buyPotion(b.dataset.buyPotion)));
     els('[data-use-hp-outside]').forEach(b => b.addEventListener('click', () => usePotionAction(b.dataset.useHpOutside)));
@@ -6149,6 +6166,90 @@ function usePotionAction(key) {
   postPlayerAction();
 }
 
+// --- Livro da Amnésia ------------------------------------------------------
+function buyAmnesiaBook() {
+  const p = App.player;
+  if (p.gold < AMNESIA_BOOK_COST) { sfx.error(); toast(`Precisas de ${AMNESIA_BOOK_COST} de ouro.`); return; }
+  if (!window.confirm(`Comprar o Livro da Amnésia por ${AMNESIA_BOOK_COST} de ouro?`)) return;
+  p.gold -= AMNESIA_BOOK_COST;
+  p.amnesiaBooks = (p.amnesiaBooks || 0) + 1;
+  saveGame();
+  sfx.gold();
+  renderStatusBar();
+  renderHubTab();
+  toast('📙 Livro da Amnésia comprado. Está na Mochila → Livros.');
+}
+
+function booksSectionHtml(p) {
+  const n = p.amnesiaBooks || 0;
+  return `
+    <div class="item-row">
+      <div class="item-ic">📙</div>
+      <div class="item-mid">
+        <div class="item-name">Livro da Amnésia ×${n}</div>
+        <div class="tiny">Esquece a habilidade Mestra ou a profissão. Compra-se na Cidade → Loja.</div>
+      </div>
+      <button class="btn small ${n > 0 ? 'primary' : 'ghost'}" data-use-amnesia ${n > 0 ? '' : 'disabled'}>Usar</button>
+    </div>
+    <div class="item-row"><div class="item-ic">📖</div><div class="item-mid"><div class="item-name">Livros de Habilidades ×${p.skillBooks || 0}</div><div class="tiny">Servem para evoluir habilidades (Herói → Habilidades).</div></div></div>
+    <div class="item-row"><div class="item-ic">📗</div><div class="item-mid"><div class="item-name">Livros das Profissões ×${p.professionBooks || 0}</div><div class="tiny">Servem para escolher uma profissão (Herói → Profissões).</div></div></div>
+  `;
+}
+
+function openAmnesiaModal() {
+  const p = App.player;
+  if (!(p.amnesiaBooks > 0)) { sfx.error(); return; }
+  const mastered = p.masteredAbility && ABILITIES[p.masteredAbility] ? ABILITIES[p.masteredAbility] : null;
+  const prof = p.profession && PROFESSIONS[p.profession] ? PROFESSIONS[p.profession] : null;
+  openModal(`
+    <h3 style="margin-bottom:6px;">📙 Livro da Amnésia</h3>
+    <p class="tiny muted" style="margin-bottom:12px;">Escolhe o que queres esquecer. O livro é gasto. Tens ${p.amnesiaBooks}.</p>
+    <div class="card raised" style="margin-bottom:10px;">
+      <div style="font-weight:700;">⚔️ Esquecer a habilidade Mestra</div>
+      <p class="tiny" style="margin:6px 0 8px;">${mastered ? `${mastered.icon || ''} ${mastered.name} desce do nível IV para o III e podes escolher outra habilidade para ser a Mestra. Os Livros de Habilidades já gastos não voltam.` : 'Ainda não tens nenhuma habilidade Mestra (nível IV).'}</p>
+      <button class="btn primary block" id="btn-amnesia-ability" ${mastered ? '' : 'disabled'}>Esquecer ${mastered ? mastered.name : 'habilidade'}</button>
+    </div>
+    <div class="card raised" style="margin-bottom:10px;">
+      <div style="font-weight:700;">🧠 Esquecer a profissão</div>
+      <p class="tiny" style="margin:6px 0 8px;">${prof ? `Deixas de ser ${prof.icon} ${prof.name} e perdes o bónus dela. Recebes de volta 1 📗 Livro das Profissões para escolheres outra em Herói → Profissões.` : 'Ainda não escolheste nenhuma profissão.'}</p>
+      <button class="btn primary block" id="btn-amnesia-profession" ${prof ? '' : 'disabled'}>Esquecer ${prof ? prof.name : 'profissão'}</button>
+    </div>
+    <button class="btn ghost block" id="btn-close-modal">Cancelar</button>
+  `);
+  $('btn-close-modal').addEventListener('click', closeModal);
+  const abBtn = $('btn-amnesia-ability');
+  if (abBtn) abBtn.addEventListener('click', () => useAmnesia('ability'));
+  const profBtn = $('btn-amnesia-profession');
+  if (profBtn) profBtn.addEventListener('click', () => useAmnesia('profession'));
+}
+
+function useAmnesia(mode) {
+  const p = App.player;
+  if (!(p.amnesiaBooks > 0)) { sfx.error(); return; }
+  if (mode === 'ability') {
+    const key = p.masteredAbility;
+    if (!key || !p.abilities[key] || !ABILITIES[key]) { sfx.error(); toast('Não tens nenhuma habilidade Mestra para esquecer.'); return; }
+    if (!window.confirm(`Esquecer ${ABILITIES[key].name} como habilidade Mestra? Desce para o nível III e o livro é gasto.`)) return;
+    p.abilities[key].level = Math.min(p.abilities[key].level, 2);
+    p.masteredAbility = null;
+    p.amnesiaBooks--;
+    toast(`${ABILITIES[key].name} voltou ao nível III. Já podes escolher outra habilidade Mestra.`);
+  } else if (mode === 'profession') {
+    const key = p.profession;
+    if (!key || !PROFESSIONS[key]) { sfx.error(); toast('Não tens nenhuma profissão para esquecer.'); return; }
+    if (!window.confirm(`Esquecer a profissão ${PROFESSIONS[key].name}? Perdes o bónus e o livro é gasto, mas recebes 1 Livro das Profissões para escolher outra.`)) return;
+    p.profession = null;
+    p.professionBooks = (p.professionBooks || 0) + 1;
+    p.amnesiaBooks--;
+    toast(`Esqueceste a profissão ${PROFESSIONS[key].name}. Escolhe outra em Herói → Profissões.`);
+  } else return;
+  saveGame();
+  sfx.evolve();
+  closeModal();
+  renderStatusBar();
+  renderTabMochila();
+}
+
 function useFoodAction(key) {
   const c = App.combat, p = App.player, d = CROP_DEFS[key];
   if (!c || c.ended || !d || !(ensureFarm(p).crops[key] > 0)) { sfx.error(); toast('Só podes comer alimentos durante um combate.'); return; }
@@ -6983,6 +7084,7 @@ function applyPlayerMigrations(player) {
   if (player.mineUses === undefined) player.mineUses = 0;
   if (player.fishUses === undefined) player.fishUses = 0;
   if (player.nameChanged !== true) player.nameChanged = false;
+  if (!Number.isFinite(player.amnesiaBooks) || player.amnesiaBooks < 0) player.amnesiaBooks = 0;
   ensureFarm(player);
   if (!Number.isFinite(player.woodCooldown)) player.woodCooldown = 0;
   if (!Number.isFinite(player.woodUses)) player.woodUses = 0;
