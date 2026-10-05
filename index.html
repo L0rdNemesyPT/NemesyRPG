@@ -1233,6 +1233,7 @@ const ALTAR_BONUS_POOL = [
   { key: 'fortaleza', name: 'Fortaleza', icon: '🏰', desc: '+100 HP', hpFlat: 100 }
 ];
 const ALTAR_SUCCESS_CHANCE = 0.35;
+const ALTAR_MAX_CHARGES = 100; // limite de tentativas guardadas no Altar
 function bonusPlusLabel(b) {
   const def = BONUS_PLUS_POOL.find(x => x.key === b.key);
   return def ? def.label(b.value) : `${b.key} ${b.value}`;
@@ -3144,7 +3145,7 @@ function renderWikiBody() {
       `).join('')}
       <div class="card raised">
         <span style="font-weight:700;">🔥 O Altar</span>
-        <p class="tiny" style="margin-top:6px;">Cada vez que derrotas o chefe final de uma dungeon Tier 2, ganhas <b>1 tentativa</b> no Altar (não se acumula desbloqueio permanente — para ganhares outra tentativa, tens de voltar a vencer a dungeon). Lá podes colocar o teu <b>Artefacto equipado</b> — cada tentativa gasta uma "carga" e dá ${Math.round(ALTAR_SUCCESS_CHANCE * 100)}% de hipótese de ligar, para sempre, <b>um</b> dos seguintes Bónus de Altar (só um bónus por artefacto):</p>
+        <p class="tiny" style="margin-top:6px;">Cada vez que derrotas o chefe final de uma dungeon Tier 2, ganhas <b>1 tentativa</b> no Altar (não se acumula desbloqueio permanente — para ganhares outra tentativa, tens de voltar a vencer a dungeon). Podes guardar no máximo <b>${ALTAR_MAX_CHARGES} tentativas</b>; ao chegares ao limite, as novas não são acrescentadas. Lá podes colocar o teu <b>Artefacto equipado</b> — cada tentativa gasta uma "carga" e dá ${Math.round(ALTAR_SUCCESS_CHANCE * 100)}% de hipótese de ligar, para sempre, <b>um</b> dos seguintes Bónus de Altar (só um bónus por artefacto):</p>
         ${ALTAR_BONUS_POOL.map(b => `<p class="tiny" style="margin-top:4px;">${b.icon} <b>${b.name}</b> — ${b.desc}</p>`).join('')}
       </div>
     `;
@@ -4899,7 +4900,7 @@ function openAltarModal() {
       <p class="tiny">Artefacto atual: <b>${item.name}</b></p>
       <p class="tiny" style="margin-top:6px;">${Math.round(ALTAR_SUCCESS_CHANCE * 100)}% de hipótese de ligar um Bónus de Altar permanente e aleatório — um dos quatro seguintes:</p>
       ${ALTAR_BONUS_POOL.map(b => `<p class="tiny" style="margin-top:4px;">${b.icon} <b>${b.name}</b> — ${b.desc}</p>`).join('')}
-      <p class="tiny muted" style="margin-top:8px;">Tentativas disponíveis: 🔥 ${charges} (cada tentativa gasta uma, com sucesso ou sem).</p>
+      <p class="tiny muted" style="margin-top:8px;">Tentativas disponíveis: 🔥 ${charges}/${ALTAR_MAX_CHARGES} (cada tentativa gasta uma, com sucesso ou sem).</p>
       <button class="btn danger block" id="btn-do-altar" style="margin-top:12px;">🔥 Colocar no Altar</button>
     `;
   }
@@ -5784,7 +5785,7 @@ function renderMapaBody() {
             <div class="region-title">Altar</div>
             <div class="region-lv">Liga um Bónus de Altar permanente ao teu Artefacto equipado</div>
           </div>
-          <span class="pill" style="${altarCharges > 0 ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">🔥 ${altarCharges}</span>
+          <span class="pill" style="${altarCharges > 0 ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">🔥 ${altarCharges}/${ALTAR_MAX_CHARGES}</span>
         </div>
         ${altarCharges > 0
           ? `<button class="btn small primary" style="margin-top:10px;" id="btn-open-altar">Usar o Altar (${altarCharges} tentativa${altarCharges > 1 ? 's' : ''})</button>`
@@ -6918,8 +6919,13 @@ function finishDungeon() {
   if (!p.clearedDungeons.includes(d.key)) p.clearedDungeons.push(d.key);
   let altarMsg = '';
   if (d.tier === 2) {
-    p.altarCharges = (p.altarCharges || 0) + 1;
-    altarMsg = `🔥 Ganhaste 1 tentativa no Altar (tens agora ${p.altarCharges}).`;
+    if ((p.altarCharges || 0) >= ALTAR_MAX_CHARGES) {
+      p.altarCharges = ALTAR_MAX_CHARGES;
+      altarMsg = `🔥 O Altar já tem o máximo de ${ALTAR_MAX_CHARGES} tentativas. Esta não foi acrescentada.`;
+    } else {
+      p.altarCharges = (p.altarCharges || 0) + 1;
+      altarMsg = `🔥 Ganhaste 1 tentativa no Altar (tens agora ${p.altarCharges}/${ALTAR_MAX_CHARGES}).`;
+    }
   }
   const stoneType = randomAlchemyType();
   const stoneLevel = clamp(1 + Math.floor(d.minLv / 20), 1, ALCHEMY_MAX_LEVEL);
@@ -7291,6 +7297,7 @@ function applyPlayerMigrations(player) {
   if (player.fishUses === undefined) player.fishUses = 0;
   if (player.nameChanged !== true) player.nameChanged = false;
   if (!Number.isFinite(player.amnesiaBooks) || player.amnesiaBooks < 0) player.amnesiaBooks = 0;
+  if (Number.isFinite(player.altarCharges) && player.altarCharges > ALTAR_MAX_CHARGES) player.altarCharges = ALTAR_MAX_CHARGES;
   ensureFarm(player);
   if (!Number.isFinite(player.woodCooldown)) player.woodCooldown = 0;
   if (!Number.isFinite(player.woodUses)) player.woodUses = 0;
