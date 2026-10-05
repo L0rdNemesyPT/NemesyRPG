@@ -2010,7 +2010,7 @@ const App = {
   screen: 'boot',
   tab: 'batalha',
   wikiTab: null,
-  mapaTab: 'regioes',
+  mapaTab: null,
   lojaTab: null,
   selectedRegionIndex: 0,
   invTab: null,
@@ -4069,6 +4069,7 @@ function renderTabMochila() {
     { key: 'gemas', label: 'Gemas', icon: '💠', badge: gemTotal },
     { key: 'alquimia', label: 'Alquimia', icon: '⚗️', badge: `${alchemyFilled}/${ALCHEMY_SLOT_COUNT}` },
     { key: 'feiticos', label: 'Feitiços', icon: '📜', badge: scrollTotal },
+    { key: 'consumiveis', label: 'Consumíveis', icon: '🧪', badge: consumablesTotal(p) },
     { key: 'livros', label: 'Livros', icon: '📙', badge: p.amnesiaBooks || 0 }
   ];
   const current = sections.find(s => s.key === App.invTab);
@@ -4276,6 +4277,8 @@ function renderMochilaBody() {
     renderChestsBody(body, p);
   } else if (App.invTab === 'feiticos') {
     renderFeiticosBody(body, p);
+  } else if (App.invTab === 'consumiveis') {
+    renderConsumablesBody(body, p);
   } else if (App.invTab === 'livros') {
     body.innerHTML = booksSectionHtml(p);
     const useBtn = body.querySelector('[data-use-amnesia]');
@@ -4325,12 +4328,74 @@ function pearlsSummaryHtml(p) {
     </div>
   </div>`;
 }
+// ============================================================
+// MOCHILA · CONSUMÍVEIS (poções, pérolas, ostras e agricultura)
+// ============================================================
+function consumablesTotal(p) {
+  const potions = Object.values(p.potions || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  const pearls = Object.values(p.pearls || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+  const oysters = (p.chests || []).filter(c => c.type === 'ostra').length;
+  const farm = ensureFarm(p);
+  const farmTotal = Object.values(farm.seeds).reduce((a, b) => a + b, 0) + Object.values(farm.crops).reduce((a, b) => a + b, 0);
+  return potions + pearls + oysters + farmTotal;
+}
+
+function renderConsumablesBody(body, p) {
+  const farm = ensureFarm(p);
+  const pStats = effectiveStats(p);
+  const potionRows = Object.keys(POTION_DEFS).map(key => {
+    const d = POTION_DEFS[key], n = p.potions[key] || 0;
+    const canUse = isHpPotion(key) && n > 0 && p.hp < pStats.hp;
+    return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
+      <div class="item-ic">${d.icon}</div>
+      <div class="item-mid"><div class="item-name">${d.name} ×${n}</div><div class="tiny">${d.desc}${isHpPotion(key) ? '' : ' · só em combate'}</div></div>
+      ${isHpPotion(key) ? `<button class="btn small ${canUse ? 'primary' : 'ghost'}" data-cons-potion="${key}" ${canUse ? '' : 'disabled'}>Usar</button>` : ''}
+    </div>`;
+  }).join('');
+
+  const pearlRows = PEARL_TABLE.filter(x => x.key !== 'pedra').map(x => {
+    const n = (p.pearls && p.pearls[x.key]) || 0;
+    const lvl = Object.keys(UPGRADE_PEARL_REQUIREMENT).find(l => UPGRADE_PEARL_REQUIREMENT[l] === x.key);
+    return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
+      <div class="item-ic">${x.icon}</div>
+      <div class="item-mid"><div class="item-name">${x.name} ×${n}</div><div class="tiny">${lvl ? `Usada para melhorar um item para +${lvl} (Cidade → Ferreiro).` : 'Pérola de coleção.'}</div></div>
+    </div>`;
+  }).join('');
+
+  const oysters = p.chests.filter(c => c.type === 'ostra');
+  const oysterHtml = oysters.length
+    ? `<button class="btn small primary block" style="margin-bottom:8px;" data-cons-open-all>🦪 Abrir todas (${oysters.length})</button>` +
+      oysters.map(c => `<div class="item-row"><div class="item-ic">🦪</div><div class="item-mid"><div class="item-name">Ostra</div><div class="tiny">${CHEST_DEFS.ostra.desc}</div></div><button class="btn small primary" data-cons-oyster="${c.id}">Abrir</button></div>`).join('')
+    : `<p class="tiny muted">Não tens ostras. Pesca na Cidade → Profissão ou compra no Mercado Negro.</p>`;
+
+  const seedKeys = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
+  const cropKeys = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
+  const farmHtml = (seedKeys.length || cropKeys.length)
+    ? seedKeys.map(k => `<div class="item-row"><div class="item-ic">🌱</div><div class="item-mid"><div class="item-name">Semente de ${CROP_DEFS[k].name} ×${farm.seeds[k]}</div><div class="tiny">Planta na Cidade → Profissão → Agricultura.</div></div></div>`).join('') +
+      cropKeys.map(k => `<div class="item-row"><div class="item-ic">${CROP_DEFS[k].icon}</div><div class="item-mid"><div class="item-name">${CROP_DEFS[k].name} ×${farm.crops[k]}</div><div class="tiny">${CROP_DEFS[k].effect} · come em combate (🧪 Poção) ou vende na Agricultura.</div></div></div>`).join('')
+    : `<p class="tiny muted">Ainda não tens sementes nem alimentos. As sementes caem de monstros das Planícies Verdes e da Floresta Negra.</p>`;
+
+  body.innerHTML = `
+    <div class="section-title" style="margin-top:0;">🧪 Poções</div>${potionRows}
+    <div class="section-title">🦪 Pérolas</div>${pearlRows}
+    <div class="section-title">🦪 Ostras</div>${oysterHtml}
+    <div class="section-title">🌾 Agricultura</div>${farmHtml}
+  `;
+  els('[data-cons-potion]').forEach(b => b.addEventListener('click', () => { usePotionAction(b.dataset.consPotion); renderMochilaBody(); }));
+  els('[data-cons-oyster]').forEach(b => b.addEventListener('click', () => openChest(b.dataset.consOyster)));
+  const all = body.querySelector('[data-cons-open-all]');
+  if (all) all.addEventListener('click', () => openAllChestsByType('ostra'));
+}
+
 function renderChestsBody(body, p) {
-  if (!p.chests.length) {
-    body.innerHTML = pearlsSummaryHtml(p) + farmSummaryHtml(p) + `<div class="empty-hint">🎁 Ainda não tens baús.<br>Derrota monstros e explora dungeons para encontrares alguns.</div>`;
+  const shown = p.chests.filter(c => c.type !== 'ostra');
+  const oysterCount = p.chests.length - shown.length;
+  const oysterHint = oysterCount ? `<p class="tiny muted" style="margin-bottom:10px;">🦪 Tens ${oysterCount} ostra${oysterCount > 1 ? 's' : ''}: abre-${oysterCount > 1 ? 'as' : 'a'} em Mochila → Consumíveis.</p>` : '';
+  if (!shown.length) {
+    body.innerHTML = oysterHint + `<div class="empty-hint">🎁 Ainda não tens baús.<br>Derrota monstros e explora dungeons para encontrares alguns.</div>`;
     return;
   }
-  const typeGroups = Object.keys(CHEST_DEFS).map(key => {
+  const typeGroups = Object.keys(CHEST_DEFS).filter(key => key !== 'ostra').map(key => {
     const def = CHEST_DEFS[key];
     const chests = p.chests.filter(c => c.type === key);
     return { key, def, count: chests.length, total: chests.reduce((sum, c) => sum + chestCost(c.type, c.level), 0) };
@@ -4343,7 +4408,7 @@ function renderChestsBody(body, p) {
     </div>
   </div>`;
 
-  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Abre os teus baús gastando ouro para revelar o que contêm.</p>` + pearlsSummaryHtml(p) + farmSummaryHtml(p) + openAllBar + p.chests.map(chest => {
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Abre os teus baús gastando ouro para revelar o que contêm.</p>` + oysterHint + openAllBar + shown.map(chest => {
     const def = CHEST_DEFS[chest.type];
     const cost = chestCost(chest.type, chest.level);
     const canAfford = p.gold >= cost;
@@ -5308,7 +5373,7 @@ function doFish() {
     renderHubTab();
     openModal(`
       <h3 style="margin-bottom:12px;">🦪 Pescaste uma Ostra!</h3>
-      <div class="card raised"><p class="tiny">Abre-a na Mochila → Baús para veres o que tem lá dentro (pode ser uma Pérola rara!).</p></div>
+      <div class="card raised"><p class="tiny">Abre-a na Mochila → Consumíveis para veres o que tem lá dentro (pode ser uma Pérola rara!).</p></div>
       <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
     `);
     $('btn-close-modal').addEventListener('click', closeModal);
@@ -5518,7 +5583,7 @@ function blackMarketStock(slot) {
     offers.push({ id: 'seed:' + key, cat: 'farm', kind: 'seed', key, name: `Semente de ${d.name}`, icon: '🌱', desc: `Planta na Agricultura para colher ${d.plant.toLowerCase()}.`, price: range(100, 300, 10) });
     offers.push({ id: 'crop:' + key, cat: 'farm', kind: 'crop', key, name: d.name, icon: d.icon, desc: d.effect + ' (usa em combate).', price: range(100, 300, 10) });
   });
-  offers.push({ id: 'oyster', cat: 'oyster', name: 'Ostra', icon: '🦪', desc: CHEST_DEFS.ostra.desc + ' Vai para Mochila → Baús.', price: BLACK_MARKET_OYSTER_PRICE });
+  offers.push({ id: 'oyster', cat: 'oyster', name: 'Ostra', icon: '🦪', desc: CHEST_DEFS.ostra.desc + ' Vai para Mochila → Consumíveis.', price: BLACK_MARKET_OYSTER_PRICE });
 
   const chosen = [];
   const pick = (cat) => {
@@ -5706,22 +5771,41 @@ function doWood() {
 // ============================================================
 function renderTabMapa() {
   const p = App.player;
-  $('hub-content').innerHTML = `
-    <div class="section-title">🗺️ Mundo</div>
-    <div class="tab-strip">
-      <button class="tab-chip${App.mapaTab === 'regioes' ? ' active' : ''}" data-mapatab="regioes">Regiões</button>
-      <button class="tab-chip${App.mapaTab === 'dungeons' ? ' active' : ''}" data-mapatab="dungeons">Dungeons</button>
-      <button class="tab-chip${App.mapaTab === 'catacumbas' ? ' active' : ''}" data-mapatab="catacumbas">Catacumbas</button>
-    </div>
-    <div id="mapa-body"></div>
-  `;
-  els('[data-mapatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.mapaTab = b.dataset.mapatab; renderTabMapa(); }));
-  renderMapaBody();
+  const sections = [
+    { key: 'regioes', label: 'Regiões', icon: '🌍' },
+    { key: 'dungeons', label: 'Dungeons', icon: '🏰' },
+    { key: 'catacumbas', label: 'Catacumbas', icon: '💀' }
+  ];
+  const current = sections.find(x => x.key === App.mapaTab);
+  if (!current) {
+    App.mapaTab = null;
+    $('hub-content').innerHTML = `
+      <div class="section-title">🗺️ Mundo</div>
+      <p class="muted" style="margin-bottom:12px;">Para onde queres ir?</p>
+      <div class="wiki-grid">
+        ${sections.map(x => `<button class="wiki-tile" data-mapatab="${x.key}">
+          <span class="wiki-tile-ic">${x.icon}</span><span class="wiki-tile-lb">${x.label}</span></button>`).join('')}
+      </div>
+    `;
+  } else {
+    $('hub-content').innerHTML = `
+      <div class="row between" style="margin-bottom:12px; gap:8px;">
+        <button class="btn small ghost" id="btn-map-back">← Mundo</button>
+        <span class="wiki-current">${current.icon} ${current.label}</span>
+      </div>
+      <div id="mapa-body"></div>
+    `;
+  }
+  els('[data-mapatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.mapaTab = b.dataset.mapatab; renderTabMapa(); window.scrollTo(0, 0); }));
+  const back = $('btn-map-back');
+  if (back) back.addEventListener('click', () => { sfx.tab(); App.mapaTab = null; renderTabMapa(); window.scrollTo(0, 0); });
+  if (current) renderMapaBody();
 }
 
 function renderMapaBody() {
   const p = App.player;
   const body = $('mapa-body');
+  if (!body) return;
 
   if (App.mapaTab === 'regioes') {
     const regionsHtml = REGIONS.map((r, i) => {
