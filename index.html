@@ -2014,6 +2014,7 @@ const App = {
   lojaTab: null,
   selectedRegionIndex: 0,
   invTab: null,
+  consTab: null,
   combat: null,
   createClass: null
 };
@@ -4085,17 +4086,23 @@ function renderTabMochila() {
       </div>
     `;
   } else {
+    const consSub = current.key === 'consumiveis' ? CONSUMABLE_SECTIONS.find(x => x.key === App.consTab) : null;
+    if (!consSub) App.consTab = null;
     $('hub-content').innerHTML = `
       <div class="row between" style="margin-bottom:12px; gap:8px;">
-        <button class="btn small ghost" id="btn-inv-back">← Mochila</button>
-        <span class="wiki-current">${current.icon} ${current.label}</span>
+        <button class="btn small ghost" id="btn-inv-back">${consSub ? '← Consumíveis' : '← Mochila'}</button>
+        <span class="wiki-current">${consSub ? `${consSub.icon} ${consSub.label}` : `${current.icon} ${current.label}`}</span>
       </div>
       <div id="mochila-body"></div>
     `;
   }
-  els('[data-invtab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invTab = b.dataset.invtab; renderTabMochila(); window.scrollTo(0, 0); }));
+  els('[data-invtab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invTab = b.dataset.invtab; App.consTab = null; renderTabMochila(); window.scrollTo(0, 0); }));
   const back = $('btn-inv-back');
-  if (back) back.addEventListener('click', () => { sfx.tab(); App.invTab = null; renderTabMochila(); window.scrollTo(0, 0); });
+  if (back) back.addEventListener('click', () => {
+    sfx.tab();
+    if (App.consTab) App.consTab = null; else App.invTab = null;
+    renderTabMochila(); window.scrollTo(0, 0);
+  });
   if (current) renderMochilaBody();
 }
 
@@ -4331,66 +4338,99 @@ function pearlsSummaryHtml(p) {
 // ============================================================
 // MOCHILA · CONSUMÍVEIS (poções, pérolas, ostras e agricultura)
 // ============================================================
-function consumablesTotal(p) {
-  const potions = Object.values(p.potions || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  const pearls = Object.values(p.pearls || {}).reduce((a, b) => a + (Number(b) || 0), 0);
-  const oysters = (p.chests || []).filter(c => c.type === 'ostra').length;
+const CONSUMABLE_SECTIONS = [
+  { key: 'pocoes', label: 'Poções', icon: '🧪' },
+  { key: 'perolas', label: 'Pérolas', icon: '⚪' },
+  { key: 'ostras', label: 'Ostras', icon: '🦪' },
+  { key: 'agricultura', label: 'Agricultura', icon: '🌾' }
+];
+
+function consumableCounts(p) {
   const farm = ensureFarm(p);
-  const farmTotal = Object.values(farm.seeds).reduce((a, b) => a + b, 0) + Object.values(farm.crops).reduce((a, b) => a + b, 0);
-  return potions + pearls + oysters + farmTotal;
+  return {
+    pocoes: Object.values(p.potions || {}).reduce((a, b) => a + (Number(b) || 0), 0),
+    perolas: PEARL_TABLE.filter(x => x.key !== 'pedra').reduce((a, x) => a + (Number((p.pearls || {})[x.key]) || 0), 0),
+    ostras: (p.chests || []).filter(c => c.type === 'ostra').length,
+    agricultura: Object.values(farm.seeds).reduce((a, b) => a + b, 0) + Object.values(farm.crops).reduce((a, b) => a + b, 0)
+  };
+}
+
+function consumablesTotal(p) {
+  const c = consumableCounts(p);
+  return c.pocoes + c.perolas + c.ostras + c.agricultura;
 }
 
 function renderConsumablesBody(body, p) {
-  const farm = ensureFarm(p);
-  const pStats = effectiveStats(p);
-  const potionRows = Object.keys(POTION_DEFS).map(key => {
-    const d = POTION_DEFS[key], n = p.potions[key] || 0;
-    const canUse = isHpPotion(key) && n > 0 && p.hp < pStats.hp;
-    return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
-      <div class="item-ic">${d.icon}</div>
-      <div class="item-mid"><div class="item-name">${d.name} ×${n}</div><div class="tiny">${d.desc}${isHpPotion(key) ? '' : ' · só em combate'}</div></div>
-      ${isHpPotion(key) ? `<button class="btn small ${canUse ? 'primary' : 'ghost'}" data-cons-potion="${key}" ${canUse ? '' : 'disabled'}>Usar</button>` : ''}
-    </div>`;
-  }).join('');
+  const section = CONSUMABLE_SECTIONS.find(x => x.key === App.consTab);
+  if (!section) {
+    const counts = consumableCounts(p);
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:12px;">Poções, pérolas, ostras e produtos da agricultura ficam guardados aqui.</p>
+      <div class="wiki-grid">
+        ${CONSUMABLE_SECTIONS.map(x => `<button class="wiki-tile${counts[x.key] ? '' : ' is-empty'}" data-constab="${x.key}">
+          ${counts[x.key] ? `<span class="wiki-tile-badge">${counts[x.key]}</span>` : ''}
+          <span class="wiki-tile-ic">${x.icon}</span><span class="wiki-tile-lb">${x.label}</span></button>`).join('')}
+      </div>
+    `;
+    body.querySelectorAll('[data-constab]').forEach(b => b.addEventListener('click', () => {
+      sfx.tab(); App.consTab = b.dataset.constab; renderTabMochila(); window.scrollTo(0, 0);
+    }));
+    return;
+  }
 
-  const pearlRows = PEARL_TABLE.filter(x => x.key !== 'pedra').map(x => {
-    const n = (p.pearls && p.pearls[x.key]) || 0;
-    const lvl = Object.keys(UPGRADE_PEARL_REQUIREMENT).find(l => UPGRADE_PEARL_REQUIREMENT[l] === x.key);
-    return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
-      <div class="item-ic">${x.icon}</div>
-      <div class="item-mid"><div class="item-name">${x.name} ×${n}</div><div class="tiny">${lvl ? `Usada para melhorar um item para +${lvl} (Cidade → Ferreiro).` : 'Pérola de coleção.'}</div></div>
-    </div>`;
-  }).join('');
-
-  const oysters = p.chests.filter(c => c.type === 'ostra');
-  const oysterHtml = oysters.length
-    ? `<button class="btn small primary block" style="margin-bottom:8px;" data-cons-open-all>🦪 Abrir todas (${oysters.length})</button>` +
-      oysters.map(c => `<div class="item-row"><div class="item-ic">🦪</div><div class="item-mid"><div class="item-name">Ostra</div><div class="tiny">${CHEST_DEFS.ostra.desc}</div></div><button class="btn small primary" data-cons-oyster="${c.id}">Abrir</button></div>`).join('')
-    : `<p class="tiny muted">Não tens ostras. Pesca na Cidade → Profissão ou compra no Mercado Negro.</p>`;
-
-  const seedKeys = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
-  const cropKeys = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
-  const farmHtml = (seedKeys.length || cropKeys.length)
-    ? seedKeys.map(k => `<div class="item-row"><div class="item-ic">🌱</div><div class="item-mid"><div class="item-name">Semente de ${CROP_DEFS[k].name} ×${farm.seeds[k]}</div><div class="tiny">Planta na Cidade → Profissão → Agricultura.</div></div></div>`).join('') +
-      cropKeys.map(k => `<div class="item-row"><div class="item-ic">${CROP_DEFS[k].icon}</div><div class="item-mid"><div class="item-name">${CROP_DEFS[k].name} ×${farm.crops[k]}</div><div class="tiny">${CROP_DEFS[k].effect} · come em combate (🧪 Poção) ou vende na Agricultura.</div></div></div>`).join('')
-    : `<p class="tiny muted">Ainda não tens sementes nem alimentos. As sementes caem de monstros das Planícies Verdes e da Floresta Negra.</p>`;
-
-  body.innerHTML = `
-    <div class="section-title" style="margin-top:0;">🧪 Poções</div>${potionRows}
-    <div class="section-title">🦪 Pérolas</div>${pearlRows}
-    <div class="section-title">🦪 Ostras</div>${oysterHtml}
-    <div class="section-title">🌾 Agricultura</div>${farmHtml}
-  `;
-  els('[data-cons-potion]').forEach(b => b.addEventListener('click', () => { usePotionAction(b.dataset.consPotion); renderMochilaBody(); }));
-  els('[data-cons-oyster]').forEach(b => b.addEventListener('click', () => openChest(b.dataset.consOyster)));
-  const all = body.querySelector('[data-cons-open-all]');
-  if (all) all.addEventListener('click', () => openAllChestsByType('ostra'));
+  if (section.key === 'pocoes') {
+    const pStats = effectiveStats(p);
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">As poções de HP podem ser usadas aqui; as outras só em combate. Compra mais na Cidade → Loja.</p>` +
+      Object.keys(POTION_DEFS).map(key => {
+        const d = POTION_DEFS[key], n = p.potions[key] || 0;
+        const canUse = isHpPotion(key) && n > 0 && p.hp < pStats.hp;
+        return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
+          <div class="item-ic">${d.icon}</div>
+          <div class="item-mid"><div class="item-name">${d.name} ×${n}</div><div class="tiny">${d.desc}${isHpPotion(key) ? '' : ' · só em combate'}</div></div>
+          ${isHpPotion(key) ? `<button class="btn small ${canUse ? 'primary' : 'ghost'}" data-cons-potion="${key}" ${canUse ? '' : 'disabled'}>Usar</button>` : ''}
+        </div>`;
+      }).join('');
+    els('[data-cons-potion]').forEach(b => b.addEventListener('click', () => { usePotionAction(b.dataset.consPotion); renderMochilaBody(); }));
+  } else if (section.key === 'perolas') {
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">As pérolas encontram-se dentro das ostras e são usadas no Ferreiro para as melhorias mais altas.</p>` +
+      PEARL_TABLE.filter(x => x.key !== 'pedra').map(x => {
+        const n = (p.pearls && p.pearls[x.key]) || 0;
+        const lvl = Object.keys(UPGRADE_PEARL_REQUIREMENT).find(l => UPGRADE_PEARL_REQUIREMENT[l] === x.key);
+        return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
+          <div class="item-ic">${x.icon}</div>
+          <div class="item-mid"><div class="item-name">${x.name} ×${n}</div><div class="tiny">${lvl ? `Usada para melhorar um item para +${lvl} (Cidade → Ferreiro).` : 'Pérola de coleção.'}</div></div>
+        </div>`;
+      }).join('');
+  } else if (section.key === 'ostras') {
+    const oysters = p.chests.filter(c => c.type === 'ostra');
+    body.innerHTML = oysters.length
+      ? `<p class="muted" style="margin-bottom:10px;">${CHEST_DEFS.ostra.desc}</p>` +
+        `<button class="btn small primary block" style="margin-bottom:8px;" data-cons-open-all>🦪 Abrir todas (${oysters.length})</button>` +
+        oysters.map(c => `<div class="item-row"><div class="item-ic">🦪</div><div class="item-mid"><div class="item-name">Ostra</div><div class="tiny">${CHEST_DEFS.ostra.desc}</div></div><button class="btn small primary" data-cons-oyster="${c.id}">Abrir</button></div>`).join('')
+      : `<div class="empty-hint">🦪 Não tens ostras.<br>Pesca na Cidade → Profissão ou compra no Mercado Negro.</div>`;
+    els('[data-cons-oyster]').forEach(b => b.addEventListener('click', () => openChest(b.dataset.consOyster)));
+    const all = body.querySelector('[data-cons-open-all]');
+    if (all) all.addEventListener('click', () => openAllChestsByType('ostra'));
+  } else if (section.key === 'agricultura') {
+    const farm = ensureFarm(p);
+    const seedKeys = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
+    const cropKeys = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
+    if (!seedKeys.length && !cropKeys.length) {
+      body.innerHTML = `<div class="empty-hint">🌾 Ainda não tens sementes nem alimentos.<br>As sementes caem de monstros das Planícies Verdes e da Floresta Negra.</div>`;
+      return;
+    }
+    body.innerHTML =
+      (seedKeys.length ? `<div class="section-title" style="margin-top:0;">🌱 Sementes</div>` +
+        seedKeys.map(k => `<div class="item-row"><div class="item-ic">🌱</div><div class="item-mid"><div class="item-name">Semente de ${CROP_DEFS[k].name} ×${farm.seeds[k]}</div><div class="tiny">Planta na Cidade → Profissão → Agricultura.</div></div></div>`).join('') : '') +
+      (cropKeys.length ? `<div class="section-title"${seedKeys.length ? '' : ' style="margin-top:0;"'}>🧺 Alimentos</div>` +
+        cropKeys.map(k => `<div class="item-row"><div class="item-ic">${CROP_DEFS[k].icon}</div><div class="item-mid"><div class="item-name">${CROP_DEFS[k].name} ×${farm.crops[k]}</div><div class="tiny">${CROP_DEFS[k].effect} · come em combate (🧪 Poção) ou vende na Agricultura.</div></div></div>`).join('') : '');
+  }
 }
 
 function renderChestsBody(body, p) {
   const shown = p.chests.filter(c => c.type !== 'ostra');
   const oysterCount = p.chests.length - shown.length;
-  const oysterHint = oysterCount ? `<p class="tiny muted" style="margin-bottom:10px;">🦪 Tens ${oysterCount} ostra${oysterCount > 1 ? 's' : ''}: abre-${oysterCount > 1 ? 'as' : 'a'} em Mochila → Consumíveis.</p>` : '';
+  const oysterHint = oysterCount ? `<p class="tiny muted" style="margin-bottom:10px;">🦪 Tens ${oysterCount} ostra${oysterCount > 1 ? 's' : ''}: abre-${oysterCount > 1 ? 'as' : 'a'} em Mochila → Consumíveis → Ostras.</p>` : '';
   if (!shown.length) {
     body.innerHTML = oysterHint + `<div class="empty-hint">🎁 Ainda não tens baús.<br>Derrota monstros e explora dungeons para encontrares alguns.</div>`;
     return;
@@ -5373,7 +5413,7 @@ function doFish() {
     renderHubTab();
     openModal(`
       <h3 style="margin-bottom:12px;">🦪 Pescaste uma Ostra!</h3>
-      <div class="card raised"><p class="tiny">Abre-a na Mochila → Consumíveis para veres o que tem lá dentro (pode ser uma Pérola rara!).</p></div>
+      <div class="card raised"><p class="tiny">Abre-a na Mochila → Consumíveis → Ostras para veres o que tem lá dentro (pode ser uma Pérola rara!).</p></div>
       <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
     `);
     $('btn-close-modal').addEventListener('click', closeModal);
@@ -5583,7 +5623,7 @@ function blackMarketStock(slot) {
     offers.push({ id: 'seed:' + key, cat: 'farm', kind: 'seed', key, name: `Semente de ${d.name}`, icon: '🌱', desc: `Planta na Agricultura para colher ${d.plant.toLowerCase()}.`, price: range(100, 300, 10) });
     offers.push({ id: 'crop:' + key, cat: 'farm', kind: 'crop', key, name: d.name, icon: d.icon, desc: d.effect + ' (usa em combate).', price: range(100, 300, 10) });
   });
-  offers.push({ id: 'oyster', cat: 'oyster', name: 'Ostra', icon: '🦪', desc: CHEST_DEFS.ostra.desc + ' Vai para Mochila → Consumíveis.', price: BLACK_MARKET_OYSTER_PRICE });
+  offers.push({ id: 'oyster', cat: 'oyster', name: 'Ostra', icon: '🦪', desc: CHEST_DEFS.ostra.desc + ' Vai para Mochila → Consumíveis → Ostras.', price: BLACK_MARKET_OYSTER_PRICE });
 
   const chosen = [];
   const pick = (cat) => {
@@ -5771,22 +5811,34 @@ function doWood() {
 // ============================================================
 function renderTabMapa() {
   const p = App.player;
-  const sections = [
-    { key: 'regioes', label: 'Regiões', icon: '🌍' },
-    { key: 'dungeons', label: 'Dungeons', icon: '🏰' },
-    { key: 'catacumbas', label: 'Catacumbas', icon: '💀' }
-  ];
-  const current = sections.find(x => x.key === App.mapaTab);
+  const groups = mapaGroups(p);
+  const all = groups.flatMap(g => g.tiles);
+  const current = all.find(t => t.key === App.mapaTab);
   if (!current) {
     App.mapaTab = null;
+    const here = REGIONS[App.selectedRegionIndex] || REGIONS[0];
     $('hub-content').innerHTML = `
       <div class="section-title">🗺️ Mundo</div>
-      <p class="muted" style="margin-bottom:12px;">Para onde queres ir?</p>
-      <div class="wiki-grid">
-        ${sections.map(x => `<button class="wiki-tile" data-mapatab="${x.key}">
-          <span class="wiki-tile-ic">${x.icon}</span><span class="wiki-tile-lb">${x.label}</span></button>`).join('')}
+      <div class="card raised map-here">
+        <div class="map-here-ic">${here.icon}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="tiny muted">A explorar agora</div>
+          <div class="map-here-name">${here.name}</div>
+          <div class="tiny muted">Níveis ${here.minLv}–${here.maxLv}</div>
+        </div>
+        <button class="btn small primary" id="btn-map-fight">⚔️ Batalhar</button>
       </div>
+      <p class="muted" style="margin:10px 0 2px;">Escolhe um destino para ver a informação.</p>
+      ${groups.map(g => `
+        <div class="wiki-group-title">${g.title}</div>
+        <div class="wiki-grid">
+          ${g.tiles.map(t => `<button class="wiki-tile${t.locked ? ' is-locked' : ''}${t.current ? ' is-current' : ''}" data-mapatab="${t.key}">
+            ${t.badge ? `<span class="wiki-tile-badge">${t.badge}</span>` : ''}
+            <span class="wiki-tile-ic">${t.icon}</span><span class="wiki-tile-lb">${t.label}</span>
+            ${t.sub ? `<span class="wiki-tile-sub">${t.sub}</span>` : ''}</button>`).join('')}
+        </div>`).join('')}
     `;
+    $('btn-map-fight').addEventListener('click', () => setTab('batalha'));
   } else {
     $('hub-content').innerHTML = `
       <div class="row between" style="margin-bottom:12px; gap:8px;">
@@ -5799,69 +5851,131 @@ function renderTabMapa() {
   els('[data-mapatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.mapaTab = b.dataset.mapatab; renderTabMapa(); window.scrollTo(0, 0); }));
   const back = $('btn-map-back');
   if (back) back.addEventListener('click', () => { sfx.tab(); App.mapaTab = null; renderTabMapa(); window.scrollTo(0, 0); });
-  if (current) renderMapaBody();
+  if (current) renderMapaBody(current);
 }
 
-function renderMapaBody() {
+// Quadradinhos do Mapa, agrupados como na Wiki: uma entrada por região,
+// dungeon, Altar e catacumba.
+function mapaGroups(p) {
+  const regionTiles = REGIONS.map((r, i) => {
+    const locked = i > p.regionIndex;
+    const current = i === App.selectedRegionIndex;
+    const bossesDone = r.bosses.filter(b => p.defeatedBosses.includes(b.name)).length;
+    return { key: 'reg:' + r.key, kind: 'region', ref: r, idx: i, icon: r.icon, label: r.name,
+      sub: `Nv. ${r.minLv}–${r.maxLv}`, locked, current,
+      badge: locked ? '🔒' : (bossesDone === r.bosses.length ? '✅' : `👑${bossesDone}/${r.bosses.length}`) };
+  });
+  const dungeonTile = d => {
+    const locked = p.level < d.minLv;
+    const cleared = p.clearedDungeons.includes(d.key);
+    return { key: 'dg:' + d.key, kind: 'dungeon', ref: d, icon: d.icon, label: d.name,
+      sub: `Nv. ${d.minLv}+`, locked, badge: locked ? '🔒' : (cleared ? '✅' : null) };
+  };
+  const tier1 = DUNGEONS.filter(d => d.tier !== 2).map(dungeonTile);
+  const tier2 = DUNGEONS.filter(d => d.tier === 2).map(dungeonTile);
+  const altarCharges = p.altarCharges || 0;
+  if (tier2.length) tier2.push({ key: 'altar', kind: 'altar', icon: '🔥', label: 'Altar',
+    sub: 'Bónus permanente', locked: altarCharges <= 0, badge: `${altarCharges}` });
+  const catTiles = CATACUMBAS.map(cat => {
+    const keys = (p.catacumbKeys && p.catacumbKeys[cat.key]) || 0;
+    const cleared = (p.clearedCatacumbas || []).includes(cat.key);
+    return { key: 'cat:' + cat.key, kind: 'catacumba', ref: cat, icon: cat.icon, label: cat.name,
+      sub: `Nv. ${cat.monsterLvMin}+`, locked: keys <= 0, badge: `🗝️${keys}${cleared ? ' ✅' : ''}` };
+  });
+  const groups = [
+    { title: 'Regiões', tiles: regionTiles },
+    { title: 'Dungeons · Tier 1', tiles: tier1 },
+    { title: 'Dungeons · Tier 2', tiles: tier2 },
+    { title: 'Catacumbas', tiles: catTiles }
+  ];
+  return groups.filter(g => g.tiles.length);
+}
+
+function renderMapaBody(tile) {
   const p = App.player;
   const body = $('mapa-body');
   if (!body) return;
+  if (!tile) tile = mapaGroups(p).flatMap(g => g.tiles).find(t => t.key === App.mapaTab);
+  if (!tile) return;
 
-  if (App.mapaTab === 'regioes') {
-    const regionsHtml = REGIONS.map((r, i) => {
-      const unlocked = i <= p.regionIndex;
-      const isSelected = i === App.selectedRegionIndex;
-      const bossesDone = r.bosses.filter(b => p.defeatedBosses.includes(b.name)).length;
-      const allBossesDone = bossesDone === r.bosses.length;
-      const gateBoss = r.bosses.find(b => b.isGate);
-      const bossSummary = `<div class="boss-line ${allBossesDone ? 'done' : ''}">👑 ${bossesDone}/${r.bosses.length} chefes derrotados${gateBoss && !p.defeatedBosses.includes(gateBoss.name) ? ` · guardião: ${gateBoss.icon} ${gateBoss.name} (Nv. ${gateBoss.lv})` : ''}</div>`;
-      return `<div class="region-card${unlocked ? '' : ' locked'}${isSelected ? ' current' : ''}" data-region="${i}">
+  if (tile.kind === 'region') {
+    const r = tile.ref, i = tile.idx;
+    const unlocked = !tile.locked;
+    const isSelected = i === App.selectedRegionIndex;
+    const bossesDone = r.bosses.filter(b => p.defeatedBosses.includes(b.name)).length;
+    const prevGate = i > 0 ? REGIONS[i - 1].bosses.find(b => b.isGate) : null;
+    body.innerHTML = `
+      <div class="region-card${unlocked ? '' : ' locked'}${isSelected ? ' current' : ''}">
         <div class="region-head">
           <div class="region-glyph">${r.icon}</div>
           <div style="flex:1;">
-            <div class="region-title">${i+1}. ${r.name}</div>
+            <div class="region-title">${i + 1}. ${r.name}</div>
             <div class="region-lv">Níveis ${r.minLv}–${r.maxLv}</div>
           </div>
           ${!unlocked ? '<span class="pill">🔒</span>' : (isSelected ? '<span class="pill" style="color:var(--gold-bright);border-color:var(--gold);">Atual</span>' : '')}
         </div>
-        <div class="monster-strip">${r.monsters.map(m => `<span class="monster-chip">${m.icon}</span>`).join('')}</div>
-        ${unlocked ? bossSummary : ''}
-        ${unlocked ? `<button class="btn small ghost" style="margin-top:10px;" data-select-region="${i}">${isSelected ? 'A explorar' : 'Explorar aqui'}</button>` : ''}
-      </div>`;
-    }).join('');
-
-    body.innerHTML = `
-      <p class="muted" style="margin-bottom:10px;">Toca em "Explorar aqui" para mudar a região onde combates na aba Batalha.</p>
-      ${regionsHtml}
+        ${unlocked ? `
+          <div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button class="btn small ${isSelected ? 'ghost' : 'primary'}" data-select-region="${i}" ${isSelected ? 'disabled' : ''}>${isSelected ? '✔ A explorar' : '🧭 Explorar aqui'}</button>
+            <button class="btn small danger" data-region-fight="${i}">⚔️ Ir batalhar</button>
+          </div>`
+        : `<p class="tiny muted" style="margin-top:10px;">${prevGate ? `Derrota o guardião ${prevGate.icon} ${prevGate.name} (Nv. ${prevGate.lv}) em ${REGIONS[i - 1].name} para desbloquear.` : 'Região bloqueada.'}</p>`}
+      </div>
+      <div class="section-title">👾 Monstros</div>
+      <div class="map-list">
+        ${r.monsters.map(m => `<div class="map-list-row"><span class="map-list-ic">${m.icon}</span><span>${m.name}</span></div>`).join('')}
+      </div>
+      <div class="section-title">👑 Chefes <span class="tiny muted" style="margin-left:6px;">${bossesDone}/${r.bosses.length}</span></div>
+      <div class="map-list">
+        ${r.bosses.map(b => {
+          const done = p.defeatedBosses.includes(b.name);
+          return `<div class="map-list-row${done ? ' done' : ''}"><span class="map-list-ic">${b.icon}</span>
+            <span style="flex:1;">${b.name} <span class="tiny muted">Nv. ${b.lv}${b.isGate ? ' · guardião' : ''}</span></span>
+            <span class="tiny">${done ? '✅' : (unlocked ? '⚔️' : '🔒')}</span></div>`;
+        }).join('')}
+      </div>
+      <p class="tiny muted" style="margin-top:10px;">Os chefes enfrentam-se na aba Batalha enquanto exploras esta região.</p>
     `;
     els('[data-select-region]').forEach(b => b.addEventListener('click', () => {
       App.selectedRegionIndex = parseInt(b.dataset.selectRegion);
-      renderMapaBody();
+      renderTabMapa();
       toast(`Agora a explorar: ${REGIONS[App.selectedRegionIndex].name}`);
     }));
-  } else if (App.mapaTab === 'dungeons') {
-    function dungeonCard(d) {
-      const eligible = p.level >= d.minLv;
-      const cleared = p.clearedDungeons.includes(d.key);
-      const miniBossLine = d.miniBossName ? `<div class="tiny muted" style="margin-top:4px;">${d.miniBossIcon} Mini-chefe: ${d.miniBossName}</div>` : '';
-      return `<div class="region-card${eligible ? '' : ' locked'}">
+    els('[data-region-fight]').forEach(b => b.addEventListener('click', () => {
+      App.selectedRegionIndex = parseInt(b.dataset.regionFight);
+      setTab('batalha');
+    }));
+  } else if (tile.kind === 'dungeon') {
+    const d = tile.ref;
+    const eligible = p.level >= d.minLv;
+    const cleared = p.clearedDungeons.includes(d.key);
+    const intro = d.tier === 2
+      ? 'Mais difícil do que as Tier 1, com um mini-chefe antes do chefe final. Sem peça de set garantida — o verdadeiro prémio é uma tentativa no Altar a cada vitória.'
+      : 'Ondas de monstros seguidas de um chefe. Recompensa garantida: uma peça de um conjunto de equipamento.';
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">${intro}</p>
+      <div class="region-card${eligible ? '' : ' locked'}">
         <div class="region-head">
           <div class="region-glyph">${d.icon}</div>
           <div style="flex:1;">
             <div class="region-title">${d.name}</div>
-            <div class="region-lv">Nível mínimo ${d.minLv} · recompensa: ${d.setKey ? SET_DEFS[d.setKey].name : (d.tier === 2 ? 'equipamento + acesso ao Altar' : 'equipamento')}</div>
+            <div class="region-lv">Nível mínimo ${d.minLv} · ${d.waves} ondas</div>
           </div>
-          ${!eligible ? '<span class="pill">🔒</span>' : ''}
+          ${!eligible ? '<span class="pill">🔒</span>' : (cleared ? '<span class="pill" style="color:var(--gold-bright);border-color:var(--gold);">✅</span>' : '')}
         </div>
+        <div class="tiny" style="margin-top:8px;">🎁 Recompensa: ${d.setKey ? SET_DEFS[d.setKey].name : (d.tier === 2 ? 'equipamento + tentativa no Altar' : 'equipamento')}</div>
+        ${d.miniBossName ? `<div class="tiny muted" style="margin-top:4px;">${d.miniBossIcon} Mini-chefe: ${d.miniBossName}</div>` : ''}
         <div class="boss-line">${d.bossIcon} ${d.bossName}${cleared ? ' — já derrotado' : ''}</div>
-        ${miniBossLine}
-        ${eligible ? `<button class="btn small danger" style="margin-top:10px;" data-enter-dungeon="${d.key}">Entrar na dungeon</button>` : ''}
-      </div>`;
-    }
-    const tier1 = DUNGEONS.filter(d => d.tier !== 2);
-    const tier2 = DUNGEONS.filter(d => d.tier === 2);
+        ${d.monsters ? `<div class="monster-strip">${d.monsters.map(m => `<span class="monster-chip" title="${m.name}">${m.icon}</span>`).join('')}</div>` : ''}
+        ${eligible
+          ? `<button class="btn small danger" style="margin-top:10px;" data-enter-dungeon="${d.key}">Entrar na dungeon</button>`
+          : `<p class="tiny muted" style="margin-top:10px;">Disponível a partir do nível ${d.minLv}.</p>`}
+      </div>
+    `;
+    els('[data-enter-dungeon]').forEach(b => b.addEventListener('click', () => startDungeon(b.dataset.enterDungeon)));
+  } else if (tile.kind === 'altar') {
     const altarCharges = p.altarCharges || 0;
-    const altarHtml = tier2.length ? `
+    body.innerHTML = `
       <div class="region-card${altarCharges > 0 ? '' : ' locked'}">
         <div class="region-head">
           <div class="region-glyph">🔥</div>
@@ -5874,25 +5988,18 @@ function renderMapaBody() {
         ${altarCharges > 0
           ? `<button class="btn small primary" style="margin-top:10px;" id="btn-open-altar">Usar o Altar (${altarCharges} tentativa${altarCharges > 1 ? 's' : ''})</button>`
           : `<p class="tiny muted" style="margin-top:10px;">Sem tentativas. Vence o chefe final de uma dungeon Tier 2 para ganhares uma.</p>`}
-      </div>` : '';
-
-    body.innerHTML = `
-      <p class="muted" style="margin-bottom:10px;">Ondas de monstros seguidas de um chefe. Recompensa garantida: uma peça de um conjunto de equipamento.</p>
-      <div class="section-title" style="margin-top:4px;">⚔️ Dungeons Tier 1</div>
-      ${tier1.map(dungeonCard).join('')}
-      ${tier2.length ? `<div class="section-title">🔥 Dungeons Tier 2</div><p class="tiny muted" style="margin-bottom:8px;">Mais difíceis do que as Tier 1, com um mini-chefe antes do chefe final. Sem peça de set garantida — o verdadeiro prémio é uma tentativa no Altar a cada vitória.</p>` : ''}
-      ${tier2.map(dungeonCard).join('')}
-      ${altarHtml}
+      </div>
     `;
-    els('[data-enter-dungeon]').forEach(b => b.addEventListener('click', () => startDungeon(b.dataset.enterDungeon)));
     const altarBtn = $('btn-open-altar');
     if (altarBtn) altarBtn.addEventListener('click', openAltarModal);
-  } else if (App.mapaTab === 'catacumbas') {
-    const catacumbasHtml = CATACUMBAS.map(cat => {
-      const keys = (p.catacumbKeys && p.catacumbKeys[cat.key]) || 0;
-      const cleared = (p.clearedCatacumbas || []).includes(cat.key);
-      const hasKey = keys > 0;
-      return `<div class="region-card${hasKey ? '' : ' locked'}">
+  } else if (tile.kind === 'catacumba') {
+    const cat = tile.ref;
+    const keys = (p.catacumbKeys && p.catacumbKeys[cat.key]) || 0;
+    const cleared = (p.clearedCatacumbas || []).includes(cat.key);
+    const hasKey = keys > 0;
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">Como as dungeons, mas é preciso uma chave para entrar (é consumida ao usares). Chefes finais muito mais fortes — e recompensas à altura.</p>
+      <div class="region-card${hasKey ? '' : ' locked'}">
         <div class="region-head">
           <div class="region-glyph">${cat.icon}</div>
           <div style="flex:1;">
@@ -5902,15 +6009,11 @@ function renderMapaBody() {
           <span class="pill" style="${hasKey ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">🗝️ ${keys}</span>
         </div>
         <div class="boss-line">${cat.bossIcon} ${cat.bossName} — muito mais forte que um chefe normal deste nível${cleared ? ' · já derrotado' : ''}</div>
-        <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip">${m.icon}</span>`).join('')}</div>
+        <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${m.icon}</span>`).join('')}</div>
         ${hasKey
           ? `<button class="btn small danger" style="margin-top:10px;" data-enter-catacumba="${cat.key}">🗝️ Usar chave e entrar</button>`
           : `<p class="tiny muted" style="margin-top:10px;">Precisas de uma ${cat.keyName}. Chefes de nível 80+ têm uma hipótese muito baixa de a deixar cair.</p>`}
-      </div>`;
-    }).join('');
-    body.innerHTML = `
-      <p class="muted" style="margin-bottom:10px;">Como as dungeons, mas é preciso uma chave para entrar (é consumida ao usares). Chefes finais muito mais fortes — e recompensas à altura.</p>
-      ${catacumbasHtml}
+      </div>
     `;
     els('[data-enter-catacumba]').forEach(b => b.addEventListener('click', () => startCatacumba(b.dataset.enterCatacumba)));
   }
