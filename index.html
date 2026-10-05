@@ -2008,7 +2008,7 @@ const App = {
   player: null,
   screen: 'boot',
   tab: 'batalha',
-  wikiTab: 'raridades',
+  wikiTab: null,
   mapaTab: 'regioes',
   lojaTab: 'loja',
   selectedRegionIndex: 0,
@@ -2880,32 +2880,56 @@ function renderHubTab() {
 // ============================================================
 // TAB: WIKI (referência do jogo)
 // ============================================================
+const WIKI_GROUPS = [
+  { title: 'Equipamento', sections: [
+    { key: 'raridades', label: 'Raridades', icon: '💎' },
+    { key: 'melhorias', label: 'Melhorias', icon: '⚒️' },
+    { key: 'bonus', label: 'Bónus+', icon: '✨' },
+    { key: 'sets', label: 'Sets', icon: '🛡️' },
+    { key: 'talismas', label: 'Talismãs', icon: '🔮' },
+    { key: 'gemas', label: 'Gemas', icon: '💠' },
+    { key: 'alquimia', label: 'Alquimia', icon: '⚗️' }
+  ] },
+  { title: 'Aventura', sections: [
+    { key: 'dungeons', label: 'Dungeons', icon: '🏰' },
+    { key: 'catacumbas', label: 'Catacumbas', icon: '💀' },
+    { key: 'eventos', label: 'Eventos', icon: '🌩️' },
+    { key: 'baus', label: 'Baús', icon: '🎁' }
+  ] },
+  { title: 'Companheiros e ofícios', sections: [
+    { key: 'mascotes', label: 'Mascotes', icon: '🐾' },
+    { key: 'profissoes', label: 'Profissões', icon: '⛏️' },
+    { key: 'agricultura', label: 'Agricultura', icon: '🌾' }
+  ] }
+];
+
 function renderTabWiki() {
-  const sections = [
-    { key: 'talismas', label: 'Talismãs' },
-    { key: 'raridades', label: 'Raridades' },
-    { key: 'melhorias', label: 'Melhorias' },
-    { key: 'gemas', label: 'Gemas' },
-    { key: 'alquimia', label: 'Alquimia' },
-    { key: 'bonus', label: 'Bónus+' },
-    { key: 'sets', label: 'Sets' },
-    { key: 'baus', label: 'Baús' },
-    { key: 'mascotes', label: 'Mascotes' },
-    { key: 'eventos', label: 'Eventos' },
-    { key: 'catacumbas', label: 'Catacumbas' },
-    { key: 'dungeons', label: 'Dungeons' },
-    { key: 'profissoes', label: 'Profissões' },
-    { key: 'agricultura', label: 'Agricultura' }
-  ];
-  $('hub-content').innerHTML = `
-    <div class="section-title">📚 Wiki do Nemesy</div>
-    <div class="tab-strip">
-      ${sections.map(s => `<button class="tab-chip${App.wikiTab === s.key ? ' active' : ''}" data-wikitab="${s.key}">${s.label}</button>`).join('')}
-    </div>
-    <div id="wiki-body"></div>
-  `;
-  els('[data-wikitab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.wikiTab = b.dataset.wikitab; renderTabWiki(); }));
-  renderWikiBody();
+  const all = WIKI_GROUPS.flatMap(g => g.sections);
+  const current = all.find(s => s.key === App.wikiTab);
+  if (!current) {
+    App.wikiTab = null;
+    $('hub-content').innerHTML = `
+      <div class="section-title">📚 Wiki do Nemesy</div>
+      <p class="muted" style="margin-bottom:12px;">Escolhe um tema para ver a informação.</p>
+      ${WIKI_GROUPS.map(g => `
+        <div class="wiki-group-title">${g.title}</div>
+        <div class="wiki-grid">
+          ${g.sections.map(s => `<button class="wiki-tile" data-wikitab="${s.key}"><span class="wiki-tile-ic">${s.icon}</span><span class="wiki-tile-lb">${s.label}</span></button>`).join('')}
+        </div>`).join('')}
+    `;
+  } else {
+    $('hub-content').innerHTML = `
+      <div class="row between" style="margin-bottom:12px; gap:8px;">
+        <button class="btn small ghost" id="btn-wiki-back">← Wiki</button>
+        <span class="wiki-current">${current.icon} ${current.label}</span>
+      </div>
+      <div id="wiki-body"></div>
+    `;
+  }
+  els('[data-wikitab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.wikiTab = b.dataset.wikitab; renderTabWiki(); window.scrollTo(0, 0); }));
+  const back = $('btn-wiki-back');
+  if (back) back.addEventListener('click', () => { sfx.tab(); App.wikiTab = null; renderTabWiki(); window.scrollTo(0, 0); });
+  if (current) renderWikiBody();
 }
 
 function renderWikiBody() {
