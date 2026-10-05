@@ -219,3 +219,9 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .wiki-tile-lb{font-family:var(--font-display); font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; text-align:center; overflow-wrap:anywhere;}
 .wiki-current{font-family:var(--font-display); font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-bright); text-shadow:0 1px 0 #000;}
 @media (max-width:330px){.wiki-grid{grid-template-columns:repeat(2, minmax(0, 1fr));}}
+
+/* Etiqueta de contagem nos quadradinhos (Mochila) */
+.wiki-tile{position:relative;}
+.wiki-tile-badge{position:absolute; top:5px; right:5px; min-width:20px; padding:1px 6px; border-radius:10px; text-align:center;
+  background:linear-gradient(180deg,#7A5C14,#4A3608); border:1px solid var(--gold); color:var(--parchment);
+  font-size:10px; font-weight:800; line-height:1.5; font-variant-numeric:tabular-nums; box-shadow:0 1px 3px rgba(0,0,0,.7);}

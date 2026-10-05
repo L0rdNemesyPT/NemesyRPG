@@ -2012,7 +2012,7 @@ const App = {
   mapaTab: 'regioes',
   lojaTab: 'loja',
   selectedRegionIndex: 0,
-  invTab: 'equip',
+  invTab: null,
   combat: null,
   createClass: null
 };
@@ -4047,25 +4047,48 @@ function renderTabMochila() {
   const p = App.player;
   const gemTotal = Object.values(p.gems).reduce((sum, tiers) => sum + tiers.reduce((a, b) => a + b, 0), 0);
   const alchemyFilled = (p.alchemySlots || []).filter(Boolean).length;
-  $('hub-content').innerHTML = `
-    <div class="tab-strip">
-      <button class="tab-chip${App.invTab==='equip'?' active':''}" data-invtab="equip">Equipamento</button>
-      <button class="tab-chip${App.invTab==='itens'?' active':''}" data-invtab="itens">Itens (${p.inventory.length})</button>
-      <button class="tab-chip${App.invTab==='talismas'?' active':''}" data-invtab="talismas">Talismãs (${(p.talismans || []).length})</button>
-      <button class="tab-chip${App.invTab==='baus'?' active':''}" data-invtab="baus">Baús${p.chests.length ? ` (${p.chests.length})` : ''}</button>
-      <button class="tab-chip${App.invTab==='gemas'?' active':''}" data-invtab="gemas">Gemas${gemTotal ? ` (${gemTotal})` : ''}</button>
-      <button class="tab-chip${App.invTab==='alquimia'?' active':''}" data-invtab="alquimia">Alquimia (${alchemyFilled}/${ALCHEMY_SLOT_COUNT})</button>
-      <button class="tab-chip${App.invTab==='feiticos'?' active':''}" data-invtab="feiticos">Feitiços${(p.scrolls.feitico + p.scrolls.reforco) ? ` (${p.scrolls.feitico + p.scrolls.reforco})` : ''}</button>
-    </div>
-    <div id="mochila-body"></div>
-  `;
-  els('[data-invtab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invTab = b.dataset.invtab; renderTabMochila(); }));
-  renderMochilaBody();
+  const scrollTotal = p.scrolls.feitico + p.scrolls.reforco;
+  const equippedCount = EQUIP_SLOTS.filter(s => p.equipment[s]).length;
+  const sections = [
+    { key: 'equip', label: 'Equipamento', icon: '🛡️', badge: `${equippedCount}/${EQUIP_SLOTS.length}` },
+    { key: 'itens', label: 'Itens', icon: '🎒', badge: p.inventory.length },
+    { key: 'talismas', label: 'Talismãs', icon: '🔮', badge: (p.talismans || []).length },
+    { key: 'baus', label: 'Baús', icon: '🎁', badge: p.chests.length },
+    { key: 'gemas', label: 'Gemas', icon: '💠', badge: gemTotal },
+    { key: 'alquimia', label: 'Alquimia', icon: '⚗️', badge: `${alchemyFilled}/${ALCHEMY_SLOT_COUNT}` },
+    { key: 'feiticos', label: 'Feitiços', icon: '📜', badge: scrollTotal }
+  ];
+  const current = sections.find(s => s.key === App.invTab);
+  if (!current) {
+    App.invTab = null;
+    $('hub-content').innerHTML = `
+      <div class="section-title">🎒 Mochila</div>
+      <p class="muted" style="margin-bottom:12px;">Escolhe o que queres ver.</p>
+      <div class="wiki-grid">
+        ${sections.map(s => `<button class="wiki-tile" data-invtab="${s.key}">
+          ${s.badge ? `<span class="wiki-tile-badge">${s.badge}</span>` : ''}
+          <span class="wiki-tile-ic">${s.icon}</span><span class="wiki-tile-lb">${s.label}</span></button>`).join('')}
+      </div>
+    `;
+  } else {
+    $('hub-content').innerHTML = `
+      <div class="row between" style="margin-bottom:12px; gap:8px;">
+        <button class="btn small ghost" id="btn-inv-back">← Mochila</button>
+        <span class="wiki-current">${current.icon} ${current.label}</span>
+      </div>
+      <div id="mochila-body"></div>
+    `;
+  }
+  els('[data-invtab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invTab = b.dataset.invtab; renderTabMochila(); window.scrollTo(0, 0); }));
+  const back = $('btn-inv-back');
+  if (back) back.addEventListener('click', () => { sfx.tab(); App.invTab = null; renderTabMochila(); window.scrollTo(0, 0); });
+  if (current) renderMochilaBody();
 }
 
 function renderMochilaBody() {
   const p = App.player;
   const body = $('mochila-body');
+  if (!body) return;
   if (App.invTab === 'equip') {
     const equippedTalisman = getEquippedTalisman(p);
     const equippedCount = EQUIP_SLOTS.filter(s => p.equipment[s]).length + (equippedTalisman ? 1 : 0);
