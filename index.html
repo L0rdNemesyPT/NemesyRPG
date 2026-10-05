@@ -1402,7 +1402,7 @@ function newPlayer(name, cls) {
     chests: [],
     scrolls: { feitico: 0, reforco: 0 },
     pearls: newPearlsBag(),
-    farm: newFarm(), amnesiaBooks: 0, mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
+    farm: newFarm(), amnesiaBooks: 0, blackMarket: null, mineCooldown: 0, fishCooldown: 0, woodCooldown: 0, mineUses: 0, fishUses: 0, woodUses: 0,
     pets: [], activePet: null,
     critBuffBattles: 0,
     regionIndex: 0,
@@ -2010,7 +2010,7 @@ const App = {
   tab: 'batalha',
   wikiTab: null,
   mapaTab: 'regioes',
-  lojaTab: 'loja',
+  lojaTab: null,
   selectedRegionIndex: 0,
   invTab: null,
   combat: null,
@@ -2894,7 +2894,8 @@ const WIKI_GROUPS = [
     { key: 'dungeons', label: 'Dungeons', icon: '🏰' },
     { key: 'catacumbas', label: 'Catacumbas', icon: '💀' },
     { key: 'eventos', label: 'Eventos', icon: '🌩️' },
-    { key: 'baus', label: 'Baús', icon: '🎁' }
+    { key: 'baus', label: 'Baús', icon: '🎁' },
+    { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' }
   ] },
   { title: 'Companheiros e ofícios', sections: [
     { key: 'mascotes', label: 'Mascotes', icon: '🐾' },
@@ -3146,6 +3147,16 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Cada vez que derrotas o chefe final de uma dungeon Tier 2, ganhas <b>1 tentativa</b> no Altar (não se acumula desbloqueio permanente — para ganhares outra tentativa, tens de voltar a vencer a dungeon). Lá podes colocar o teu <b>Artefacto equipado</b> — cada tentativa gasta uma "carga" e dá ${Math.round(ALTAR_SUCCESS_CHANCE * 100)}% de hipótese de ligar, para sempre, <b>um</b> dos seguintes Bónus de Altar (só um bónus por artefacto):</p>
         ${ALTAR_BONUS_POOL.map(b => `<p class="tiny" style="margin-top:4px;">${b.icon} <b>${b.name}</b> — ${b.desc}</p>`).join('')}
       </div>
+    `;
+  } else if (t === 'mercadonegro') {
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">Cidade → Mercado Negro 🏴‍☠️. Uma loja com 5 ofertas que mudam de 3 em 3 horas.</p>
+      <div class="card raised"><span style="font-weight:700;">⏳ Renovação</span>
+        <p class="tiny" style="margin-top:6px;">O contador no topo mostra quanto falta. Quando chega ao fim, as 5 ofertas mudam e voltas a poder comprar.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🔒 Uma compra por oferta</span>
+        <p class="tiny" style="margin-top:6px;">Cada item só pode ser comprado uma vez por renovação. Depois fica "Comprado" até o mercado renovar.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🛍️ O que pode aparecer</span>
+        <p class="tiny" style="margin-top:6px;">⚪ Pérolas de melhoria (🪙2500 a 5000) · 💠 Gemas T1 (🪙1000 a 3000) · 🌱 Sementes e legumes da Agricultura (🪙100 a 300) · 🦪 Ostras (🪙500).</p></div>
     `;
   } else if (t === 'agricultura') {
     body.innerHTML = `
@@ -5055,23 +5066,46 @@ const HP_POTIONS_PER_BATTLE = 2;
 function isHpPotion(key) { return HP_POTION_KEYS.includes(key); }
 
 function renderTabLoja() {
-  $('hub-content').innerHTML = `
-    <div class="section-title">🏙️ Cidade</div>
-    <div class="tab-strip">
-      <button class="tab-chip${App.lojaTab === 'loja' ? ' active' : ''}" data-lojatab="loja">Loja</button>
-      <button class="tab-chip${App.lojaTab === 'ferreiro' ? ' active' : ''}" data-lojatab="ferreiro">Ferreiro</button>
-      <button class="tab-chip${App.lojaTab === 'profissao' ? ' active' : ''}" data-lojatab="profissao">Profissão</button>
-      <button class="tab-chip${App.lojaTab === 'classificacao' ? ' active' : ''}" data-lojatab="classificacao">Classificação</button>
-    </div>
-    <div id="loja-body"></div>
-  `;
-  els('[data-lojatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.lojaTab = b.dataset.lojatab; renderTabLoja(); }));
-  renderLojaBody();
+  if (blackMarketTimer) { clearInterval(blackMarketTimer); blackMarketTimer = null; }
+  const p = App.player;
+  const sections = [
+    { key: 'loja', label: 'Loja', icon: '🛒' },
+    { key: 'ferreiro', label: 'Ferreiro', icon: '🔨' },
+    { key: 'profissao', label: 'Profissão', icon: '⛏️' },
+    { key: 'classificacao', label: 'Classificação', icon: '🏆' },
+    { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️', badge: blackMarketAvailableCount(p) }
+  ];
+  const current = sections.find(x => x.key === App.lojaTab);
+  if (!current) {
+    App.lojaTab = null;
+    $('hub-content').innerHTML = `
+      <div class="section-title">🏙️ Cidade</div>
+      <p class="muted" style="margin-bottom:12px;">Para onde queres ir?</p>
+      <div class="wiki-grid">
+        ${sections.map(x => `<button class="wiki-tile" data-lojatab="${x.key}">
+          ${x.badge ? `<span class="wiki-tile-badge">${x.badge}</span>` : ''}
+          <span class="wiki-tile-ic">${x.icon}</span><span class="wiki-tile-lb">${x.label}</span></button>`).join('')}
+      </div>
+    `;
+  } else {
+    $('hub-content').innerHTML = `
+      <div class="row between" style="margin-bottom:12px; gap:8px;">
+        <button class="btn small ghost" id="btn-city-back">← Cidade</button>
+        <span class="wiki-current">${current.icon} ${current.label}</span>
+      </div>
+      <div id="loja-body"></div>
+    `;
+  }
+  els('[data-lojatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.lojaTab = b.dataset.lojatab; renderTabLoja(); window.scrollTo(0, 0); }));
+  const back = $('btn-city-back');
+  if (back) back.addEventListener('click', () => { sfx.tab(); App.lojaTab = null; renderTabLoja(); window.scrollTo(0, 0); });
+  if (current) renderLojaBody();
 }
 
 function renderLojaBody() {
   const p = App.player;
   const body = $('loja-body');
+  if (!body) return;
 
   if (App.lojaTab === 'loja') {
     const potionsHtml = Object.keys(POTION_DEFS).map(key => {
@@ -5139,6 +5173,8 @@ function renderLojaBody() {
     if ((p.fishCooldown||0) <= 0) $('btn-fish').addEventListener('click', doFish);
     if ((p.mineCooldown||0) <= 0) $('btn-mine').addEventListener('click', doMine);
     if ((p.woodCooldown||0) <= 0) $('btn-wood').addEventListener('click', doWood);
+  } else if (App.lojaTab === 'mercadonegro') {
+    renderBlackMarketBody(body);
   } else if (App.lojaTab === 'classificacao') {
     renderLeaderboardBody(body);
   } else if (App.lojaTab === 'ferreiro') {
@@ -5421,6 +5457,176 @@ function farmSummaryHtml(p) {
       ${crops.map(k => `<span class="tiny">${CROP_DEFS[k].icon} ${CROP_DEFS[k].name}: <b>${farm.crops[k]}</b></span>`).join('')}
     </div>
   </div>`;
+}
+
+// --- Mercado Negro 🏴‍☠️ --------------------------------------------------------
+// 5 ofertas que mudam de 3 em 3 horas. O stock sai de um sorteio com semente (o nº da
+// janela de 3h), por isso é igual para todos os jogadores sem precisar de servidor.
+const BLACK_MARKET_SLOT_MS = 3 * 60 * 60 * 1000;
+const BLACK_MARKET_ITEMS = 5;
+const BLACK_MARKET_PEARL_PRICES = { verde: 2500, vermelha: 3300, azul: 4100, branca: 5000 };
+const BLACK_MARKET_OYSTER_PRICE = 500;
+let serverClockOffset = 0;
+let serverClockSyncedAt = 0;
+let blackMarketTimer = null;
+
+function marketNow() { return Date.now() + serverClockOffset; }
+function marketSlot(now) { return Math.floor((now === undefined ? marketNow() : now) / BLACK_MARKET_SLOT_MS); }
+
+// Usa o relógio do servidor (função get_server_time), para mudar a hora do telemóvel não
+// renovar o mercado. Se a função não existir ou estiver offline, usa o relógio do dispositivo.
+async function syncServerClock() {
+  if (!cloudClient || !cloudUser) return;
+  if (serverClockSyncedAt && Date.now() - serverClockSyncedAt < 10 * 60 * 1000) return;
+  try {
+    const t0 = Date.now();
+    const { data, error } = await cloudClient.rpc('get_server_time');
+    if (error || !Number.isFinite(Number(data))) return;
+    const t1 = Date.now();
+    serverClockOffset = Number(data) - Math.round((t0 + t1) / 2);
+    serverClockSyncedAt = t1;
+  } catch (e) { /* mantém o relógio do dispositivo */ }
+}
+
+function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function blackMarketStock(slot) {
+  const rnd = seededRng(Math.imul(slot, 2654435761) + 1013904223);
+  const roundTo = (v, step) => Math.round(v / step) * step;
+  const range = (lo, hi, step) => roundTo(lo + rnd() * (hi - lo), step);
+  const offers = [];
+  Object.keys(UPGRADE_PEARL_REQUIREMENT).forEach(lvl => {
+    const key = UPGRADE_PEARL_REQUIREMENT[lvl];
+    const def = PEARL_TABLE.find(x => x.key === key);
+    if (def) offers.push({ id: 'pearl:' + key, cat: 'pearl', key, name: def.name, icon: def.icon, desc: `Usada para melhorar um item para +${lvl}.`, price: BLACK_MARKET_PEARL_PRICES[key] });
+  });
+  Object.keys(GEM_DEFS).forEach(key => {
+    const d = GEM_DEFS[key];
+    offers.push({ id: 'gem:' + key, cat: 'gem', key, name: `${d.name} (T1)`, icon: d.icon, desc: 'Gema de nível 1, para encaixar em equipamento.', price: range(1000, 3000, 100) });
+  });
+  Object.keys(CROP_DEFS).forEach(key => {
+    const d = CROP_DEFS[key];
+    offers.push({ id: 'seed:' + key, cat: 'farm', kind: 'seed', key, name: `Semente de ${d.name}`, icon: '🌱', desc: `Planta na Agricultura para colher ${d.plant.toLowerCase()}.`, price: range(100, 300, 10) });
+    offers.push({ id: 'crop:' + key, cat: 'farm', kind: 'crop', key, name: d.name, icon: d.icon, desc: d.effect + ' (usa em combate).', price: range(100, 300, 10) });
+  });
+  offers.push({ id: 'oyster', cat: 'oyster', name: 'Ostra', icon: '🦪', desc: CHEST_DEFS.ostra.desc + ' Vai para Mochila → Baús.', price: BLACK_MARKET_OYSTER_PRICE });
+
+  const chosen = [];
+  const pick = (cat) => {
+    const pool = offers.filter(o => o.cat === cat && !chosen.includes(o));
+    if (!pool.length) return false;
+    chosen.push(pool[Math.floor(rnd() * pool.length)]);
+    return true;
+  };
+  ['pearl', 'gem', 'farm'].forEach(pick);
+  const weights = [['pearl', 20], ['farm', 30], ['oyster', 20], ['gem', 30]];
+  let guard = 0;
+  while (chosen.length < BLACK_MARKET_ITEMS && guard++ < 50) {
+    let r = rnd() * 100, cat = weights[weights.length - 1][0];
+    for (const [c, w] of weights) { if (r < w) { cat = c; break; } r -= w; }
+    pick(cat);
+  }
+  for (let i = chosen.length - 1; i > 0; i--) {
+    const j = Math.floor(rnd() * (i + 1));
+    [chosen[i], chosen[j]] = [chosen[j], chosen[i]];
+  }
+  return chosen;
+}
+
+// Guarda no herói o que já comprou nesta janela. Nunca recua: se o relógio do telemóvel
+// for atrasado, continua a valer a janela mais recente já vista.
+function ensureBlackMarket(p, slot) {
+  const bm = p.blackMarket;
+  const valid = bm && Number.isFinite(bm.slot) && Array.isArray(bm.bought);
+  if (!valid || bm.slot < slot) p.blackMarket = { slot, bought: Array.from({ length: BLACK_MARKET_ITEMS }, () => false) };
+  p.blackMarket.bought = Array.from({ length: BLACK_MARKET_ITEMS }, (_, i) => p.blackMarket.bought[i] === true);
+  return p.blackMarket;
+}
+
+function blackMarketAvailableCount(p) {
+  const bm = ensureBlackMarket(p, marketSlot());
+  return bm.bought.filter(b => !b).length;
+}
+
+function formatCountdown(ms) {
+  const t = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), sec = t % 60;
+  return [h, m, sec].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function giveBlackMarketOffer(p, offer) {
+  if (offer.cat === 'pearl') { if (!p.pearls) p.pearls = newPearlsBag(); p.pearls[offer.key] = (p.pearls[offer.key] || 0) + 1; }
+  else if (offer.cat === 'gem') { if (!Array.isArray(p.gems[offer.key])) p.gems[offer.key] = [0, 0, 0]; p.gems[offer.key][0] = (p.gems[offer.key][0] || 0) + 1; }
+  else if (offer.cat === 'oyster') p.chests.push(newChest('ostra', p.level));
+  else if (offer.kind === 'seed') ensureFarm(p).seeds[offer.key]++;
+  else if (offer.kind === 'crop') ensureFarm(p).crops[offer.key]++;
+}
+
+function buyBlackMarketOffer(index) {
+  const p = App.player;
+  const slot = Math.max(marketSlot(), p.blackMarket ? p.blackMarket.slot : 0);
+  const bm = ensureBlackMarket(p, slot);
+  const offer = blackMarketStock(bm.slot)[index];
+  if (!offer) return;
+  if (bm.bought[index]) { sfx.error(); toast('Já compraste este item. Volta quando o mercado renovar.'); return; }
+  if (p.gold < offer.price) { sfx.error(); toast(`Precisas de ${offer.price} de ouro.`); return; }
+  p.gold -= offer.price;
+  bm.bought[index] = true;
+  giveBlackMarketOffer(p, offer);
+  saveGame();
+  sfx.gold();
+  renderStatusBar();
+  toast(`${offer.icon} Compraste ${offer.name} por ${offer.price} de ouro.`);
+  renderLojaBody();
+}
+
+async function renderBlackMarketBody(body) {
+  const p = App.player;
+  if (!serverClockSyncedAt) {
+    body.innerHTML = `<p class="muted">A abrir o mercado…</p>`;
+    await Promise.race([syncServerClock(), new Promise(r => setTimeout(r, 2500))]);
+    if (App.lojaTab !== 'mercadonegro' || $('loja-body') !== body) return;
+  } else {
+    syncServerClock();
+  }
+  const slot = Math.max(marketSlot(), p.blackMarket ? p.blackMarket.slot : 0);
+  const bm = ensureBlackMarket(p, slot);
+  const stock = blackMarketStock(bm.slot);
+  const endsAt = (bm.slot + 1) * BLACK_MARKET_SLOT_MS;
+  body.innerHTML = `
+    <div class="card raised bm-head">
+      <div class="tiny muted">Os itens renovam daqui a</div>
+      <div class="bm-timer" id="bm-timer">${formatCountdown(endsAt - marketNow())}</div>
+      <p class="tiny muted" style="margin-top:6px;">Só podes comprar cada item uma vez por renovação. Os preços são fixos até lá.</p>
+    </div>
+    ${stock.map((o, i) => {
+      const bought = bm.bought[i];
+      const poor = !bought && p.gold < o.price;
+      return `<div class="item-row" ${bought ? 'style="opacity:.55;"' : ''}>
+        <div class="item-ic">${o.icon}</div>
+        <div class="item-mid"><div class="item-name">${o.name}</div><div class="tiny">${o.desc}</div></div>
+        <button class="btn small ${bought || poor ? 'ghost' : 'primary'}" data-bm-buy="${i}" ${bought || poor ? 'disabled' : ''}>${bought ? 'Comprado' : `🪙${o.price}`}</button>
+      </div>`;
+    }).join('')}
+    <p class="tiny muted" style="margin-top:10px;">Tens 🪙${p.gold}.</p>
+  `;
+  els('[data-bm-buy]').forEach(b => b.addEventListener('click', () => buyBlackMarketOffer(Number(b.dataset.bmBuy))));
+  if (blackMarketTimer) clearInterval(blackMarketTimer);
+  blackMarketTimer = setInterval(() => {
+    const el = $('bm-timer');
+    if (!el || App.lojaTab !== 'mercadonegro') { clearInterval(blackMarketTimer); blackMarketTimer = null; return; }
+    const left = endsAt - marketNow();
+    if (left <= 0) { clearInterval(blackMarketTimer); blackMarketTimer = null; toast('🏴‍☠️ O Mercado Negro renovou!'); renderTabLoja(); return; }
+    el.textContent = formatCountdown(left);
+  }, 1000);
 }
 
 // --- Classificação (top 3 por nível e por ouro) ------------------------------
