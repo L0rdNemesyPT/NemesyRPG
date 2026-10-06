@@ -246,3 +246,17 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .map-list-ic{font-size:20px; width:26px; text-align:center;}
 #btn-map-back, #btn-inv-back, #btn-wiki-back{white-space:nowrap; flex-shrink:0;}
 .wiki-current{text-align:right; min-width:0;}
+
+/* Temporada */
+.season-head{text-align:center; border-color:var(--gold); background:radial-gradient(ellipse at 50% 0%, rgba(242,201,76,.16), transparent 70%), var(--bg-raised, #251E16);}
+.season-kicker{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted);}
+.season-title{font-family:var(--font-display); font-size:24px; font-weight:800; letter-spacing:.06em; color:var(--gold-bright); text-shadow:0 1px 0 #000, 0 0 14px rgba(228,191,74,.35);}
+.season-tile{padding-bottom:14px;}
+.season-tile.is-ready{border-color:var(--gold-bright); box-shadow:var(--depth), var(--glow); animation:seasonPulse 1.6s ease-in-out infinite;}
+.season-tile.is-ready .wiki-tile-sub{color:var(--gold-bright); font-weight:700;}
+.season-tile.is-claimed{opacity:.6;}
+.season-tile-bar{position:absolute; left:8px; right:8px; bottom:6px; height:3px; border-radius:2px; background:rgba(255,255,255,.08); overflow:hidden;}
+.season-tile-bar span{display:block; height:100%; background:var(--gold-bright);}
+.season-exclusive{border-color:var(--gold) !important;}
+@keyframes seasonPulse{0%,100%{box-shadow:var(--depth), 0 0 0 rgba(228,191,74,0);}50%{box-shadow:var(--depth), 0 0 14px rgba(228,191,74,.55);}}
+@media (prefers-reduced-motion: reduce){.season-tile.is-ready{animation:none;}}

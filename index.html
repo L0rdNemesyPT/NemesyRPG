@@ -790,7 +790,8 @@ const RARITIES = [
   { key: 'unico', name: 'Único', icon: '🟠', chance: 0.01, mult: 4.0, color: '#D6822E' },
   { key: 'demoniaco', name: 'Demoníaco', icon: '🔴', chance: 0.005, mult: 4.3, color: '#C13B3B', event: true, corrupted: true },
   { key: 'set', name: 'Set', icon: '🟢', mult: 3.2, color: '#5FA05F', special: true, sourceLabel: 'exclusivo de dungeons' },
-  { key: 'divino', name: 'Divino', icon: '💠', mult: 5.5, color: '#3FE0D0', special: true, sourceLabel: 'exclusivo dos chefes finais de Catacumbas' }
+  { key: 'divino', name: 'Divino', icon: '💠', mult: 5.5, color: '#3FE0D0', special: true, sourceLabel: 'exclusivo dos chefes finais de Catacumbas' },
+  { key: 'temporada', name: 'Temporada', icon: '⭐', mult: 4.0, color: '#F2C94C', special: true, sourceLabel: 'exclusivo das Temporadas' }
 ];
 
 // ============================================================
@@ -835,8 +836,27 @@ const SLOT_ICONS = {
   cape: '🧣', boots: '🥾', gloves: '🧤', amulet: '📿', artifact: '🔯', talisman: '🍀'
 };
 const TALISMAN_DEFS = {
-  fortune: { name: '[Talismã da Fortuna 🍀]', hp: 100, dropLuck: 0.02, duration: 50 }
+  fortune: { name: '[Talismã da Fortuna 🍀]', icon: '🍀', hp: 100, def: 0, dropLuck: 0.02, duration: 50,
+    source: 'Djinn do Oásis, chefe final de O Oásis — 20% de hipótese por conclusão.' },
+  // Exclusivo da Temporada 1: nunca expira.
+  protetor: { name: '[Talismã Protetor ⭐]', icon: '🛡️', hp: 50, def: 10, dropLuck: 0, permanent: true, season: 1,
+    source: 'Recompensa da missão 7 da Temporada 1 (Cidade → Temporada).' }
 };
+function talismanIsActive(t) {
+  const d = t && TALISMAN_DEFS[t.key];
+  return !!d && (d.permanent || Number(t.battlesRemaining) > 0);
+}
+function talismanDurationLabel(t) {
+  const d = TALISMAN_DEFS[t.key];
+  return d.permanent ? 'Não expira' : `${t.battlesRemaining}/${d.duration} batalhas`;
+}
+function talismanStatsLabel(d) {
+  const parts = [];
+  if (d.hp) parts.push(`+${d.hp} HP`);
+  if (d.def) parts.push(`+${d.def} Defesa`);
+  if (d.dropLuck) parts.push(`+${Math.round(d.dropLuck * 100)}% Sorte de drop de itens`);
+  return parts.join(' · ');
+}
 
 const ITEM_NAME_PARTS = {
   weapon: ['Espada', 'Machado', 'Lança', 'Arco', 'Besta', 'Cajado', 'Varinha'],
@@ -1180,12 +1200,13 @@ const CHEST_DEFS = {
   equip: { name: 'Baú de Equipamento', icon: '🎁', desc: 'Contém uma peça de equipamento aleatória.' },
   pedras: { name: 'Baú de Pedras', icon: '💠', desc: 'Contém 1–2 Pedras de Alquimia.' },
   feitico: { name: 'Baú de Feitiço', icon: '✨', desc: 'Contém um Pergaminho de Feitiço ou de Reforço.' },
-  ostra: { name: 'Ostra', icon: '🦪', desc: 'Contém uma Pérola... ou apenas uma Pedra.' }
+  ostra: { name: 'Ostra', icon: '🦪', desc: 'Contém uma Pérola... ou apenas uma Pedra.' },
+  temporada1: { name: 'Baú da Temporada 1 ⭐', icon: '🌟', desc: 'Exclusivo da Temporada 1. Contém 1 item Lendário, Único ou Divino. Abre-se de graça.' }
 };
 function chestCost(type, level) {
   if (type === 'feitico') return 150;
   if (type === 'pedras') return Math.round(15 + (level || 1) * 2);
-  if (type === 'ostra') return 0;
+  if (type === 'ostra' || type === 'temporada1') return 0;
   return Math.round(20 + (level || 1) * 4);
 }
 // Pérolas — obtidas ao abrir Ostras pescadas. Puramente coleção por agora.
@@ -1427,10 +1448,200 @@ function newPlayer(name, cls) {
   };
 }
 
+// ============================================================
+// TEMPORADAS — missões com recompensas exclusivas (Cidade → Temporada)
+// ============================================================
+// Os itens exclusivos de uma temporada têm "⭐" no nome. O progresso só conta
+// a partir do momento em que a temporada existe no save do jogador.
+const SEASON_ID = 1;
+const SEASON_NAME = 'Temporada 1';
+const SEASON_STAR = '⭐';
+const SEASON_DIFF_ORDER = ['comum', 'incomum', 'raro', 'lendario', 'unico'];
+function seasonBossIcon(name) {
+  const b = REGIONS.flatMap(r => r.bosses).find(x => x.name === name);
+  return b ? b.icon : '👑';
+}
+function seasonDungeonIcon(key) {
+  const d = DUNGEONS.find(x => x.key === key);
+  return d ? d.icon : '🏰';
+}
+// type: 'kills' (monstros, não chefes) · 'bosses' (qualquer chefe) · 'boss' (chefe
+// de região com este nome) · 'dungeon' (dungeon concluída com sucesso).
+// minLv = nível mínimo do inimigo; diff = dificuldade mínima (essa ou superior).
+const SEASON_MISSIONS = [
+  { id: 1, type: 'kills', minLv: 26, target: 500, icon: '⚔️', title: 'Caçador da Temporada',
+    desc: 'Mata 500 monstros acima do nível 25.',
+    rewards: [{ type: 'gold', qty: 3000 }] },
+  { id: 2, type: 'bosses', minLv: 31, target: 300, icon: '👑', title: 'Matador de Chefes',
+    desc: 'Mata 300 chefes acima do nível 30 (chefes de região e chefes de dungeon contam).',
+    rewards: [{ type: 'gold', qty: 4000 }] },
+  { id: 3, type: 'boss', name: 'Kraken do Gelo', target: 50, title: 'Terror das Águas Geladas',
+    desc: 'Mata 50 vezes o Kraken do Gelo.',
+    rewards: [{ type: 'gem', gem: 'defesa', tier: 0, qty: 1 }, { type: 'gem', gem: 'vida', tier: 0, qty: 1 }, { type: 'gem', gem: 'critico', tier: 0, qty: 1 }] },
+  { id: 4, type: 'boss', name: 'Urso Alfa', target: 60, title: 'Rei da Alcateia',
+    desc: 'Mata 60 vezes o Urso Alfa.',
+    rewards: [{ type: 'alch', stone: 'rubi', lvl: 2, qty: 1 }, { type: 'alch', stone: 'safira', lvl: 2, qty: 1 }, { type: 'alch', stone: 'granada', lvl: 2, qty: 1 }, { type: 'alch', stone: 'ametista', lvl: 2, qty: 1 }] },
+  { id: 5, type: 'dungeon', key: 'cidadela', target: 20, title: 'Guardião Celestial',
+    desc: 'Conclui com sucesso 20 vezes a Cidadela Celestial.',
+    rewards: [{ type: 'gold', qty: 1000 }, { type: 'crop', crop: 'corn', qty: 5 }, { type: 'crop', crop: 'apple', qty: 5 }, { type: 'oyster', qty: 5 }] },
+  { id: 6, type: 'dungeon', key: 'abismo', target: 30, title: 'Senhor do Caos',
+    desc: 'Conclui com sucesso 30 vezes o Abismo do Caos.',
+    rewards: [{ type: 'gold', qty: 1000 }, { type: 'scroll', kind: 'feitico', qty: 5 }, { type: 'scroll', kind: 'reforco', qty: 10 }, { type: 'crop', crop: 'onion', qty: 10 }] },
+  { id: 7, type: 'dungeon', key: 'reino_fe', target: 40, title: 'Cruzado da Fé',
+    desc: 'Conclui com sucesso 40 vezes o Reino da Fé.',
+    rewards: [{ type: 'talisman', key: 'protetor' }] },
+  { id: 8, type: 'boss', name: 'Rei Lich', diff: 'lendario', target: 20, title: 'Caçador de Liches',
+    desc: 'Mata 20 vezes o Rei Lich na dificuldade 🟡 Lendário (ou superior).',
+    rewards: [{ type: 'item', key: 'armadura_t1' }] },
+  { id: 9, type: 'boss', name: 'Nemesis', diff: 'lendario', target: 25, title: 'A Queda de Nemesis',
+    desc: 'Mata 25 vezes o Nemesis na dificuldade 🟡 Lendário (ou superior).',
+    rewards: [{ type: 'gold', qty: 5000 }, { type: 'pearl', pearl: 'azul', qty: 2 }, { type: 'pearl', pearl: 'vermelha', qty: 2 }, { type: 'pearl', pearl: 'branca', qty: 2 }, { type: 'crop', crop: 'tomato', qty: 10 }] },
+  { id: 10, type: 'boss', name: 'Soberano da Floresta Negra', diff: 'unico', target: 20, title: 'Destronar o Soberano',
+    desc: 'Mata 20 vezes o Soberano da Floresta Negra na dificuldade 🟠 Único.',
+    rewards: [{ type: 'chest', chest: 'temporada1', qty: 1 }] }
+];
+SEASON_MISSIONS.forEach(m => {
+  if (!m.icon) m.icon = m.type === 'boss' ? seasonBossIcon(m.name) : m.type === 'dungeon' ? seasonDungeonIcon(m.key) : '🎯';
+});
+
+// Baú da Temporada 1: 1 item Lendário, Único ou Divino (Divino é raro).
+const SEASON_CHEST_RARITY_TABLE = [
+  { key: 'lendario', chance: 0.70 },
+  { key: 'unico', chance: 0.25 },
+  { key: 'divino', chance: 0.05 }
+];
+function rollSeasonChestItem(p) {
+  const r = Math.random();
+  let acc = 0, pick = SEASON_CHEST_RARITY_TABLE[0];
+  for (const row of SEASON_CHEST_RARITY_TABLE) { acc += row.chance; if (r <= acc) { pick = row; break; } }
+  const rarity = RARITIES.find(x => x.key === pick.key);
+  const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+  return generateItem(slot, Math.max(1, p.level || 1), null, false, rarity);
+}
+
+// Armadura T1 ⭐ — Peitoral de nível 120. Os valores base foram escolhidos para que,
+// com a escala normal do Ferreiro (+10% do valor base por nível, +1% Crítico por
+// nível), a +9 dê exatamente +200 HP, +150 Defesa e +12% Crítico.
+function makeSeasonArmorT1() {
+  const rarity = RARITIES.find(r => r.key === 'temporada');
+  const stats = { hp: 105, def: 79, crit: 0.03 };
+  return {
+    id: 'it_' + Math.random().toString(36).slice(2, 9),
+    slot: 'chest', name: `Armadura T1 ${SEASON_STAR}`,
+    rarity: rarity.key, rarityColor: rarity.color, rarityName: rarity.name, rarityIcon: rarity.icon,
+    itemLevel: 120, stats: Object.assign({}, stats), baseStats: Object.assign({}, stats),
+    upgrade: 0, socketSlots: 1, sockets: [null], bonuses: [], nephalemBonus: null, altarBonus: null, corruption: null,
+    setKey: null, uniqueEffect: 'bleedImmune', season: SEASON_ID
+  };
+}
+
+function ensureSeason(p) {
+  if (!p.season || typeof p.season !== 'object' || p.season.id !== SEASON_ID) {
+    p.season = { id: SEASON_ID, progress: {}, claimed: [] };
+  }
+  if (!p.season.progress || typeof p.season.progress !== 'object') p.season.progress = {};
+  if (!Array.isArray(p.season.claimed)) p.season.claimed = [];
+  return p.season;
+}
+function seasonProgress(p, m) {
+  return Math.min(m.target, Math.max(0, Math.floor(Number(ensureSeason(p).progress[m.id]) || 0)));
+}
+function seasonMissionState(p, m) {
+  if (ensureSeason(p).claimed.includes(m.id)) return 'claimed';
+  return seasonProgress(p, m) >= m.target ? 'ready' : 'progress';
+}
+function seasonReadyCount(p) {
+  return SEASON_MISSIONS.filter(m => seasonMissionState(p, m) === 'ready').length;
+}
+function seasonAdd(p, m, n) {
+  const s = ensureSeason(p);
+  if (s.claimed.includes(m.id)) return;
+  s.progress[m.id] = Math.min(m.target, (Number(s.progress[m.id]) || 0) + (n || 1));
+}
+function seasonDiffOk(m, difficulty) {
+  if (!m.diff) return true;
+  return SEASON_DIFF_ORDER.indexOf(difficulty || 'comum') >= SEASON_DIFF_ORDER.indexOf(m.diff);
+}
+// Chamado sempre que um inimigo é derrotado (combates normais, chefes, ondas e
+// chefes de dungeon/catacumba).
+function seasonOnEnemyDefeated(c) {
+  const p = App.player;
+  if (!p || !c) return;
+  const before = seasonReadyCount(p);
+  const isBossKill = !!(c.isBoss || c.isMiniBoss);
+  const lvl = c.level || 0;
+  SEASON_MISSIONS.forEach(m => {
+    if (m.type === 'kills' && !isBossKill && lvl >= m.minLv) seasonAdd(p, m);
+    else if (m.type === 'bosses' && isBossKill && lvl >= m.minLv) seasonAdd(p, m);
+    else if (m.type === 'boss' && c.isBoss && !c.isDungeon && c.name === m.name && seasonDiffOk(m, c.difficulty)) seasonAdd(p, m);
+  });
+  if (seasonReadyCount(p) > before) toast(`🎮 Missão da ${SEASON_NAME} concluída! Recebe a recompensa na Cidade → Temporada.`);
+}
+function seasonOnDungeonCleared(key) {
+  const p = App.player;
+  if (!p) return;
+  const before = seasonReadyCount(p);
+  SEASON_MISSIONS.forEach(m => { if (m.type === 'dungeon' && m.key === key) seasonAdd(p, m); });
+  if (seasonReadyCount(p) > before) toast(`🎮 Missão da ${SEASON_NAME} concluída! Recebe a recompensa na Cidade → Temporada.`);
+}
+
+function seasonRewardLabel(r) {
+  if (r.type === 'gold') return `🪙 ${r.qty} Ouro`;
+  if (r.type === 'gem') { const d = GEM_DEFS[r.gem]; return `${d.icon} ${r.qty}× ${d.name} T${r.tier + 1}`; }
+  if (r.type === 'alch') { const d = ALCHEMY_STONE_DEFS[r.stone]; return `${d.icon} ${r.qty}× ${d.name} Nv.${r.lvl}`; }
+  if (r.type === 'crop') { const d = CROP_DEFS[r.crop]; return `${d.icon} ${r.qty}× ${d.name}`; }
+  if (r.type === 'oyster') return `🦪 ${r.qty}× Ostra`;
+  if (r.type === 'scroll') return r.kind === 'feitico' ? `📜 ${r.qty}× Pergaminho de Feitiço` : `🔧 ${r.qty}× Pergaminho de Reforço`;
+  if (r.type === 'pearl') { const d = PEARL_TABLE.find(x => x.key === r.pearl); return `${d.icon} ${r.qty}× ${d.name}`; }
+  if (r.type === 'talisman') { const d = TALISMAN_DEFS[r.key]; return `${d.icon} ${d.name}`; }
+  if (r.type === 'item' && r.key === 'armadura_t1') return `🥋 Armadura T1 ${SEASON_STAR}`;
+  if (r.type === 'chest') { const d = CHEST_DEFS[r.chest]; return `${d.icon} ${r.qty}× ${d.name}`; }
+  return '🎁';
+}
+function seasonRewardDetail(r) {
+  if (r.type === 'talisman') { const d = TALISMAN_DEFS[r.key]; return `Item exclusivo da ${SEASON_NAME}. +${d.hp} HP · +${d.def} Defesa · nunca expira.`; }
+  if (r.type === 'item' && r.key === 'armadura_t1') return `Item exclusivo da ${SEASON_NAME}. Peitoral de nível 120, começa a +0 e evolui até +9 no Ferreiro. A +9: +200 HP · +150 Defesa · +12% Crítico · 🩸🚫 Imunidade a Sangramento.`;
+  if (r.type === 'chest') return `Item exclusivo da ${SEASON_NAME}. Ao abrir dá 1 item 🟡 Lendário (${Math.round(SEASON_CHEST_RARITY_TABLE[0].chance * 100)}%), 🟠 Único (${Math.round(SEASON_CHEST_RARITY_TABLE[1].chance * 100)}%) ou 💠 Divino (${Math.round(SEASON_CHEST_RARITY_TABLE[2].chance * 100)}%). Abre-se de graça na Mochila → Baús.`;
+  return '';
+}
+function grantSeasonReward(p, r) {
+  if (r.type === 'gold') p.gold += r.qty;
+  else if (r.type === 'gem') p.gems[r.gem][r.tier] += r.qty;
+  else if (r.type === 'alch') { for (let i = 0; i < r.qty; i++) grantAlchemyStone(p, r.stone, r.lvl); }
+  else if (r.type === 'crop') ensureFarm(p).crops[r.crop] = (ensureFarm(p).crops[r.crop] || 0) + r.qty;
+  else if (r.type === 'oyster') { for (let i = 0; i < r.qty; i++) p.chests.push(newChest('ostra', p.level)); }
+  else if (r.type === 'scroll') p.scrolls[r.kind] = (p.scrolls[r.kind] || 0) + r.qty;
+  else if (r.type === 'pearl') { if (!p.pearls) p.pearls = newPearlsBag(); p.pearls[r.pearl] = (p.pearls[r.pearl] || 0) + r.qty; }
+  else if (r.type === 'talisman') grantTalisman(p, r.key);
+  else if (r.type === 'item' && r.key === 'armadura_t1') p.inventory.push(makeSeasonArmorT1());
+  else if (r.type === 'chest') { for (let i = 0; i < r.qty; i++) p.chests.push(newChest(r.chest, p.level)); }
+}
+function claimSeasonMission(id) {
+  const p = App.player;
+  const m = SEASON_MISSIONS.find(x => x.id === id);
+  if (!m) return;
+  const s = ensureSeason(p);
+  if (s.claimed.includes(m.id)) { toast('Já recebeste esta recompensa.'); return; }
+  if (seasonProgress(p, m) < m.target) { sfx.error(); toast('Ainda não completaste esta missão.'); return; }
+  s.claimed.push(m.id);
+  m.rewards.forEach(r => grantSeasonReward(p, r));
+  saveGame();
+  sfx.questdone();
+  openModal(`
+    <h3 style="margin-bottom:12px;">🎮 Recompensa recebida!</h3>
+    <div class="card raised">
+      <p class="tiny muted" style="margin-bottom:6px;">${m.icon} ${m.title}</p>
+      ${m.rewards.map(r => `<p class="tiny" style="color:var(--gold-bright); font-weight:700;">${seasonRewardLabel(r)}</p>`).join('')}
+    </div>
+    <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
+  `);
+  $('btn-close-modal').addEventListener('click', () => { closeModal(); renderHubTab(); });
+}
+
 function getEquippedTalisman(player) {
   if (!player || !player.equipment || !player.equipment.talisman) return null;
   return (player.talismans || []).find(talisman =>
-    talisman.id === player.equipment.talisman && TALISMAN_DEFS[talisman.key] && talisman.battlesRemaining > 0
+    talisman.id === player.equipment.talisman && talismanIsActive(talisman)
   ) || null;
 }
 
@@ -1440,7 +1651,7 @@ function grantTalisman(player, key) {
   const talisman = {
     id: `tal_${Math.random().toString(36).slice(2, 10)}`,
     key,
-    battlesRemaining: definition.duration
+    battlesRemaining: definition.permanent ? null : definition.duration
   };
   player.talismans = player.talismans || [];
   player.talismans.push(talisman);
@@ -1485,6 +1696,7 @@ function effectiveStats(player) {
   // começa igual ao dano fixo (base de classe/evolução não tem variação própria).
   let dmgMin = dmg, dmgMax = dmg;
   let def = base.def + evoBonus.def;
+  if (talisman) def += TALISMAN_DEFS[talisman.key].def || 0;
   let crit = 0.05;
   let dodge = 0;
   let lifesteal = 0;
@@ -2023,6 +2235,7 @@ const App = {
   lojaTab: null,
   selectedRegionIndex: 0,
   invTab: null,
+  seasonMission: null,
   consTab: null,
   combat: null,
   createClass: null
@@ -2906,7 +3119,8 @@ const WIKI_GROUPS = [
     { key: 'catacumbas', label: 'Catacumbas', icon: '💀' },
     { key: 'eventos', label: 'Eventos', icon: '🌩️' },
     { key: 'baus', label: 'Baús', icon: '🎁' },
-    { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' }
+    { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' },
+    { key: 'temporada', label: 'Temporada', icon: '🎮' }
   ] },
   { title: 'Companheiros e ofícios', sections: [
     { key: 'mascotes', label: 'Mascotes', icon: '🐾' },
@@ -3119,10 +3333,10 @@ function renderWikiBody() {
       ${Object.keys(TALISMAN_DEFS).map(key => {
         const talisman = TALISMAN_DEFS[key];
         return `<div class="card raised">
-          <span style="font-weight:700;">🍀 ${talisman.name}</span>
-          <p class="tiny" style="margin-top:6px;">Bónus enquanto equipado: <b>+${talisman.hp} HP</b> e <b>+${Math.round(talisman.dropLuck * 100)}% de sorte no drop de itens</b>.</p>
-          <p class="tiny" style="margin-top:6px;">Duração: ${talisman.duration} batalhas concluídas enquanto equipado. Desequipá-lo pausa a contagem; ao chegar a zero, desaparece.</p>
-          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">Como obter: ${DUNGEONS.find(d => d.key === 'oasis').bossIcon} ${DUNGEONS.find(d => d.key === 'oasis').bossName}, chefe final de ${DUNGEONS.find(d => d.key === 'oasis').name} — ${Math.round(0.20 * 100)}% de hipótese por conclusão.</p>
+          <span style="font-weight:700;">${talisman.icon} ${talisman.name}</span>
+          <p class="tiny" style="margin-top:6px;">Bónus enquanto equipado: <b>${talismanStatsLabel(talisman)}</b>.</p>
+          <p class="tiny" style="margin-top:6px;">${talisman.permanent ? 'Duração: <b>não expira</b>.' : `Duração: ${talisman.duration} batalhas concluídas enquanto equipado. Desequipá-lo pausa a contagem; ao chegar a zero, desaparece.`}</p>
+          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">Como obter: ${talisman.source}</p>
         </div>`;
       }).join('')}
       <p class="tiny muted" style="margin-top:10px;">Equipa e consulta a duração em Mochila → Talismãs.</p>
@@ -3158,6 +3372,17 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Cada vez que derrotas o chefe final de uma dungeon Tier 2, ganhas <b>1 tentativa</b> no Altar (não se acumula desbloqueio permanente — para ganhares outra tentativa, tens de voltar a vencer a dungeon). Podes guardar no máximo <b>${ALTAR_MAX_CHARGES} tentativas</b>; ao chegares ao limite, as novas não são acrescentadas. Lá podes colocar o teu <b>Artefacto equipado</b> — cada tentativa gasta uma "carga" e dá ${Math.round(ALTAR_SUCCESS_CHANCE * 100)}% de hipótese de ligar, para sempre, <b>um</b> dos seguintes Bónus de Altar (só um bónus por artefacto):</p>
         ${ALTAR_BONUS_POOL.map(b => `<p class="tiny" style="margin-top:4px;">${b.icon} <b>${b.name}</b> — ${b.desc}</p>`).join('')}
       </div>
+    `;
+  } else if (t === 'temporada') {
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">Na Cidade → 🎮 Temporada há ${SEASON_MISSIONS.length} missões. Completa cada uma e toca no quadradinho para receberes a recompensa (só uma vez por missão). O progresso conta a partir do momento em que a temporada começou no teu herói. Os itens exclusivos da temporada têm ${SEASON_STAR} no nome.</p>
+      <p class="tiny muted" style="margin-bottom:10px;">Nas missões com dificuldade, uma dificuldade superior também conta (ex.: 🟠 Único conta para uma missão 🟡 Lendário).</p>
+      ${SEASON_MISSIONS.map(m => `<div class="card raised">
+        <span style="font-weight:700;">${m.icon} ${m.id}. ${m.title}</span>
+        <p class="tiny" style="margin-top:6px;">${m.desc}</p>
+        <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🎁 ${m.rewards.map(seasonRewardLabel).join(' · ')}</p>
+        ${m.rewards.map(seasonRewardDetail).filter(Boolean).map(d => `<p class="tiny muted" style="margin-top:4px;">${d}</p>`).join('')}
+      </div>`).join('')}
     `;
   } else if (t === 'mercadonegro') {
     body.innerHTML = `
@@ -4157,8 +4382,8 @@ function renderMochilaBody() {
       + summaryCard
       + GROUPS.map(g => `<div class="section-title">${g.title}</div>${slotGrid(g.slots)}`).join('')
       + `<div class="section-title">🍀 Talismã</div><div class="slot-grid"><button class="equip-slot${equippedTalisman ? ' filled' : ''}" data-manage-talisman type="button">
-        <div class="ic">🍀</div><div class="lbl">Talismã</div>
-        ${equippedTalisman ? `<div class="itemname">${esc(TALISMAN_DEFS[equippedTalisman.key].name)}</div><div class="tiny">${equippedTalisman.battlesRemaining}/50 batalhas</div>` : '<div class="tiny">Vazio</div>'}
+        <div class="ic">${equippedTalisman ? TALISMAN_DEFS[equippedTalisman.key].icon : '🍀'}</div><div class="lbl">Talismã</div>
+        ${equippedTalisman ? `<div class="itemname">${esc(TALISMAN_DEFS[equippedTalisman.key].name)}</div><div class="tiny">${talismanDurationLabel(equippedTalisman)}</div>` : '<div class="tiny">Vazio</div>'}
       </button></div>`;
     els('[data-equip-slot]').forEach(s => { s.style.position = 'relative'; s.addEventListener('click', () => openEquipSlotModal(s.dataset.equipSlot)); });
     $('[data-manage-talisman]').addEventListener('click', () => { App.invTab = 'talismas'; renderTabMochila(); });
@@ -4307,18 +4532,18 @@ function renderMochilaBody() {
 function renderTalismasBody(body, p) {
   const talismans = p.talismans || [];
   if (!talismans.length) {
-    body.innerHTML = `<div class="empty-hint">🍀 Ainda não tens Talismãs.<br>O Djinn do Oásis pode deixar cair o [Talismã da Fortuna 🍀] ao ser derrotado.</div>`;
+    body.innerHTML = `<div class="empty-hint">🍀 Ainda não tens Talismãs.<br>O Djinn do Oásis pode deixar cair o [Talismã da Fortuna 🍀] ao ser derrotado, e a Temporada dá o [Talismã Protetor ⭐].</div>`;
     return;
   }
-  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Os Talismãs não têm raridade. As batalhas de duração só contam enquanto estiverem equipados.</p>` + talismans.map(talisman => {
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Os Talismãs não têm raridade. As batalhas de duração só contam enquanto estiverem equipados (os Talismãs da Temporada não expiram).</p>` + talismans.map(talisman => {
     const definition = TALISMAN_DEFS[talisman.key];
     const equipped = p.equipment.talisman === talisman.id;
     return `<div class="item-row">
-      <div class="item-ic">🍀</div>
+      <div class="item-ic">${definition.icon}</div>
       <div class="item-mid">
         <div class="item-name">${esc(definition.name)}</div>
-        <div class="item-stats">+${definition.hp} HP · +${Math.round(definition.dropLuck * 100)}% Sorte de drop de itens</div>
-        <div class="tiny">${talisman.battlesRemaining}/50 batalhas restantes${equipped ? ' · equipado' : ''}</div>
+        <div class="item-stats">${talismanStatsLabel(definition)}</div>
+        <div class="tiny">${definition.permanent ? 'Não expira' : `${talisman.battlesRemaining}/${definition.duration} batalhas restantes`}${equipped ? ' · equipado' : ''}</div>
       </div>
       <button class="btn small ${equipped ? '' : 'primary'}" data-talisman-toggle="${esc(talisman.id)}">${equipped ? 'Desequipar' : 'Equipar'}</button>
     </div>`;
@@ -4617,6 +4842,21 @@ function openChest(chestId) {
       resultHtml = `<p class="tiny">${pearl.icon} Encontraste uma <b>${pearl.name}</b>!</p>`;
     }
     sfx.equip();
+  } else if (chest.type === 'temporada1') {
+    const item = rollSeasonChestItem(p);
+    p.inventory.push(item);
+    const cmp = compareToEquipped(item, p);
+    resultHtml = `
+      <div class="item-row" style="${rarityBoxStyle(item)}">
+        <div class="item-ic">${SLOT_ICONS[item.slot]}</div>
+        <div class="item-mid">
+          <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name}</div>
+          <div class="item-sub tiny" style="color:${item.rarityColor}">Nv.${item.itemLevel || 1} · ${item.rarityName}</div>
+          <div class="item-stats">${itemStatsLine(item)}</div>
+          <div class="item-compare ${cmp.cls}">${cmp.label}</div>
+        </div>
+      </div>`;
+    sfx.evolve();
   }
 
   saveGame();
@@ -4663,6 +4903,10 @@ function performOpenAllChests(type, matching, totalCost) {
     if (chest.type === 'equip') {
       const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
       const item = generateItem(slot, chest.level, null, chest.qualityBoost);
+      p.inventory.push(item);
+      equipFound.push(item);
+    } else if (chest.type === 'temporada1') {
+      const item = rollSeasonChestItem(p);
       p.inventory.push(item);
       equipFound.push(item);
     } else if (chest.type === 'pedras') {
@@ -5186,6 +5430,77 @@ const HP_POTION_KEYS = ['hp', 'hp2'];
 const HP_POTIONS_PER_BATTLE = 2;
 function isHpPotion(key) { return HP_POTION_KEYS.includes(key); }
 
+// ============================================================
+// CIDADE · TEMPORADA
+// ============================================================
+function renderSeasonBody(body, p) {
+  ensureSeason(p);
+  const m = SEASON_MISSIONS.find(x => x.id === App.seasonMission);
+  if (!m) {
+    App.seasonMission = null;
+    const claimed = SEASON_MISSIONS.filter(x => seasonMissionState(p, x) === 'claimed').length;
+    const ready = seasonReadyCount(p);
+    const pctDone = Math.round(claimed / SEASON_MISSIONS.length * 100);
+    body.innerHTML = `
+      <div class="card raised season-head">
+        <div class="season-kicker">🎮 Temporada atual</div>
+        <div class="season-title">${SEASON_NAME}</div>
+        <div class="bar" style="margin-top:10px;"><div class="bar-fill" style="width:${pctDone}%; background:var(--gold-bright);"></div></div>
+        <div class="tiny muted" style="margin-top:6px;">${claimed}/${SEASON_MISSIONS.length} recompensas recebidas${ready ? ` · <b style="color:var(--gold-bright);">${ready} pronta${ready > 1 ? 's' : ''} a receber</b>` : ''}</div>
+      </div>
+      <p class="muted" style="margin:10px 0 12px;">Completa as missões e toca no quadradinho para receberes a recompensa. Os itens exclusivos da temporada têm ${SEASON_STAR} no nome.</p>
+      <div class="wiki-grid">
+        ${SEASON_MISSIONS.map(x => {
+          const st = seasonMissionState(p, x);
+          const prog = seasonProgress(p, x);
+          return `<button class="wiki-tile season-tile is-${st}" data-season-mission="${x.id}">
+            <span class="wiki-tile-badge">${st === 'claimed' ? '✅' : st === 'ready' ? '🎁' : x.id}</span>
+            <span class="wiki-tile-ic">${x.icon}</span>
+            <span class="wiki-tile-lb">${x.title}</span>
+            <span class="wiki-tile-sub">${st === 'claimed' ? 'Recebida' : st === 'ready' ? 'Receber!' : `${prog}/${x.target}`}</span>
+            <span class="season-tile-bar"><span style="width:${Math.round(prog / x.target * 100)}%"></span></span>
+          </button>`;
+        }).join('')}
+      </div>
+    `;
+    body.querySelectorAll('[data-season-mission]').forEach(b => b.addEventListener('click', () => {
+      sfx.tab(); App.seasonMission = parseInt(b.dataset.seasonMission); renderTabLoja(); window.scrollTo(0, 0);
+    }));
+    return;
+  }
+  const st = seasonMissionState(p, m);
+  const prog = seasonProgress(p, m);
+  body.innerHTML = `
+    <div class="card raised" style="border-left:3px solid ${st === 'progress' ? 'var(--bronze)' : 'var(--gold-bright)'};">
+      <div class="row" style="gap:12px; align-items:center;">
+        <div style="font-size:34px; line-height:1;">${m.icon}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="tiny muted">Missão ${m.id} de ${SEASON_MISSIONS.length}</div>
+          <div style="font-weight:700; font-family:var(--font-display);">${m.title}</div>
+        </div>
+        <span class="pill" style="${st !== 'progress' ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">${st === 'claimed' ? '✅ Recebida' : `${prog}/${m.target}`}</span>
+      </div>
+      <p class="tiny" style="margin-top:10px;">${m.desc}</p>
+      <div class="bar" style="margin-top:10px;"><div class="bar-fill" style="width:${Math.round(prog / m.target * 100)}%; background:var(--gold-bright);"></div></div>
+    </div>
+    <div class="section-title">🎁 Recompensa</div>
+    ${m.rewards.map(r => {
+      const detail = seasonRewardDetail(r);
+      return `<div class="item-row${detail ? ' season-exclusive' : ''}">
+        <div class="item-mid">
+          <div class="item-name">${seasonRewardLabel(r)}</div>
+          ${detail ? `<div class="tiny">${detail}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('')}
+    ${st === 'ready' ? `<button class="btn primary block" style="margin-top:12px; padding:12px;" data-season-claim="${m.id}">🎁 Receber recompensa</button>`
+      : st === 'claimed' ? `<p class="tiny muted" style="margin-top:12px;">Já recebeste esta recompensa.</p>`
+      : `<p class="tiny muted" style="margin-top:12px;">Faltam ${m.target - prog} para completares esta missão.</p>`}
+  `;
+  const claim = body.querySelector('[data-season-claim]');
+  if (claim) claim.addEventListener('click', () => claimSeasonMission(m.id));
+}
+
 function renderTabLoja() {
   if (blackMarketTimer) { clearInterval(blackMarketTimer); blackMarketTimer = null; }
   const p = App.player;
@@ -5194,7 +5509,8 @@ function renderTabLoja() {
     { key: 'ferreiro', label: 'Ferreiro', icon: '🔨' },
     { key: 'profissao', label: 'Profissão', icon: '⛏️' },
     { key: 'classificacao', label: 'Classificação', icon: '🏆' },
-    { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️', badge: blackMarketAvailableCount(p) }
+    { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️', badge: blackMarketAvailableCount(p) },
+    { key: 'temporada', label: 'Temporada', icon: '🎮', badge: seasonReadyCount(p) ? `🎁${seasonReadyCount(p)}` : null }
   ];
   const current = sections.find(x => x.key === App.lojaTab);
   if (!current) {
@@ -5209,17 +5525,23 @@ function renderTabLoja() {
       </div>
     `;
   } else {
+    const seasonSub = current.key === 'temporada' ? SEASON_MISSIONS.find(x => x.id === App.seasonMission) : null;
+    if (!seasonSub) App.seasonMission = null;
     $('hub-content').innerHTML = `
       <div class="row between" style="margin-bottom:12px; gap:8px;">
-        <button class="btn small ghost" id="btn-city-back">← Cidade</button>
-        <span class="wiki-current">${current.icon} ${current.label}</span>
+        <button class="btn small ghost" id="btn-city-back">${seasonSub ? '← Temporada' : '← Cidade'}</button>
+        <span class="wiki-current">${seasonSub ? `${seasonSub.icon} Missão ${seasonSub.id}` : `${current.icon} ${current.label}`}</span>
       </div>
       <div id="loja-body"></div>
     `;
   }
-  els('[data-lojatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.lojaTab = b.dataset.lojatab; renderTabLoja(); window.scrollTo(0, 0); }));
+  els('[data-lojatab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.lojaTab = b.dataset.lojatab; App.seasonMission = null; renderTabLoja(); window.scrollTo(0, 0); }));
   const back = $('btn-city-back');
-  if (back) back.addEventListener('click', () => { sfx.tab(); App.lojaTab = null; renderTabLoja(); window.scrollTo(0, 0); });
+  if (back) back.addEventListener('click', () => {
+    sfx.tab();
+    if (App.seasonMission) App.seasonMission = null; else App.lojaTab = null;
+    renderTabLoja(); window.scrollTo(0, 0);
+  });
   if (current) renderLojaBody();
 }
 
@@ -5228,6 +5550,7 @@ function renderLojaBody() {
   const body = $('loja-body');
   if (!body) return;
 
+  if (App.lojaTab === 'temporada') { renderSeasonBody(body, p); return; }
   if (App.lojaTab === 'loja') {
     const potionsHtml = Object.keys(POTION_DEFS).map(key => {
       const d = POTION_DEFS[key];
@@ -6875,6 +7198,7 @@ function resolveEnemyTurn() {
 function handleEnemyDefeated() {
   const c = App.combat;
   addCombatLog({ text: `${c.icon} ${c.name} foi derrotado!`, cls: 'crit' });
+  seasonOnEnemyDefeated(c);
   if (c.isDungeon) {
     if (c.waveIndex < c.totalWaves - 1) {
       consumeTalismanBattle();
@@ -6901,7 +7225,7 @@ function handleEnemyDefeated() {
 function consumeTalismanBattle() {
   const p = App.player;
   const talisman = getEquippedTalisman(p);
-  if (!talisman) return;
+  if (!talisman || TALISMAN_DEFS[talisman.key].permanent) return;
   talisman.battlesRemaining--;
   if (talisman.battlesRemaining <= 0) {
     p.talismans = p.talismans.filter(owned => owned.id !== talisman.id);
@@ -7038,7 +7362,7 @@ function finishWildOrBossVictory() {
   // Amuleto dos Atormentados: um item único com imunidade permanente a Sangramento,
   // à parte dos drops normais e não obtenível de nenhuma outra forma.
   if (c.eventApplied && c.eventApplied.key === 'atormentados' && Math.random() < 0.01) {
-    const amulet = generateItem('amulet', c.level, null, null, 'unico');
+    const amulet = generateItem('amulet', c.level, null, null, RARITIES.find(r => r.key === 'unico'));
     amulet.name = 'Amuleto dos Atormentados';
     amulet.uniqueEffect = 'bleedImmune';
     p.inventory.push(amulet);
@@ -7119,6 +7443,7 @@ function finishDungeon() {
     drops.push(`🍀 O Djinn do Oásis deixou cair ${TALISMAN_DEFS[talisman.key].name}!`);
   }
   if (!p.clearedDungeons.includes(d.key)) p.clearedDungeons.push(d.key);
+  seasonOnDungeonCleared(d.key);
   // Parte de Boss (Biólogo+): de qualquer região que o jogador já tenha desbloqueado.
   {
     const unlockedPartKeys = REGIONS.slice(0, (p.regionIndex || 0) + 1).flatMap(bossPartKeysForRegion);
@@ -7473,12 +7798,14 @@ function applyPlayerMigrations(player) {
   if (!player.equipment) player.equipment = {};
   if (!Array.isArray(player.talismans)) player.talismans = [];
   player.talismans = player.talismans
-    .filter(talisman => talisman && TALISMAN_DEFS[talisman.key] && Number(talisman.battlesRemaining) > 0)
+    .filter(talisman => talismanIsActive(talisman))
     .map(talisman => ({
       id: typeof talisman.id === 'string' && talisman.id ? talisman.id : `tal_${Math.random().toString(36).slice(2, 10)}`,
       key: talisman.key,
-      battlesRemaining: clamp(Math.floor(Number(talisman.battlesRemaining) || TALISMAN_DEFS[talisman.key].duration), 1, TALISMAN_DEFS[talisman.key].duration)
+      battlesRemaining: TALISMAN_DEFS[talisman.key].permanent ? null
+        : clamp(Math.floor(Number(talisman.battlesRemaining) || TALISMAN_DEFS[talisman.key].duration), 1, TALISMAN_DEFS[talisman.key].duration)
     }));
+  ensureSeason(player);
   if (!player.talismans.some(talisman => talisman.id === player.equipment.talisman)) player.equipment.talisman = null;
   if (!player.gems) player.gems = { defesa: [0,0,0], dano: [0,0,0], vida: [0,0,0], critico: [0,0,0] };
   if (!player.pets) player.pets = [];
