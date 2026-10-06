@@ -273,3 +273,23 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .region-glyph .nx-ic{width:40px; height:40px;}
 .map-here-ic .nx-ic{width:44px; height:44px;}
 .sb-mute .nx-ic{width:22px; height:22px;}
+
+/* Passivas */
+.pv-tree{position:relative; width:358px; flex-shrink:0; height:500px; margin:0 auto; border:1px solid #5a4422; border-radius:10px; background:radial-gradient(circle at 50% 50%, #221a10 0%, #0e0b07 75%); box-shadow:inset 0 0 40px rgba(0,0,0,.85); overflow:hidden;}
+.pv-zone{position:absolute; width:120px; text-align:center; font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.12em;}
+.pv-link{position:absolute; height:3px; background:#3a2e1e; transform-origin:0 50%; border-radius:2px;}
+.pv-link.reach{background:#7a6234;}
+.pv-link.on{height:4px; background:#E4BF4A; box-shadow:0 0 8px rgba(228,191,74,.6);}
+.pv-node{position:absolute; padding:0; border:0; background:transparent; display:flex; align-items:center; justify-content:center; cursor:pointer;}
+.pv-node span{display:block; box-sizing:border-box; border-radius:50%; border:2px solid #5a4a32; background:radial-gradient(circle at 35% 30%, #2a2218, #0e0b07); transition:box-shadow .15s, border-color .15s;}
+.pv-node.avail span{border-color:var(--pv); background:radial-gradient(circle at 35% 30%, #4a3a24, #16110B); box-shadow:0 0 8px color-mix(in srgb, var(--pv) 45%, transparent);}
+.pv-node.on span{border-color:#FBE7A1; background:radial-gradient(circle at 35% 30%, #fff3c0, var(--pv) 45%, #2a1a08 100%); box-shadow:0 0 14px var(--pv);}
+.pv-node.pv-notable span{border-width:4px; border-style:double;}
+.pv-node.pv-key span{border-radius:6px; border-width:3px; transform:rotate(45deg);}
+.pv-node.pv-start span{border-color:#FBE7A1; background:radial-gradient(circle at 35% 30%, #fff3c0, #C9A227 50%, #3a2406);}
+.pv-node.sel span{outline:2px solid #FBE7A1; outline-offset:3px;}
+.pv-node.pv-key.sel span{outline-offset:2px;}
+.pv-dot{width:22px; height:22px; flex-shrink:0; border-radius:50%; border:2px solid #FBE7A1; background:radial-gradient(circle at 35% 30%, #fff3c0, var(--pv) 50%, #2a1a08);}
+.pv-dot.pv-key{border-radius:4px; transform:rotate(45deg);}
+.pv-total{font-size:14px; padding:5px 0; border-bottom:1px solid var(--line-soft);}
+.pv-badge{display:inline-block; min-width:16px; padding:0 5px; margin-left:4px; border-radius:8px; background:var(--gold); color:#1a1208; font-size:10px; font-weight:800; line-height:16px; text-align:center;}
