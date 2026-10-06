@@ -1036,7 +1036,7 @@ const MONSTER_PARTS = {
 const MONSTER_PART_DROP_CHANCE = 0.04;
 
 // Partes de Boss: versão "alfa/ancestral" de cada parte normal, só cai de chefes
-// (de região ou fim de dungeon). Usadas nas missões do Biólogo+ (menu Up+ → Biólogo+).
+// (cada uma de um chefe específico, ver BOSS_PART_SOURCE). Usadas nas missões do Biólogo+ (menu Up+ → Biólogo+).
 const BOSS_MONSTER_PARTS = {
   pelo_lobo_alfa: { name: 'Pelo de Lobo Alfa', icon: '🐺' },
   escama_salamandra_ancestral: { name: 'Escama de Salamandra Ancestral', icon: '🔥' },
@@ -1057,14 +1057,29 @@ const BOSS_PART_FOR = {
   chifre_minotauro: 'chifre_minotauro_ancestral'
 };
 const BOSS_MONSTER_PART_DROP_CHANCE = 0.10;
-// Partes de Boss que uma região pode dar: a versão de boss das partes dos
-// monstros dessa região (ex.: Planícies Verdes → Pelo de Lobo Alfa).
-function bossPartKeysForRegion(region) {
-  if (!region) return [];
-  return region.monsters.filter(m => m.partKey && BOSS_PART_FOR[m.partKey]).map(m => BOSS_PART_FOR[m.partKey]);
+// Cada parte de Boss só cai de UM chefe específico (combate de chefe na região,
+// na aba Batalha), escolhido pelo tema e por estar perto do nível da missão.
+const BOSS_PART_SOURCE = {
+  pelo_lobo_alfa: 'Rei Goblin',
+  escama_salamandra_ancestral: 'Dragão Flamejante',
+  pelo_yeti_ancestral: 'Titã da Tempestade',
+  presa_lobo_gelo_alfa: 'Fenrir',
+  pena_rainha_harpia: 'Fênix Imortal',
+  garra_grifo_ancestral: 'Wyvern Alfa',
+  escama_dragao_negro_ancestral: 'Hydra Corrompida',
+  ferrao_rei_escorpiao: 'Dríade Ancestral',
+  chifre_minotauro_ancestral: 'Soberano da Floresta Negra'
+};
+function bossPartKeysForBoss(bossName) {
+  return Object.keys(BOSS_PART_SOURCE).filter(k => BOSS_PART_SOURCE[k] === bossName);
 }
-// Tenta dar uma parte de Boss (chefes de região e chefes finais de dungeon).
-// Devolve o texto do drop, ou null se não calhou.
+function bossPartSourceInfo(partKey) {
+  const name = BOSS_PART_SOURCE[partKey];
+  const region = REGIONS.find(r => r.bosses.some(b => b.name === name));
+  const boss = region ? region.bosses.find(b => b.name === name) : null;
+  return boss ? { name, icon: boss.icon, lv: boss.lv, region: region.name } : null;
+}
+// Tenta dar uma parte de Boss. Devolve o texto do drop, ou null se não calhou.
 function rollBossPartDrop(p, partKeys, luck) {
   if (!partKeys.length || Math.random() >= BOSS_MONSTER_PART_DROP_CHANCE + (luck || 0)) return null;
   const key = partKeys[Math.floor(Math.random() * partKeys.length)];
@@ -6375,7 +6390,7 @@ function renderTabUpPlus() {
 
 // Cartão de missão reutilizado pelo Biólogo e pelo Biólogo+ — mesma estrutura visual,
 // só muda a cor de destaque, os dados e a função de entrega.
-function renderQuestCard(q, part, have, done, locked, reward, accent, turninAttr) {
+function renderQuestCard(q, part, have, done, locked, reward, accent, turninAttr, sourceHtml) {
   const progressPct = clamp((have / q.qty) * 100, 0, 100);
   const ready = !locked && !done && have >= q.qty;
   return `<div class="card raised" style="border-left:3px solid ${done ? 'var(--gold-bright)' : locked ? 'var(--line)' : accent}; ${locked ? 'opacity:0.6;' : ''} margin-bottom:10px;">
@@ -6387,6 +6402,7 @@ function renderQuestCard(q, part, have, done, locked, reward, accent, turninAttr
           ${done ? '<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">✅ Concluída</span>' : locked ? '<span class="pill">🔒 Nv.' + q.level + '</span>' : `<span class="pill" style="border-color:${accent}; color:${accent};">${Math.min(have, q.qty)}/${q.qty}</span>`}
         </div>
         <div class="tiny muted" style="margin-top:2px;">${part.name}</div>
+        ${sourceHtml ? `<div class="tiny" style="margin-top:2px;">${sourceHtml}</div>` : ''}
       </div>
     </div>
     ${!locked && !done ? `<div class="bar" style="margin-top:10px;"><div class="bar-fill" style="width:${progressPct}%; background:${accent};"></div></div>` : ''}
@@ -6436,7 +6452,9 @@ function renderBiologoPlusBody() {
     const done = (p.completedBiologoPlusQuests || []).includes(q.level);
     const locked = p.level < q.level;
     const reward = biologoPlusRewardFor(q.level);
-    return renderQuestCard(q, part, have, done, locked, reward, 'var(--blood-bright)', 'data-turnin-biologoplus');
+    const src = bossPartSourceInfo(q.partKey);
+    const srcHtml = src ? `Cai de: <b>${src.icon} ${src.name}</b> <span class="muted">(Nv. ${src.lv} · ${src.region})</span>` : '';
+    return renderQuestCard(q, part, have, done, locked, reward, 'var(--blood-bright)', 'data-turnin-biologoplus', srcHtml);
   }).join('');
 
   body.innerHTML = `
@@ -6450,7 +6468,7 @@ function renderBiologoPlusBody() {
         <span class="pill" style="border-color:var(--blood-bright); color:var(--blood-bright);">${doneCount}/${BIOLOGO_PLUS_QUESTS.length}</span>
       </div>
     </div>
-    <p class="muted" style="margin-bottom:10px;">Mesma ideia do Biólogo, mas as partes só caem de <b>chefes</b>: cada chefe de região tem ${Math.round(BOSS_MONSTER_PART_DROP_CHANCE * 100)}% (+ sorte) de dar a versão de boss de uma parte de um monstro da sua região, e o chefe final de uma dungeon também pode dar uma (de qualquer região que já desbloqueaste). Quantidades menores, recompensa maior.</p>
+    <p class="muted" style="margin-bottom:10px;">Mesma ideia do Biólogo, mas cada parte de Boss só cai de <b>um chefe específico</b> (indicado em cada missão), com ${Math.round(BOSS_MONSTER_PART_DROP_CHANCE * 100)}% de hipótese (+ sorte) por vitória. Enfrenta-o na aba Batalha, na região dele. Quantidades menores, recompensa maior.</p>
     ${questsHtml}
   `;
   els('[data-turnin-biologoplus]').forEach(b => b.addEventListener('click', () => turnInBiologoPlusQuest(parseInt(b.dataset.turninBiologoplus))));
@@ -7314,11 +7332,9 @@ function finishWildOrBossVictory() {
     const part = MONSTER_PARTS[monsterDef.partKey];
     drops.push(`${part.icon} Encontraste: ${part.name}! (Up+ → Biólogo)`);
   }
-  // Partes de Boss (Biólogo+): o chefe dá a versão de boss de uma parte de um
-  // monstro da sua própria região.
+  // Partes de Boss (Biólogo+): só o chefe ligado a cada parte a deixa cair.
   if (isBoss) {
-    const bossRegion = REGIONS.find(r => r.bosses.some(b => b.name === c.name));
-    const bossPartMsg = rollBossPartDrop(p, bossPartKeysForRegion(bossRegion), luck);
+    const bossPartMsg = rollBossPartDrop(p, bossPartKeysForBoss(c.name), luck);
     if (bossPartMsg) drops.push(bossPartMsg);
   }
   if (Math.random() < (isBoss ? 0.20 : 0.04) + luck) {
@@ -7444,12 +7460,6 @@ function finishDungeon() {
   }
   if (!p.clearedDungeons.includes(d.key)) p.clearedDungeons.push(d.key);
   seasonOnDungeonCleared(d.key);
-  // Parte de Boss (Biólogo+): de qualquer região que o jogador já tenha desbloqueado.
-  {
-    const unlockedPartKeys = REGIONS.slice(0, (p.regionIndex || 0) + 1).flatMap(bossPartKeysForRegion);
-    const bossPartMsg = rollBossPartDrop(p, unlockedPartKeys, effectiveStats(p).dropLuckBonus || 0);
-    if (bossPartMsg) drops.push(bossPartMsg);
-  }
   let altarMsg = '';
   if (d.tier === 2) {
     if ((p.altarCharges || 0) >= ALTAR_MAX_CHARGES) {
