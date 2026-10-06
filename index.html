@@ -1235,7 +1235,7 @@ const GEM_DEFS = {
   defesa: { name: 'Pedra da Defesa', icon: '🛡️', stat: 'def', base: 2 },
   dano: { name: 'Pedra do Dano', icon: '⚔️', stat: 'dmg', base: 2 },
   vida: { name: 'Pedra da Vida', icon: '❤️', stat: 'hp', base: 5 },
-  critico: { name: 'Pedra do Crítico', icon: '💥', stat: 'crit', base: 0.05 }
+  critico: { name: 'Pedra do Crítico', icon: '💥', stat: 'crit', base: 0.02 } // 2/4/6% (T1/T2/T3); antes 5/10/15%
 };
 
 // Pedras de Alquimia — 6 slots ligados ao herói (não ao equipamento).
@@ -3446,7 +3446,7 @@ function renderWikiBody() {
       <p class="muted" style="margin-bottom:10px;">Encaixam-se em <b>itens de equipamento</b> (até 3 sockets por item). Diferentes das Pedras de Alquimia, que pertencem ao herói.</p>
       ${Object.keys(GEM_DEFS).map(k => {
         const g = GEM_DEFS[k];
-        return `<div class="card raised"><span style="font-weight:700;">${g.icon} ${g.name}</span><p class="tiny" style="margin-top:6px;">+${g.base}${g.stat === 'crit' ? '%' : ''} de ${g.stat === 'hp' ? 'HP' : g.stat === 'dmg' ? 'Dano' : g.stat === 'def' ? 'Defesa' : 'Crítico'} por nível de gema.</p></div>`;
+        return `<div class="card raised"><span style="font-weight:700;">${g.icon} ${g.name}</span><p class="tiny" style="margin-top:6px;">+${g.stat === 'crit' ? pct(g.base) : g.base} de ${g.stat === 'hp' ? 'HP' : g.stat === 'dmg' ? 'Dano' : g.stat === 'def' ? 'Defesa' : 'Crítico'} por nível de gema.</p></div>`;
       }).join('')}
       <div class="card raised">
         <span style="font-weight:700;">Como conseguir</span>
@@ -8135,7 +8135,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v52</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v53</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
