@@ -1,8 +1,9 @@
-const CACHE_NAME = 'nemesy-rpg-v45';
+const CACHE_NAME = 'nemesy-rpg-v46';
 const APP_SHELL = [
   './',
   './index.html',
   './email-confirmed.html',
+  './reset-password.html',
   './supabase-config.js',
   './nemesy-theme.css',
   './Nemesy-RPG.html',
