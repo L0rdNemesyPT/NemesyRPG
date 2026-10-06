@@ -1255,22 +1255,15 @@ function applyFeitico(item) {
 }
 function applyReforco(item) {
   if (!item.bonuses) item.bonuses = [];
-  // Reforço já não melhora um bónus existente — agora é um "gamble": remove um
-  // bónus aleatório do item e substitui-o por um totalmente novo (pode calhar
-  // melhor, pior, ou até o mesmo tipo com outro valor). Só faz gamble quando o
-  // item já está cheio; enquanto houver espaço livre, preenche-o (tal como o
-  // Feitiço), em vez de arriscar um bónus que o jogador ainda nem tem a par.
-  if (item.bonuses.length < ITEM_BONUS_MAX_SLOTS) {
-    const bonus = rollNewBonusForItem(item);
-    item.bonuses.push(bonus);
-    return { kind: 'novo', bonus };
-  }
-  const idx = Math.floor(Math.random() * item.bonuses.length);
-  const removed = item.bonuses[idx];
-  item.bonuses.splice(idx, 1);
-  const bonus = rollNewBonusForItem(item);
-  item.bonuses.push(bonus);
-  return { kind: 'gamble', removed, bonus };
+  // Reforço é um "gamble": troca TODOS os bónus que o item já tem (1 ou 2) por
+  // bónus novos, com tipos e valores à sorte. Não adiciona bónus — isso é o
+  // trabalho do Feitiço. Sem bónus no item, não faz nada.
+  if (!item.bonuses.length) return null;
+  const removed = item.bonuses.slice();
+  const count = removed.length;
+  item.bonuses = [];
+  for (let i = 0; i < count; i++) item.bonuses.push(rollNewBonusForItem(item));
+  return { kind: 'gamble', removed, bonuses: item.bonuses.slice() };
 }
 
 const ORE_TABLE = [
@@ -3014,7 +3007,7 @@ function renderWikiBody() {
       </div>
       <div class="card raised">
         <span style="font-weight:700;">📜 Feitiço vs. 🔧 Reforço</span>
-        <p class="tiny" style="margin-top:6px;"><b>Feitiço</b> adiciona um bónus novo e aleatório a um item (só se houver espaço livre). <b>Reforço</b> faz o mesmo enquanto há espaço; quando o item já está cheio, torna-se um <b>gamble</b> 🎲 — remove um bónus ao acaso e substitui-o por outro totalmente aleatório (pode sair melhor, pior, ou o mesmo tipo com outro valor).</p>
+        <p class="tiny" style="margin-top:6px;"><b>Feitiço</b> adiciona um bónus novo e aleatório a um item (máx. ${ITEM_BONUS_MAX_SLOTS} por item). <b>Reforço</b> é um <b>gamble</b> 🎲 — troca <b>todos</b> os bónus que o item já tem (1 ou 2) por bónus novos, com tipos e valores à sorte. Pode sair melhor ou pior! O Reforço não adiciona bónus: o item tem de ter pelo menos 1 bónus.</p>
       </div>
       <div class="card raised">
         <span style="font-weight:700;">Como conseguir pergaminhos</span>
@@ -4500,14 +4493,14 @@ function renderFeiticosBody(body, p) {
       }).join('')}</div>` : `<p class="tiny" style="margin-top:8px;">Sem bónus ainda.</p>`}
       <div class="row" style="gap:8px; margin-top:10px;">
         <button class="btn small ${p.scrolls.feitico > 0 && !full ? 'primary' : 'ghost'}" data-cast-feitico="${slot}" ${p.scrolls.feitico > 0 && !full ? '' : 'disabled'}>📜 Feitiço</button>
-        <button class="btn small ${p.scrolls.reforco > 0 ? 'danger' : 'ghost'}" data-cast-reforco="${slot}" ${p.scrolls.reforco > 0 ? '' : 'disabled'}>🔧 Reforço</button>
+        <button class="btn small ${p.scrolls.reforco > 0 && bonuses.length ? 'danger' : 'ghost'}" data-cast-reforco="${slot}" ${p.scrolls.reforco > 0 && bonuses.length ? '' : 'disabled'}>🔧 Reforço</button>
       </div>
-      ${full ? `<p class="tiny" style="margin-top:6px;">Cheio — usa um Reforço para arriscar trocar um dos bónus por outro à sorte.</p>` : ''}
+      ${full ? `<p class="tiny" style="margin-top:6px;">Cheio — usa um Reforço para arriscar trocar os bónus por outros à sorte.</p>` : ''}
     </div>`;
   }).join('');
 
   body.innerHTML = `
-    <p class="muted" style="margin-bottom:10px;">📜 Feitiço adiciona um bónus aleatório novo (máx. ${ITEM_BONUS_MAX_SLOTS} por item). 🔧 Reforço é um "gamble": remove um bónus já existente e coloca outro à sorte no lugar — pode sair melhor ou pior.</p>
+    <p class="muted" style="margin-bottom:10px;">📜 Feitiço adiciona um bónus aleatório novo (máx. ${ITEM_BONUS_MAX_SLOTS} por item). 🔧 Reforço é um "gamble": troca todos os bónus do item (1 ou 2) por novos, com novos valores — pode sair melhor ou pior.</p>
     ${scrollsHtml}
     ${itemsHtml}
   `;
@@ -4534,16 +4527,22 @@ function castScrollOnItem(slot, kind) {
       <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
     `);
   } else {
+    if (!item.bonuses.length) { sfx.error(); toast('Este item ainda não tem bónus. Usa primeiro um Feitiço.'); return; }
     const result = applyReforco(item);
+    if (!result) return;
     p.scrolls.reforco--;
     saveGame();
     sfx.evolve();
-    const desc = result.kind === 'novo'
-      ? `${item.name} ganhou um novo bónus: <b>${bonusPlusLabel(result.bonus)}</b>`
-      : `${item.name} perdeu <b>${bonusPlusLabel(result.removed)}</b> e ganhou: <b>${bonusPlusLabel(result.bonus)}</b>`;
+    const chip = b => { const d = BONUS_PLUS_POOL.find(x => x.key === b.key); return `${d ? d.icon : '✨'} ${bonusPlusLabel(b)}`; };
     openModal(`
-      <h3 style="margin-bottom:12px;">🔧 Reforço aplicado!</h3>
-      <div class="card raised"><p class="tiny">${desc}</p></div>
+      <h3 style="margin-bottom:12px;">🔧 Reforço aplicado! 🎲</h3>
+      <div class="card raised">
+        <p class="tiny" style="margin-bottom:6px;"><b>${item.name}</b></p>
+        <p class="tiny muted">Antes:</p>
+        ${result.removed.map(b => `<p class="tiny" style="text-decoration:line-through; opacity:.7;">${chip(b)}</p>`).join('')}
+        <p class="tiny muted" style="margin-top:8px;">Agora:</p>
+        ${result.bonuses.map(b => `<p class="tiny" style="color:var(--gold-bright); font-weight:700;">${chip(b)}</p>`).join('')}
+      </div>
       <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
     `);
   }
