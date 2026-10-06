@@ -998,7 +998,7 @@ const CATACUMBAS = [
     monsters: [ { name: 'Súcubo', icon: '😈', category: 'outro' }, { name: 'Cão Infernal', icon: '🐕‍🦺', category: 'animal' }, { name: 'Demônio Menor', icon: '👹', category: 'outro' }, { name: 'Espectro Flamejante', icon: '🔥', category: 'outro' } ] }
 ];
 // Hipótese de um chefe de nível 80+ deixar cair a chave da catacumba correspondente.
-const CATACUMB_KEY_DROP_CHANCE = 0.01;
+const CATACUMB_KEY_DROP_CHANCE = 0.10;
 
 // Partes de monstro: alguns monstros (não todos) têm uma hipótese muito baixa de
 // deixar cair uma parte sua, usada nas missões do Biólogo (menu Up+ → Biólogo).
@@ -3085,7 +3085,7 @@ function renderWikiBody() {
           <span style="font-weight:700;">${cat.icon} ${cat.name}</span>
           <p class="tiny" style="margin-top:6px;">${cat.monsterWaves} monstros (Nv.${cat.monsterLvMin}–${cat.monsterLvMax}) + chefe final ${cat.bossIcon} ${cat.bossName} (Nv.${cat.bossLv})</p>
           <p class="tiny" style="margin-top:6px; color:var(--muted);">Monstros: ${cat.monsters.map(m => `${m.icon} ${m.name}`).join(' · ')}</p>
-          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🗝️ ${cat.keyName}: só chefes de nível 80+ a deixam cair, e com hipótese muito baixa (~${Math.round(CATACUMB_KEY_DROP_CHANCE * 1000) / 10}% por chefe).</p>
+          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🗝️ ${cat.keyName}: só chefes de nível 80+ a deixam cair, com ${Math.round(CATACUMB_KEY_DROP_CHANCE * 1000) / 10}% de hipótese por chefe (a sorte no drop de itens soma-se a isto).</p>
           <p class="tiny" style="margin-top:6px;">🎁 Recompensas (por chance): XP e Ouro extra, Baú de Equipamento, Baú de Pedras, Livro de Habilidades, a rara 💎 Pedra Nephalen${cat.divinoChance ? `, e — super extremamente raro — um item 💠 Divino` : ''}.</p>
         </div>
       `).join('')}
@@ -6011,7 +6011,7 @@ function renderMapaBody(tile) {
         <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${m.icon}</span>`).join('')}</div>
         ${hasKey
           ? `<button class="btn small danger" style="margin-top:10px;" data-enter-catacumba="${cat.key}">🗝️ Usar chave e entrar</button>`
-          : `<p class="tiny muted" style="margin-top:10px;">Precisas de uma ${cat.keyName}. Chefes de nível 80+ têm uma hipótese muito baixa de a deixar cair.</p>`}
+          : `<p class="tiny muted" style="margin-top:10px;">Precisas de uma ${cat.keyName}. Chefes de nível 80+ têm ${Math.round(CATACUMB_KEY_DROP_CHANCE * 100)}% de hipótese de a deixar cair.</p>`}
       </div>
     `;
     els('[data-enter-catacumba]').forEach(b => b.addEventListener('click', () => startCatacumba(b.dataset.enterCatacumba)));
@@ -6943,13 +6943,13 @@ function finishWildOrBossVictory() {
     p.professionBooks = (p.professionBooks || 0) + 1;
     drops.push('📗 Livro das Profissões! (aba Herói → Profissões)');
   }
-  // Chaves de catacumba: só chefes de nível 80+, hipótese muito baixa.
+  // Chaves de catacumba: só chefes de nível 80+ (CATACUMB_KEY_DROP_CHANCE + sorte).
   if (isBoss && c.level >= 80) {
     CATACUMBAS.forEach(cat => {
       if (Math.random() < CATACUMB_KEY_DROP_CHANCE + luck) {
         p.catacumbKeys = p.catacumbKeys || {};
         p.catacumbKeys[cat.key] = (p.catacumbKeys[cat.key] || 0) + 1;
-        drops.push(`🗝️ Item raríssimo: ${cat.keyName}!`);
+        drops.push(`🗝️ Item raro: ${cat.keyName}!`);
       }
     });
   }
