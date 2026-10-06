@@ -260,3 +260,16 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .season-exclusive{border-color:var(--gold) !important;}
 @keyframes seasonPulse{0%,100%{box-shadow:var(--depth), 0 0 0 rgba(228,191,74,0);}50%{box-shadow:var(--depth), 0 0 14px rgba(228,191,74,.55);}}
 @media (prefers-reduced-motion: reduce){.season-tile.is-ready{animation:none;}}
+
+/* Ícones Nemesy (SVG) */
+.nx-ic{display:inline-block; width:1.2em; height:1.2em; vertical-align:middle; overflow:visible; filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.75));}
+.nx-ic.nx-inline{width:1.25em; height:1.25em; margin-right:4px; vertical-align:-.2em;}
+.wiki-tile-ic .nx-ic{width:46px; height:46px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.8));}
+.nav-btn .ic .nx-ic{width:28px; height:28px;}
+.nav-btn .ic:has(.nx-ic){filter:grayscale(.85) brightness(.75);}
+.nav-btn.active .ic:has(.nx-ic){filter:drop-shadow(0 0 6px rgba(228,191,74,.45));}
+.item-ic .nx-ic{width:32px; height:32px;}
+.equip-slot .ic .nx-ic{width:36px; height:36px;}
+.region-glyph .nx-ic{width:40px; height:40px;}
+.map-here-ic .nx-ic{width:44px; height:44px;}
+.sb-mute .nx-ic{width:22px; height:22px;}
