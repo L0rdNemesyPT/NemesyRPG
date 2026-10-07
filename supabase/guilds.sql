@@ -1,5 +1,5 @@
 -- ============================================================
--- GUILDS (Herói → Guild) — Nemesy RPG v54. É seguro voltar a executar.
+-- GUILDS (Herói → Guild) — Nemesy RPG v55 (expulsar + limite de 20). É seguro voltar a executar.
 -- Criar (35 000 ouro), entrar, sair, membros, chat e recompensa diária
 -- (1 000 ouro + 2 Milho a cada 24 h). Tudo passa por funções do servidor:
 -- o ouro e o milho são somados/descontados no save dentro do servidor.
@@ -27,6 +27,14 @@ create table if not exists public.guild_reward_claims (
   last_claim_at timestamptz not null
 );
 
+-- Jogadores expulsos: não podem voltar a entrar nessa Guild durante kick_block_hours.
+create table if not exists public.guild_kicks (
+  guild_id uuid not null references public.guilds (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  kicked_at timestamptz not null default now(),
+  primary key (guild_id, user_id)
+);
+
 create table if not exists public.guild_messages (
   id bigint generated always as identity primary key,
   guild_id uuid not null references public.guilds (id) on delete cascade,
@@ -41,14 +49,16 @@ alter table public.guilds enable row level security;
 alter table public.guild_members enable row level security;
 alter table public.guild_reward_claims enable row level security;
 alter table public.guild_messages enable row level security;
-revoke all on public.guilds, public.guild_members, public.guild_reward_claims, public.guild_messages from anon, authenticated;
+alter table public.guild_kicks enable row level security;
+revoke all on public.guilds, public.guild_members, public.guild_reward_claims, public.guild_messages, public.guild_kicks from anon, authenticated;
 
 -- Regras ajustáveis.
 create or replace function public.guild_settings()
 returns jsonb language sql immutable set search_path = public, pg_temp as $$
   select jsonb_build_object(
     'create_cost', 35000,
-    'max_members', 30,
+    'max_members', 20,
+    'kick_block_hours', 24,
     'reward_gold', 1000,
     'reward_corn', 2,
     'reward_hours', 24
@@ -198,6 +208,10 @@ begin
   perform 1 from public.guilds where id = p_guild_id for update;
   if not found then raise exception 'Esta Guild já não existe.'; end if;
   if exists (select 1 from public.guild_members where user_id = v_user) then raise exception 'Já pertences a uma Guild. Sai dela primeiro.'; end if;
+  if exists (select 1 from public.guild_kicks where guild_id = p_guild_id and user_id = v_user
+             and kicked_at > clock_timestamp() - make_interval(hours => (public.guild_settings()->>'kick_block_hours')::int)) then
+    raise exception 'Foste expulso desta Guild. Só podes voltar a pedir para entrar daqui a 24 horas.';
+  end if;
   select count(*) into v_count from public.guild_members where guild_id = p_guild_id;
   if v_count >= (public.guild_settings()->>'max_members')::int then raise exception 'Esta Guild está cheia.'; end if;
   insert into public.guild_members (user_id, guild_id) values (v_user, p_guild_id);
@@ -227,6 +241,7 @@ begin
   if not found then raise exception 'Não pertences a nenhuma Guild.'; end if;
   return coalesce((
     select jsonb_agg(jsonb_build_object(
+      'id', m.user_id,
       'name', left(coalesce(nullif(btrim(s.save_data->>'name'), ''), 'Herói'), 16),
       'class', case when s.save_data->>'class' in ('guerreiro', 'arqueiro', 'mago') then s.save_data->>'class' else 'guerreiro' end,
       'evolution', case when s.save_data->>'evolution' in ('paladino', 'cruzado', 'cacador', 'mercenario', 'necromante', 'feiticeiro') then s.save_data->>'evolution' else null end,
@@ -239,6 +254,28 @@ begin
     left join public.game_saves s on s.user_id = m.user_id
     where m.guild_id = v_guild.id
   ), '[]'::jsonb);
+end;
+$$;
+
+-- Só o líder pode expulsar, e não se pode expulsar a si próprio.
+create or replace function public.kick_guild_member(p_user_id uuid)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_user uuid := auth.uid();
+  v_guild public.guilds%rowtype;
+begin
+  if v_user is null then raise exception 'É necessário iniciar sessão.'; end if;
+  select g.* into v_guild from public.guilds g join public.guild_members m on m.guild_id = g.id where m.user_id = v_user for update of g;
+  if not found then raise exception 'Não pertences a nenhuma Guild.'; end if;
+  if v_guild.owner_id <> v_user then raise exception 'Só o líder da Guild pode expulsar guerreiros.'; end if;
+  if p_user_id is null or p_user_id = v_user then raise exception 'Não te podes expulsar a ti próprio. Usa "Sair da Guild".'; end if;
+  if not exists (select 1 from public.guild_members where user_id = p_user_id and guild_id = v_guild.id) then
+    raise exception 'Esse guerreiro já não pertence à Guild.';
+  end if;
+  delete from public.guild_members where user_id = p_user_id and guild_id = v_guild.id;
+  insert into public.guild_kicks (guild_id, user_id, kicked_at) values (v_guild.id, p_user_id, clock_timestamp())
+  on conflict (guild_id, user_id) do update set kicked_at = excluded.kicked_at;
+  return jsonb_build_object('ok', true);
 end;
 $$;
 
@@ -348,6 +385,7 @@ revoke all on function public.join_guild(uuid) from public, anon;
 revoke all on function public.leave_guild() from public, anon;
 revoke all on function public.get_guild_members() from public, anon;
 revoke all on function public.send_guild_message(text) from public, anon;
+revoke all on function public.kick_guild_member(uuid) from public, anon;
 revoke all on function public.get_guild_messages(bigint) from public, anon;
 revoke all on function public.claim_guild_reward() from public, anon;
 grant execute on function public.get_my_guild() to authenticated;
@@ -357,5 +395,6 @@ grant execute on function public.join_guild(uuid) to authenticated;
 grant execute on function public.leave_guild() to authenticated;
 grant execute on function public.get_guild_members() to authenticated;
 grant execute on function public.send_guild_message(text) to authenticated;
+grant execute on function public.kick_guild_member(uuid) to authenticated;
 grant execute on function public.get_guild_messages(bigint) to authenticated;
 grant execute on function public.claim_guild_reward() to authenticated;
