@@ -1,5 +1,5 @@
 -- ============================================================
--- GUILDS (Herói → Guild) — Nemesy RPG v57 (nível da Guild + doações de XP). É seguro voltar a executar.
+-- GUILDS (Herói → Guild) — Nemesy RPG v58 (filtro de palavrões no chat e nos nomes). É seguro voltar a executar.
 -- Criar (35 000 ouro), entrar, sair, membros, chat e recompensa diária
 -- (1 000 ouro + 2 Milho a cada 24 h). Tudo passa por funções do servidor:
 -- o ouro e o milho são somados/descontados no save dentro do servidor.
@@ -115,6 +115,84 @@ returns jsonb language sql immutable set search_path = public, pg_temp as $$
   );
 $$;
 
+-- ------------------------------------------------------------
+-- Filtro de palavrões (chat e nomes de Guild). As palavras são normalizadas
+-- antes de comparar: minúsculas, sem acentos, números/símbolos trocados por
+-- letras (m3rd@ → merda), sem pontuação e sem letras repetidas (merdaaa → merda).
+-- Palavras soletradas ("m e r d a") também são apanhadas.
+-- Para acrescentar palavras: guild_bad_exact (palavra inteira) ou guild_bad_prefix
+-- (palavras que começam assim). Escreve-as já normalizadas, sem letras repetidas.
+-- ------------------------------------------------------------
+create or replace function public.chat_norm(p text)
+returns text language sql immutable set search_path = public, pg_temp as $$
+  select regexp_replace(
+    regexp_replace(translate(lower(coalesce(p, '')), 'áàâãäåéèêëíìîïóòôõöúùûüçñ0134578@$!|', 'aaaaaaeeeeiiiiooooouuuucnoieastbasii'), '[^a-z]', '', 'g'),
+    '(.)\1+', '\1', 'g');
+$$;
+
+create or replace function public.chat_is_bad(p_word text)
+returns boolean language sql immutable set search_path = public, pg_temp as $$
+  select p_word <> '' and (
+    p_word = any(array['puta', 'putas', 'cona', 'conas', 'cu', 'cus', 'pila', 'pilas', 'piroca', 'pirocas', 'crl', 'krl', 'fdp', 'pqp', 'vsf', 'tnc', 'pora', 'poras', 'bosta', 'bostas', 'cabrao', 'cabroes', 'cabrona', 'cabronas', 'viado', 'viados', 'brochista', 'cunt', 'cunts', 'ashole', 'asholes', 'bastard', 'bastards', 'niga', 'nigas', 'fag', 'fags', 'wtf', 'stfu', 'merda', 'merdas', 'foda', 'fodase', 'shit', 'shits', 'shity', 'bulshit'])
+    or exists (select 1 from unnest(array['caralh', 'merd', 'fod', 'punhet', 'paneleir', 'panasc', 'bucet', 'bocet', 'xoxot', 'xerec', 'putari', 'putinh', 'putef', 'fuck', 'fuk', 'bitch', 'motherf', 'cunt', 'ashol']) r where p_word like r || '%')
+    or exists (select 1 from unnest(array['caralh', 'fuck', 'punhet', 'motherf', 'paneleir']) r where p_word like '%' || r || '%')
+  );
+$$;
+
+-- Tapa com * cada palavra imprópria (o resto da mensagem fica igual).
+create or replace function public.chat_mask(p text)
+returns text language plpgsql immutable set search_path = public, pg_temp as $$
+declare
+  v_tokens text[];
+  v_norms text[];
+  v_out text[];
+  v_n integer;
+  i integer;
+  j integer;
+  v_run_start integer := null;
+  v_joined text;
+begin
+  select array_agg(m[1] order by ord) into v_tokens
+  from regexp_matches(coalesce(p, ''), '(\s+|\S+)', 'g') with ordinality as t(m, ord);
+  if v_tokens is null then return coalesce(p, ''); end if;
+  v_n := array_length(v_tokens, 1);
+  v_out := v_tokens;
+  v_norms := array_fill(''::text, array[v_n]);
+  for i in 1 .. v_n loop
+    if v_tokens[i] !~ '^\s+$' then
+      v_norms[i] := public.chat_norm(v_tokens[i]);
+      if public.chat_is_bad(v_norms[i]) then v_out[i] := repeat('*', char_length(v_tokens[i])); end if;
+    end if;
+  end loop;
+  -- Letras soltas seguidas ("m e r d a", "f.o.d.a"): junta-as e verifica.
+  for i in 1 .. v_n + 1 loop
+    if i <= v_n and v_tokens[i] !~ '^\s+$' and char_length(v_norms[i]) between 1 and 2 then
+      if v_run_start is null then v_run_start := i; end if;
+    elsif i <= v_n and v_tokens[i] ~ '^\s+$' and v_run_start is not null then
+      null;
+    else
+      if v_run_start is not null then
+        v_joined := '';
+        for j in v_run_start .. i - 1 loop v_joined := v_joined || v_norms[j]; end loop;
+        v_joined := regexp_replace(v_joined, '(.)\1+', '\1', 'g');
+        if char_length(v_joined) >= 3 and public.chat_is_bad(v_joined) then
+          for j in v_run_start .. i - 1 loop
+            if v_tokens[j] !~ '^\s+$' then v_out[j] := repeat('*', char_length(v_tokens[j])); end if;
+          end loop;
+        end if;
+        v_run_start := null;
+      end if;
+    end if;
+  end loop;
+  return array_to_string(v_out, '');
+end;
+$$;
+
+create or replace function public.chat_has_bad(p text)
+returns boolean language sql immutable set search_path = public, pg_temp as $$
+  select public.chat_mask(p) is distinct from coalesce(p, '');
+$$;
+
 create or replace function public.guild_name_key(p_name text)
 returns text language sql immutable set search_path = public, pg_temp as $$
   select lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g'));
@@ -228,6 +306,7 @@ begin
   if v_user is null then raise exception 'É necessário iniciar sessão.'; end if;
   if char_length(v_name) < 3 or char_length(v_name) > 20 then raise exception 'O nome da Guild tem de ter entre 3 e 20 letras.'; end if;
   if v_name ~ '[<>"''`&\\]' or v_name ~ '[[:cntrl:]]' then raise exception 'O nome da Guild tem símbolos que não são permitidos.'; end if;
+  if public.chat_has_bad(v_name) then raise exception 'O nome da Guild tem palavras que não são permitidas.'; end if;
   if not public.guild_icon_ok(p_icon) then raise exception 'Escolhe um ícone da lista.'; end if;
 
   select save_data into v_save from public.game_saves where user_id = v_user for update;
@@ -347,11 +426,12 @@ begin
   select guild_id into v_guild from public.guild_members where user_id = v_user;
   if not found then raise exception 'Não pertences a nenhuma Guild.'; end if;
   if char_length(v_body) < 1 then raise exception 'Escreve uma mensagem.'; end if;
-  if char_length(v_body) > 200 then raise exception 'A mensagem pode ter no máximo 200 letras.'; end if;
+  if char_length(v_body) > 200 then raise exception 'A mensagem pode ter no máximo 200 caracteres.'; end if;
   if exists (select 1 from public.guild_messages where user_id = v_user and created_at > clock_timestamp() - interval '2 seconds') then
     raise exception 'Estás a escrever depressa demais. Espera um segundo.';
   end if;
   select left(coalesce(nullif(btrim(save_data->>'name'), ''), 'Herói'), 16) into v_name from public.game_saves where user_id = v_user;
+  v_body := public.chat_mask(v_body);
   insert into public.guild_messages (guild_id, user_id, author_name, body)
   values (v_guild, v_user, coalesce(v_name, 'Herói'), v_body) returning id into v_id;
   -- Só se guardam as últimas 200 mensagens de cada Guild.
@@ -562,3 +642,11 @@ grant execute on function public.kick_guild_member(uuid) to authenticated;
 grant execute on function public.donate_guild_xp(bigint) to authenticated;
 grant execute on function public.get_guild_messages(bigint) to authenticated;
 grant execute on function public.claim_guild_reward() to authenticated;
+
+-- Tapa os palavrões nas mensagens que já estavam no chat antes deste filtro.
+update public.guild_messages set body = public.chat_mask(body) where user_id is not null and public.chat_has_bad(body);
+
+revoke all on function public.chat_norm(text) from public, anon;
+revoke all on function public.chat_is_bad(text) from public, anon;
+revoke all on function public.chat_mask(text) from public, anon;
+revoke all on function public.chat_has_bad(text) from public, anon;
