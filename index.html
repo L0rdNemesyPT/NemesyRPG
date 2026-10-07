@@ -827,7 +827,7 @@ const MONSTER_DIFFICULTY = ['comum', 'incomum', 'raro', 'lendario', 'unico'].map
   return {
     key, name: r.name, icon: r.icon, color: r.color,
     statMult: [1, 1.7, 2.8, 4.2, 6.5][i],
-    goldMult: [1, 1.5, 2.2, 3.5, 5.5][i],
+    goldMult: [1, 1.3, 1.6, 2.0, 2.5][i], // v56: antes 1 / 1,5 / 2,2 / 3,5 / 5,5
     xpMult: [1, 1.05, 1.10, 1.15, 1.20][i],
     qualityBoost: i
   };
@@ -1448,7 +1448,8 @@ const MINE_USES_PER_COOLDOWN = 2;
 const MINE_ALCHEMY_CHANCE = 0.12; // Pedra de Alquimia
 const MINE_GEM_CHANCE = 0.14;     // Gema T1 (só se não saiu pedra) → ~12% no total
 const WOOD_USES_PER_COOLDOWN = 2;
-function professionGoldMult(level) { return 1 + level * 0.15; }
+// v56: antes 1 + nível × 0,15 (×16 no nível 100) — as profissões davam mais ouro do que os combates.
+function professionGoldMult(level) { return 1 + level * 0.03; }
 
 function newAlchemyStonesBag() {
   const bag = {};
@@ -8246,7 +8247,7 @@ function finishWildOrBossVictory() {
   // à de um combate normal do mesmo nível (mas ainda abaixo de um chefe de dungeon).
   const riftMult = isRift ? 1.8 : 1;
   const xpGain = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * riftMult * diff.xpMult * (1 + (c.foodXpPct || 0)));
-  const goldGain = Math.round((isBoss ? (40 + c.level * 6) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * riftMult * diff.goldMult * (1 + (pStats.goldPct || 0)));
+  const goldGain = Math.round((isBoss ? (30 + c.level * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * riftMult * diff.goldMult * (1 + (pStats.goldPct || 0)));
   p.gold += goldGain;
   grantXp(xpGain);
   p.stats.wins++;
@@ -8689,7 +8690,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v55</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v56</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
