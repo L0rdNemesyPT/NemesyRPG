@@ -846,7 +846,8 @@ grant execute on function public.is_hero_name_available(text) to authenticated;
 
 
 -- ============================================================
--- GUILDS (Herói → Guild) — Nemesy RPG v62 (correções + lista de Guilds para membros). É seguro voltar a executar.
+-- GUILDS (Herói → Guild) — Nemesy RPG v65 (check-up: nomes com caracteres invisíveis, a tua Guild
+-- sempre na lista, chat sem caracteres invisíveis). É seguro voltar a executar.
 -- Criar (35 000 ouro), entrar, sair, membros, chat e recompensa diária
 -- (1 000 ouro + 2 Milho a cada 24 h). Tudo passa por funções do servidor:
 -- o ouro e o milho são somados/descontados no save dentro do servidor.
@@ -1041,9 +1042,13 @@ returns boolean language sql immutable set search_path = public, pg_temp as $$
   select public.chat_mask(p) is distinct from coalesce(p, '');
 $$;
 
+-- Chave para comparar nomes: ignora maiúsculas, espaços repetidos e caracteres invisíveis
+-- (assim "Lobos" e "Lo​bos" com um espaço invisível contam como o mesmo nome).
 create or replace function public.guild_name_key(p_name text)
 returns text language sql immutable set search_path = public, pg_temp as $$
-  select lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g'));
+  select lower(btrim(regexp_replace(
+    regexp_replace(coalesce(p_name, ''), '[­͏؜ᅟᅠ឴឵᠋-᠏​-‏‪-‮⁠-⁯⠀ㅤ︀-️﻿ﾠ]', '', 'g'),
+    '[\s   -   　]+', ' ', 'g')));
 $$;
 
 -- Tira um jogador da Guild. Se era o líder, a liderança passa para o membro mais antigo;
@@ -1164,7 +1169,7 @@ returns jsonb language sql stable security definer set search_path = public, pg_
     select * from ordered
     where p_search is null or btrim(p_search) = ''
       or strpos(name_key, public.guild_name_key(p_search)) > 0
-    order by rank
+    order by is_mine desc, rank   -- a tua Guild aparece sempre, mesmo fora do top 50
     limit 50
   ) o;
 $$;
@@ -1175,7 +1180,7 @@ declare
   v_user uuid := auth.uid();
   v_cfg jsonb := public.guild_settings();
   v_cost bigint := (public.guild_settings()->>'create_cost')::bigint;
-  v_name text := btrim(regexp_replace(coalesce(p_name, ''), '\s+', ' ', 'g'));
+  v_name text := btrim(regexp_replace(coalesce(p_name, ''), '[\s   -   　]+', ' ', 'g'));
   v_save jsonb;
   v_gold bigint;
   v_guild uuid;
@@ -1185,6 +1190,10 @@ begin
   if v_user is null then raise exception 'É necessário iniciar sessão.'; end if;
   if char_length(v_name) < 3 or char_length(v_name) > 20 then raise exception 'O nome da Guild tem de ter entre 3 e 20 letras.'; end if;
   if v_name ~ '[<>"''`&\\]' or v_name ~ '[[:cntrl:]]' then raise exception 'O nome da Guild tem símbolos que não são permitidos.'; end if;
+  -- Caracteres invisíveis permitiam nomes "em branco" ou cópias quase iguais de outra Guild.
+  if v_name ~ '[­͏؜ᅟᅠ឴឵᠋-᠏​‌‎‏‪-‮⁠-⁯⠀ㅤ︀-︍﻿ﾠ]' or char_length(public.guild_name_key(v_name)) < 3 then
+    raise exception 'O nome da Guild tem caracteres invisíveis que não são permitidos.';
+  end if;
   if public.chat_has_bad(v_name) then raise exception 'O nome da Guild tem palavras que não são permitidas.'; end if;
   if not public.guild_icon_ok(p_icon) then raise exception 'Escolhe um ícone da lista.'; end if;
 
@@ -1305,7 +1314,8 @@ returns jsonb language plpgsql security definer set search_path = public, pg_tem
 declare
   v_user uuid := auth.uid();
   v_guild uuid;
-  v_body text := btrim(regexp_replace(coalesce(p_body, ''), '[[:cntrl:]]+', ' ', 'g'));
+  -- Sem caracteres de controlo nem invisíveis (que podiam virar o texto ao contrário ou deixar mensagens "em branco").
+  v_body text := btrim(regexp_replace(regexp_replace(coalesce(p_body, ''), '[[:cntrl:]]+', ' ', 'g'), '[­͏؜ᅟᅠ឴឵᠋-᠏​‌‎‏‪-‮⁠-⁯⠀ㅤ︀-︍﻿ﾠ]', '', 'g'));
   v_name text;
   v_id bigint;
   v_cut bigint;
