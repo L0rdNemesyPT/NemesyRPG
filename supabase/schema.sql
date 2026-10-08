@@ -846,8 +846,8 @@ grant execute on function public.is_hero_name_available(text) to authenticated;
 
 
 -- ============================================================
--- GUILDS (Herói → Guild) — Nemesy RPG v65 (check-up: nomes com caracteres invisíveis, a tua Guild
--- sempre na lista, chat sem caracteres invisíveis). É seguro voltar a executar.
+-- GUILDS (Herói → Guild) — Nemesy RPG v66 (nível máximo 200 + ícones novos). Inclui o check-up da v65
+-- (nomes com caracteres invisíveis, a tua Guild sempre na lista). É seguro voltar a executar.
 -- Criar (35 000 ouro), entrar, sair, membros, chat e recompensa diária
 -- (1 000 ouro + 2 Milho a cada 24 h). Tudo passa por funções do servidor:
 -- o ouro e o milho são somados/descontados no save dentro do servidor.
@@ -933,7 +933,7 @@ $$;
 -- Ícones permitidos (todos os ícones do jogo). A mesma lista está em index.html (GUILD_ICONS).
 create or replace function public.guild_icon_ok(p_icon text)
 returns boolean language sql immutable set search_path = public, pg_temp as $$
-  select p_icon = any(array['⚔️', '🏹', '🔮', '🛡️', '✝️', '🐺', '💰', '💀', '🌀', '🐏', '💪', '🧪', '🩸', '🌧️', '🎯', '🔥', '⚡', '💚', '🌿', '👺', '🗡️', '🐀', '🟢', '👑', '🌋', '🦎', '🪨', '👿', '🐦', '🏴‍☠️', '🐉', '🗿', '❄️', '🦍', '🧌', '👻', '🐙', '⛈️', '🦅', '🦁', '🐲', '🌑', '🐻', '☠️', '👹', '🕳️', '🐍', '😇', '🌲', '🧝🏽‍♂️', '🦂', '🦬', '🌳', '🌚', '✨', '🌙', '🌕', '🦉', '⛪', '📿', '⚖️', '🏝️', '🧞', '🌪️', '🧟', '😈', '🐕‍🦺', '🪓', '🔨', '🍳', '⛏️', '🐑', '❤️', '💥', '🔴', '🔵', '🟤', '🟣', '🎁', '💠', '🦪', '🌟', '⚪', '🧅', '🥕', '🥔', '🍅', '🌽', '🍎', '⚗️', '🍀', '🟡', '🟠', '⭐', '🔺️', '🪯', '⚜️', '☣️', '🧶', '🦷', '🪶', '🖤', '🧊', '🦴', '🪽', '⚫', '🐂', '🔪', '💎', '⚒️', '🏰', '🌩️', '🎮', '🐾', '🌾', '💫', '📈', '😡', '🏆', '🪖', '👕', '🧣', '🥾', '🧤', '🔯', '🔱', '🧙', '🪄', '📜', '🧝', '🎒', '🗺', '🏙', '🧬', '💱', '📚', '🪙', '⚙', '📙', '📗', '📖', '🛒']);
+  select p_icon = any(array['⚔️', '🏹', '🔮', '🛡️', '✝️', '🐺', '💰', '💀', '🌀', '🐏', '💪', '🧪', '🩸', '🌧️', '🎯', '🔥', '⚡', '💚', '🌿', '👺', '🗡️', '🐀', '🟢', '👑', '🌋', '🦎', '🪨', '👿', '🐦', '🏴‍☠️', '🐉', '🗿', '❄️', '🦍', '🧌', '👻', '🐙', '⛈️', '🦅', '🦁', '🐲', '🌑', '🐻', '☠️', '👹', '🕳️', '🐍', '😇', '🌲', '🧝🏽‍♂️', '🦂', '🦬', '🌳', '🌚', '✨', '🌙', '🌕', '🦉', '⛪', '📿', '⚖️', '🏝️', '🧞', '🌪️', '🧟', '😈', '🐕‍🦺', '🪓', '🔨', '🍳', '⛏️', '🐑', '❤️', '💥', '🔴', '🔵', '🟤', '🟣', '🎁', '💠', '🦪', '🌟', '⚪', '🧅', '🥕', '🥔', '🍅', '🌽', '🍎', '⚗️', '🍀', '🟡', '🟠', '⭐', '🔺️', '🪯', '⚜️', '☣️', '🧶', '🦷', '🪶', '🖤', '🧊', '🦴', '🪽', '⚫', '🐂', '🔪', '💎', '⚒️', '🏰', '🌩️', '🎮', '🐾', '🌾', '💫', '📈', '😡', '🏆', '🪖', '👕', '🧣', '🥾', '🧤', '🔯', '🔱', '🧙', '🪄', '📜', '🧝', '🎒', '🗺', '🏙', '🧬', '💱', '📚', '🪙', '⚙', '📙', '📗', '📖', '🛒', '🌌', '🦄', '☄️', '👁️', '🐋', '👼', '🗻', '🌠', '🎇', '🔷', '✴️']);
 $$;
 
 -- XP para a Guild passar do nível p_level para o seguinte (curva muito exigente:
@@ -944,9 +944,10 @@ returns bigint language sql immutable set search_path = public, pg_temp as $$
 $$;
 
 -- XP que o herói precisa para passar do nível p_level (igual a xpForLevel no index.html).
+-- v66: nível máximo 200 (o fator continua a subir com a mesma inclinação depois do 150).
 create or replace function public.hero_xp_for_level(p_level integer)
 returns numeric language sql immutable set search_path = public, pg_temp as $$
-  select round((18 + p_level * 22 + p_level * p_level * 1.1) * (1.6 + 1.0 * least(greatest(p_level, 1), 150) / 150));
+  select round((18 + p_level * 22 + p_level * p_level * 1.1) * (1.6 + 1.0 * least(greatest(p_level, 1), 200) / 150));
 $$;
 
 -- Recompensa diária conforme o nível da Guild (cada patamar de 10 níveis soma ao anterior).
@@ -1398,8 +1399,8 @@ begin
   end if;
   v_hero_level := (v_save->>'level')::int;
   v_hero_xp := (v_save->>'xp')::numeric;
-  -- Antes do nível 150, a barra de XP nunca pode passar do que o nível pede.
-  if v_hero_level < 150 and v_hero_xp > public.hero_xp_for_level(v_hero_level) + 1 then
+  -- Antes do nível máximo (200), a barra de XP nunca pode passar do que o nível pede.
+  if v_hero_level < 200 and v_hero_xp > public.hero_xp_for_level(v_hero_level) + 1 then
     raise exception 'O XP do teu herói não é válido.';
   end if;
   if v_amount > v_hero_xp then raise exception 'Não tens esse XP para doar (tens %).', v_hero_xp; end if;
