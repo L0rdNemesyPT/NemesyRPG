@@ -846,7 +846,7 @@ grant execute on function public.is_hero_name_available(text) to authenticated;
 
 
 -- ============================================================
--- GUILDS (Herói → Guild) — Nemesy RPG v58 (filtro de palavrões no chat e nos nomes). É seguro voltar a executar.
+-- GUILDS (Herói → Guild) — Nemesy RPG v62 (correções + lista de Guilds para membros). É seguro voltar a executar.
 -- Criar (35 000 ouro), entrar, sair, membros, chat e recompensa diária
 -- (1 000 ouro + 2 Milho a cada 24 h). Tudo passa por funções do servidor:
 -- o ouro e o milho são somados/descontados no save dentro do servidor.
@@ -967,8 +967,9 @@ $$;
 -- antes de comparar: minúsculas, sem acentos, números/símbolos trocados por
 -- letras (m3rd@ → merda), sem pontuação e sem letras repetidas (merdaaa → merda).
 -- Palavras soletradas ("m e r d a") também são apanhadas.
--- Para acrescentar palavras: guild_bad_exact (palavra inteira) ou guild_bad_prefix
--- (palavras que começam assim). Escreve-as já normalizadas, sem letras repetidas.
+-- Para acrescentar palavras: em chat_is_bad, na 1.ª lista (palavra inteira), na 2.ª
+-- (palavras que começam assim) ou na 3.ª (contém). Escreve-as já normalizadas, sem
+-- acentos e sem letras repetidas (ex.: "porra" → 'pora').
 -- ------------------------------------------------------------
 create or replace function public.chat_norm(p text)
 returns text language sql immutable set search_path = public, pg_temp as $$
@@ -1051,24 +1052,46 @@ create or replace function public.guild_remove_member(p_user uuid)
 returns void language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   v_guild uuid;
-  v_owner uuid;
-  v_next uuid;
 begin
   select guild_id into v_guild from public.guild_members where user_id = p_user;
   if not found then return; end if;
-  select owner_id into v_owner from public.guilds where id = v_guild for update;
+  perform 1 from public.guilds where id = v_guild for update;
   delete from public.guild_members where user_id = p_user;
-  if v_owner = p_user then
-    select user_id into v_next from public.guild_members
-    where guild_id = v_guild order by joined_at, user_id limit 1;
-    if v_next is null then
-      delete from public.guilds where id = v_guild;
-    else
-      update public.guilds set owner_id = v_next where id = v_guild;
-    end if;
-  end if;
 end;
 $$;
+
+-- Depois de qualquer saída (sair, expulso, recomeçar aventura ou conta apagada):
+-- se era o líder, a liderança passa para o membro mais antigo; se a Guild ficou
+-- vazia, é apagada (com o chat). Antes isto só acontecia ao usar "Sair da Guild",
+-- e uma conta apagada podia deixar uma Guild sem líder.
+create or replace function public.guild_after_member_removed()
+returns trigger language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_owner uuid;
+  v_next uuid;
+begin
+  select owner_id into v_owner from public.guilds where id = old.guild_id for update;
+  if not found then return old; end if;
+  select user_id into v_next from public.guild_members
+  where guild_id = old.guild_id order by joined_at, user_id limit 1;
+  if v_next is null then
+    delete from public.guilds where id = old.guild_id;
+  elsif v_owner = old.user_id or not exists (select 1 from public.guild_members where guild_id = old.guild_id and user_id = v_owner) then
+    update public.guilds set owner_id = v_next where id = old.guild_id;
+  end if;
+  return old;
+end;
+$$;
+drop trigger if exists guild_after_member_removed on public.guild_members;
+create trigger guild_after_member_removed after delete on public.guild_members
+  for each row execute function public.guild_after_member_removed();
+
+-- Repara Guilds que tenham ficado sem líder ou vazias por causa do problema acima.
+update public.guilds g set owner_id = (
+  select m.user_id from public.guild_members m where m.guild_id = g.id order by m.joined_at, m.user_id limit 1)
+where not exists (select 1 from public.guild_members m where m.guild_id = g.id and m.user_id = g.owner_id)
+  and exists (select 1 from public.guild_members m where m.guild_id = g.id);
+delete from public.guilds g where not exists (select 1 from public.guild_members m where m.guild_id = g.id);
 
 -- Recomeçar a aventura (apagar o save) também tira o jogador da Guild.
 create or replace function public.guild_on_save_deleted()
@@ -1125,16 +1148,25 @@ $$;
 
 create or replace function public.list_guilds(p_search text default null)
 returns jsonb language sql stable security definer set search_path = public, pg_temp as $$
-  select coalesce(jsonb_agg(row_to_json(t)::jsonb order by t.level desc, t.member_count desc, t.name), '[]'::jsonb)
-  from (
-    select g.id, g.name, g.icon, g.level,
+  with ranked as (
+    select g.id, g.name, g.name_key, g.icon, g.level, g.xp,
       (select count(*) from public.guild_members m where m.guild_id = g.id) as member_count,
-      (select left(coalesce(nullif(btrim(s.save_data->>'name'), ''), 'Herói'), 16) from public.game_saves s where s.user_id = g.owner_id) as owner_name
+      (select left(coalesce(nullif(btrim(s.save_data->>'name'), ''), 'Herói'), 16) from public.game_saves s where s.user_id = g.owner_id) as owner_name,
+      exists (select 1 from public.guild_members m where m.guild_id = g.id and m.user_id = auth.uid()) as is_mine
     from public.guilds g
-    where p_search is null or btrim(p_search) = '' or g.name_key like '%' || public.guild_name_key(p_search) || '%'
-    order by g.level desc, (select count(*) from public.guild_members m where m.guild_id = g.id) desc, g.name
+  ), ordered as (
+    select r.*, row_number() over (order by r.level desc, r.xp desc, r.member_count desc, r.name) as rank from ranked r
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+      'id', o.id, 'name', o.name, 'icon', o.icon, 'level', o.level, 'member_count', o.member_count,
+      'owner_name', o.owner_name, 'is_mine', o.is_mine, 'rank', o.rank) order by o.rank), '[]'::jsonb)
+  from (
+    select * from ordered
+    where p_search is null or btrim(p_search) = ''
+      or strpos(name_key, public.guild_name_key(p_search)) > 0
+    order by rank
     limit 50
-  ) t;
+  ) o;
 $$;
 
 create or replace function public.create_guild(p_name text, p_icon text)
@@ -1172,6 +1204,11 @@ begin
   where user_id = v_user returning revision into v_revision;
   return jsonb_build_object('save_data', v_save, 'revision', v_revision, 'updated_at', v_now, 'guild_id', v_guild);
 exception when unique_violation then
+  -- Dois pedidos ao mesmo tempo: o nome foi apanhado por outra Guild, ou o jogador
+  -- entrou noutra Guild entretanto. Em ambos os casos nada é gasto.
+  if exists (select 1 from public.guild_members where user_id = v_user) then
+    raise exception 'Já pertences a uma Guild. Sai dela primeiro.';
+  end if;
   raise exception 'Já existe uma Guild com esse nome.';
 end;
 $$;
@@ -1193,7 +1230,11 @@ begin
   end if;
   select count(*) into v_count from public.guild_members where guild_id = p_guild_id;
   if v_count >= (public.guild_settings()->>'max_members')::int then raise exception 'Esta Guild está cheia.'; end if;
-  insert into public.guild_members (user_id, guild_id) values (v_user, p_guild_id);
+  begin
+    insert into public.guild_members (user_id, guild_id) values (v_user, p_guild_id);
+  exception when unique_violation then
+    raise exception 'Já pertences a uma Guild. Sai dela primeiro.';
+  end;
   return jsonb_build_object('ok', true);
 end;
 $$;
@@ -1497,3 +1538,5 @@ revoke all on function public.chat_norm(text) from public, anon;
 revoke all on function public.chat_is_bad(text) from public, anon;
 revoke all on function public.chat_mask(text) from public, anon;
 revoke all on function public.chat_has_bad(text) from public, anon;
+
+revoke all on function public.guild_after_member_removed() from public, anon, authenticated;
