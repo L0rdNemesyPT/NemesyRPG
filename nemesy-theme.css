@@ -302,3 +302,9 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 
 /* v67: ícones em imagem */
 .nx-ic.nx-img{object-fit:contain;}
+
+/* v72: abrir vários baús */
+.chest-batch{padding-bottom:10px; border-bottom:1px solid rgba(201,162,39,.18);}
+.chest-batch:last-child{border-bottom:0; padding-bottom:0;}
+.chest-qty-input{width:64px; margin:0; padding:7px 4px; text-align:center; font-size:14px;}
+.chest-qty-btn{min-width:34px; padding-left:0; padding-right:0;}
