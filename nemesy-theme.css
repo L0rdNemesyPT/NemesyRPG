@@ -299,3 +299,6 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .account-link:hover{color:#FBE7A1;}
 #account-reset-intro{margin:0 0 4px; font-size:12px; color:var(--muted);}
 #screen-account [hidden]{display:none !important;}
+
+/* v67: ícones em imagem */
+.nx-ic.nx-img{object-fit:contain;}

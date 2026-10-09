@@ -9212,7 +9212,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v66</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v67</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -10032,11 +10032,16 @@ const NX_ICON_MAP = {
   '🌀': 'portal', '🌙': 'moon', '⛪': 'cathedral', '🏝': 'oasis', '🔥': 'flame', '👹': 'demon',
   '🌿': 'leaf', '🌋': 'volcano', '❄': 'snow', '⛈': 'thunder', '☠': 'corrupt', '🌲': 'pine',
   '🗡': 'sword', '🔪': 'dagger', '🪓': 'axe', '🔱': 'spear', '🪄': 'wand', '👑': 'crown', '🪖': 'helmet', '👕': 'armor', '🧣': 'cape', '🥾': 'boots', '🧤': 'gloves', '📿': 'amulet', '🔯': 'artifact', '🍀': 'clover',
-  '🏹': 'bow', '🧙': 'staff'
+  '🏹': 'bow', '🧙': 'staff',
+  '🍎': 'apple', '🥕': 'carrot', '🗝': 'key', '❤': 'heart', '👁': 'eye'
 };
 const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-glyph, .map-here-ic, .equip-slot .ic, .sb-mute, .stat-box .v-ic';
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
+// v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
+// Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
+const NX_ICON_IMG = new Set(["amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 function nxIconSvg(name, extraClass) {
+  if (NX_ICON_IMG.has(name)) return `<img class="nx-ic nx-img${extraClass ? ' ' + extraClass : ''}" src="icons/${name}.webp" alt="" draggable="false" loading="lazy">`;
   const body = NX_ICONS[name];
   if (!body) return '';
   return `<svg class="nx-ic${extraClass ? ' ' + extraClass : ''}" viewBox="0 0 128 128" aria-hidden="true" focusable="false">${body}</svg>`;
