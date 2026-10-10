@@ -332,3 +332,9 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .app-version-badge{position:absolute; top:calc(12px + var(--safe-top, 0px)); right:14px; z-index:2;
   font-family:var(--font-display); font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--gold-bright);
   padding:3px 9px; border:1px solid var(--bronze); border-radius:999px; background:rgba(10,11,11,.7); pointer-events:none;}
+
+/* v82: tabelas da Wiki */
+.wiki-table{width:100%; border-collapse:collapse; font-size:12px;}
+.wiki-table th,.wiki-table td{padding:5px 6px; border-bottom:1px solid var(--line-soft); text-align:center; white-space:nowrap;}
+.wiki-table th{color:var(--gold-bright); font-weight:700; border-bottom-color:var(--bronze);}
+.wiki-table td:first-child,.wiki-table th:first-child{text-align:left;}
