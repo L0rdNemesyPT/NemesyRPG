@@ -314,3 +314,15 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .guard-opt{width:70px; height:70px; border-radius:12px; border:1px solid var(--gold, #8a6a2a); background:linear-gradient(135deg, rgba(60,45,25,.9), rgba(25,18,10,.9)); display:flex; align-items:center; justify-content:center; cursor:pointer;}
 .guard-opt .nx-ic{width:44px; height:44px;}
 .guard-opt:active{transform:scale(.95);}
+
+/* v78: Trades */
+.trade-filters{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:0 0 8px;}
+.trade-sel,.trade-search{flex:1 1 140px; min-width:0; width:auto; margin:0; padding:7px 8px; font-size:12px;}
+.trade-search{flex-basis:100%;}
+.trade-check{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer;}
+.trade-check input{accent-color:var(--gold, #C9A227);}
+.trade-cmp{display:flex; flex-wrap:wrap; gap:2px 8px;}
+.trade-up{color:var(--success);}
+.trade-down{color:var(--blood-bright);}
+.trade-price{color:var(--gold-bright, #E4BF4A);}
+.trade-sel option{background:#15120F; color:#EADFC4;}
