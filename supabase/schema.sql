@@ -368,7 +368,8 @@ begin
       v_bmax := case v_b->>'key'
         when 'dano_pct' then 20 when 'vs_animais' then 40 when 'vs_humanos' then 40
         when 'atordoamento' then 30 when 'esquiva' then 20 when 'regeneracao' then 6
-        when 'envenenamento' then 40 when 'dano_medio_pct' then 10 else null end;
+        when 'envenenamento' then 40 when 'dano_medio_pct' then 10
+        when 'vs_demonios' then 40 when 'vs_mortos' then 40 when 'dano_habilidade' then 10 else null end;
       if v_bmax is null or jsonb_typeof(v_b->'value') <> 'number'
         or (v_b->>'value')::numeric < 0 or (v_b->>'value')::numeric > v_bmax then
         raise exception 'Este item tem bónus inválidos e não pode ser vendido.';
