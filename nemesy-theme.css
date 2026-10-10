@@ -326,3 +326,9 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .trade-down{color:var(--blood-bright);}
 .trade-price{color:var(--gold-bright, #E4BF4A);}
 .trade-sel option{background:#15120F; color:#EADFC4;}
+
+/* v79: versão no ecrã de entrada */
+#screen-account{padding-top:calc(46px + var(--safe-top, 0px));}
+.app-version-badge{position:absolute; top:calc(12px + var(--safe-top, 0px)); right:14px; z-index:2;
+  font-family:var(--font-display); font-size:12px; font-weight:700; letter-spacing:.08em; color:var(--gold-bright);
+  padding:3px 9px; border:1px solid var(--bronze); border-radius:999px; background:rgba(10,11,11,.7); pointer-events:none;}
