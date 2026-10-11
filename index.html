@@ -5229,7 +5229,7 @@ function renderTradeSellList() {
   if (tradeCache.own.length >= 3) { box.innerHTML = '<p class="muted">Já tens 3 anúncios ativos. Retira um para colocar outro item à venda.</p>'; return; }
   if (!inventory.length) { box.innerHTML = '<p class="muted">A tua mochila está vazia.</p>'; return; }
   const q = (f.sellQ || '').trim().toLowerCase();
-  const list = inventory.filter(it => tradeRarityMatch(it, f.sellRarity) && (f.sellSlot === 'all' || it.slot === f.sellSlot) && (!q || String(it.name || '').toLowerCase().includes(q)))
+  const list = inventory.filter(it => !it.locked && tradeRarityMatch(it, f.sellRarity) && (f.sellSlot === 'all' || it.slot === f.sellSlot) && (!q || String(it.name || '').toLowerCase().includes(q)))
     .sort((a, b) => (TRADE_RARITY_ORDER[b.rarity] || 0) - (TRADE_RARITY_ORDER[a.rarity] || 0) || (Number(b.itemLevel) || 0) - (Number(a.itemLevel) || 0));
   const shown = list.slice(0, f.sellShown);
   box.innerHTML = (shown.length ? shown.map(item => {
@@ -5323,6 +5323,8 @@ async function claimTradeProceeds() {
 
 async function listTradeItem(itemId) {
   if (tradeBusy) { toast('Aguarda um momento…'); return; }
+  const lockedItem = (App.player.inventory || []).find(i => i.id === itemId && i.locked);
+  if (lockedItem) { sfx.error(); toast('🔒 Este item está bloqueado.'); return; }
   const priceInput = $(`trade-price-${itemId}`);
   const price = Number(priceInput && priceInput.value);
   if (!Number.isSafeInteger(price) || price < 1 || price > 2147483647) {
@@ -5435,7 +5437,7 @@ async function renderTabTrades() {
         <select class="name-input trade-sel" id="trade-s-slot">${tradeSlotOptions(f.sellSlot)}</select>
       </div>` : ''}
       <div id="trade-sell-list"></div>
-      <p class="tiny" style="margin-top:10px;">O item sai da mochila enquanto estiver anunciado. Ao vender, recebes o ouro; ao retirar, o item regressa.</p>
+      <p class="tiny" style="margin-top:10px;">O item sai da mochila enquanto estiver anunciado. Ao vender, recebes o ouro; ao retirar, o item regressa. Os itens 🔒 bloqueados não aparecem aqui.</p>
     `;
     $('btn-refresh-trades').addEventListener('click', renderTabTrades);
     const bindSel = (id, key, fn) => { const el = $(id); if (el) el.addEventListener('change', () => { f[key] = el.type === 'checkbox' ? el.checked : el.value; if (fn === renderTradeSellList) f.sellShown = TRADE_SELL_PAGE; fn(); }); };
@@ -7046,7 +7048,7 @@ function renderMochilaBody() {
       { key: 'value', label: '🪙 Valor' }
     ];
     const rarityGroups = RARITIES.map(r => {
-      const items = p.inventory.filter(i => i.rarity === r.key);
+      const items = p.inventory.filter(i => i.rarity === r.key && !i.locked);
       return { r, count: items.length, total: items.reduce((sum, i) => sum + itemSellValue(i), 0) };
     }).filter(g => g.count > 0);
     const presentSlots = EQUIP_SLOTS.filter(slot => p.inventory.some(i => i.slot === slot));
@@ -7096,6 +7098,7 @@ function renderMochilaBody() {
 
     const sellBar = `<details class="inv-sell">
       <summary>💰 Vender em massa por raridade</summary>
+      <p class="tiny muted" style="margin-top:6px;">Os itens 🔒 bloqueados nunca são vendidos.${p.inventory.some(i => i.locked) ? ` (${p.inventory.filter(i => i.locked).length} bloqueados)` : ''}</p>
       <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
         ${rarityGroups.map(g => `<button class="btn small ghost" data-sell-rarity="${g.r.key}" style="border-color:${g.r.color};">${g.r.icon} ${g.r.name} (${g.count}) · ${g.total}🪙</button>`).join('')}
       </div>
@@ -7115,7 +7118,7 @@ function renderMochilaBody() {
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
           <div class="row between" style="align-items:flex-start; gap:6px;">
-            <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
+            <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.locked ? '🔒 ' : ''}${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
             ${badge(cmp)}
           </div>
           <div class="item-sub tiny" style="color:${item.rarityColor}">${SLOT_NAMES[item.slot]} · Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ` · <span style="color:var(--gold-bright);">${SET_DEFS[item.setKey].icon} ${SET_DEFS[item.setKey].name}</span>` : ''}</div>
@@ -7124,7 +7127,10 @@ function renderMochilaBody() {
         </div>
         <div style="display:flex; flex-direction:column; gap:5px;">
           <button class="btn small primary" data-equip-item="${item.id}">Equipar</button>
-          <button class="btn small ghost" data-sell-item="${item.id}">🪙 ${itemSellValue(item)}</button>
+          <div style="display:flex; gap:5px;">
+            <button class="btn small ghost" data-sell-item="${item.id}" style="flex:1;"${item.locked ? ' disabled title="Bloqueado"' : ''}>${item.locked ? '🔒' : `🪙 ${itemSellValue(item)}`}</button>
+            <button class="btn small ${item.locked ? 'lock-on' : 'ghost'}" data-lock-item="${item.id}" title="${item.locked ? 'Desbloquear' : 'Bloquear (não pode ser vendido)'}" aria-label="${item.locked ? 'Desbloquear item' : 'Bloquear item'}">${item.locked ? '🔒' : '🔓'}</button>
+          </div>
         </div>
       </div>`;
     }).join('') : `<div class="empty-hint">Nenhum item com estes filtros.<br><button class="btn small ghost" style="margin-top:10px;" data-inv-reset="1">Limpar filtros</button></div>`;
@@ -7133,6 +7139,7 @@ function renderMochilaBody() {
 
     els('[data-equip-item]').forEach(b => b.addEventListener('click', () => equipItem(b.dataset.equipItem)));
     els('[data-sell-item]').forEach(b => b.addEventListener('click', () => sellItem(b.dataset.sellItem)));
+    els('[data-lock-item]').forEach(b => b.addEventListener('click', () => toggleItemLock(b.dataset.lockItem)));
     els('[data-sell-rarity]').forEach(b => b.addEventListener('click', () => sellAllByRarity(b.dataset.sellRarity)));
     els('[data-item-filter]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invItemFilter = b.dataset.itemFilter; renderMochilaBody(); }));
     els('[data-inv-rarity]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invRarityFilter = b.dataset.invRarity; renderMochilaBody(); }));
@@ -7932,6 +7939,7 @@ function sanitizeItem(item) {
     .filter(b => b && BONUS_PLUS_POOL.some(x => x.key === b.key) && Number.isFinite(Number(b.value)))
     .slice(0, ITEM_BONUS_MAX_SLOTS)
     .map(b => ({ key: b.key, value: Number(b.value) }));
+  if (item.locked !== true) delete item.locked;
   const pb = item.plusBonus;
   const pbDef = pb && BONUS_PLUS2_POOL.find(x => x.key === pb.key && x.slots.includes(item.slot));
   item.plusBonus = pbDef && Number.isFinite(Number(pb.value)) ? { key: pb.key, value: clamp(Math.round(Number(pb.value)), pbDef.min, pbDef.max) } : null;
@@ -7990,11 +7998,25 @@ function itemSellValue(item) {
   return Math.round(10 * rarity.mult * (item.itemLevel || 1) / 3) + 5;
 }
 
+// v90: bloquear itens — um item bloqueado não pode ser vendido (nem em massa, nem no Trades).
+function toggleItemLock(itemId) {
+  const p = App.player;
+  const item = p.inventory.find(i => i.id === itemId) || EQUIP_SLOTS.map(s => p.equipment[s]).find(i => i && i.id === itemId);
+  if (!item) return;
+  item.locked = !item.locked;
+  if (!item.locked) delete item.locked;
+  saveGame();
+  sfx.click();
+  renderMochilaBody();
+  toast(item.locked ? `🔒 ${item.name} bloqueado — não pode ser vendido.` : `🔓 ${item.name} desbloqueado.`);
+}
+
 function sellItem(itemId) {
   const p = App.player;
   const idx = p.inventory.findIndex(i => i.id === itemId);
   if (idx === -1) return;
   const item = p.inventory[idx];
+  if (item.locked) { sfx.error(); toast('🔒 Este item está bloqueado. Desbloqueia-o primeiro para o vender.'); return; }
   const value = itemSellValue(item);
   p.gold += value;
   p.inventory.splice(idx, 1);
@@ -8008,12 +8030,14 @@ function sellItem(itemId) {
 // Vende de uma vez todos os itens da mochila (não equipados) de uma dada raridade.
 async function sellAllByRarity(rarityKey) {
   const p = App.player;
-  const matching = p.inventory.filter(i => i.rarity === rarityKey);
+  const matching = p.inventory.filter(i => i.rarity === rarityKey && !i.locked);
   if (!matching.length) return;
   const rarity = RARITIES.find(r => r.key === rarityKey);
+  const lockedCount = p.inventory.filter(i => i.rarity === rarityKey && i.locked).length;
   const total = matching.reduce((sum, item) => sum + itemSellValue(item), 0);
-  if (!await nxConfirm(`Vender ${matching.length} item(ns) ${rarity.name} por ${total} ouro?`, { title: 'Vender em massa', icon: '🪙', confirmLabel: 'Vender' })) return;
-  p.inventory = p.inventory.filter(i => i.rarity !== rarityKey);
+  if (!await nxConfirm(`Vender ${matching.length} item(ns) ${rarity.name} por ${total} ouro?${lockedCount ? `\n🔒 ${lockedCount} bloqueado(s) ficam na mochila.` : ''}`, { title: 'Vender em massa', icon: '🪙', confirmLabel: 'Vender' })) return;
+  const sellIds = new Set(matching.map(i => i.id));
+  p.inventory = p.inventory.filter(i => !sellIds.has(i.id));
   p.gold += total;
   saveGame();
   sfx.gold();
@@ -10848,7 +10872,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v89</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v90</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
