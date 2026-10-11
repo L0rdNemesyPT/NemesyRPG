@@ -382,3 +382,9 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .plus2-box{border-color:#E9D873 !important;}
 .plus2-box .v{color:#FFF1A8;}
 .plus2-card{border-color:#E9D873;}
+
+/* v87: Menu de Criador */
+.admin-card{margin-bottom:10px;}
+.admin-row{display:flex; gap:6px; align-items:center; margin-top:8px;}
+.admin-row .name-input{flex:1; min-width:0; margin:0; padding:7px 8px; font-size:13px;}
+.admin-row .btn{flex:none;}
