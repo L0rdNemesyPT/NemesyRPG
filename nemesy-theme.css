@@ -635,3 +635,82 @@ body.fx-off .fx-overlay,body.fx-off .chest-stage{display:none;}
 
 body.fx-off #hub-content.fx-page-in *,body.fx-off .nav-btn.active .ic,body.fx-off .doll-rays,body.fx-off .doll-ring,body.fx-off .doll-hero-ic,body.fx-off .doll-slot.divine{animation:none !important;}
 @media (prefers-reduced-motion:reduce){.doll-rays,.doll-ring,.doll-hero-ic,.doll-slot.divine{animation:none;}}
+
+/* ============================================================
+   v96 — Cenários (paisagens SVG), partículas ambiente, medalhões por raça
+   ============================================================ */
+/* (o .screen já é position:absolute — serve de referência ao cenário) */
+.cb-scene{position:absolute; left:0; right:0; top:0; height:50%; z-index:0; overflow:hidden; pointer-events:none;}
+.cb-scene .scene-svg,.region-banner .scene-svg{position:absolute; inset:0; width:100%; height:100%; display:block;}
+.cb-scene .scene-shade{position:absolute; inset:0; background:linear-gradient(180deg, rgba(0,0,0,.15) 0%, rgba(0,0,0,.05) 35%, rgba(10,8,6,.55) 75%, var(--bg-void,#0b0906) 100%);}
+#screen-combat.has-scene > :not(.cb-scene):not(#fx-layer){position:relative; z-index:1;}
+#screen-combat.has-scene .combat-top{background:linear-gradient(180deg, rgba(8,6,4,.55), rgba(8,6,4,.15) 70%, transparent) !important; border-bottom-color:rgba(184,140,60,.25);}
+#screen-combat.has-scene .combat-log{background:rgba(12,9,7,.74) !important; -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px);}
+#screen-combat.has-scene .enemy-name,#screen-combat.has-scene .enemy-name span{text-shadow:0 1px 3px #000, 0 0 8px rgba(0,0,0,.8);}
+/* animações discretas das paisagens */
+.sc-star{animation:scTwinkle 3.2s ease-in-out infinite;}
+@keyframes scTwinkle{50%{opacity:.1;}}
+.sc-sun{animation:scSun 6s ease-in-out infinite; transform-origin:center; transform-box:fill-box;}
+@keyframes scSun{50%{opacity:.75; transform:scale(1.06);}}
+.sc-lava{animation:scLava 1.8s ease-in-out infinite;}
+@keyframes scLava{50%{opacity:.55; filter:brightness(1.4);}}
+.sc-float{animation:scFloat 5s ease-in-out infinite; transform-box:fill-box;}
+@keyframes scFloat{50%{transform:translateY(-6px);}}
+.sc-drift{animation:scDrift 30s linear infinite alternate;}
+@keyframes scDrift{to{transform:translateX(-40px);}}
+.sc-spin{animation:scSpin 14s linear infinite;}
+@keyframes scSpin{to{transform:rotate(360deg);}}
+/* partículas */
+.scene-fx{position:absolute; inset:0;}
+.scene-fx i{position:absolute; display:block; border-radius:50%; animation-iteration-count:infinite; animation-timing-function:linear;}
+.fx-fireflies i{width:3px; height:3px; background:#f6ff9a; box-shadow:0 0 6px 2px rgba(240,255,120,.7); animation-name:scFly; top:auto !important; bottom:calc(var(--b,20) * 1%);}
+.fx-fireflies i:nth-child(odd){--b:10;} .fx-fireflies i:nth-child(3n){--b:28;}
+@keyframes scFly{0%,100%{transform:translate(0,0); opacity:.2;} 25%{transform:translate(14px,-10px); opacity:1;} 50%{transform:translate(-8px,-22px); opacity:.4;} 75%{transform:translate(10px,-6px); opacity:.9;}}
+.fx-embers i{width:3px; height:3px; background:#ffb050; box-shadow:0 0 6px #ff6a1a; animation-name:scRise; top:100% !important;}
+@keyframes scRise{0%{transform:translate(0,0); opacity:0;} 10%{opacity:1;} 100%{transform:translate(18px,-180px); opacity:0;}}
+.fx-snow i{width:4px; height:4px; background:#fff; opacity:.85; animation-name:scFall; top:-6px !important;}
+.fx-snow i:nth-child(3n){width:2px; height:2px;}
+@keyframes scFall{to{transform:translate(-30px,240px);}}
+.fx-rain i{width:1px; height:14px; border-radius:0; background:linear-gradient(transparent, rgba(190,200,255,.7)); animation-name:scRain; animation-duration:.8s !important; top:-20px !important;}
+@keyframes scRain{to{transform:translate(-40px,260px);}}
+.fx-rain::after{content:''; position:absolute; inset:0; background:#e8ecff; opacity:0; animation:scBolt 7s infinite;}
+@keyframes scBolt{0%,91%,95%,100%{opacity:0;} 92%{opacity:.35;} 94%{opacity:.15;}}
+.fx-spores i{width:5px; height:5px; background:radial-gradient(circle,#c8ff6a,#6aa82a 60%,transparent 70%); animation-name:scSpore; opacity:.8;}
+@keyframes scSpore{0%,100%{transform:translate(0,0);} 50%{transform:translate(-16px,-28px);}}
+.fx-fog i{width:160px; height:40px; border-radius:50%; background:radial-gradient(ellipse, rgba(200,230,225,.16), transparent 70%); animation-name:scFog; animation-duration:18s !important; top:auto !important; bottom:calc(var(--b,10) * 1%);}
+.fx-fog i:nth-child(n+7){display:none;} .fx-fog i:nth-child(odd){--b:22;}
+@keyframes scFog{0%,100%{transform:translateX(-30px);} 50%{transform:translateX(40px);}}
+.fx-motes i{width:3px; height:3px; background:#fff3c8; box-shadow:0 0 6px #ffe39a; animation-name:scRise; top:100% !important; opacity:.8;}
+.fx-torches::before,.fx-torches::after{content:''; position:absolute; top:42%; width:70px; height:70px; border-radius:50%; background:radial-gradient(circle, rgba(255,160,60,.55), transparent 65%); animation:scTorch 1.4s ease-in-out infinite alternate;}
+.fx-torches::before{left:4%;} .fx-torches::after{right:4%; animation-delay:.5s;}
+@keyframes scTorch{to{opacity:.6; transform:scale(.88);}}
+.fx-torches i{width:2px; height:2px; background:#ffcf8a; animation-name:scRise; top:100% !important; opacity:.6;}
+.fx-candles::before,.fx-candles::after{content:''; position:absolute; top:58%; width:50px; height:50px; border-radius:50%; background:radial-gradient(circle, rgba(120,255,170,.45), transparent 65%); animation:scTorch 1.8s ease-in-out infinite alternate;}
+.fx-candles::before{left:30%;} .fx-candles::after{right:30%; animation-delay:.7s;}
+.fx-candles i{width:2px; height:2px; background:#9dffc4; animation-name:scRise; top:100% !important; opacity:.5;}
+
+/* Faixa da região na aba Batalha */
+.region-banner{position:relative; height:128px; margin:8px 0 10px; border-radius:12px; overflow:hidden; border:1px solid var(--brass,#8a6a2a); box-shadow:0 4px 14px rgba(0,0,0,.6), inset 0 0 0 1px rgba(0,0,0,.5);}
+.region-banner .scene-shade{position:absolute; inset:0; background:linear-gradient(180deg, transparent 35%, rgba(6,4,3,.85));}
+.rb-title{position:absolute; left:12px; bottom:9px; right:12px; font-family:var(--font-display); font-weight:700; font-size:17px; letter-spacing:.06em; text-transform:uppercase; color:var(--gold-bright); text-shadow:0 2px 4px #000, 0 0 10px rgba(0,0,0,.9);}
+
+/* Medalhão do inimigo por raça */
+.enemy-glyph.race-animal{border-color:#6f9a45 !important; background:radial-gradient(circle at 50% 40%, #2c3a1a, #0d1208 75%) !important; box-shadow:inset 0 0 12px rgba(120,180,60,.35), 0 0 8px rgba(110,160,60,.35);}
+.enemy-glyph.race-humano{border-color:#b7b2a6 !important; background:radial-gradient(circle at 50% 40%, #34312b, #100f0d 75%) !important; box-shadow:inset 0 0 12px rgba(220,210,190,.25), 0 0 8px rgba(200,190,170,.3);}
+.enemy-glyph.race-demonio{border-color:#c13b3b !important; background:radial-gradient(circle at 50% 40%, #4a1210, #140505 75%) !important; box-shadow:inset 0 0 14px rgba(255,60,40,.45), 0 0 10px rgba(220,40,30,.45);}
+.enemy-glyph.race-morto_vivo{border-color:#5fbf9a !important; background:radial-gradient(circle at 50% 40%, #16322a, #050d0a 75%) !important; box-shadow:inset 0 0 14px rgba(90,230,170,.35), 0 0 10px rgba(80,200,150,.4);}
+.enemy-glyph.race-outro{border-color:#9a6fd6 !important; background:radial-gradient(circle at 50% 40%, #2c1a44, #0b0612 75%) !important; box-shadow:inset 0 0 14px rgba(170,120,255,.35), 0 0 10px rgba(150,100,230,.4);}
+
+body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-lava,body.fx-off .sc-float,body.fx-off .sc-drift,body.fx-off .sc-spin{animation:none !important;}
+@media (prefers-reduced-motion:reduce){.scene-fx{display:none;} .sc-star,.sc-sun,.sc-lava,.sc-float,.sc-drift,.sc-spin{animation:none;}}
+/* v96: palco do inimigo (mais paisagem visível) e mosaicos do Mapa com cenário */
+#screen-combat.has-scene .combat-top{padding-bottom:64px;}
+#screen-combat.has-scene .combat-log{background:linear-gradient(180deg, rgba(12,9,7,.62), rgba(12,9,7,.86) 40%) !important;}
+.wiki-tile.has-scene{position:relative; overflow:hidden;}
+.wiki-tile-scene{position:absolute; inset:0; z-index:0; opacity:.95; pointer-events:none;}
+.wiki-tile-scene .scene-svg{width:100%; height:100%; display:block;}
+.wiki-tile-scene::after{content:''; position:absolute; inset:0; background:linear-gradient(180deg, rgba(8,6,4,0) 20%, rgba(8,6,4,.85) 78%);}
+.wiki-tile.has-scene > :not(.wiki-tile-scene){position:relative; z-index:1;}
+.wiki-tile.has-scene .wiki-tile-badge{position:absolute; z-index:2;}
+.wiki-tile.has-scene .wiki-tile-lb,.wiki-tile.has-scene .wiki-tile-sub{text-shadow:0 1px 3px #000;}
+.wiki-tile.has-scene.is-locked .wiki-tile-scene{filter:grayscale(1) brightness(.6);}
