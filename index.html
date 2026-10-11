@@ -8252,29 +8252,94 @@ function attemptAltarBonus() {
   openAltarModal();
 }
 
+
+// v92: ficha completa do item (Equipamento → tocar numa peça).
+function itemSheetHtml(item, slot, p) {
+  const up = item.upgrade || 0;
+  const base = itemStatsAtUpgrade(item, 0), tot = itemStatsAtUpgrade(item, up);
+  const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`;
+  const rows = [];
+  const add = (icon, label, b, t, fmt) => { if (t || b) rows.push(`<tr><td>${icon} ${label}</td><td>${fmt(b)}</td><td class="sheet-up">${t - b > 0.00001 ? '+' + fmt(t - b) : '—'}</td><td class="sheet-tot">${fmt(t)}</td></tr>`); };
+  if (tot.dmgMin !== undefined && tot.dmgMax !== undefined) {
+    rows.push(`<tr><td>⚔️ Dano</td><td>${base.dmgMin}–${base.dmgMax}</td><td class="sheet-up">${up ? `+${tot.dmgMin - base.dmgMin}–${tot.dmgMax - base.dmgMax}` : '—'}</td><td class="sheet-tot">${tot.dmgMin}–${tot.dmgMax}</td></tr>`);
+  } else add('⚔️', 'Dano', base.dmg || 0, tot.dmg || 0, v => Math.round(v));
+  add('🛡️', 'Defesa', base.def || 0, tot.def || 0, v => Math.round(v));
+  add('❤️', 'HP', base.hp || 0, tot.hp || 0, v => Math.round(v));
+  add('💥', 'Crítico', base.crit || 0, tot.crit || 0, pc1);
+  add('💚', 'Regeneração', base.regenPct || 0, tot.regenPct || 0, v => `${Math.round(v)}%`);
+  add('👑', 'Red. dano de chefes', base.dmgReducedFromBossPct || 0, tot.dmgReducedFromBossPct || 0, pc1);
+  // Gemas encaixadas
+  const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
+  const gemLines = socks.filter(Boolean).map(g => `${GEM_DEFS[g.type].icon} ${gemStatText(g.type, g.tier)}`);
+  // Set
+  let setHtml = '';
+  if (item.setKey && SET_DEFS[item.setKey]) {
+    const sd = SET_DEFS[item.setKey];
+    const have = EQUIP_SLOTS.filter(s => p.equipment[s] && p.equipment[s].setKey === item.setKey).length;
+    setHtml = `<div class="sheet-sec"><div class="sheet-h">${sd.icon} ${sd.name} <span class="muted">(${have} peças)</span></div>
+      ${sd.bonuses.map(b => `<p class="tiny sheet-set${have >= b.count ? ' on' : ''}">${have >= b.count ? '✅' : '▫️'} ${b.count} peças: ${b.desc}</p>`).join('')}</div>`;
+  }
+  // Ferreiro
+  const next = up + 1;
+  const pearl = up < 9 ? upgradePearlRequirement(item, next) : null;
+  const smithHtml = up >= 9
+    ? '<p class="tiny">Melhoria máxima (+9). ✨</p>'
+    : `<p class="tiny">Próxima: <b>+${next}</b> · ${Math.round(blacksmithSuccessChance(item) * 100)}% de sucesso · ${blacksmithCost(p.level || 1, item).toLocaleString('pt-PT')} 🪙${pearl ? ` · 1 Pérola ${pearl}` : ''}</p>`;
+  const bonuses = item.bonuses || [];
+  const nb = item.nephalemBonus && NEPHALEM_BONUS_POOL.find(x => x.key === item.nephalemBonus.key);
+  const ab = item.altarBonus && ALTAR_BONUS_POOL.find(x => x.key === item.altarBonus.key);
+  const ue = item.uniqueEffect && UNIQUE_ITEM_EFFECTS[item.uniqueEffect];
+  return `
+    <div class="sheet-head" style="${rarityBoxStyle(item)} border-color:${item.rarityColor};">
+      <div class="sheet-ic">${itemIconHtml(item)}</div>
+      <div style="flex:1; min-width:0;">
+        <div class="sheet-name" style="color:${item.rarityColor};">${item.locked ? '🔒 ' : ''}${esc(item.name)}${up ? ` <span class="upgrade-badge">+${up}</span>` : ''}</div>
+        <div class="tiny">${item.rarityIcon} ${item.rarityName} · ${SLOT_NAMES[item.slot]} · Nível ${item.itemLevel || 1}</div>
+        <div class="sheet-bar" title="Melhoria ${up}/9"><i style="width:${up / 9 * 100}%;"></i></div>
+        <div class="tiny muted">Ferreiro ${up}/9 · Venda ${itemSellValue(item).toLocaleString('pt-PT')} 🪙</div>
+      </div>
+    </div>
+    ${item.corruption && item.corruption.hpDebuff ? `<p class="tiny sheet-warn">🔴 Corrompido: −${item.corruption.hpDebuff} HP</p>` : ''}
+    ${ue ? `<p class="tiny sheet-good">${ue.icon} ${ue.label} — ${ue.desc}</p>` : ''}
+
+    <div class="sheet-sec">
+      <div class="sheet-h">📊 Atributos</div>
+      <table class="wiki-table sheet-table"><tr><th>Stat</th><th>Base</th><th>Melhoria</th><th>Total</th></tr>${rows.join('')}</table>
+    </div>
+
+    <div class="sheet-sec">
+      <div class="sheet-h">✨ Bónus+ <span class="muted">(${bonuses.length}/${ITEM_BONUS_MAX_SLOTS})</span></div>
+      ${bonuses.length ? bonuses.map(b => `<p class="tiny sheet-bonus">${(BONUS_PLUS_POOL.find(x => x.key === b.key) || {}).icon || '✦'} ${bonusPlusLabel(b)}</p>`).join('') : '<p class="tiny muted">Nenhum — usa um 📜 Feitiço em Mochila → Feitiços.</p>'}
+      <div class="sheet-h" style="margin-top:8px;">➕ Bónus ➕ <span class="muted">(${item.plusBonus ? 1 : 0}/1)</span></div>
+      ${item.plusBonus ? `<div>${plus2Chip(item.plusBonus)}</div>` : '<p class="tiny muted">Nenhum — usa um 📜 Feitiço ➕ (drop da Torre).</p>'}
+      ${slot === 'weapon' ? `<div class="sheet-h" style="margin-top:8px;">💎 Nephalen</div><p class="tiny ${nb ? 'sheet-bonus' : 'muted'}">${nb ? `${nb.icon} ${nb.label(item.nephalemBonus.value)}` : up >= 9 ? 'Ainda sem bónus — podes usar uma Pedra Nephalen (abaixo).' : 'Disponível quando a arma estiver em +9.'}</p>` : ''}
+      ${slot === 'artifact' ? `<div class="sheet-h" style="margin-top:8px;">🔥 Altar</div><p class="tiny ${ab ? 'sheet-bonus' : 'muted'}">${ab ? `${ab.icon} ${ab.name} — ${ab.desc}` : 'Sem bónus de Altar (Mapa → Altar).'}</p>` : ''}
+    </div>
+
+    <div class="sheet-sec">
+      <div class="sheet-h">🔷 Encaixes de gemas <span class="muted">(${socks.filter(Boolean).length}/${socks.length})</span></div>
+      <div class="sheet-socks">
+        ${socks.map((g, i) => g
+          ? `<button class="sheet-sock on" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${GEM_DEFS[g.type].icon}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier)}</small><em>🗑️</em></button>`
+          : `<button class="sheet-sock" data-open-socket="${i}"><span>◇</span><b>Vazio</b><small>+ Encaixar</small></button>`).join('')}
+        ${(item.socketSlots || 1) < 3 ? `<button class="sheet-sock add" id="btn-add-socket"><span>＋</span><b>Abrir encaixe</b><small>${socketSlotCost(item)} 🪙</small></button>` : ''}
+      </div>
+    </div>
+    ${setHtml}
+    <div class="sheet-sec">
+      <div class="sheet-h">⚒️ Ferreiro</div>
+      ${smithHtml}
+    </div>`;
+}
+
 function openEquipSlotModal(slot) {
   const p = App.player;
   const item = p.equipment[slot];
   let html = `<h3 style="margin-bottom:12px;">${SLOT_ICONS[slot]} ${SLOT_NAMES[slot]}</h3>`;
   if (item) {
     html += `
-      <div class="item-row" style="${rarityBoxStyle(item)}">
-        <div class="item-ic">${itemIconHtml(item)}</div>
-        <div class="item-mid">
-          <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name} ${item.upgrade?`<span class="upgrade-badge">+${item.upgrade}</span>`:''}</div>
-          <div class="item-sub tiny" style="color:${item.rarityColor}">Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ' · ' + SET_DEFS[item.setKey].name : ''}</div>
-          <div class="item-stats">${itemStatsLine(item)}</div>
-        </div>
-      </div>
-      <div class="row" style="gap:8px; margin:10px 0;">
-        ${item.sockets.map((s, i) => s
-          ? `<button class="btn small ghost" data-remove-gem="${i}">${GEM_DEFS[s.type].icon} T${s.tier+1} · Remover 🗑️</button>`
-          : `<button class="btn small" data-open-socket="${i}">+ Encaixar gema</button>`
-        ).join('')}
-        ${item.socketSlots < 3 ? `<button class="btn small ghost" id="btn-add-socket">+Slot (${socketSlotCost(item)}🪙)</button>` : ''}
-      </div>
-      ${slot === 'weapon' ? renderNephalemSection(item, p) : ''}
-      ${slot === 'artifact' ? renderAltarSection(item) : ''}
+      ${itemSheetHtml(item, slot, p)}
+      ${slot === 'weapon' && !item.nephalemBonus && (item.upgrade || 0) >= 9 ? renderNephalemSection(item, p) : ''}
       <button class="btn ghost block" id="btn-unequip" style="margin-bottom:8px;">Desequipar</button>
     `;
   } else {
@@ -10957,7 +11022,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v91</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v92</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

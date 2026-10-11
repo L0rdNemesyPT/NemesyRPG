@@ -410,3 +410,31 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .gem-dot .nx-ic{width:16px; height:16px;}
 .gem-dot sup{font-size:8px; color:var(--gold-bright);}
 .gem-sock-lb{font-size:10px; color:var(--muted); text-align:center;}
+
+/* v92: ficha do item */
+.sheet-head{display:flex; gap:12px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:8px; margin-bottom:8px;}
+.sheet-ic{flex:none; width:58px; height:58px; display:flex; align-items:center; justify-content:center; font-size:34px; border:1px solid var(--brass); border-radius:8px; background:radial-gradient(circle at 50% 35%, #33270F, #130E07 80%);}
+.sheet-ic .nx-ic{width:46px; height:46px;}
+.sheet-name{font-family:var(--font-display); font-weight:700; font-size:16px; line-height:1.2;}
+.sheet-bar{height:5px; border-radius:3px; background:#1a140c; border:1px solid #000; margin:5px 0 3px; overflow:hidden;}
+.sheet-bar i{display:block; height:100%; background:linear-gradient(90deg, var(--bronze), var(--gold-bright));}
+.sheet-sec{border-top:1px solid var(--line-soft); padding:8px 2px 6px;}
+.sheet-h{font-family:var(--font-display); font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--gold-bright); margin-bottom:5px;}
+.sheet-h .muted{text-transform:none; letter-spacing:0;}
+.sheet-table td,.sheet-table th{padding:4px 5px;}
+.sheet-up{color:var(--success);}
+.sheet-tot{color:var(--gold-bright); font-weight:700;}
+.sheet-bonus{color:var(--arcane-bright); margin:2px 0;}
+.sheet-warn{color:var(--blood-bright); margin:4px 0;}
+.sheet-good{color:var(--success); margin:4px 0;}
+.sheet-set{margin:2px 0; color:var(--muted);}
+.sheet-set.on{color:var(--parchment);}
+.sheet-socks{display:grid; grid-template-columns:repeat(3,1fr); gap:6px;}
+.sheet-sock{position:relative; display:flex; flex-direction:column; align-items:center; gap:1px; padding:7px 3px; border:1px dashed var(--line); border-radius:6px; background:radial-gradient(circle at 50% 30%, #231B11, #0D0A07 80%); color:var(--muted); cursor:pointer; font-size:12px;}
+.sheet-sock span{font-size:20px; line-height:1.1;}
+.sheet-sock span .nx-ic{width:24px; height:24px;}
+.sheet-sock b{font-size:11px; color:var(--parchment);}
+.sheet-sock small{font-size:10px;}
+.sheet-sock em{position:absolute; top:3px; right:4px; font-style:normal; font-size:10px; opacity:.8;}
+.sheet-sock.on{border:1px solid var(--brass); color:var(--gold-bright); background:radial-gradient(circle at 50% 30%, #33270F, #130E07 80%);}
+.sheet-sock.add{border-color:var(--bronze); color:var(--gold-bright);}
