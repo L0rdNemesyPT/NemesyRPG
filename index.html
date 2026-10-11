@@ -1325,6 +1325,21 @@ Object.assign(BOSS_SKILLS, {
 });
 
 function towerDef(key) { return TOWERS.find(t => t.key === key) || null; }
+// v85: dificuldade da Torre (Comum → Divino), escolhida antes de entrar. Usa as mesmas
+// raridades da Batalha, mas um pouco mais dura (×1,15 nos stats acima de Comum), com o
+// mesmo ouro/XP/qualidade de itens da Batalha e uma entrada mais cara. Não muda o Divino.
+const TOWER_DIFF_HARDER = 1.15;
+const TOWER_DIFF_COST_MULT = { comum: 1, incomum: 1.5, raro: 2.2, lendario: 3.2, unico: 4.8, divino: 7 };
+function towerDiff(key, T) {
+  const d = MONSTER_DIFFICULTY.find(x => x.key === key) || MONSTER_DIFFICULTY[0];
+  const k = d.key === 'comum' ? 1 : TOWER_DIFF_HARDER;
+  const r2 = v => Math.round(v * 100) / 100;
+  return Object.assign({}, d, {
+    hp: r2((d.hpMult || d.statMult) * k), dmg: r2((d.dmgMult || d.statMult) * k), def: r2((d.defMult || d.statMult) * k),
+    cost: Math.round((T || TOWERS[0]).cost * (TOWER_DIFF_COST_MULT[d.key] || 1))
+  });
+}
+function towerRunDiff(t) { return towerDiff(t && t.diff ? t.diff : 'comum', t ? towerDef(t.key) : null); }
 function towerFloorLv(T, f) { return f >= T.floors ? T.bossLv : Math.round(T.lvStart + (f - 1) * (T.lvEnd - T.lvStart) / (T.floors - 2)); }
 function towerPickRoom() {
   const total = TOWER_ROOM_WEIGHTS.reduce((a, w) => a + w[1], 0);
@@ -1378,14 +1393,17 @@ function towerEnter(key) {
   if (!T) return;
   if (p.tower) { renderTabMapa(); return; }
   if ((p.level || 1) < T.minLv) { sfx.error(); toast(`Precisas de nível ${T.minLv}.`); return; }
-  if ((p.gold || 0) < T.cost) { sfx.error(); toast(`Precisas de ${T.cost} de ouro para entrar.`); return; }
-  p.gold -= T.cost;
+  const d = towerDiff(p.towerDifficulty || 'comum', T);
+  if (!difficultyUnlocked(p, d)) { sfx.error(); toast(`${d.icon} ${d.name} ainda está bloqueada.`); return; }
+  if ((p.gold || 0) < d.cost) { sfx.error(); toast(`Precisas de ${d.cost} de ouro para entrar.`); return; }
+  p.gold -= d.cost;
   p.tower = towerGenerate(T);
+  p.tower.diff = d.key;
   saveGame();
   sfx.questdone();
   renderStatusBar();
   renderTabMapa();
-  toast(`🗼 Entraste na ${T.name}. Escolhe a primeira porta!`);
+  toast(`🗼 Entraste na ${T.name} (${d.icon} ${d.name}). Escolhe a primeira porta!`);
 }
 
 async function towerLeave() {
@@ -1402,6 +1420,8 @@ async function towerLeave() {
 // Tesouro: equipamento do nível do andar, um item do jogo ou ouro.
 function towerTreasure(p, lv, quality) {
   const t = p.tower, out = [];
+  const td = towerRunDiff(t);
+  quality = (quality || 0) + (td.qualityBoost || 0);
   const r = Math.random();
   if (r < 0.45) {
     const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
@@ -1428,7 +1448,7 @@ function towerTreasure(p, lv, quality) {
     for (const [w, fn] of pool) { if ((x -= w) < 0) { out.push(fn()); break; } }
     if (!out.length) out.push(pool[0][1]());
   } else {
-    const g = Math.round((60 + lv * 6) * (0.8 + Math.random() * 0.4) * (1 + (effectiveStats(p).goldPct || 0)));
+    const g = Math.round((60 + lv * 6) * (0.8 + Math.random() * 0.4) * (td.goldMult || 1) * (1 + (effectiveStats(p).goldPct || 0)));
     p.gold += g; if (t) t.loot.gold += g;
     out.push(`🪙 ${g} ouro`);
   }
@@ -1537,8 +1557,14 @@ function startTowerCombat(lane) {
     enemy.dmg = Math.round(enemy.dmg * (mult.dmg || 1));
     enemy.def = Math.round(enemy.def * (mult.def || 1));
   }
+  const td = towerRunDiff(t);
+  if (td.key !== 'comum') {
+    enemy.hp = Math.round(enemy.hp * td.hp); enemy.maxHp = enemy.hp;
+    enemy.dmg = Math.round(enemy.dmg * td.dmg);
+    enemy.def = Math.round(enemy.def * td.def);
+  }
   App.combat = {
-    kind: 'tower', isTower: true, towerLane: lane, towerRoom: type, isElite,
+    kind: 'tower', towerDiff: td.key, isTower: true, towerLane: lane, towerRoom: type, isElite,
     name, icon, level: lv, isBoss, isMiniBoss: isMini, monsterName,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
     enemy: Object.assign(enemy, { element: null, critImmune: false, category: category || 'outro' }),
@@ -1547,7 +1573,7 @@ function startTowerCombat(lane) {
   };
   resetCombatScreenChrome();
   showScreen('screen-combat');
-  addCombatLog({ text: `🗼 ${T.name} · Andar ${f}/${T.floors}`, cls: 'good' });
+  addCombatLog({ text: `🗼 ${T.name} · Andar ${f}/${T.floors} · ${td.icon} ${td.name}`, cls: 'good' });
   addCombatLog({ text: `${icon} ${name} apareceu!${isElite ? ' (Elite ×1,5)' : ''}`, cls: isBoss || isMini || isElite ? 'hit' : 'good' });
   if (t.blessing) addCombatLog({ text: `✨ Bênção do Abismo: +${Math.round(t.blessing * 100)}% de dano.`, cls: 'good' });
   renderCombat();
@@ -1561,6 +1587,8 @@ function finishTowerFight() {
   const pStats = effectiveStats(p);
   let xpGain = Math.round((boss ? (35 + lv * 4.5) : (10 + lv * 2.4)) * (1 + battleXpBonus(c)));
   let goldGain = Math.round((boss ? (30 + lv * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(lv * 0.8))) * (1 + (pStats.goldPct || 0)));
+  const td = towerRunDiff(t);
+  xpGain = Math.round(xpGain * (td.xpMult || 1)); goldGain = Math.round(goldGain * (td.goldMult || 1));
   if (c.isElite) { xpGain = Math.round(xpGain * 1.5); goldGain = Math.round(goldGain * 1.5); }
   if (c.isBoss) { xpGain = Math.round(xpGain * 1.5); goldGain = Math.round(goldGain * 1.5); }
   p.gold += goldGain;
@@ -1576,7 +1604,7 @@ function finishTowerFight() {
   }
   if (c.isBoss) {
     const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
-    const item = generateItem(slot, T.bossLv, null, 2);
+    const item = generateItem(slot, T.bossLv, null, 2 + (td.qualityBoost || 0));
     p.inventory.push(item);
     drops.push(`${item.rarityIcon} ${item.name} (${item.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${T.bossLv})`);
     if (Math.random() < T.divineChance) {
@@ -1588,7 +1616,9 @@ function finishTowerFight() {
     if (!p.defeatedBosses.includes(c.name)) p.defeatedBosses.push(c.name);
     p.towerClears = p.towerClears || {};
     p.towerClears[T.key] = (p.towerClears[T.key] || 0) + 1;
-    drops.push(`🏆 Chegaste ao topo da ${T.name}!${t ? ` Nesta subida: 🪙 ${t.loot.gold} · ✨ ${t.loot.xp} XP.` : ''}`);
+    p.towerBest = p.towerBest || {};
+    if (SEASON_DIFF_ORDER.indexOf(td.key) > SEASON_DIFF_ORDER.indexOf(p.towerBest[T.key] || '')) p.towerBest[T.key] = td.key;
+    drops.push(`🏆 Chegaste ao topo da ${T.name} (${td.icon} ${td.name})!${t ? ` Nesta subida: 🪙 ${t.loot.gold} · ✨ ${t.loot.xp} XP.` : ''}`);
     p.tower = null;
   }
   tickProfessionCooldowns(p);
@@ -1612,6 +1642,14 @@ function renderTowerBody(body, T) {
   const clears = (p.towerClears && p.towerClears[T.key]) || 0;
   if (!t) {
     const locked = (p.level || 1) < T.minLv;
+    let sel = towerDiff(p.towerDifficulty || 'comum', T);
+    if (!difficultyUnlocked(p, sel)) { sel = towerDiff('comum', T); p.towerDifficulty = 'comum'; }
+    const best = p.towerBest && p.towerBest[T.key] ? towerDiff(p.towerBest[T.key], T) : null;
+    const diffChips = MONSTER_DIFFICULTY.map(d0 => { const d = towerDiff(d0.key, T); const lk = !difficultyUnlocked(p, d);
+      return `<button class="tab-chip${sel.key === d.key ? ' active' : ''}${lk ? ' is-locked' : ''}" data-tower-diff="${d.key}" style="${sel.key === d.key ? `border-color:${d.color}; color:${d.color};` : lk ? 'opacity:.5;' : ''}">${d.icon} ${d.name}${lk ? ' 🔒' : ''}</button>`; }).join('');
+    const diffInfo = sel.key === 'comum'
+      ? 'Dificuldade normal da torre.'
+      : `Inimigos HP ×${sel.hp.toLocaleString('pt-PT')} · Dano ×${sel.dmg.toLocaleString('pt-PT')} · Defesa ×${sel.def.toLocaleString('pt-PT')} (mais duro que na Batalha) · Ouro ×${sel.goldMult.toLocaleString('pt-PT')} · XP ×${sel.xpMult.toLocaleString('pt-PT')} · +${sel.qualityBoost} rolo${sel.qualityBoost > 1 ? 's' : ''} de raridade nos tesouros e no chefe.`;
     body.innerHTML = `
       <div class="card raised tower-entry">
         <div class="row between"><span style="font-weight:700; font-size:16px;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
@@ -1623,14 +1661,26 @@ function renderTowerBody(body, T) {
           <div class="card">💠 Item Divino<br><span class="muted">${String(T.divineChance * 100).replace('.', ',')}% no chefe final</span></div>
         </div>
         <p class="tiny" style="margin-top:10px;">⚔️ Cada combate dá o XP e o ouro do monstro. 🎁 Os Tesouros dão equipamento, itens do jogo ou ouro. O HP não recupera entre salas — só nas ⛲ Fontes e com poções. Se morreres, ficas com tudo o que já apanhaste.</p>
-        <p class="tiny" style="margin-top:6px; color:var(--muted);">Mistura todas as raças: 🐺 🗡️ 😈 💀 ❔${clears ? ` · Já chegaste ao topo ${clears}×` : ''}</p>
-        <button class="btn primary block" id="btn-tower-enter" style="margin-top:12px;"${locked ? ' disabled' : ''}>${locked ? `🔒 Precisas de nível ${T.minLv}` : `${T.icon} Entrar · ${T.cost.toLocaleString('pt-PT')} 🪙`}</button>
+        <p class="tiny" style="margin-top:6px; color:var(--muted);">Mistura todas as raças: 🐺 🗡️ 😈 💀 ❔${clears ? ` · Já chegaste ao topo ${clears}×${best ? ` (melhor: ${best.icon} ${best.name})` : ''}` : ''}</p>
+        <div class="section-title" style="margin:12px 0 6px;">Dificuldade</div>
+        <div class="row" style="gap:6px; flex-wrap:wrap; margin-bottom:6px;">${diffChips}</div>
+        <p class="tiny muted">${diffInfo} O Divino do chefe continua ${String(T.divineChance * 100).replace('.', ',')}%.</p>
+        <button class="btn primary block" id="btn-tower-enter" style="margin-top:12px;"${locked ? ' disabled' : ''}>${locked ? `🔒 Precisas de nível ${T.minLv}` : `${T.icon} Entrar · ${sel.icon} ${sel.name} · ${sel.cost.toLocaleString('pt-PT')} 🪙`}</button>
         <p class="tiny muted" style="margin-top:6px; text-align:center;">A subida fica guardada: se fechares o jogo, continuas no mesmo andar.</p>
       </div>`;
+    els('[data-tower-diff]').forEach(b => b.addEventListener('click', () => {
+      const d = towerDiff(b.dataset.towerDiff, T);
+      if (!difficultyUnlocked(p, d)) {
+        sfx.error();
+        toast(`${d.icon} ${d.name} abre no nível ${d.minLevel}, depois de derrotares o ${d.unlockBoss} na dificuldade 🟠 Único.`);
+        return;
+      }
+      sfx.tab(); p.towerDifficulty = d.key; saveGame(); renderTabMapa();
+    }));
     const btn = $('btn-tower-enter');
     if (btn && !locked) btn.addEventListener('click', async () => {
-      if ((p.gold || 0) < T.cost) { sfx.error(); toast(`Precisas de ${T.cost} de ouro para entrar.`); return; }
-      if (!await nxConfirm(`Entrar na ${T.name} por ${T.cost.toLocaleString('pt-PT')} de ouro?`, { title: T.name, icon: T.icon, confirmLabel: 'Entrar' })) return;
+      if ((p.gold || 0) < sel.cost) { sfx.error(); toast(`Precisas de ${sel.cost} de ouro para entrar.`); return; }
+      if (!await nxConfirm(`Entrar na ${T.name} na dificuldade ${sel.icon} ${sel.name} por ${sel.cost.toLocaleString('pt-PT')} de ouro?`, { title: T.name, icon: T.icon, confirmLabel: 'Entrar' })) return;
       towerEnter(T.key);
     });
     return;
@@ -1671,6 +1721,7 @@ function renderTowerBody(body, T) {
   const lootList = t.loot.list.slice(-6);
   body.innerHTML = `
     <div class="tower-hd">
+      <div class="tiny" style="color:${towerRunDiff(t).color}; font-weight:700; margin-bottom:2px;">${towerRunDiff(t).icon} Dificuldade ${towerRunDiff(t).name}</div>
       <h3>Andar ${t.floor} / ${F}${curType ? ` · ${TOWER_ROOM_INFO[curType].name} ${TOWER_ROOM_INFO[curType].icon}` : ' · Entrada'}</h3>
       <div class="row between tiny"><span>❤️ HP</span><span>${p.hp} / ${pStats.hp}</span></div>
       <div class="tower-bar"><i style="width:${hpPct}%;"></i></div>
@@ -4235,7 +4286,7 @@ function renderWikiBody() {
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🗼 Torres</span>
-        ${TOWERS.map(T => `<p class="tiny" style="margin-top:6px;">${T.icon} ${T.name}: salas de 🎁 Tesouro (45% equipamento do nível do andar, 2 rolos), Elites e mini-chefes também dão tesouro, e o chefe final dá 1 equipamento Nv. ${T.bossLv} garantido com 3 rolos.</p>`).join('')}
+        ${TOWERS.map(T => `<p class="tiny" style="margin-top:6px;">${T.icon} ${T.name}: salas de 🎁 Tesouro (45% equipamento do nível do andar, 2 rolos), Elites e mini-chefes também dão tesouro, e o chefe final dá 1 equipamento Nv. ${T.bossLv} garantido com 3 rolos. A dificuldade escolhida soma rolos extra (como na Batalha).</p>`).join('')}
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🎁 Outras fontes</span>
@@ -4313,11 +4364,21 @@ function renderWikiBody() {
       <p class="muted" style="margin-bottom:10px;">Mapa → Torres. Sobes andar a andar e escolhes a porta em cada um, como num labirinto. O mapa é gerado ao acaso em cada subida.</p>
       <div class="card raised">
         <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
-        <p class="tiny" style="margin-top:6px;">Entrada: ${T.cost.toLocaleString('pt-PT')} de ouro · ${T.floors} andares · monstros Nv. ${T.lvStart} → ${T.lvEnd} · chefe final Nv. ${T.bossLv}.</p>
+        <p class="tiny" style="margin-top:6px;">Entrada: desde ${T.cost.toLocaleString('pt-PT')} de ouro (depende da dificuldade) · ${T.floors} andares · monstros Nv. ${T.lvStart} → ${T.lvEnd} · chefe final Nv. ${T.bossLv}.</p>
         <p class="tiny" style="margin-top:4px;">Os monstros da torre são mais fortes que os normais do mesmo nível (HP ×${T.mobMult.hp.toLocaleString('pt-PT')}, Dano ×${T.mobMult.dmg.toLocaleString('pt-PT')}, Defesa ×${T.mobMult.def.toLocaleString('pt-PT')}); a Elite é ×1,5 por cima disso.</p>
         <p class="tiny" style="margin-top:4px;">Cada sala liga às salas vizinhas do andar de cima. Vês a torre toda, por isso podes planear o caminho.</p>
         <p class="tiny" style="margin-top:4px;">O HP não recupera entre salas — só nas ⛲ Fontes e com poções. Nos andares ${T.fountainFloors.join(' e ')} há sempre uma Fonte ao meio, antes dos mini-chefes.</p>
         <p class="tiny" style="margin-top:4px;">Se morreres ou fugires, a subida acaba mas ficas com tudo o que apanhaste (e não perdes ouro). Só podes sair de livre vontade numa Fonte. A subida fica guardada se fechares o jogo.</p>
+      </div>
+      <div class="card raised" style="overflow-x:auto;">
+        <span style="font-weight:700;">🎚️ Dificuldade</span>
+        <p class="tiny" style="margin-top:6px;">Escolhe-se antes de entrar, tal como na Batalha, mas a torre é um pouco mais dura (stats ×${TOWER_DIFF_HARDER.toLocaleString('pt-PT')} acima de Comum). Mais dificuldade = mais ouro, XP e melhores itens nos tesouros e no chefe, mas entrada mais cara. O Divino do chefe não muda.</p>
+        <table class="wiki-table" style="margin-top:6px;">
+          <tr><th></th><th>Inimigos</th><th>Ouro</th><th>XP</th><th>Rolos</th><th>Entrada</th></tr>
+          ${MONSTER_DIFFICULTY.map(d0 => { const d = towerDiff(d0.key, T); const f = v => '×' + v.toLocaleString('pt-PT'); return `<tr><td>${d.icon}</td><td>${d.hp === d.dmg && d.dmg === d.def ? f(d.hp) : `${f(d.hp)}*`}</td><td>${f(d.goldMult)}</td><td>${f(d.xpMult)}</td><td>+${d.qualityBoost}</td><td>${d.cost.toLocaleString('pt-PT')}</td></tr>`; }).join('')}
+        </table>
+        <p class="tiny muted" style="margin-top:4px;">Inimigos = HP, Dano e Defesa. *Divino: HP ×${towerDiff('divino', T).hp.toLocaleString('pt-PT')}, Dano ×${towerDiff('divino', T).dmg.toLocaleString('pt-PT')}, Defesa ×${towerDiff('divino', T).def.toLocaleString('pt-PT')}.</p>
+        <p class="tiny muted" style="margin-top:6px;">O 💠 Divino abre como na Batalha: nível 150 e o Soberano da Floresta Negra derrotado no 🟠 Único.</p>
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🚪 Salas</span>
@@ -8670,7 +8731,7 @@ function mapaGroups(p) {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
       return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: T.icon, label: T.name, sub: `Nv. ${T.minLv}+`,
-        locked: (p.level || 1) < T.minLv, badge: run ? `▶️ ${run.floor}/${T.floors}` : (p.level || 1) < T.minLv ? '🔒' : (clears ? '✅' : null) };
+        locked: (p.level || 1) < T.minLv, badge: run ? `${towerRunDiff(run).icon}${run.floor}/${T.floors}` : (p.level || 1) < T.minLv ? '🔒' : (clears ? '✅' : null) };
     }) }
   ];
   return groups.filter(g => g.tiles.length);
@@ -10337,7 +10398,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v84</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v85</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -10580,6 +10641,12 @@ function migrateLevelCap(p) {
 const APP_VERSION_LABEL = 'V 1.2.8';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v85', title: 'Dificuldades na Torre!', items: [
+    ['🎚️', 'A Torre do Abismo agora tem dificuldade, de ⚪ Comum a 💠 Divino, escolhida antes de entrar.'],
+    ['⚔️', 'Mais dificuldade = inimigos mais fortes (um pouco mais duros que na Batalha) e entrada mais cara.'],
+    ['🎁', 'Mas também mais ouro, XP e melhores itens nos tesouros e no chefe final. O Divino do chefe continua 1,5%.'],
+    ['📖', 'Tabela completa na Wiki → Torres.']
+  ] },
   { id: 'v83', title: 'Torre do Abismo!', items: [
     ['🗼', 'Novo tipo de mapa: Torres. A primeira é a Torre do Abismo (Nv. 90+, entrada 5 000 ouro).'],
     ['🚪', '22 andares: em cada um escolhes a porta, como num labirinto. O mapa muda em cada subida.'],
