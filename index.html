@@ -4820,6 +4820,7 @@ function renderWikiBody() {
   } else if (t === 'alquimia') {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">6 slots ligados diretamente ao teu herói (Mochila → Alquimia) — diferentes das Gemas, que ficam nos itens.</p>
+      <div class="card raised"><span style="font-weight:700;">⚡ Evoluir</span><p class="tiny" style="margin-top:6px;">2 pedras iguais do mesmo nível dão 1 do nível seguinte (grátis). Os botões ⚡ Evoluir fazem isto em cadeia, do nível 1 até onde der, de um tipo ou de todas as pedras de uma vez.</p></div>
       ${Object.keys(ALCHEMY_STONE_DEFS).map(k => {
         const s = ALCHEMY_STONE_DEFS[k];
         return `<div class="card raised"><span style="font-weight:700;">${s.icon} ${s.name}</span><p class="tiny" style="margin-top:6px;">${s.desc} (+${s.base}/nível). Nível máximo: ${ALCHEMY_MAX_LEVEL}.</p></div>`;
@@ -7736,20 +7737,57 @@ function renderAlchemyBody(body, p) {
         ${owned.length ? owned.map(o => `<span class="tiny">Nv.${o.level}: <b>${o.count}</b></span>`).join('') : '<span class="tiny">Nenhuma na bolsa</span>'}
       </div>
       ${combinable.length ? `<div class="row" style="gap:8px; margin-top:8px; flex-wrap:wrap;">
+        <button class="btn small primary" data-combine-alch-all="${type}">⚡ Evoluir tudo</button>
         ${combinable.map(c => `<button class="btn small" data-combine-alch="${type}" data-level="${c.level}">Combinar Nv.${c.level}→${c.level + 1}</button>`).join('')}
       </div>` : ''}
     </div>`;
   }).join('');
 
+  const anyCombinable = Object.keys(ALCHEMY_STONE_DEFS).some(t => p.alchemyStones[t].some((n, i) => n >= 2 && i + 1 < ALCHEMY_MAX_LEVEL));
   body.innerHTML = `
     <p class="muted" style="margin-bottom:10px;">6 slots ligados ao teu herói. Combina 2 pedras iguais do mesmo nível para subir de nível. Encontra pedras ao derrotar monstros, minerar e em dungeons.</p>
     ${slotsHtml}
-    <div class="section-title" style="margin-top:6px;">🎒 Pedras na bolsa</div>
+    <div class="row between" style="margin-top:6px; gap:8px;">
+      <div class="section-title" style="margin:0;">🎒 Pedras na bolsa</div>
+      ${anyCombinable ? '<button class="btn small primary" id="btn-alch-all">⚡ Evoluir todas</button>' : ''}
+    </div>
+    <p class="tiny muted" style="margin:4px 0 8px;">⚡ Evoluir junta as pedras 2 a 2, do nível mais baixo para o mais alto, até não dar mais (sobra no máximo 1 de cada nível).</p>
     ${bagRows}
   `;
 
   els('[data-alch-slot]').forEach(el2 => el2.addEventListener('click', () => openAlchemySlotModal(parseInt(el2.dataset.alchSlot))));
   els('[data-combine-alch]').forEach(b => b.addEventListener('click', () => combineAlchemyStone(b.dataset.combineAlch, parseInt(b.dataset.level))));
+  els('[data-combine-alch-all]').forEach(b => b.addEventListener('click', () => combineAlchemyAll([b.dataset.combineAlchAll])));
+  const allBtn = $('btn-alch-all');
+  if (allBtn) allBtn.addEventListener('click', () => combineAlchemyAll(Object.keys(ALCHEMY_STONE_DEFS)));
+}
+
+// v89: evolui as pedras em cadeia (2 → 1 do nível seguinte), do nível 1 até ao máximo.
+function combineAlchemyAll(types) {
+  const p = App.player;
+  const before = {}, made = [];
+  let total = 0;
+  types.forEach(type => {
+    const bag = p.alchemyStones[type];
+    before[type] = bag.slice();
+    for (let i = 0; i < ALCHEMY_MAX_LEVEL - 1; i++) {
+      const pairs = Math.floor(bag[i] / 2);
+      if (pairs > 0) { bag[i] -= pairs * 2; bag[i + 1] += pairs; total += pairs; }
+    }
+    // Resumo: pedras novas por nível (só as que ganhaste).
+    bag.forEach((n, i) => { const gained = n - before[type][i]; if (gained > 0) made.push(`${ALCHEMY_STONE_DEFS[type].icon} ${ALCHEMY_STONE_DEFS[type].name} Nv.${i + 1} ×${gained}`); });
+  });
+  if (!total) { sfx.error(); toast('Não há pedras para evoluir.'); return; }
+  saveGame();
+  sfx.buff();
+  renderMochilaBody();
+  openModal(`
+    <div style="text-align:center;"><div style="font-size:40px; line-height:1.2;">⚡</div><h3 style="margin:4px 0 10px;">Pedras evoluídas!</h3>
+    <p class="tiny muted" style="margin-bottom:10px;">${total} combinaç${total === 1 ? 'ão' : 'ões'} feita${total === 1 ? '' : 's'}. Pedras novas:</p></div>
+    ${made.map(m => `<div class="card raised" style="margin-bottom:6px; padding:9px 12px;"><span style="font-size:13px;">${m}</span></div>`).join('')}
+    <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
+  `);
+  $('btn-close-modal').addEventListener('click', closeModal);
 }
 
 function openAlchemySlotModal(slotIdx) {
@@ -10810,7 +10848,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v88</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v89</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
