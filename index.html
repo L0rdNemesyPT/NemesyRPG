@@ -1277,10 +1277,12 @@ const TOWERS = [
   { key: 'abismo', name: 'Torre do Abismo', icon: '🗼', minLv: 90, cost: 5000, floors: 22,
     lvStart: 90, lvEnd: 146, bossLv: 150, miniFloors: [11, 21], fountainFloors: [10, 20], divineChance: 0.015,
     eliteMult: { hp: 1.5, dmg: 1.5, def: 1.5 },
-    // Afinado por simulação (v83): o desgaste de 21 salas sem cura automática já pesa muito,
-    // por isso o chefe fica ao nível das Catacumbas da Morte (Único +9 ≈ 45% no Nv. 150).
-    miniMult: { hp: 1.25, dmg: 1.15, def: 1.1 },
-    bossMult: { hp: 1.6, dmg: 1.3, def: 1.15 },
+    // v84: mais difícil. Os monstros normais também são reforçados (mobMult) e a Elite
+    // é ×1,5 por cima disso. Simulação (só equipamento +9, sem gemas/alquimia/sets):
+    // Único +9 ≈ 2% no Nv. 150 e ≈ 45% no Nv. 175; Divino +9 ≈ 73% no Nv. 150.
+    mobMult: { hp: 1.35, dmg: 1.25, def: 1.15 },
+    miniMult: { hp: 1.5, dmg: 1.3, def: 1.2 },
+    bossMult: { hp: 2.1, dmg: 1.6, def: 1.3 },
     // Tema misto: todas as raças.
     monsters: [
       { name: 'Aranha do Abismo', icon: '🕷️', category: 'animal' },
@@ -1525,7 +1527,8 @@ function startTowerCombat(lane) {
   else {
     const m = T.monsters[(t.mons[fIdx] && t.mons[fIdx][lane] != null) ? t.mons[fIdx][lane] : 0];
     name = isElite ? `${m.name} · Elite` : m.name; icon = m.icon; category = m.category; monsterName = m.name;
-    if (isElite) mult = T.eliteMult;
+    const mm = T.mobMult || { hp: 1, dmg: 1, def: 1 };
+    mult = isElite ? { hp: mm.hp * T.eliteMult.hp, dmg: mm.dmg * T.eliteMult.dmg, def: mm.def * T.eliteMult.def } : mm;
   }
   sfx.click();
   const enemy = enemyStatsFor(lv, isBoss || isMini);
@@ -4311,6 +4314,7 @@ function renderWikiBody() {
       <div class="card raised">
         <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
         <p class="tiny" style="margin-top:6px;">Entrada: ${T.cost.toLocaleString('pt-PT')} de ouro · ${T.floors} andares · monstros Nv. ${T.lvStart} → ${T.lvEnd} · chefe final Nv. ${T.bossLv}.</p>
+        <p class="tiny" style="margin-top:4px;">Os monstros da torre são mais fortes que os normais do mesmo nível (HP ×${T.mobMult.hp.toLocaleString('pt-PT')}, Dano ×${T.mobMult.dmg.toLocaleString('pt-PT')}, Defesa ×${T.mobMult.def.toLocaleString('pt-PT')}); a Elite é ×1,5 por cima disso.</p>
         <p class="tiny" style="margin-top:4px;">Cada sala liga às salas vizinhas do andar de cima. Vês a torre toda, por isso podes planear o caminho.</p>
         <p class="tiny" style="margin-top:4px;">O HP não recupera entre salas — só nas ⛲ Fontes e com poções. Nos andares ${T.fountainFloors.join(' e ')} há sempre uma Fonte ao meio, antes dos mini-chefes.</p>
         <p class="tiny" style="margin-top:4px;">Se morreres ou fugires, a subida acaba mas ficas com tudo o que apanhaste (e não perdes ouro). Só podes sair de livre vontade numa Fonte. A subida fica guardada se fechares o jogo.</p>
@@ -10333,7 +10337,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v83</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v84</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
