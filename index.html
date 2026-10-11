@@ -3502,8 +3502,9 @@ function initializeCloudAccounts() {
   });
   window.addEventListener('pagehide', flushCloudSave);
   cloudClient.auth.onAuthStateChange((event, session) => {
+    const prevUserId = cloudUser ? cloudUser.id : null;
     cloudUser = session ? session.user : null;
-    App.admin = null;
+    if (!cloudUser || cloudUser.id !== prevUserId) App.admin = null;
     if (!cloudUser) {
       cloudSaveReady = false;
       cloudHydrationUserId = null;
@@ -3513,6 +3514,10 @@ function initializeCloudAccounts() {
       renderAccountScreen(event === 'INITIAL_SESSION' ? '' : 'Sessão terminada. Inicia sessão para continuar.');
       return;
     }
+    // v88: o Supabase volta a mandar SIGNED_IN quando o jogo regressa ao ecrã (ex.: depois de
+    // ires buscar um código a outra app). Se a conta é a mesma e o progresso já está carregado,
+    // não se recarrega nada — antes isto reiniciava o jogo e fechava o menu aberto.
+    if (event === 'SIGNED_IN' && cloudSaveReady && prevUserId === cloudUser.id && cloudHydrationUserId === cloudUser.id) return;
     if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
       accountGateActive = true;
       cloudHydrationFailed = false;
@@ -4462,15 +4467,38 @@ async function renderAdminMfa(hc) {
   const body = $('adm-mfa-body');
   const askCode = (factorId, extra) => {
     body.innerHTML = `${extra || ''}
-      <input class="name-input" id="adm-mfa-code" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code">
-      <button class="btn primary block" id="adm-mfa-ok" style="margin-top:8px;">Confirmar</button>`;
-    $('adm-mfa-ok').addEventListener('click', async () => {
-      const code = $('adm-mfa-code').value.replace(/\D/g, '');
-      if (code.length !== 6) { sfx.error(); toast('O código tem 6 dígitos.'); return; }
+      <button class="btn primary block" id="adm-mfa-paste">📋 Colar código e confirmar</button>
+      <p class="tiny muted" style="margin:6px 0 8px; text-align:center;">Na app de autenticação toca no código para o copiar, volta aqui e carrega no botão. Ou escreve-o:</p>
+      <input class="name-input" id="adm-mfa-code" inputmode="numeric" maxlength="6" placeholder="Código de 6 dígitos" autocomplete="one-time-code" value="${esc(App.adminMfaDraft || '')}">
+      <p class="tiny muted" id="adm-mfa-msg" style="margin-top:6px; text-align:center;">Confirma sozinho quando tiver os 6 dígitos.</p>`;
+    let busy = false;
+    const submit = async code => {
+      code = String(code || '').replace(/\D/g, '').slice(0, 6);
+      if (code.length !== 6 || busy) return;
+      busy = true;
+      $('adm-mfa-msg').textContent = 'A confirmar…';
       const { error } = await mfa.challengeAndVerify({ factorId, code });
-      if (error) { sfx.error(); toast('Código errado ou expirado. Tenta outra vez.'); return; }
-      sfx.levelup(); toast('🔐 Verificação feita.');
+      busy = false;
+      if (error) {
+        sfx.error(); App.adminMfaDraft = '';
+        const inp = $('adm-mfa-code'); if (inp) { inp.value = ''; inp.focus(); }
+        const msg = $('adm-mfa-msg'); if (msg) msg.textContent = 'Código errado ou já mudou — usa o código que está agora na app.';
+        return;
+      }
+      App.adminMfaDraft = '';
+      sfx.levelup(); toast('🔐 Verificação feita. Fica válida até terminares sessão.');
       renderTabCriador();
+    };
+    const inp = $('adm-mfa-code');
+    inp.addEventListener('input', () => { App.adminMfaDraft = inp.value.replace(/\D/g, '').slice(0, 6); if (App.adminMfaDraft.length === 6) submit(App.adminMfaDraft); });
+    inp.addEventListener('paste', e => { const t = (e.clipboardData || window.clipboardData).getData('text'); if (/\d{6}/.test(t)) { e.preventDefault(); inp.value = t.match(/\d{6}/)[0]; submit(inp.value); } });
+    $('adm-mfa-paste').addEventListener('click', async () => {
+      try {
+        const t = await navigator.clipboard.readText();
+        const m = String(t || '').match(/\d{6}/);
+        if (!m) { sfx.error(); toast('Não há nenhum código de 6 dígitos copiado.'); return; }
+        inp.value = m[0]; submit(m[0]);
+      } catch (e) { sfx.error(); toast('O telemóvel não deixou ler o que copiaste. Cola no campo (toque longo → Colar).'); inp.focus(); }
     });
   };
   if (verified) { askCode(verified.id, '<p class="tiny" style="margin-bottom:8px;">Abre a tua app de autenticação e escreve o código do Nemesy RPG.</p>'); return; }
@@ -10782,7 +10810,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v87</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v88</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
