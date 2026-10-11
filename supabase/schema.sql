@@ -317,6 +317,8 @@ declare
   v_b jsonb;
   v_bmax numeric;
   v_nephalem jsonb := 'null'::jsonb;
+  v_plus jsonb := 'null'::jsonb;
+  v_pmin numeric; v_pmax numeric; v_pweapon boolean;
   v_altar jsonb := 'null'::jsonb;
   v_corruption jsonb := 'null'::jsonb;
   v_set text := null;
@@ -387,6 +389,19 @@ begin
     v_nephalem := jsonb_build_object('key', p_item->'nephalemBonus'->>'key', 'value', (p_item->'nephalemBonus'->>'value')::numeric);
   end if;
 
+  -- v86: Bónus ➕ (Pergaminhos ➕ da Torre). Um só por item; arma e outros itens têm bónus diferentes.
+  if jsonb_typeof(p_item->'plusBonus') = 'object' then
+    select mn, mx, w into v_pmin, v_pmax, v_pweapon from (values
+      ('pp_dano', 1, 3, true), ('pp_boss', 2, 10, true), ('pp_vampiro', 2, 5, true),
+      ('pp_def', 2, 5, false), ('pp_hp', 100, 300, false), ('pp_crit', 2, 5, false)
+    ) as t(k, mn, mx, w) where t.k = p_item->'plusBonus'->>'key';
+    if v_pmin is null or v_pweapon <> (v_slot = 'weapon') or jsonb_typeof(p_item->'plusBonus'->'value') <> 'number'
+      or (p_item->'plusBonus'->>'value')::numeric < v_pmin or (p_item->'plusBonus'->>'value')::numeric > v_pmax then
+      raise exception 'Este item tem um bónus ➕ inválido e não pode ser vendido.';
+    end if;
+    v_plus := jsonb_build_object('key', p_item->'plusBonus'->>'key', 'value', (p_item->'plusBonus'->>'value')::numeric);
+  end if;
+
   if jsonb_typeof(p_item->'altarBonus') = 'object' then
     v_altar := case p_item->'altarBonus'->>'key'
       when 'furioso' then '{"key":"furioso","dmgPct":5}'::jsonb
@@ -436,7 +451,7 @@ begin
     'stats', public.clean_trade_stats(p_item->'stats', v_cap, v_crit_cap),
     'baseStats', public.clean_trade_stats(p_item->'baseStats', v_cap, v_crit_cap),
     'socketSlots', v_socket_slots, 'sockets', v_sockets,
-    'bonuses', v_bonuses, 'nephalemBonus', v_nephalem, 'altarBonus', v_altar,
+    'bonuses', v_bonuses, 'nephalemBonus', v_nephalem, 'plusBonus', v_plus, 'altarBonus', v_altar,
     'corruption', v_corruption, 'setKey', v_set
   );
   if v_unique is not null then v_out := v_out || jsonb_build_object('uniqueEffect', v_unique); end if;
