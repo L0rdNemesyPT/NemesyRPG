@@ -438,3 +438,134 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .sheet-sock em{position:absolute; top:3px; right:4px; font-style:normal; font-size:10px; opacity:.8;}
 .sheet-sock.on{border:1px solid var(--brass); color:var(--gold-bright); background:radial-gradient(circle at 50% 30%, #33270F, #130E07 80%);}
 .sheet-sock.add{border-color:var(--bronze); color:var(--gold-bright);}
+
+/* ============ v93: efeitos de combate ============ */
+#screen-combat{overflow:hidden;}
+#fx-layer{position:absolute; inset:0; pointer-events:none; z-index:40; overflow:hidden;}
+.fx-num{position:absolute; transform:translate(-50%,-50%); font-family:var(--font-display); font-weight:800; font-size:20px; color:#fff;
+  text-shadow:0 2px 0 #000, 0 0 6px rgba(0,0,0,.9); animation:fxNum 1.2s ease-out forwards; white-space:nowrap;}
+.fx-num.crit{font-size:30px; color:#FFD54A; text-shadow:0 2px 0 #5a3a00, 0 0 12px rgba(255,200,40,.9); animation:fxNumCrit 1.3s ease-out forwards;}
+.fx-num.hurt{color:#FF6B6B; font-size:18px;}
+.fx-num.heal{color:#7CFF8A; font-size:18px;}
+.fx-num.poison{color:#C47CFF;}
+@keyframes fxNum{0%{opacity:0; transform:translate(-50%,-30%) scale(.7);} 12%{opacity:1; transform:translate(-50%,-60%) scale(1.1);} 100%{opacity:0; transform:translate(-50%,-260%) scale(1);}}
+@keyframes fxNumCrit{0%{opacity:0; transform:translate(-50%,-40%) scale(.4) rotate(-8deg);} 15%{opacity:1; transform:translate(-50%,-70%) scale(1.45) rotate(4deg);} 30%{transform:translate(-50%,-90%) scale(1.15) rotate(0);} 100%{opacity:0; transform:translate(-50%,-280%) scale(1);}}
+.fx-part{position:absolute; transform:translate(-50%,-50%); font-size:16px; animation:fxPart .85s ease-out forwards; filter:drop-shadow(0 0 4px rgba(255,220,120,.8));}
+.fx-part .nx-ic{width:18px; height:18px;}
+@keyframes fxPart{0%{opacity:1; transform:translate(-50%,-50%) scale(.6);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.1) rotate(160deg);}}
+/* tremer o ecrã */
+.fx-shake{animation:fxShake .28s linear;}
+.fx-shake-strong{animation:fxShakeStrong .42s linear;}
+@keyframes fxShake{0%,100%{transform:translate(0,0);} 25%{transform:translate(-3px,2px);} 50%{transform:translate(3px,-2px);} 75%{transform:translate(-2px,-1px);}}
+@keyframes fxShakeStrong{0%,100%{transform:translate(0,0);} 15%{transform:translate(-7px,3px);} 30%{transform:translate(6px,-4px);} 45%{transform:translate(-5px,-2px);} 60%{transform:translate(5px,3px);} 80%{transform:translate(-2px,1px);}}
+/* entrada / morte do inimigo */
+.enemy-glyph.fx-enter{animation:fxEnter .5s cubic-bezier(.2,1.4,.4,1);}
+@keyframes fxEnter{0%{transform:scale(.2); opacity:0; filter:brightness(3);} 70%{transform:scale(1.12); opacity:1;} 100%{transform:scale(1); filter:none;}}
+.enemy-glyph.fx-die{animation:fxDie .65s ease-in forwards;}
+@keyframes fxDie{0%{transform:scale(1); filter:none;} 30%{transform:scale(1.15); filter:brightness(2.5);} 100%{transform:scale(.8) rotate(-8deg); opacity:.3; filter:grayscale(1) blur(1px);}}
+/* aura dos chefes e fúria */
+.enemy-glyph{position:relative;}
+.enemy-glyph.boss::after,.enemy-glyph.mini::after{content:''; position:absolute; inset:-6px; border-radius:16px; pointer-events:none; animation:fxAura 2.2s ease-in-out infinite;}
+.enemy-glyph.boss::after{box-shadow:0 0 14px 2px rgba(228,191,74,.45);}
+.enemy-glyph.mini::after{box-shadow:0 0 12px 1px rgba(155,114,201,.45);}
+.enemy-glyph.enraged::after{box-shadow:0 0 18px 4px rgba(220,40,40,.75); animation-duration:.9s;}
+@keyframes fxAura{0%,100%{opacity:.45;} 50%{opacity:1;}}
+/* barra fantasma de HP */
+.bar{position:relative;}
+.bar-ghost{position:absolute; left:0; top:0; bottom:0; background:rgba(255,236,200,.55); border-radius:inherit; z-index:0;}
+.bar .bar-fill{position:relative; z-index:1;}
+.bar .bar-num{z-index:2;}
+/* efeitos das habilidades */
+.fx-skill{position:absolute; width:120px; height:120px; transform:translate(-50%,-50%); pointer-events:none;}
+.fx-skill.fire{background:radial-gradient(circle, rgba(255,230,120,.95) 0%, rgba(255,120,20,.8) 35%, rgba(200,30,0,.0) 70%); border-radius:50%; animation:fxBoom .7s ease-out forwards;}
+.fx-skill.impact{background:radial-gradient(circle, rgba(255,255,255,.9) 0%, rgba(255,220,150,.5) 30%, transparent 65%); border-radius:50%; animation:fxBoom .45s ease-out forwards;}
+.fx-skill.holy{background:radial-gradient(circle, rgba(255,250,210,1) 0%, rgba(255,215,90,.75) 30%, transparent 68%); border-radius:50%; animation:fxBoom .8s ease-out forwards;}
+.fx-skill.heal{width:170px; height:90px; background:radial-gradient(ellipse, rgba(120,255,150,.75) 0%, rgba(40,200,90,.3) 45%, transparent 70%); border-radius:50%; animation:fxBoom .8s ease-out forwards;}
+.fx-skill.shield{width:200px; height:96px; border:3px solid rgba(110,190,255,.9); border-radius:18px; box-shadow:0 0 18px rgba(110,190,255,.8), inset 0 0 18px rgba(110,190,255,.5); animation:fxShield .8s ease-out forwards;}
+.fx-skill.soul{background:radial-gradient(circle, rgba(190,120,255,.9) 0%, rgba(110,40,180,.5) 35%, transparent 68%); border-radius:50%; animation:fxBoom .75s ease-out forwards;}
+.fx-skill.vortex{border-radius:50%; background:conic-gradient(from 0deg, rgba(120,90,255,.0), rgba(120,90,255,.85), rgba(80,200,255,.0), rgba(120,90,255,.85), rgba(120,90,255,0)); animation:fxSpin .8s ease-out forwards;}
+.fx-skill.coins{background:radial-gradient(circle, rgba(255,215,80,.8) 0%, transparent 60%); border-radius:50%; animation:fxBoom .6s ease-out forwards;}
+.fx-skill.slash::before,.fx-skill.slash::after{content:''; position:absolute; left:50%; top:50%; width:150px; height:6px; margin:-3px 0 0 -75px; border-radius:3px; background:linear-gradient(90deg, transparent, #fff, transparent); box-shadow:0 0 10px #fff; transform:rotate(-35deg) scaleX(0); animation:fxSlash .35s ease-out forwards;}
+.fx-skill.slash::after{display:none;}
+.fx-skill.slash.double::after,.fx-skill.slash.spin::after{display:block; transform:rotate(35deg) scaleX(0); animation-delay:.12s;}
+.fx-skill.slash.blood::before{background:linear-gradient(90deg, transparent, #ff4d4d, transparent); box-shadow:0 0 10px #ff2a2a;}
+.fx-skill.slash.spin{border-radius:50%; animation:fxSpin .55s ease-out;}
+.fx-skill.arrow::before{content:''; position:absolute; left:-140px; top:50%; width:110px; height:3px; background:linear-gradient(90deg, transparent, #f5e6b8 60%, #fff); box-shadow:0 0 6px #fff; animation:fxArrow .3s ease-in forwards;}
+.fx-skill.arrow.poison::before{background:linear-gradient(90deg, transparent, #9dff7a 60%, #e8ffd9); box-shadow:0 0 8px #6dff4a;}
+.fx-skill.rain{background:repeating-linear-gradient(100deg, transparent 0 14px, rgba(245,230,184,.75) 14px 16px); -webkit-mask:radial-gradient(circle, #000 40%, transparent 70%); mask:radial-gradient(circle, #000 40%, transparent 70%); animation:fxRain .6s linear forwards;}
+.fx-skill.lightning{width:60px; height:150px; background:linear-gradient(180deg, transparent, #e9f6ff 20%, #8fd3ff 50%, #fff 80%, transparent); clip-path:polygon(55% 0, 20% 48%, 48% 48%, 30% 100%, 82% 40%, 54% 40%, 75% 0); filter:drop-shadow(0 0 10px #7fd0ff); animation:fxBolt .45s steps(3) forwards;}
+.fx-flash{position:absolute; inset:0; background:rgba(190,230,255,.35); animation:fxFlash .25s ease-out forwards;}
+@keyframes fxBoom{0%{transform:translate(-50%,-50%) scale(.2); opacity:1;} 100%{transform:translate(-50%,-50%) scale(1.5); opacity:0;}}
+@keyframes fxShield{0%{transform:translate(-50%,-50%) scale(.85); opacity:0;} 30%{opacity:1;} 100%{transform:translate(-50%,-50%) scale(1.08); opacity:0;}}
+@keyframes fxSpin{0%{transform:translate(-50%,-50%) rotate(0) scale(.5); opacity:1;} 100%{transform:translate(-50%,-50%) rotate(540deg) scale(1.3); opacity:0;}}
+@keyframes fxSlash{0%{opacity:1;} 100%{transform:rotate(var(--r, -35deg)) scaleX(1); opacity:0;}}
+.fx-skill.slash::after{--r:35deg;}
+@keyframes fxArrow{0%{left:-140px; opacity:1;} 85%{left:30px; opacity:1;} 100%{left:40px; opacity:0;}}
+@keyframes fxRain{0%{background-position:0 -60px; opacity:0;} 20%{opacity:1;} 100%{background-position:-20px 60px; opacity:0;}}
+@keyframes fxBolt{0%{opacity:1;} 33%{opacity:.3;} 66%{opacity:1;} 100%{opacity:0;}}
+@keyframes fxFlash{0%{opacity:1;} 100%{opacity:0;}}
+@media (prefers-reduced-motion:reduce){.fx-shake,.fx-shake-strong{animation:none;} .enemy-glyph.boss::after,.enemy-glyph.mini::after{animation:none;}}
+
+/* v93: ecrã de fim de combate entra suavemente; tudo desligado com Animações → Desligadas */
+#cb-end-screen{animation:fxEndIn .45s ease-out .3s both;}
+@keyframes fxEndIn{0%{opacity:0; transform:translateY(14px) scale(.97);} 100%{opacity:1; transform:none;}}
+body.fx-off #cb-end-screen,body.fx-off .enemy-glyph.fx-die{animation:none;}
+body.fx-off .enemy-glyph.boss::after,body.fx-off .enemy-glyph.mini::after{display:none;}
+@media (prefers-reduced-motion:reduce){#cb-end-screen{animation:none;}}
+
+/* ============================================================
+   v94 — Recompensas: vitória animada, subir de nível, Divino, baús
+   ============================================================ */
+#cb-end-screen .end-trophy{animation:fxTrophy .7s cubic-bezier(.2,1.5,.4,1) .3s both; filter:drop-shadow(0 0 14px rgba(232,196,92,.55));}
+@keyframes fxTrophy{0%{transform:scale(.2) rotate(-25deg); opacity:0;} 70%{transform:scale(1.18) rotate(6deg); opacity:1;} 100%{transform:none;}}
+#cb-end-screen .reward-pills b{font-weight:800; font-variant-numeric:tabular-nums;}
+.end-xp{width:100%; max-width:320px; margin:2px auto 4px;}
+.end-xp-top{display:flex; justify-content:space-between; color:var(--arcane-bright); margin-bottom:4px; font-weight:700;}
+.end-xp-bar{height:8px; border-radius:6px; background:rgba(0,0,0,.45); border:1px solid rgba(155,114,201,.45); overflow:hidden;}
+.end-xp-bar i{display:block; height:100%; background:linear-gradient(90deg,#7b4fc0,#c49bff); box-shadow:0 0 8px rgba(196,155,255,.7); transition:width 1s cubic-bezier(.3,.8,.3,1);}
+.loot-anim .loot-line{animation:fxLootIn .45s ease-out both;}
+@keyframes fxLootIn{0%{opacity:0; transform:translateX(-14px);} 100%{opacity:1; transform:none;}}
+.loot-line.loot-rare{color:#b9d3ff;}
+.loot-line.loot-epic{color:var(--gold-bright); font-weight:700; text-shadow:0 0 8px rgba(232,196,92,.45);}
+.loot-line.loot-divine{color:#7ff3e8; font-weight:800; text-shadow:0 0 10px rgba(63,224,208,.8); background:linear-gradient(90deg,rgba(63,224,208,.14),transparent); border-radius:6px; padding:3px 6px;}
+.loot-anim .loot-line.loot-epic,.loot-anim .loot-line.loot-divine{animation:fxLootIn .45s ease-out both, fxLootGlow 1.6s ease-in-out 1.2s infinite;}
+@keyframes fxLootGlow{50%{filter:brightness(1.35);}}
+
+/* Ecrãs de celebração (nível / Divino) */
+.fx-overlay{position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 50% 45%, rgba(40,28,8,.82), rgba(0,0,0,.88)); animation:fxOvIn .3s ease-out; overflow:hidden; cursor:pointer;}
+.fx-overlay.out{animation:fxOvOut .28s ease-in forwards;}
+@keyframes fxOvIn{from{opacity:0;}} @keyframes fxOvOut{to{opacity:0;}}
+.fx-overlay.divine{background:radial-gradient(circle at 50% 45%, rgba(10,60,60,.85), rgba(0,0,0,.9));}
+.fx-rays{position:absolute; left:50%; top:45%; width:760px; height:760px; margin:-380px 0 0 -380px; border-radius:50%;
+  background:repeating-conic-gradient(rgba(232,196,92,.22) 0 8deg, transparent 8deg 20deg); animation:fxRays 9s linear infinite;
+  -webkit-mask:radial-gradient(circle, #000 18%, transparent 62%); mask:radial-gradient(circle, #000 18%, transparent 62%);}
+.fx-overlay.divine .fx-rays{background:repeating-conic-gradient(rgba(63,224,208,.28) 0 7deg, transparent 7deg 18deg);}
+@keyframes fxRays{to{transform:rotate(360deg);}}
+.fx-ov-box{position:relative; text-align:center; animation:fxOvPop .6s cubic-bezier(.2,1.5,.4,1) both;}
+@keyframes fxOvPop{0%{transform:scale(.3); opacity:0;} 100%{transform:none; opacity:1;}}
+.fx-ov-kicker{font-family:var(--font-display); letter-spacing:.12em; text-transform:uppercase; color:var(--gold-bright); font-size:15px; font-weight:700;}
+.fx-ov-big{font-family:var(--font-display); font-size:96px; line-height:1; font-weight:800; color:#ffe9a8; text-shadow:0 0 22px rgba(232,196,92,.9), 0 4px 0 #6b4a10; margin:6px 0;}
+.fx-ov-name{font-family:var(--font-display); font-size:26px; font-weight:800; color:#aaf7ef; text-shadow:0 0 18px rgba(63,224,208,.95); margin:10px 16px; max-width:340px;}
+.fx-overlay.divine .fx-ov-kicker{color:#7ff3e8;}
+.fx-ov-sub{color:var(--text-dim,#c9bfa8); font-size:13px;}
+.fx-conf{position:absolute; top:-30px; left:var(--x); color:var(--gold-bright); font-size:16px; pointer-events:none; animation:fxConf var(--d) ease-in forwards;}
+.fx-overlay.divine .fx-conf{color:#7ff3e8;}
+@keyframes fxConf{0%{transform:translate(0,0) rotate(0); opacity:1;} 100%{transform:translate(var(--w),105vh) rotate(540deg); opacity:.2;}}
+
+/* Abertura de baús */
+.chest-stage{position:relative; height:110px; display:flex; align-items:center; justify-content:center; margin:-4px 0 8px;}
+.chest-ic{font-size:58px; position:relative; z-index:1; animation:fxChestShake .75s ease-in-out both, fxChestPop .35s ease-out .75s forwards;}
+@keyframes fxChestShake{0%,100%{transform:none;} 15%{transform:rotate(-10deg) scale(1.05);} 30%{transform:rotate(9deg);} 45%{transform:rotate(-8deg) scale(1.08);} 60%{transform:rotate(7deg);} 80%{transform:rotate(-3deg) scale(1.1);}}
+@keyframes fxChestPop{0%{transform:scale(1.1); filter:brightness(1);} 40%{transform:scale(1.35); filter:brightness(3);} 100%{transform:scale(.9); opacity:.35; filter:brightness(1);}}
+.chest-beam{position:absolute; left:50%; top:50%; width:220px; height:220px; margin:-110px 0 0 -110px; border-radius:50%; opacity:0;
+  background:radial-gradient(circle, var(--rc) 0%, transparent 62%); animation:fxBeam .9s ease-out .72s forwards;}
+@keyframes fxBeam{0%{opacity:0; transform:scale(.2);} 30%{opacity:.95;} 100%{opacity:.35; transform:scale(1);}}
+.chest-stage.rar-high .chest-beam,.chest-stage.rar-divine .chest-beam{background:radial-gradient(circle, var(--rc) 0%, transparent 62%), repeating-conic-gradient(var(--rc) 0 6deg, transparent 6deg 18deg);
+  -webkit-mask:radial-gradient(circle,#000 25%,transparent 70%); mask:radial-gradient(circle,#000 25%,transparent 70%); animation:fxBeam .9s ease-out .72s forwards, fxRays 7s linear .72s infinite;}
+.chest-result{animation:fxChestRes .45s cubic-bezier(.2,1.3,.4,1) .85s both;}
+@keyframes fxChestRes{0%{opacity:0; transform:translateY(16px) scale(.92);} 100%{opacity:1; transform:none;}}
+.chest-result.rar-high,.chest-result.rar-divine{box-shadow:0 0 0 1px var(--rc), 0 0 22px -2px var(--rc);}
+.chest-result.rar-divine{animation:fxChestRes .45s cubic-bezier(.2,1.3,.4,1) .85s both, fxLootGlow 1.6s ease-in-out 1.4s infinite;}
+
+body.fx-off .fx-overlay,body.fx-off .chest-stage{display:none;}
+@media (prefers-reduced-motion:reduce){.fx-rays,.fx-conf{animation:none;} .fx-conf{display:none;}}
