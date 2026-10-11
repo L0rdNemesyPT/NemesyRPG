@@ -338,3 +338,40 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .wiki-table th,.wiki-table td{padding:5px 6px; border-bottom:1px solid var(--line-soft); text-align:center; white-space:nowrap;}
 .wiki-table th{color:var(--gold-bright); font-weight:700; border-bottom-color:var(--bronze);}
 .wiki-table td:first-child,.wiki-table th:first-child{text-align:left;}
+
+/* v83: Torre do Abismo */
+.tower-entry{border-color:#7A5FB0;}
+.tower-facts{margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:6px; font-size:12px;}
+.tower-facts .card{margin:0; padding:8px;}
+.tower-hd{border:2px solid var(--bronze); border-radius:8px; padding:10px 12px; margin-bottom:10px; background:var(--t-stone), #0D0C0A;}
+.tower-hd h3{font-family:var(--font-display); color:var(--gold-bright); font-size:16px; letter-spacing:.06em; margin:0 0 6px;}
+.tower-bar{height:10px; border:1px solid #000; border-radius:5px; background:#1a0f0f; overflow:hidden; margin:4px 0 2px;}
+.tower-bar i{display:block; height:100%; background:linear-gradient(90deg, #8E2F2F, #C95A5A);}
+.tower-loot{display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; color:var(--parchment); margin-top:6px;}
+.tower-legend{display:flex; flex-wrap:wrap; gap:4px 12px; font-size:11.5px; color:var(--muted); margin-bottom:8px;}
+.tower-map{position:relative; margin:4px 0 12px; border:1px solid var(--line); border-radius:8px; overflow:hidden;
+  background:radial-gradient(ellipse at 50% 100%, rgba(120,40,160,.18), transparent 60%), repeating-linear-gradient(0deg, rgba(255,255,255,.02) 0 1px, transparent 1px 66px), #0b0a0d;}
+.tower-map svg{position:absolute; inset:0; width:100%; height:100%;}
+.tower-map .tl{stroke:#3a3226; stroke-width:2; stroke-dasharray:3 4; vector-effect:non-scaling-stroke;}
+.tower-map .tl-next{stroke:var(--gold-bright); stroke-width:2.5; stroke-dasharray:5 4; vector-effect:non-scaling-stroke; animation:tdash 1s linear infinite;}
+.tower-map .tl-taken{stroke:#6E9A58; stroke-width:3.5; vector-effect:non-scaling-stroke;}
+@keyframes tdash{to{stroke-dashoffset:-18;}}
+.tn{position:absolute; width:42px; height:42px; margin:-21px 0 0 -21px; padding:0; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; line-height:1;
+  border:2px solid #4A3A22; background:radial-gradient(circle at 40% 35%, #2b241b, #100d0a); box-shadow:0 2px 6px #000; color:inherit; cursor:default;}
+.tn.big{width:54px; height:54px; margin:-27px 0 0 -27px; font-size:26px; border-color:#8E2F2F; background:radial-gradient(circle at 40% 35%, #3a1616, #120808);}
+.tn.locked{opacity:.55; filter:saturate(.5);}
+.tn.done{border-color:#6E9A58; opacity:.85;}
+.tn.done::after{content:'✓'; position:absolute; right:-4px; bottom:-4px; font-size:11px; background:#6E9A58; color:#000; border-radius:50%; width:16px; height:16px; display:flex; align-items:center; justify-content:center; font-weight:800;}
+.tn.cur{border-color:#6DB3D4; box-shadow:0 0 0 3px rgba(109,179,212,.35), 0 0 18px rgba(109,179,212,.6);}
+.tn.next{cursor:pointer; border-color:var(--gold-bright); box-shadow:0 0 0 3px rgba(228,191,74,.25), 0 0 16px rgba(228,191,74,.55); animation:tpulse 1.4s ease-in-out infinite;}
+@keyframes tpulse{50%{transform:scale(1.08);}}
+@media (prefers-reduced-motion:reduce){.tn.next,.tower-map .tl-next{animation:none;}}
+.tn.t-elite{border-color:#C9692E;} .tn.t-tesouro{border-color:#C9A227;} .tn.t-fonte{border-color:#3F7F9C;} .tn.t-misterio{border-color:#7A5FB0;}
+.tn.next.t-elite,.tn.next.t-tesouro,.tn.next.t-fonte,.tn.next.t-misterio{border-color:var(--gold-bright);}
+.tower-map .tf{position:absolute; left:4px; width:30px; text-align:center; line-height:1;}
+.tower-map .tf b{display:block; font-family:var(--font-display); font-size:12px; color:var(--gold-bright);}
+.tower-map .tf span{font-size:8.5px; color:var(--dim);}
+.tower-door{display:flex; gap:10px; align-items:center; padding:10px; border:1px solid var(--line); border-radius:8px; margin-top:8px; background:#141110;}
+.tower-door.t-elite{border-color:#C9692E;} .tower-door.t-misterio{border-color:#7A5FB0;} .tower-door.t-fonte{border-color:#3F7F9C;} .tower-door.t-tesouro{border-color:#C9A227;} .tower-door.t-mini,.tower-door.t-chefe{border-color:#8E2F2F;}
+.tower-door .ic{flex:none; font-size:24px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:50%; border:2px solid var(--bronze); background:#0d0b09;}
+.tower-door .tx{flex:1; min-width:0;} .tower-door .tx b{display:block; font-size:14px;} .tower-door .tx span{font-size:11.5px; color:var(--muted);}
