@@ -375,3 +375,10 @@ h1,h2,h3,h4{text-shadow:0 1px 0 #000, 0 0 12px rgba(201,162,39,.12); letter-spac
 .tower-door.t-elite{border-color:#C9692E;} .tower-door.t-misterio{border-color:#7A5FB0;} .tower-door.t-fonte{border-color:#3F7F9C;} .tower-door.t-tesouro{border-color:#C9A227;} .tower-door.t-mini,.tower-door.t-chefe{border-color:#8E2F2F;}
 .tower-door .ic{flex:none; font-size:24px; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:50%; border:2px solid var(--bronze); background:#0d0b09;}
 .tower-door .tx{flex:1; min-width:0;} .tower-door .tx b{display:block; font-size:14px;} .tower-door .tx span{font-size:11.5px; color:var(--muted);}
+
+/* v86: Bónus ➕ (amarelo-claro) */
+.pill.pill-plus2{color:#FFF1A8; border-color:#E9D873; background:rgba(255,241,168,.08);}
+.btn.plus2-btn,.btn.plus2-btn:hover{border:1px solid #E9D873 !important; color:#1a1406 !important; background:linear-gradient(180deg, #FFF6C4, #E3CC5C) !important; text-shadow:none !important; font-weight:700;}
+.plus2-box{border-color:#E9D873 !important;}
+.plus2-box .v{color:#FFF1A8;}
+.plus2-card{border-color:#E9D873;}
