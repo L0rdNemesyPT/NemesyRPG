@@ -569,3 +569,69 @@ body.fx-off .enemy-glyph.boss::after,body.fx-off .enemy-glyph.mini::after{displa
 
 body.fx-off .fx-overlay,body.fx-off .chest-stage{display:none;}
 @media (prefers-reduced-motion:reduce){.fx-rays,.fx-conf{animation:none;} .fx-conf{display:none;}}
+
+/* ============================================================
+   v95 — Transições de menus + boneco do herói (Equipamento)
+   ============================================================ */
+/* Mudar de menu: o conteúdo entra de baixo, em cascata */
+#hub-content.fx-page-in > *{animation:fxPageIn .32s cubic-bezier(.2,.9,.3,1) both;}
+#hub-content.fx-page-in > *:nth-child(2){animation-delay:.04s;} #hub-content.fx-page-in > *:nth-child(3){animation-delay:.08s;}
+#hub-content.fx-page-in > *:nth-child(4){animation-delay:.12s;} #hub-content.fx-page-in > *:nth-child(n+5){animation-delay:.16s;}
+@keyframes fxPageIn{0%{opacity:0; transform:translateY(12px);} 100%{opacity:1; transform:none;}}
+#hub-content.fx-page-in .wiki-tile{animation:fxTileIn .38s cubic-bezier(.2,1.35,.4,1) both;}
+#hub-content.fx-page-in .wiki-tile:nth-child(2){animation-delay:.03s;} #hub-content.fx-page-in .wiki-tile:nth-child(3){animation-delay:.06s;}
+#hub-content.fx-page-in .wiki-tile:nth-child(4){animation-delay:.09s;} #hub-content.fx-page-in .wiki-tile:nth-child(5){animation-delay:.12s;}
+#hub-content.fx-page-in .wiki-tile:nth-child(6){animation-delay:.15s;} #hub-content.fx-page-in .wiki-tile:nth-child(7){animation-delay:.18s;}
+#hub-content.fx-page-in .wiki-tile:nth-child(8){animation-delay:.21s;} #hub-content.fx-page-in .wiki-tile:nth-child(n+9){animation-delay:.24s;}
+@keyframes fxTileIn{0%{opacity:0; transform:scale(.82) translateY(8px);} 100%{opacity:1; transform:none;}}
+#hub-content.fx-page-in .doll-slot{animation:fxTileIn .4s cubic-bezier(.2,1.35,.4,1) both;}
+#hub-content.fx-page-in .doll-col .doll-slot:nth-child(2){animation-delay:.05s;} #hub-content.fx-page-in .doll-col .doll-slot:nth-child(3){animation-delay:.1s;}
+#hub-content.fx-page-in .doll-col .doll-slot:nth-child(4){animation-delay:.15s;} #hub-content.fx-page-in .doll-bottom .doll-slot{animation-delay:.2s;}
+#hub-content.fx-page-in .doll-hero{animation:fxTileIn .5s cubic-bezier(.2,1.35,.4,1) .08s both;}
+/* Barra de navegação: o ícone ativo dá um saltinho e ganha brilho */
+.nav-btn .ic{display:inline-block; transition:transform .2s ease, filter .2s ease;}
+.nav-btn.active .ic{animation:fxNavPop .38s cubic-bezier(.2,1.6,.4,1); filter:drop-shadow(0 0 6px rgba(232,196,92,.65));}
+@keyframes fxNavPop{0%{transform:scale(.7);} 60%{transform:scale(1.22) translateY(-2px);} 100%{transform:none;}}
+/* Janelas: sobem com mola; mosaicos encolhem ao tocar */
+.modal-sheet{transform:translateY(48px); transition:transform .34s cubic-bezier(.2,1.25,.4,1);}
+.wiki-tile,.doll-slot{transition:transform .1s ease;}
+.wiki-tile:active,.doll-slot:active{transform:scale(.94);}
+
+/* Boneco do herói */
+.doll{display:grid; grid-template-columns:72px 1fr 72px; gap:10px 8px; align-items:start; margin-bottom:14px; padding:14px 10px 12px; border:1px solid var(--line); border-radius:12px;
+  background:radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--aura) 16%, transparent), transparent 62%), radial-gradient(circle at 50% 35%, #1d160d, #0b0906 85%);
+  box-shadow:inset 0 0 22px rgba(0,0,0,.8), inset 0 1px 0 rgba(228,191,74,.18);}
+.doll-col{display:flex; flex-direction:column; gap:8px;}
+.doll-slot{position:relative; width:72px; height:76px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; color:inherit; font:inherit;
+  border:1px dashed var(--line); border-radius:9px; background:radial-gradient(circle at 50% 35%, #231B11, #0D0A07 80%); box-shadow:inset 0 0 8px rgba(0,0,0,.8);}
+.doll-slot.filled{border:1.5px solid var(--rc); background:radial-gradient(circle at 50% 38%, color-mix(in srgb, var(--rc) 30%, #120d08), #0d0a07 85%);
+  box-shadow:inset 0 0 12px color-mix(in srgb, var(--rc) 35%, transparent), 0 0 8px color-mix(in srgb, var(--rc) 40%, transparent);}
+.doll-slot.divine{animation:fxDollDiv 2.4s ease-in-out infinite;}
+@keyframes fxDollDiv{50%{box-shadow:inset 0 0 16px color-mix(in srgb, var(--rc) 55%, transparent), 0 0 16px color-mix(in srgb, var(--rc) 75%, transparent);}}
+.doll-ic{font-size:28px; line-height:1;} .doll-ic .nx-ic{width:34px; height:34px;}
+.doll-ic.empty{opacity:.28; filter:grayscale(1);}
+.doll-lbl{font-size:9.5px; line-height:1.35; padding-top:1px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); max-width:66px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.doll-up{position:absolute; top:3px; right:4px; font-size:10px; font-weight:800; color:var(--gold-bright); text-shadow:0 1px 2px #000;}
+.doll-set{position:absolute; top:3px; left:5px; font-size:9px; color:#6fd16f; text-shadow:0 0 4px #3f9f3f;}
+.doll-lock{position:absolute; bottom:16px; right:3px; font-size:9px;}
+.doll-mid{display:flex; flex-direction:column; align-items:center; text-align:center; gap:2px; padding-top:6px; min-width:0;}
+.doll-hero{position:relative; width:128px; height:150px; display:flex; align-items:center; justify-content:center; margin-bottom:6px;}
+.doll-rays{position:absolute; inset:-14px; border-radius:50%; background:repeating-conic-gradient(color-mix(in srgb, var(--aura) 30%, transparent) 0 7deg, transparent 7deg 20deg);
+  -webkit-mask:radial-gradient(circle,#000 22%,transparent 68%); mask:radial-gradient(circle,#000 22%,transparent 68%); animation:fxRays 24s linear infinite; opacity:.8;}
+.doll-ring{position:absolute; left:50%; bottom:6px; width:110px; height:26px; margin-left:-55px; border-radius:50%;
+  background:radial-gradient(ellipse, color-mix(in srgb, var(--aura) 55%, transparent), transparent 70%); filter:blur(2px); animation:fxDollRing 3s ease-in-out infinite;}
+@keyframes fxDollRing{50%{opacity:.55; transform:scaleX(.88);}}
+.doll-hero-ic{position:relative; font-size:78px; line-height:1; filter:drop-shadow(0 6px 8px rgba(0,0,0,.9)) drop-shadow(0 0 12px color-mix(in srgb, var(--aura) 60%, transparent)); animation:fxDollBreath 3.2s ease-in-out infinite;}
+@keyframes fxDollBreath{50%{transform:translateY(-4px);}}
+.doll-name{font-family:var(--font-display); font-weight:700; font-size:16px; color:var(--gold-bright); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.doll-stats{display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; margin-top:8px; font-size:11.5px; color:var(--muted);}
+.doll-stats b{color:var(--text,#eadfc8);}
+.doll-bottom{grid-column:1 / -1; display:flex; gap:8px; justify-content:center;}
+.doll-slot.wide{width:auto; flex:1; max-width:250px; flex-direction:row; justify-content:flex-start; gap:10px; padding:0 12px; height:60px;}
+.doll-slot.wide .doll-lbl{position:absolute; top:4px; left:12px;} .doll-slot.wide .doll-ic{margin-top:8px;}
+.doll-wname{font-weight:700; font-size:12.5px; text-align:left; margin-top:10px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;}
+.doll-slot.talis{height:60px; width:72px;}
+@media (max-width:360px){.doll{grid-template-columns:64px 1fr 64px;} .doll-slot{width:64px; height:70px;} .doll-hero-ic{font-size:62px;} .doll-hero{width:104px; height:124px;}}
+
+body.fx-off #hub-content.fx-page-in *,body.fx-off .nav-btn.active .ic,body.fx-off .doll-rays,body.fx-off .doll-ring,body.fx-off .doll-hero-ic,body.fx-off .doll-slot.divine{animation:none !important;}
+@media (prefers-reduced-motion:reduce){.doll-rays,.doll-ring,.doll-hero-ic,.doll-slot.divine{animation:none;}}
