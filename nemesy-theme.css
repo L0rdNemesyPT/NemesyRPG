@@ -723,3 +723,37 @@ body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-l
 .ability-row.is-master{border-color:var(--gold); box-shadow:inset 0 0 18px rgba(232,196,92,.12), 0 0 10px rgba(232,196,92,.18);}
 .wiki-ab-table td{white-space:normal; text-align:left;} .wiki-ab-table td:first-child{white-space:nowrap; font-weight:700;} .wiki-ab-table td:last-child{white-space:nowrap;}
 .wiki-ab-table tr.master td{color:var(--gold-bright);}
+
+/* ============================================================
+   v98 — Amigos (Herói → Amigos)
+   ============================================================ */
+.fr-list{display:flex; flex-direction:column; gap:8px;}
+.fr-row{display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:10px 12px; border:1px solid var(--line); border-radius:10px;
+  background:radial-gradient(circle at 0% 50%, rgba(232,196,92,.06), transparent 60%), var(--bg-panel); color:inherit; font:inherit; cursor:pointer;}
+.fr-row.static{cursor:default;}
+.fr-row:not(.static):active{transform:scale(.98);}
+.fr-ic{font-size:26px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:rgba(0,0,0,.35); border:1px solid var(--line-soft); flex:none;}
+.fr-mid{display:flex; flex-direction:column; gap:1px; flex:1; min-width:0;}
+.fr-name{font-family:var(--font-display); font-weight:700; font-size:14.5px; color:var(--gold-bright); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.fr-seen{color:var(--muted);}
+.fr-dot{display:inline-block; width:7px; height:7px; border-radius:50%; background:#6b6152; margin-right:5px; vertical-align:middle;}
+.fr-dot.on{background:#5fd16f; box-shadow:0 0 6px #5fd16f;}
+.fr-badges{display:flex; flex-direction:column; gap:4px; align-items:flex-end;}
+.fr-badge{font-size:11px; font-weight:700; padding:2px 7px; border-radius:10px; background:var(--blood,#a33); color:#fff;}
+.fr-badge.gold{background:var(--gold); color:#1a1206;}
+.fr-badge.dim{background:rgba(255,255,255,.08); color:var(--muted);}
+.fr-head .fr-head-mid{text-align:center; flex:1; min-width:0;}
+.fr-chat-log{height:38vh; min-height:200px;}
+.fr-trade{margin-bottom:10px;}
+.fr-trade.open{border-color:var(--gold); box-shadow:0 0 12px rgba(232,196,92,.15);}
+.fr-item{display:flex; align-items:center; gap:10px; width:100%; text-align:left; padding:8px 10px; border:1px solid; border-radius:9px; margin-bottom:6px; color:inherit; font:inherit;}
+.fr-item.pick{cursor:pointer;}
+.fr-item.pick.on{outline:2px solid var(--gold-bright); outline-offset:1px;}
+.fr-item-ic{font-size:24px; flex:none;} .fr-item-ic .nx-ic{width:30px; height:30px;}
+.fr-item-mid{display:flex; flex-direction:column; min-width:0; flex:1;}
+.fr-item-name{font-weight:700; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.fr-check{width:20px; height:20px; flex:none; border-radius:5px; border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:12px; color:#1a1206; background:rgba(0,0,0,.3);}
+.fr-item.on .fr-check{background:var(--gold-bright); border-color:var(--gold-bright);}
+.fr-gold{padding:8px 10px; border:1px dashed var(--gold); border-radius:9px; color:var(--gold-bright); font-weight:700; font-size:13px; margin-bottom:6px;}
+.fr-pick-list{max-height:46vh; overflow-y:auto; padding-right:2px;}
+.fr-history{margin-bottom:10px;} .fr-history summary{cursor:pointer; margin-bottom:6px;}
