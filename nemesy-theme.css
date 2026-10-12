@@ -714,3 +714,12 @@ body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-l
 .wiki-tile.has-scene .wiki-tile-badge{position:absolute; z-index:2;}
 .wiki-tile.has-scene .wiki-tile-lb,.wiki-tile.has-scene .wiki-tile-sub{text-shadow:0 1px 3px #000;}
 .wiki-tile.has-scene.is-locked .wiki-tile-scene{filter:grayscale(1) brightness(.6);}
+
+/* v97 — Habilidades até ao IV + Mestra (V) */
+.roman-dot.master{border-color:rgba(232,196,92,.55); border-style:dashed;}
+.roman-dot.master.filled{background:linear-gradient(90deg,#f5d77a,#e8a83a); border-style:solid; box-shadow:0 0 8px rgba(232,196,92,.8);}
+.ability-row .ab-now{margin-top:4px; color:var(--text,#eadfc8);}
+.ability-row .ab-next{margin-top:2px; color:var(--muted); opacity:.85;}
+.ability-row.is-master{border-color:var(--gold); box-shadow:inset 0 0 18px rgba(232,196,92,.12), 0 0 10px rgba(232,196,92,.18);}
+.wiki-ab-table td{white-space:normal; text-align:left;} .wiki-ab-table td:first-child{white-space:nowrap; font-weight:700;} .wiki-ab-table td:last-child{white-space:nowrap;}
+.wiki-ab-table tr.master td{color:var(--gold-bright);}
