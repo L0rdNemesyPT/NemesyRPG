@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nemesy-rpg-v98';
+const CACHE_NAME = 'nemesy-rpg-v99';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,7 +10,16 @@ const APP_SHELL = [
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
-  './icon-512-maskable.png'
+  './icon-512-maskable.png',
+  './avatars/avatar-guerreiro.webp',
+  './avatars/avatar-arqueiro.webp',
+  './avatars/avatar-mago.webp',
+  './avatars/avatar-paladino.webp',
+  './avatars/avatar-cruzado.webp',
+  './avatars/avatar-cacador.webp',
+  './avatars/avatar-mercenario.webp',
+  './avatars/avatar-necromante.webp',
+  './avatars/avatar-feiticeiro.webp'
 ];
 
 self.addEventListener('install', event => {

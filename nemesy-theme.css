@@ -757,3 +757,22 @@ body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-l
 .fr-gold{padding:8px 10px; border:1px dashed var(--gold); border-radius:9px; color:var(--gold-bright); font-weight:700; font-size:13px; margin-bottom:6px;}
 .fr-pick-list{max-height:46vh; overflow-y:auto; padding-right:2px;}
 .fr-history{margin-bottom:10px;} .fr-history summary{cursor:pointer; margin-bottom:6px;}
+
+/* ============================================================
+   v99 — Avatares das classes/evoluções
+   ============================================================ */
+.hero-av{display:block; width:100%; height:100%; object-fit:cover; object-position:50% 18%; border-radius:inherit; user-select:none; -webkit-user-drag:none;}
+.sb-portrait.has-av{padding:0; overflow:hidden;}
+.sb-portrait.has-av .hero-av{border-radius:8px;}
+.hero-portrait.has-av .hero-av-frame{display:block; width:100%; max-width:150px; aspect-ratio:1; border-radius:6px; overflow:hidden;
+  border:2px solid var(--brass); box-shadow:0 0 0 1px #000, 0 6px 14px rgba(0,0,0,.7), 0 0 14px rgba(232,196,92,.25);}
+.doll-hero-ic.has-av{width:112px; height:112px; border-radius:14px; overflow:hidden; border:2px solid var(--aura);
+  box-shadow:0 0 0 1px #000, 0 8px 16px rgba(0,0,0,.8), 0 0 18px color-mix(in srgb, var(--aura) 55%, transparent); filter:none;}
+.doll-hero-ic.has-av .hero-av{border-radius:12px;}
+#cb-player-icon .hero-av.tiny{display:inline-block; width:24px; height:24px; border-radius:6px; vertical-align:-6px; border:1px solid var(--brass);}
+.fr-ic.has-av{padding:0; overflow:hidden; border-color:var(--brass);}
+.fr-ic.has-av .hero-av{border-radius:50%;}
+.fr-head-av .hero-av.tiny{display:inline-block; width:22px; height:22px; border-radius:50%; vertical-align:-5px; border:1px solid var(--brass);}
+.class-glyph.has-av{width:64px; height:64px; padding:0; overflow:hidden; border-radius:10px; flex:none; border:1.5px solid var(--brass);}
+.class-glyph.has-av .hero-av{border-radius:8px;}
+.hero-av-fallback{display:flex; align-items:center; justify-content:center; width:100%; height:100%;}
