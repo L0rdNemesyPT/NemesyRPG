@@ -795,3 +795,25 @@ body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-l
 .sc-eclipse{transform-origin:50% 30%; animation:scEclipse 6s ease-in-out infinite;}
 @keyframes scEclipse{0%,100%{opacity:.85;}50%{opacity:1;}}
 body.fx-off .sc-eclipse{animation:none;}
+
+/* v103 — Alquimia: resumo do bónus total e progresso */
+.alch-sum{margin-bottom:12px;}
+.alch-sum-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:10px;}
+.alch-sum-cell{text-align:center; padding:8px 2px; border-radius:10px; background:rgba(0,0,0,.28); border:1px solid rgba(212,175,55,.25);}
+.alch-sum-cell.off{opacity:.45;}
+.alch-sum-ic{font-size:18px; line-height:1.2;}
+.alch-sum-pct{font-weight:800; color:var(--gold-bright); font-size:15px; margin-top:2px;}
+.alch-sum-lbl{font-size:10.5px; opacity:.8;}
+.alch-sum-real{font-size:10px; opacity:.65; margin-top:2px; line-height:1.25;}
+.alch-slot-bonus{color:#9fe3a0; font-weight:700; margin-top:1px;}
+.alch-prog{margin-top:8px;}
+.alch-bar{height:6px; border-radius:4px; background:rgba(0,0,0,.4); margin-top:5px; overflow:hidden; border:1px solid rgba(212,175,55,.2);}
+.alch-bar i{display:block; height:100%; background:linear-gradient(90deg,#b8860b,#ffd56a); border-radius:4px;}
+
+/* v104 — Pedras Perfeitas ⭐ */
+.equip-slot.alch-perfect{border-color:#ffd56a !important; background:radial-gradient(circle at 50% 30%, rgba(255,213,106,.22), rgba(0,0,0,0) 70%), var(--panel, #1a140d); box-shadow:0 0 0 1px rgba(255,213,106,.45), 0 0 14px rgba(255,200,80,.35);}
+.equip-slot.alch-perfect .ic{filter:drop-shadow(0 0 6px rgba(255,215,110,.85));}
+.equip-slot.alch-perfect .lbl{color:#ffe7a3; font-weight:700;}
+body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-out infinite;}
+@keyframes alchPerfect{0%,100%{box-shadow:0 0 0 1px rgba(255,213,106,.45), 0 0 10px rgba(255,200,80,.25);}50%{box-shadow:0 0 0 1px rgba(255,213,106,.7), 0 0 20px rgba(255,200,80,.5);}}
+.alch-perfect-txt{color:#ffd56a;}
