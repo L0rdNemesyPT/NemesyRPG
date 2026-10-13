@@ -790,3 +790,8 @@ body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-l
 /* v101 — árvore de passivas mais alta (ramificação azul nova) + aviso da 2.ª arma */
 .pv-tree{height:560px;}
 .doll-warn{position:absolute; bottom:16px; left:4px; font-size:11px;}
+
+/* v102 — Santuário do Eclipse: coroa do sol negro a pulsar */
+.sc-eclipse{transform-origin:50% 30%; animation:scEclipse 6s ease-in-out infinite;}
+@keyframes scEclipse{0%,100%{opacity:.85;}50%{opacity:1;}}
+body.fx-off .sc-eclipse{animation:none;}
