@@ -786,3 +786,7 @@ body.fx-off .scene-fx,body.fx-off .sc-star,body.fx-off .sc-sun,body.fx-off .sc-l
 #cb-end-screen > *{flex-shrink:0;}
 #screen-combat .combat-top{flex-shrink:0;}
 #cb-end-screen #btn-combat-continue{position:sticky; bottom:0; z-index:2; box-shadow:0 -10px 18px 6px var(--bg-void,#0b0906);}
+
+/* v101 — árvore de passivas mais alta (ramificação azul nova) + aviso da 2.ª arma */
+.pv-tree{height:560px;}
+.doll-warn{position:absolute; bottom:16px; left:4px; font-size:11px;}
