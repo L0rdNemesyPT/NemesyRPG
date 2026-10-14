@@ -817,3 +817,24 @@ body.fx-off .sc-eclipse{animation:none;}
 body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-out infinite;}
 @keyframes alchPerfect{0%,100%{box-shadow:0 0 0 1px rgba(255,213,106,.45), 0 0 10px rgba(255,200,80,.25);}50%{box-shadow:0 0 0 1px rgba(255,213,106,.7), 0 0 20px rgba(255,200,80,.5);}}
 .alch-perfect-txt{color:#ffd56a;}
+
+/* v109 — Cozinha */
+.ck-active{display:flex; gap:12px; align-items:center; background:linear-gradient(135deg, rgba(120,170,60,.18), rgba(0,0,0,.25)); border:1px solid rgba(140,200,90,.45); border-radius:12px; padding:10px 12px; margin-bottom:12px;}
+.ck-active .ck-big{font-size:34px; line-height:1;}
+.ck-rec{margin-bottom:10px;}
+.ck-rec.rare{border-color:#e8b84a !important; box-shadow:0 0 0 1px rgba(232,184,74,.35), 0 0 14px rgba(232,184,74,.18);}
+.ck-rare{font-size:10px; color:#e8b84a; border-color:#e8b84a;}
+.ck-head{display:flex; gap:12px; align-items:center;}
+.ck-ic{font-size:30px; width:46px; height:46px; display:flex; align-items:center; justify-content:center; border-radius:10px; background:rgba(0,0,0,.35); border:1px solid rgba(212,175,55,.3); flex:0 0 auto;}
+.ck-name{font-family:var(--font-display); font-weight:700; font-size:15px;}
+.ck-fx{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.ck-fx span{font-size:11.5px; padding:3px 8px; border-radius:999px; background:rgba(120,170,60,.16); border:1px solid rgba(140,200,90,.35); color:#cfe9b4;}
+.ck-ing{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.ck-ing span{font-size:12px; padding:3px 8px; border-radius:8px; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.08);}
+.ck-ing span.ok{border-color:rgba(110,200,110,.5); color:#9fe3a0;}
+.ck-ing span.no{border-color:rgba(220,80,80,.55); color:#ff9b9b;}
+.ck-foot{display:flex; justify-content:space-between; align-items:center; margin-top:10px; gap:8px;}
+.ck-poor{color:#ff9b9b;}
+.ck-pantry{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 12px;}
+.ck-pantry span{font-size:13px; padding:4px 9px; border-radius:8px; background:rgba(0,0,0,.3); border:1px solid rgba(212,175,55,.25);}
+.ck-pantry span.off{opacity:.45;}
