@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nemesy-rpg-v109';
+const CACHE_NAME = 'nemesy-rpg-v110';
 const APP_SHELL = [
   './',
   './index.html',
