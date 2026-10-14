@@ -838,3 +838,9 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ck-pantry{display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 12px;}
 .ck-pantry span{font-size:13px; padding:4px 9px; border-radius:8px; background:rgba(0,0,0,.3); border:1px solid rgba(212,175,55,.25);}
 .ck-pantry span.off{opacity:.45;}
+
+/* v112 — ícones por coisa (monstros, habilidades, gemas…) */
+.enemy-glyph .nx-ic{width:78%; height:78%;}
+.ab-btn .ic .nx-ic{width:34px; height:34px;}
+.gem-tier-ic .nx-ic{width:38px; height:38px;}
+.ck-ic .nx-ic{width:38px; height:38px;}
