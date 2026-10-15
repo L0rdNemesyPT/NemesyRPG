@@ -12460,7 +12460,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v117</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v118</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -13436,7 +13436,7 @@ const NX_ICONS = {
 const NX_ICON_MAP = {
   '⚔': 'swords', '🧝': 'hero', '🎒': 'pack', '🗺': 'map', '🏙': 'castle', '🧬': 'rune', '💱': 'trade', '📚': 'books', '🪙': 'coin', '⚙': 'gear',
   '🛡': 'shield', '🔮': 'orb', '🎁': 'chest', '💠': 'gem', '⚗': 'flask', '📜': 'scroll', '🧪': 'potion', '📙': 'tome', '📗': 'tomeGreen', '📖': 'openbook',
-  '⚪': 'pearl', '🦪': 'oyster', '🌾': 'wheat', '🍲': 'cauldron',
+  '⚪': 'pearl', '🦪': 'bau-ostra', '🌱': 'item-semente', '🌾': 'wheat', '🍲': 'cauldron',
   '🛒': 'purse', '🔨': 'hammer', '⛏': 'pick', '🏆': 'goblet', '🏴‍☠': 'banner', '🎮': 'season',
   '💎': 'diamond', '⚒': 'smith', '✨': 'sparkle', '🏰': 'fortress', '💀': 'skull', '🌩': 'storm', '🐾': 'paw',
   '🌀': 'portal', '🌙': 'moon', '⛪': 'cathedral', '🏝': 'oasis', '🔥': 'flame', '👹': 'demon',
@@ -13451,7 +13451,7 @@ function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
 const NX_ICON_IMG = new Set(["banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 116;
+const NX_ICON_VER = 118;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -13494,7 +13494,7 @@ function nxNameIndex() {
     Object.keys(GEM_DEFS).forEach(k => put(GEM_DEFS[k].name, 'gema-' + k));
     Object.keys(ALCHEMY_STONE_DEFS).forEach(k => { put(ALCHEMY_STONE_DEFS[k].perfectName, 'alquimia-' + k + '-perfeita'); put(ALCHEMY_STONE_DEFS[k].name, 'alquimia-' + k); });
     Object.keys(CHEST_DEFS).forEach(k => put(CHEST_DEFS[k].name, 'bau-' + k));
-    put('Ostra', 'bau-ostra');
+    put('Ostra', 'bau-ostra'); put('Ostras', 'bau-ostra');
     Object.keys(TALISMAN_DEFS).forEach(k => put(TALISMAN_DEFS[k].name, 'talisma-' + k));
     Object.keys(PET_DEFS).forEach(k => put(PET_DEFS[k].name, 'pet-' + k));
     Object.keys(PROFESSIONS).forEach(k => put(PROFESSIONS[k].name, 'profissao-' + k));
@@ -13511,7 +13511,7 @@ function nxNameIndex() {
 function nxKeyForName(text) {
   const n = nxNameNorm(text);
   if (!n) return null;
-  if (/^sementes?-de-/.test(n)) return 'item-semente';
+  if (/^sementes?(-|$)/.test(n)) return 'item-semente';
   const idx = nxNameIndex();
   let key = idx[n];
   if (!key) { // nome com algo à frente/atrás ("Pedra do Dano (T1)", "Cebola · ativo")
@@ -13520,6 +13520,10 @@ function nxKeyForName(text) {
     key = best ? idx[best] : null;
   }
   if (!key) { const c = 'chefe-' + n, m = 'monstro-' + n; key = NX_ICON_IMG.has(c) ? c : NX_ICON_IMG.has(m) ? m : null; }
+  if (!key) { // monstro/chefe com algo à frente ("General dos Condenados (Nv.140)")
+    for (const k of NX_ICON_IMG) { const b = k.replace(/^(chefe|monstro)-/, ''); if (b !== k && n.startsWith(b + '-')) { key = k; break; } }
+  }
+  if (key) key = key.replace(/_/g, '-');
   return key && NX_ICON_IMG.has(key) ? key : null;
 }
 // Nome mostrado ao lado do ícone (linha de item, quadrado do menu…).
@@ -13548,8 +13552,8 @@ function nxUpgradeIcons(root) {
     const m = (el.textContent || '').match(/^(\S+)\s+(.+)$/);
     if (!m || /[A-Za-zÀ-ÿ0-9]/.test(m[1])) return;
     const k = nxKeyForName(m[2]);
+    if (!k) return; // sem imagem própria: o emoji ainda pode ser trocado pela passagem do texto (v118)
     el.dataset.nxDone = '1';
-    if (!k) return;
     el.dataset.nxEmoji = el.textContent;
     el.innerHTML = nxIconSvg(k, 'nx-inline') + ' ' + esc(m[2]);
   });
@@ -13560,6 +13564,57 @@ function nxUpgradeIcons(root) {
     gold.firstChild.textContent = gold.firstChild.textContent.replace('🪙', '');
     gold.insertAdjacentHTML('afterbegin', nxIconSvg('coin', 'nx-inline'));
   }
+  nxUpgradeInlineEmoji(root || document);
+}
+// v118: emojis soltos no meio do texto (títulos, botões, preços, chips, textos da Wiki…) passam a usar a imagem nova.
+// Primeiro tenta pela coisa nomeada a seguir ao emoji ("🔥 Bola de Fogo" → habilidade); senão pelo próprio emoji.
+// ⚪ 💠 🌀 só pelo nome: também são raridades (Comum, Divino) e a Esquiva.
+const NX_INLINE_NAME_ONLY = new Set(['⚪', '💠', '🌀']);
+const NX_EMOJI_RE = /\p{Extended_Pictographic}(?:\uFE0F|\u200D\p{Extended_Pictographic})*\uFE0F?/gu;
+const NX_HAS_EMOJI = /\p{Extended_Pictographic}/u;
+function nxInlineKey(emoji, after) {
+  const e = nxNorm(emoji);
+  const nm = String(after || '').split(NX_HAS_EMOJI)[0].trim().slice(0, 48);
+  if (nm && /^[A-Za-zÀ-ÿ]/.test(nm)) { const k = nxKeyForName(nm); if (k) return k; }
+  if (NX_INLINE_NAME_ONLY.has(e)) return null;
+  const k = NX_ICON_MAP[e];
+  return k && NX_ICON_IMG.has(k) ? k : null;
+}
+function nxUpgradeInlineEmoji(root) {
+  const base = root.body || root;
+  if (!base || !base.nodeType) return;
+  const F = NodeFilter;
+  const w = document.createTreeWalker(base, F.SHOW_ELEMENT | F.SHOW_TEXT, { acceptNode(n) {
+    if (n.nodeType === 3) return NX_HAS_EMOJI.test(n.data) ? F.FILTER_ACCEPT : F.FILTER_SKIP;
+    if (/^(SCRIPT|STYLE|TEXTAREA|INPUT|SELECT|OPTION|TITLE|CANVAS|svg)$/i.test(n.tagName)) return F.FILTER_REJECT;
+    const c = n.classList;
+    if (c && c.contains('screen') && !c.contains('active')) return F.FILTER_REJECT;
+    if (n.isContentEditable || n.id === 'nx-icon-defs' || (n.dataset && n.dataset.nxDone) || (c && (c.contains('rarity-ic') || c.contains('nx-noic')))) return F.FILTER_REJECT;
+    if (n.matches && n.matches(NX_ICON_SELECTOR)) return F.FILTER_REJECT;
+    return F.FILTER_SKIP;
+  } });
+  const nodes = []; let t;
+  while ((t = w.nextNode())) nodes.push(t);
+  nodes.forEach(node => {
+    const txt = node.data; if (!node.parentNode) return;
+    const parts = []; let last = 0, m, changed = false;
+    NX_EMOJI_RE.lastIndex = 0;
+    while ((m = NX_EMOJI_RE.exec(txt))) {
+      let after = txt.slice(m.index + m[0].length);
+      if (!after.trim() && node.nextSibling) after = node.nextSibling.textContent || '';
+      const k = nxInlineKey(m[0], after);
+      if (!k) continue;
+      if (m.index > last) parts.push(document.createTextNode(txt.slice(last, m.index)));
+      const sp = document.createElement('span');
+      sp.className = 'nx-tx'; sp.dataset.nxDone = '1'; sp.dataset.nxEmoji = m[0];
+      sp.innerHTML = nxIconSvg(k);
+      parts.push(sp); last = m.index + m[0].length; changed = true;
+    }
+    if (!changed) return;
+    if (last < txt.length) parts.push(document.createTextNode(txt.slice(last)));
+    const frag = document.createDocumentFragment(); parts.forEach(x => frag.appendChild(x));
+    node.parentNode.replaceChild(frag, node);
+  });
 }
 function nxRestoreEmojiIcons() {
   document.querySelectorAll('[data-nx-done]').forEach(el => {

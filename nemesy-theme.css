@@ -851,3 +851,6 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 
 /* v116 — ícones das regiões */
 .rb-title .nx-ic{width:1.5em; height:1.5em; vertical-align:-.35em;}
+/* v118: emojis soltos no texto trocados pela imagem */
+.nx-tx{display:inline-block; line-height:1; vertical-align:-.22em;}
+.nx-tx .nx-ic{width:1.25em; height:1.25em; margin:0; vertical-align:top;}
