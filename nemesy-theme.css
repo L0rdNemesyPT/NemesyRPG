@@ -844,3 +844,7 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ab-btn .ic .nx-ic{width:34px; height:34px;}
 .gem-tier-ic .nx-ic{width:38px; height:38px;}
 .ck-ic .nx-ic{width:38px; height:38px;}
+
+/* v114 — ícones de slot com imagem */
+.si .nx-ic{width:28px; height:28px;}
+.gem-sock-ic .nx-ic{width:30px; height:30px;}
