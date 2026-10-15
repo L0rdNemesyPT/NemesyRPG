@@ -7820,7 +7820,7 @@ function equipDollHtml(p, talisman) {
     <div class="doll-col">${['amulet', 'cape', 'offhand', 'artifact'].map(s => slot(s)).join('')}</div>
     <div class="doll-bottom">${slot('weapon', true)}
       <button class="doll-slot talis${talisman ? ' filled' : ''}" data-manage-talisman type="button" ${talisman ? 'style="--rc:#5FA05F;"' : ''}>
-        <span class="doll-ic${talisman ? '' : ' empty'}">${tl ? tl.icon : '🍀'}</span><span class="doll-lbl">${tl ? talismanDurationLabel(talisman) : 'Talismã'}</span></button>
+        <span class="doll-ic${talisman ? '' : ' empty'}">${tl ? nxEnt('talisma-' + talisman.key, tl.icon) : slotIconHtml('talisman')}</span><span class="doll-lbl">${tl ? talismanDurationLabel(talisman) : 'Talismã'}</span></button>
     </div>
   </div>`;
 }
@@ -10019,7 +10019,7 @@ function blackMarketStock(slot) {
   Object.keys(CROP_DEFS).forEach(key => {
     const d = CROP_DEFS[key];
     offers.push({ id: 'seed:' + key, cat: 'farm', kind: 'seed', key, name: `Semente de ${d.name}`, icon: '🌱', desc: `Planta na Agricultura para colher ${d.plant.toLowerCase()}.`, price: range(100, 300, 10) });
-    offers.push({ id: 'crop:' + key, cat: 'farm', kind: 'crop', key, name: d.name, icon: d.icon, desc: d.effect + ' (usa em combate).', price: range(100, 300, 10) });
+    offers.push({ id: 'crop:' + key, cat: 'farm', kind: 'crop', key, name: d.name, icon: d.icon, desc: d.effect + '.', price: range(100, 300, 10) });
   });
   offers.push({ id: 'oyster', cat: 'oyster', name: 'Ostra', icon: '🦪', desc: CHEST_DEFS.ostra.desc + ' Vai para Mochila → Consumíveis → Ostras.', price: BLACK_MARKET_OYSTER_PRICE });
 
@@ -12458,7 +12458,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v114</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v115</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -13440,7 +13440,7 @@ const NX_ICON_MAP = {
   '🌀': 'portal', '🌙': 'moon', '⛪': 'cathedral', '🏝': 'oasis', '🔥': 'flame', '👹': 'demon',
   '🌿': 'leaf', '🌋': 'volcano', '❄': 'snow', '⛈': 'thunder', '☠': 'corrupt', '🌲': 'pine',
   '🗡': 'sword', '🔪': 'dagger', '🪓': 'axe', '🔱': 'spear', '🪄': 'wand', '👑': 'crown', '🪖': 'helmet', '👕': 'armor', '🧣': 'cape', '🥾': 'boots', '🧤': 'gloves', '📿': 'amulet', '🔯': 'artifact', '🍀': 'clover',
-  '🏹': 'bow', '🧙': 'staff', '🐺': 'wolf', '🧟': 'zombie', '🦂': 'scorpion',
+  '🏹': 'bow', '🧙': 'staff', '⚖': 'trade', '⚜': 'banner', '🌳': 'pine', '👤': 'hero', '🗼': 'fortress', '📯': 'scroll', '🐺': 'wolf', '🧟': 'zombie', '🦂': 'scorpion',
   '🍎': 'apple', '🥕': 'carrot', '🗝': 'key', '❤': 'heart', '👁': 'eye'
 };
 const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-glyph, .map-here-ic, .equip-slot .ic, .sb-mute, .stat-box .v-ic';
@@ -13449,7 +13449,7 @@ function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
 const NX_ICON_IMG = new Set(["alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 114;
+const NX_ICON_VER = 115;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -13459,7 +13459,7 @@ function nxIconFail(img) {
 window.nxIconFail = nxIconFail;
 // v112: ícones por coisa (monstro, gema, poção…), não por emoji — o mesmo emoji pode ser coisas diferentes.
 function nxSlug(t) { return String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
-function nxEnt(key, emoji) { return NX_ICON_IMG.has(key) ? `<span class="nx-k" data-nx-key="${key}">${emoji}</span>` : emoji; }
+function nxEnt(key, emoji) { key = String(key).replace(/_/g, '-'); return NX_ICON_IMG.has(key) ? `<span class="nx-k" data-nx-key="${key}">${emoji}</span>` : emoji; }
 function nxCreature(name, emoji) { const k = nxSlug(name); return NX_ICON_IMG.has('chefe-' + k) ? nxEnt('chefe-' + k, emoji) : nxEnt('monstro-' + k, emoji); }
 function nxIconSvg(name, extraClass) {
   if (NX_ICON_IMG.has(name)) return `<img class="nx-ic nx-img${extraClass ? ' ' + extraClass : ''}" src="icons/${name}.webp?v=${NX_ICON_VER}" alt="" draggable="false" loading="lazy" onerror="nxIconFail(this)">`;
@@ -13473,16 +13473,82 @@ function nxIconsEnabled() {
 }
 // Troca o conteúdo dos contentores de ícone (só quando o texto é exatamente um
 // emoji conhecido). O emoji original fica guardado para se poder voltar atrás.
+// v115: descobre o ícone de uma linha pelo NOME da coisa (Mercado Negro, drops, listas…),
+// para não depender de cada ecrã pôr o ícone certo à mão.
+let NX_NAME_INDEX = null;
+function nxNameNorm(t) {
+  return nxSlug(String(t || '').replace(/[\[\]⭐]/g, ' ').replace(/×\s*\d+/g, ' ').replace(/\(\s*\d+\s*\)/g, ' ')
+    .replace(/\(T\d\)|\bT\d\b/g, ' ').replace(/\bNv\.?\s*\d+\b/g, ' '));
+}
+function nxNameIndex() {
+  if (NX_NAME_INDEX) return NX_NAME_INDEX;
+  const idx = {}, put = (name, key) => { const n = nxNameNorm(name); if (n && !idx[n]) idx[n] = key; };
+  try {
+    Object.keys(CROP_DEFS).forEach(k => { put(CROP_DEFS[k].name, 'alimento-' + k); put(CROP_DEFS[k].plant, 'alimento-' + k); });
+    Object.keys(MEAL_DEFS).forEach(k => put(MEAL_DEFS[k].name, 'prato-' + k));
+    Object.keys(POTION_DEFS).forEach(k => put(POTION_DEFS[k].name, 'pocao-' + k));
+    PEARL_TABLE.forEach(x => put(x.name, 'perola-' + x.key));
+    Object.keys(LUNAR_DEFS).forEach(k => put(LUNAR_DEFS[k].name, 'cristal-' + k));
+    Object.keys(GEM_DEFS).forEach(k => put(GEM_DEFS[k].name, 'gema-' + k));
+    Object.keys(ALCHEMY_STONE_DEFS).forEach(k => { put(ALCHEMY_STONE_DEFS[k].perfectName, 'alquimia-' + k + '-perfeita'); put(ALCHEMY_STONE_DEFS[k].name, 'alquimia-' + k); });
+    Object.keys(CHEST_DEFS).forEach(k => put(CHEST_DEFS[k].name, 'bau-' + k));
+    put('Ostra', 'bau-ostra');
+    Object.keys(TALISMAN_DEFS).forEach(k => put(TALISMAN_DEFS[k].name, 'talisma-' + k));
+    Object.keys(PET_DEFS).forEach(k => put(PET_DEFS[k].name, 'pet-' + k));
+    Object.keys(PROFESSIONS).forEach(k => put(PROFESSIONS[k].name, 'profissao-' + k));
+    Object.keys(ABILITIES).forEach(k => put(ABILITIES[k].name, 'habilidade-' + k));
+    [['Livro da Amnésia', 'amnesia'], ['Livros da Amnésia', 'amnesia'], ['Livro de Habilidades', 'habilidades'], ['Livros de Habilidades', 'habilidades'],
+     ['Livro das Profissões', 'profissoes'], ['Livros das Profissões', 'profissoes'], ['Livro do Ferreiro', 'ferreiro'], ['Livros do Ferreiro', 'ferreiro'],
+     ['Pergaminho de Feitiço', 'feitico'], ['Pergaminho de Reforço', 'reforco']].forEach(([n, k]) => put(n, 'livro-' + k));
+    DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, 'dungeon-' + d.key));
+  } catch (e) { /* defs ainda não carregadas */ return {}; }
+  NX_NAME_INDEX = idx;
+  return idx;
+}
+function nxKeyForName(text) {
+  const n = nxNameNorm(text);
+  if (!n) return null;
+  if (/^sementes?-de-/.test(n)) return 'item-semente';
+  const idx = nxNameIndex();
+  let key = idx[n];
+  if (!key) { // nome com algo à frente/atrás ("Pedra do Dano (T1)", "Cebola · ativo")
+    let best = '';
+    Object.keys(idx).forEach(k => { if (k.length > best.length && (n.startsWith(k + '-') || n === k)) best = k; });
+    key = best ? idx[best] : null;
+  }
+  if (!key) { const c = 'chefe-' + n, m = 'monstro-' + n; key = NX_ICON_IMG.has(c) ? c : NX_ICON_IMG.has(m) ? m : null; }
+  return key && NX_ICON_IMG.has(key) ? key : null;
+}
+// Nome mostrado ao lado do ícone (linha de item, quadrado do menu…).
+function nxRowName(el) {
+  const row = el.closest('.item-row, .wiki-tile, .region-head, .ck-head');
+  if (!row) return '';
+  const n = row.querySelector('.item-name, .wiki-tile-lb, .region-name, .ck-name, h3, b');
+  return n ? n.textContent : '';
+}
 function nxUpgradeIcons(root) {
   if (!nxIconsEnabled()) return;
   (root || document).querySelectorAll(NX_ICON_SELECTOR).forEach(el => {
     if (el.dataset.nxDone) return;
     const raw = el.textContent;
-    const svg = el.dataset.nxKey ? nxIconSvg(el.dataset.nxKey) : nxIconFor(raw);
+    let svg = el.dataset.nxKey ? nxIconSvg(el.dataset.nxKey) : '';
+    if (!svg && !el.children.length && /item-ic|region-glyph/.test(el.className)) { const k = nxKeyForName(nxRowName(el)); if (k) svg = nxIconSvg(k); }
+    if (!svg) svg = nxIconFor(raw);
     if (!svg || el.children.length) return;
     el.dataset.nxDone = '1';
     el.dataset.nxEmoji = raw;
     el.innerHTML = svg;
+  });
+  // v115: títulos com emoji + nome (Wiki, cartões): troca o emoji pela imagem da coisa, se existir.
+  (root || document).querySelectorAll('.card > span:first-child, .card > .row > span:first-child').forEach(el => {
+    if (el.dataset.nxDone || el.children.length) return;
+    const m = (el.textContent || '').match(/^(\S+)\s+(.+)$/);
+    if (!m || /[A-Za-zÀ-ÿ0-9]/.test(m[1])) return;
+    const k = nxKeyForName(m[2]);
+    el.dataset.nxDone = '1';
+    if (!k) return;
+    el.dataset.nxEmoji = el.textContent;
+    el.innerHTML = nxIconSvg(k, 'nx-inline') + ' ' + esc(m[2]);
   });
   // Moeda da barra de estado: "🪙 1234"
   const gold = document.querySelector('.sb-gold');
