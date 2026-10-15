@@ -2041,6 +2041,8 @@ function alchStoneValue(type, level) { const d = ALCHEMY_STONE_DEFS[type]; retur
 function alchStoneLabel(type, level) { const d = ALCHEMY_STONE_DEFS[type]; return d ? `+${alchPctText(d.pct * alchEffLevel(level))} ${d.short}` : ''; }
 function alchStoneName(type, level) { const d = ALCHEMY_STONE_DEFS[type]; return d ? (alchIsPerfect(level) ? d.perfectName : d.name) : ''; }
 function alchLevelText(level) { return alchIsPerfect(level) ? '⭐ Perfeita' : `Nv. ${level}`; }
+// v117: nome completo sem repetir a ⭐ ("Safira Perfeita ⭐" ou "Safira Nv. 5").
+function alchFullName(type, level) { return alchIsPerfect(level) ? alchStoneName(type, level) : `${alchStoneName(type, level)} Nv. ${level}`; }
 function alchLevelShort(level) { return alchIsPerfect(level) ? '⭐' : `Nv.${level}`; }
 function alchPerLevelLabel(type) { const d = ALCHEMY_STONE_DEFS[type]; return `+${alchPctText(d.pct)} ${d.short} por nível · Nv. 9: +${alchPctText(d.pct * 9)} · ${d.perfectName}: +${alchPctText(d.pct * ALCHEMY_PERFECT_EFF)}`; }
 // Soma das pedras encaixadas: { dmg, def, hp, crit } (frações, 0.054 = 5,4%).
@@ -7535,7 +7537,7 @@ function renderHeroiPerfilBody(part) {
     <div class="section-title">✨ Bónus ativos</div>
     ${stats.setBonuses.map(b => `<div class="card raised"><span style="font-weight:700;">${b.setIcon} ${b.setName}</span><p class="tiny" style="margin-top:4px;">${b.count}+ peças: ${b.desc}</p></div>`).join('')}
     ${filledAlchemy.length ? `<div class="card raised"><span style="font-weight:700;">🔮 Pedras de Alquimia</span><div class="row" style="gap:14px; flex-wrap:wrap; margin-top:6px;">
-      ${filledAlchemy.map(s => { const d = ALCHEMY_STONE_DEFS[s.type]; return `<span class="tiny">${d.icon} ${alchStoneName(s.type, s.level)} ${alchLevelShort(s.level)} (${alchStoneLabel(s.type, s.level)})</span>`; }).join('')}
+      ${filledAlchemy.map(s => { const d = ALCHEMY_STONE_DEFS[s.type]; return `<span class="tiny">${d.icon} ${alchFullName(s.type, s.level)} (${alchStoneLabel(s.type, s.level)})</span>`; }).join('')}
     </div></div>` : ''}
   ` : '';
 
@@ -8700,7 +8702,7 @@ function openAlchemySlotModal(slotIdx) {
     html += `
       <div class="item-row">
         <div class="item-ic">${nxEnt('alquimia-' + current.type, def.icon)}</div>
-        <div class="item-mid"><div class="item-name">${alchStoneName(current.type, current.level)} · ${alchLevelText(current.level)}</div><div class="tiny" style="color:var(--gold-bright);">${alchStoneLabel(current.type, current.level)}</div><div class="tiny">${def.desc}</div></div>
+        <div class="item-mid"><div class="item-name">${alchFullName(current.type, current.level)}</div><div class="tiny" style="color:var(--gold-bright);">${alchStoneLabel(current.type, current.level)}</div><div class="tiny">${def.desc}</div></div>
       </div>
       <button class="btn ghost block" id="btn-unsocket-alch" style="margin:10px 0;">Remover (volta para a bolsa)</button>
     `;
@@ -8716,7 +8718,7 @@ function openAlchemySlotModal(slotIdx) {
       html += options.map(o => `
         <div class="item-row" data-pick-alch="${o.type}" data-pick-level="${o.level}">
           <div class="item-ic">${nxEnt('alquimia-' + o.type, ALCHEMY_STONE_DEFS[o.type].icon)}</div>
-          <div class="item-mid"><div class="item-name">${alchStoneName(o.type, o.level)} · ${alchLevelText(o.level)}</div><div class="tiny"><b style="color:var(--gold-bright);">${alchStoneLabel(o.type, o.level)}</b> · Tens ${o.count}</div></div>
+          <div class="item-mid"><div class="item-name">${alchFullName(o.type, o.level)}</div><div class="tiny"><b style="color:var(--gold-bright);">${alchStoneLabel(o.type, o.level)}</b> · Tens ${o.count}</div></div>
           <button class="btn small primary">Encaixar</button>
         </div>`).join('');
     }
@@ -8759,7 +8761,7 @@ function combineAlchemyStone(type, level) {
   saveGame();
   sfx.buff();
   renderMochilaBody();
-  if (alchIsPerfect(level + 1)) { if (typeof fxOverlay === 'function' && fxOn()) fxOverlay('divine', `<div class="fx-rays"></div>${fxConfetti(22, ['⭐', '✦', '✧'])}<div class="fx-ov-box"><div class="fx-ov-kicker">⭐ Pedra Perfeita ⭐</div><div class="fx-ov-name">${ALCHEMY_STONE_DEFS[type].icon} ${ALCHEMY_STONE_DEFS[type].perfectName}</div><div class="fx-ov-sub">${alchStoneLabel(type, level + 1)}</div></div>`, 3000, 150); toast(`⭐ Criaste ${ALCHEMY_STONE_DEFS[type].perfectName}!`); }
+  if (alchIsPerfect(level + 1)) { if (typeof fxOverlay === 'function' && fxOn()) fxOverlay('divine', `<div class="fx-rays"></div>${fxConfetti(22, ['⭐', '✦', '✧'])}<div class="fx-ov-box"><div class="fx-ov-kicker">⭐ Pedra Perfeita ⭐</div><div class="fx-ov-name">${ALCHEMY_STONE_DEFS[type].icon} ${ALCHEMY_STONE_DEFS[type].perfectName}</div><div class="fx-ov-sub">${alchStoneLabel(type, level + 1)}</div></div>`, 3000, 150); toast(`✨ Criaste ${ALCHEMY_STONE_DEFS[type].perfectName}!`); }
   else toast(`${ALCHEMY_STONE_DEFS[type].name} combinada para o nível ${level + 1}!`);
 }
 
@@ -12458,7 +12460,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v116</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v117</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
