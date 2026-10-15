@@ -5822,7 +5822,7 @@ function renderTabBatalha() {
   if (!difficultyUnlocked(p, activeDiff)) { activeDiff = MONSTER_DIFFICULTY[4]; p.fightDifficulty = activeDiff.key; }
   const diffHtml = `
     <div class="region-banner scene-${region.key}">${sceneSvg(SCENES[region.key] ? region.key : 'planicies').replace('xMidYMax', 'xMidYMid')}<div class="scene-shade"></div>
-      <div class="rb-title"><span>${region.icon}</span> ${region.name}</div></div>
+      <div class="rb-title"><span>${nxEnt('banner-' + region.key, region.icon)}</span> ${region.name}</div></div>
     <div class="row" style="gap:6px; flex-wrap:wrap; margin-bottom:6px;">
       ${MONSTER_DIFFICULTY.map(d => { const locked = !difficultyUnlocked(p, d); return `<button class="tab-chip${activeDiff.key === d.key ? ' active' : ''}${locked ? ' is-locked' : ''}" data-set-difficulty="${d.key}" style="${activeDiff.key === d.key ? `border-color:${d.color}; color:${d.color};` : locked ? 'opacity:.5;' : ''}">${d.icon} ${d.name}${locked ? ' 🔒' : ''}</button>`; }).join('')}
     </div>
@@ -10218,7 +10218,7 @@ function renderTabMapa() {
     $('hub-content').innerHTML = `
       <div class="section-title">🗺️ Mundo</div>
       <div class="card raised map-here">
-        <div class="map-here-ic">${here.icon}</div>
+        <div class="map-here-ic">${nxEnt('banner-' + here.key, here.icon)}</div>
         <div style="flex:1; min-width:0;">
           <div class="tiny muted">A explorar agora</div>
           <div class="map-here-name">${here.name}</div>
@@ -10260,7 +10260,7 @@ function mapaGroups(p) {
     const locked = i > p.regionIndex;
     const current = i === App.selectedRegionIndex;
     const bossesDone = r.bosses.filter(b => p.defeatedBosses.includes(b.name)).length;
-    return { key: 'reg:' + r.key, kind: 'region', ref: r, idx: i, icon: r.icon, label: r.name, scene: SCENES[r.key] ? r.key : null,
+    return { key: 'reg:' + r.key, kind: 'region', ref: r, idx: i, icon: nxEnt('banner-' + r.key, r.icon), label: r.name, scene: SCENES[r.key] ? r.key : null,
       sub: `Nv. ${r.minLv}–${r.maxLv}`, locked, current,
       badge: locked ? '🔒' : (bossesDone === r.bosses.length ? '✅' : `👑${bossesDone}/${r.bosses.length}`) };
   });
@@ -10289,7 +10289,7 @@ function mapaGroups(p) {
     { title: 'Torres', tiles: TOWERS.map(T => {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
-      return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: T.icon, label: T.name, sub: `Nv. ${T.minLv}+`, scene: 'torre',
+      return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: nxEnt('dungeon-torre', T.icon), label: T.name, sub: `Nv. ${T.minLv}+`, scene: 'torre',
         locked: (p.level || 1) < T.minLv, badge: run ? `${towerRunDiff(run).icon}${run.floor}/${T.floors}` : (p.level || 1) < T.minLv ? '🔒' : (clears ? '✅' : null) };
     }) }
   ];
@@ -10313,7 +10313,7 @@ function renderMapaBody(tile) {
     body.innerHTML = `
       <div class="region-card${unlocked ? '' : ' locked'}${isSelected ? ' current' : ''}">
         <div class="region-head">
-          <div class="region-glyph">${r.icon}</div>
+          <div class="region-glyph">${nxEnt('banner-' + r.key, r.icon)}</div>
           <div style="flex:1;">
             <div class="region-title">${i + 1}. ${r.name}</div>
             <div class="region-lv">Níveis ${r.minLv}–${r.maxLv}</div>
@@ -12458,7 +12458,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v115</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v116</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -13447,9 +13447,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 115;
+const NX_ICON_VER = 116;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -13500,7 +13500,8 @@ function nxNameIndex() {
     [['Livro da Amnésia', 'amnesia'], ['Livros da Amnésia', 'amnesia'], ['Livro de Habilidades', 'habilidades'], ['Livros de Habilidades', 'habilidades'],
      ['Livro das Profissões', 'profissoes'], ['Livros das Profissões', 'profissoes'], ['Livro do Ferreiro', 'ferreiro'], ['Livros do Ferreiro', 'ferreiro'],
      ['Pergaminho de Feitiço', 'feitico'], ['Pergaminho de Reforço', 'reforco']].forEach(([n, k]) => put(n, 'livro-' + k));
-    DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, 'dungeon-' + d.key));
+    REGIONS.forEach(r => put(r.name, 'banner-' + r.key));
+    DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, 'dungeon-torre'));
   } catch (e) { /* defs ainda não carregadas */ return {}; }
   NX_NAME_INDEX = idx;
   return idx;

@@ -848,3 +848,6 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 /* v114 — ícones de slot com imagem */
 .si .nx-ic{width:28px; height:28px;}
 .gem-sock-ic .nx-ic{width:30px; height:30px;}
+
+/* v116 — ícones das regiões */
+.rb-title .nx-ic{width:1.5em; height:1.5em; vertical-align:-.35em;}
