@@ -1000,3 +1000,5 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ho-road-ics{display:flex;flex-wrap:wrap;justify-content:center;min-height:24px;}
 .ho-road-ics .nx-ic{width:22px;height:22px;}
 .ho-road-step .tiny{font-size:9.5px;font-variant-numeric:tabular-nums;}
+/* v121: troféu de vitória com imagem própria */
+.combat-end .glyph .nx-ic{width:96px;height:96px;margin:0 auto;display:block;}
