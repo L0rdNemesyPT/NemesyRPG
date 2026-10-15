@@ -2055,7 +2055,7 @@ function alchemyTotals(player) {
 // Baús — obtidos de monstros e dungeons, abrem-se por ouro no menu da Mochila.
 const CHEST_DEFS = {
   equip: { name: 'Baú de Equipamento', icon: '🎁', desc: 'Contém uma peça de equipamento aleatória.' },
-  pedras: { name: 'Baú de Pedras', icon: '💠', desc: 'Contém 1–2 Pedras de Alquimia.' },
+  pedras: { name: 'Baú de Pedras', icon: '🧰', desc: 'Contém 1–2 Pedras de Alquimia.' },
   feitico: { name: 'Baú de Feitiço', icon: '✨', desc: 'Contém um Pergaminho de Feitiço ou de Reforço.' },
   ostra: { name: 'Ostra', icon: '🦪', desc: 'Contém uma Pérola... ou apenas uma Pedra.' },
   temporada1: { name: 'Baú da Temporada 1 ⭐', icon: '🌟', desc: 'Exclusivo da Temporada 1. Contém 1 item Lendário, Único ou Divino. Abre-se de graça.' }
@@ -9106,8 +9106,8 @@ function openChest(chestId) {
   const anim = fxOn();
   const tier = !revealItem ? '' : revealItem.rarity === 'divino' ? ' rar-divine' : ['lendario', 'unico', 'set', 'temporada', 'demoniaco'].includes(revealItem.rarity) ? ' rar-high' : '';
   openModal(`
-    <h3 style="margin-bottom:12px;">${CHEST_DEFS[chest.type].icon} Baú aberto!</h3>
-    ${anim ? `<div class="chest-stage${tier}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};"><div class="chest-beam"></div><div class="chest-ic">${CHEST_DEFS[chest.type].icon}</div></div>` : ''}
+    <h3 style="margin-bottom:12px;">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)} Baú aberto!</h3>
+    ${anim ? `<div class="chest-stage${tier}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};"><div class="chest-beam"></div><div class="chest-ic">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)}</div></div>` : ''}
     <div class="card raised${anim ? ' chest-result' + tier : ''}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};">${resultHtml}</div>
     <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
   `);
@@ -12710,7 +12710,7 @@ function fxCountUp(el, to, ms) {
 }
 // Destaque de cada linha do espólio (pelo texto da linha).
 function lootLineClass(txt) {
-  if (/ITEM DIVINO|💠/.test(txt)) return 'loot-divine';
+  if (/ITEM DIVINO/.test(txt)) return 'loot-divine';
   if (/Único|🟠|[Ll]endário|🟡|Nephalen|Item raro|🗝️|Temporada|⭐/.test(txt)) return 'loot-epic';
   if (/drop raro|Livro|📖|📗|🐾|Nova região|Rift/.test(txt)) return 'loot-rare';
   return '';
@@ -13120,7 +13120,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v121</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v122</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -14118,9 +14118,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "esconderijo-trofeus", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "esconderijo-trofeus", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 121;
+const NX_ICON_VER = 122;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
