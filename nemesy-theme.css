@@ -964,3 +964,39 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ho-prog.full i{background:linear-gradient(90deg,#8e2c2c,#c65c5c);}
 .ho-note.warn{border-color:#8e3a3a;background:rgba(163,65,65,.14);}
 .ho-part-chip.off{opacity:.4;}
+/* v119: Esconderijo — barra de nível e menu de melhoria */
+.ho-top{padding:8px 10px;border:1px solid var(--bronze,#6a5130);border-radius:10px;background:linear-gradient(180deg,#241c12,#120d08);box-shadow:inset 0 1px 0 rgba(255,255,255,.04);}
+.ho-lvbox{display:flex;align-items:center;gap:8px;}
+.ho-crest .nx-ic{width:38px;height:38px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.8));}
+.ho-lv{font-size:16px;}
+.ho-pips{display:flex;gap:4px;margin-top:3px;}
+.ho-pips i{width:16px;height:6px;border-radius:3px;background:#2a2014;border:1px solid #4a3a22;}
+.ho-pips i.on{background:linear-gradient(90deg,#b48a1e,#e4bf4a);border-color:#e4bf4a;box-shadow:0 0 6px rgba(228,191,74,.45);}
+.ho-up-btn{position:relative;}
+.ho-dot{position:absolute;top:-4px;right:-4px;width:10px;height:10px;border-radius:50%;background:#7fd85a;border:1px solid #1c1409;box-shadow:0 0 8px #7fd85a;animation:hoPulse 1.4s ease-in-out infinite;}
+.ho-max{font-family:var(--font-display);font-size:12px;color:var(--gold-bright);letter-spacing:.05em;}
+.ho-up-modal{text-align:left;}
+.ho-up-head{text-align:center;margin-bottom:10px;}
+.ho-up-crest .nx-ic{width:72px;height:72px;filter:drop-shadow(0 4px 8px rgba(0,0,0,.8)) drop-shadow(0 0 14px rgba(228,191,74,.25));}
+.ho-up-head h3{font-family:var(--font-display);color:var(--gold-bright);letter-spacing:.05em;margin:4px 0 6px;}
+.ho-up-lv{display:inline-flex;align-items:center;gap:10px;padding:4px 14px;border:1px solid var(--line);border-radius:20px;background:var(--bg-void);font-family:var(--font-display);}
+.ho-up-lv span{color:var(--muted);} .ho-up-lv .gold{color:var(--gold-bright);}
+.ho-perks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;}
+.ho-perk{display:flex;align-items:center;gap:8px;padding:8px;border:1px solid var(--bronze,#6a5130);border-radius:8px;background:radial-gradient(ellipse at 20% 30%,#2a2114,#0f0c08);}
+.ho-perk-ic .nx-ic{width:34px;height:34px;} .ho-perk-ic{flex-shrink:0;font-size:26px;line-height:1;}
+.ho-perk b{display:block;font-size:12px;line-height:1.2;color:var(--parchment);}
+.ho-perk .tiny{display:block;}
+.ho-cost{padding:10px;border:1px solid #6e3434;border-radius:8px;background:rgba(163,65,65,.08);}
+.ho-cost.ok{border-color:#4f6e3f;background:rgba(114,154,94,.10);}
+.ho-cost-v{font-size:18px;font-weight:800;color:var(--gold-bright);font-variant-numeric:tabular-nums;}
+.ho-cost .ho-prog i{background:linear-gradient(90deg,#8a6a1c,#e4bf4a);}
+.ho-road{display:flex;gap:4px;}
+.ho-road-step{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;border:1px solid var(--line);border-radius:8px;background:var(--bg-void);opacity:.55;}
+.ho-road-step.done{opacity:1;border-color:#4f6e3f;}
+.ho-road-step.next{opacity:1;border-color:var(--gold-bright);box-shadow:0 0 10px rgba(228,191,74,.3);}
+.ho-road-n{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:800;background:#2a2014;border:1px solid #4a3a22;}
+.ho-road-step.done .ho-road-n{background:#3d6230;border-color:#9fd27f;color:#fff;}
+.ho-road-step.next .ho-road-n{background:linear-gradient(#e4bf4a,#b48a1e);color:#1c1409;border-color:#e4bf4a;}
+.ho-road-ics{display:flex;flex-wrap:wrap;justify-content:center;min-height:24px;}
+.ho-road-ics .nx-ic{width:22px;height:22px;}
+.ho-road-step .tiny{font-size:9.5px;font-variant-numeric:tabular-nums;}
