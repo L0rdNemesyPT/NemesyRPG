@@ -7999,7 +7999,7 @@ function renderTalismasBody(body, p) {
     const definition = TALISMAN_DEFS[talisman.key];
     const equipped = p.equipment.talisman === talisman.id;
     return `<div class="item-row">
-      <div class="item-ic">${definition.icon}</div>
+      <div class="item-ic">${nxEnt('talisma-' + talisman.key, definition.icon)}</div>
       <div class="item-mid">
         <div class="item-name">${esc(definition.name)}</div>
         <div class="item-stats">${talismanStatsLabel(definition)}</div>
@@ -8254,8 +8254,8 @@ function renderFeiticosBody(body, p) {
   const equippedSlots = EQUIP_SLOTS.filter(s => p.equipment[s]);
   const scrollsHtml = `
     <div class="stat-grid" style="margin-bottom:12px;">
-      <div class="stat-box"><div class="v">📜 ${p.scrolls.feitico}</div><div class="k">Pergaminhos de Feitiço</div></div>
-      <div class="stat-box"><div class="v">🔧 ${p.scrolls.reforco}</div><div class="k">Pergaminhos de Reforço</div></div>
+      <div class="stat-box"><div class="v">${nxEnt('livro-feitico', '📜')} ${p.scrolls.feitico}</div><div class="k">Pergaminhos de Feitiço</div></div>
+      <div class="stat-box"><div class="v">${nxEnt('livro-reforco', '🔧')} ${p.scrolls.reforco}</div><div class="k">Pergaminhos de Reforço</div></div>
       <div class="stat-box plus2-box"><div class="v">📜➕ ${p.scrolls.feiticoPlus || 0}</div><div class="k">Feitiço ➕</div></div>
       <div class="stat-box plus2-box"><div class="v">🔧➕ ${p.scrolls.reforcoPlus || 0}</div><div class="k">Reforço ➕</div></div>
     </div>
@@ -9532,7 +9532,7 @@ function renderLojaBody() {
       ${potionsHtml}
       <div class="section-title">📙 Livros especiais</div>
       <div class="item-row">
-        <div class="item-ic">📙</div>
+        <div class="item-ic">${nxEnt('livro-amnesia', '📙')}</div>
         <div class="item-mid">
           <div class="item-name">Livro da Amnésia (${p.amnesiaBooks || 0})</div>
           <div class="tiny">Esquece a tua habilidade Mestra ou a tua profissão, para poderes escolher outra. Fica guardado na Mochila.</div>
@@ -10267,7 +10267,7 @@ function mapaGroups(p) {
   const dungeonTile = d => {
     const locked = p.level < d.minLv;
     const cleared = p.clearedDungeons.includes(d.key);
-    return { key: 'dg:' + d.key, kind: 'dungeon', ref: d, icon: d.icon, label: d.name, scene: d.scene || 'cripta',
+    return { key: 'dg:' + d.key, kind: 'dungeon', ref: d, icon: nxEnt('dungeon-' + d.key, d.icon), label: d.name, scene: d.scene || 'cripta',
       sub: `Nv. ${d.minLv}+`, locked, badge: locked ? '🔒' : (cleared ? '✅' : null) };
   };
   const tier1 = DUNGEONS.filter(d => d.tier !== 2).map(dungeonTile);
@@ -10278,7 +10278,7 @@ function mapaGroups(p) {
   const catTiles = CATACUMBAS.map(cat => {
     const keys = (p.catacumbKeys && p.catacumbKeys[cat.key]) || 0;
     const cleared = (p.clearedCatacumbas || []).includes(cat.key);
-    return { key: 'cat:' + cat.key, kind: 'catacumba', ref: cat, icon: cat.icon, label: cat.name, scene: 'cripta',
+    return { key: 'cat:' + cat.key, kind: 'catacumba', ref: cat, icon: nxEnt('dungeon-' + cat.key, cat.icon), label: cat.name, scene: 'cripta',
       sub: `Nv. ${cat.monsterLvMin}+`, locked: keys <= 0, badge: `🗝️${keys}${cleared ? ' ✅' : ''}` };
   });
   const groups = [
@@ -10364,7 +10364,7 @@ function renderMapaBody(tile) {
       <p class="muted" style="margin-bottom:10px;">${intro}</p>
       <div class="region-card${eligible ? '' : ' locked'}">
         <div class="region-head">
-          <div class="region-glyph">${d.icon}</div>
+          <div class="region-glyph">${nxEnt('dungeon-' + d.key, d.icon)}</div>
           <div style="flex:1;">
             <div class="region-title">${d.name}</div>
             <div class="region-lv">Nível mínimo ${d.minLv} · ${d.waves} ondas</div>
@@ -10409,7 +10409,7 @@ function renderMapaBody(tile) {
       <p class="muted" style="margin-bottom:10px;">Como as dungeons, mas é preciso uma chave para entrar (é consumida ao usares). Chefes finais muito mais fortes — e recompensas à altura.</p>
       <div class="region-card${hasKey ? '' : ' locked'}">
         <div class="region-head">
-          <div class="region-glyph">${cat.icon}</div>
+          <div class="region-glyph">${nxEnt('dungeon-' + cat.key, cat.icon)}</div>
           <div style="flex:1;">
             <div class="region-title">${cat.name}</div>
             <div class="region-lv">${cat.monsterWaves} monstros (Nv.${cat.monsterLvMin}–${cat.monsterLvMax})${dungeonMiniBosses(cat).length ? ` + ${dungeonMiniBosses(cat).length} mini-chefes` : ''} + chefe final Nv.${cat.bossLv}</div>
@@ -11123,16 +11123,16 @@ function booksSectionHtml(p) {
   const n = p.amnesiaBooks || 0;
   return `
     <div class="item-row">
-      <div class="item-ic">📙</div>
+      <div class="item-ic">${nxEnt('livro-amnesia', '📙')}</div>
       <div class="item-mid">
         <div class="item-name">Livro da Amnésia ×${n}</div>
         <div class="tiny">Esquece a habilidade Mestra ou a profissão. Compra-se na Cidade → Loja.</div>
       </div>
       <button class="btn small ${n > 0 ? 'primary' : 'ghost'}" data-use-amnesia ${n > 0 ? '' : 'disabled'}>Usar</button>
     </div>
-    <div class="item-row"><div class="item-ic">📖</div><div class="item-mid"><div class="item-name">Livros de Habilidades ×${p.skillBooks || 0}</div><div class="tiny">Servem para evoluir habilidades (Herói → Habilidades).</div></div></div>
-    <div class="item-row"><div class="item-ic">📗</div><div class="item-mid"><div class="item-name">Livros das Profissões ×${p.professionBooks || 0}</div><div class="tiny">Servem para escolher uma profissão (Herói → Profissões).</div></div></div>
-    <div class="item-row"><div class="item-ic">📕</div><div class="item-mid"><div class="item-name">Livros do Ferreiro ×${p.smithBooks || 0}</div><div class="tiny">+5% de hipótese numa tentativa de melhoria (Cidade → Ferreiro). Caem nas Catacumbas da Morte.</div></div></div>
+    <div class="item-row"><div class="item-ic">${nxEnt('livro-habilidades', '📖')}</div><div class="item-mid"><div class="item-name">Livros de Habilidades ×${p.skillBooks || 0}</div><div class="tiny">Servem para evoluir habilidades (Herói → Habilidades).</div></div></div>
+    <div class="item-row"><div class="item-ic">${nxEnt('livro-profissoes', '📗')}</div><div class="item-mid"><div class="item-name">Livros das Profissões ×${p.professionBooks || 0}</div><div class="tiny">Servem para escolher uma profissão (Herói → Profissões).</div></div></div>
+    <div class="item-row"><div class="item-ic">${nxEnt('livro-ferreiro', '📕')}</div><div class="item-mid"><div class="item-name">Livros do Ferreiro ×${p.smithBooks || 0}</div><div class="tiny">+5% de hipótese numa tentativa de melhoria (Cidade → Ferreiro). Caem nas Catacumbas da Morte.</div></div></div>
   `;
 }
 
@@ -12458,7 +12458,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v112</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v113</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -13447,9 +13447,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 112;
+const NX_ICON_VER = 113;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
