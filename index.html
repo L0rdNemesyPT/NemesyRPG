@@ -2043,6 +2043,8 @@ function alchStoneName(type, level) { const d = ALCHEMY_STONE_DEFS[type]; return
 function alchLevelText(level) { return alchIsPerfect(level) ? '⭐ Perfeita' : `Nv. ${level}`; }
 // v117: nome completo sem repetir a ⭐ ("Safira Perfeita ⭐" ou "Safira Nv. 5").
 function alchFullName(type, level) { return alchIsPerfect(level) ? alchStoneName(type, level) : `${alchStoneName(type, level)} Nv. ${level}`; }
+// v124: as Pedras Perfeitas têm imagem própria (a mesma pedra com uma estrela).
+function alchIconKey(type, level) { const k = 'alquimia-' + type + (alchIsPerfect(level) ? '-perfeita' : ''); return typeof NX_ICON_IMG !== 'undefined' && NX_ICON_IMG.has(k) ? k : 'alquimia-' + type; }
 function alchLevelShort(level) { return alchIsPerfect(level) ? '⭐' : `Nv.${level}`; }
 function alchPerLevelLabel(type) { const d = ALCHEMY_STONE_DEFS[type]; return `+${alchPctText(d.pct)} ${d.short} por nível · Nv. 9: +${alchPctText(d.pct * 9)} · ${d.perfectName}: +${alchPctText(d.pct * ALCHEMY_PERFECT_EFF)}`; }
 // Soma das pedras encaixadas: { dmg, def, hp, crit } (frações, 0.054 = 5,4%).
@@ -3890,12 +3892,12 @@ function nxConfirm(message, opts) {
     wrap.className = 'nx-confirm-overlay';
     wrap.setAttribute('role', 'dialog');
     wrap.setAttribute('aria-modal', 'true');
-    const body = esc(String(message || '')).replace(/\n/g, '<br>');
+    const body = opts.html || esc(String(message || '')).replace(/\n/g, '<br>');
     wrap.innerHTML = `
       <div class="nx-confirm-box${opts.danger ? ' danger' : ''}">
         ${opts.icon ? `<div class="nx-confirm-ic wiki-tile-ic">${opts.icon}</div>` : ''}
         <h3 class="nx-confirm-title">${esc(opts.title || 'Confirmar')}</h3>
-        <p class="nx-confirm-msg">${body}</p>
+        ${opts.html ? `<div class="nx-confirm-msg">${body}</div>` : `<p class="nx-confirm-msg">${body}</p>`}
         <div class="nx-confirm-actions">
           <button type="button" class="btn ghost block" data-nx-confirm="no">${esc(opts.cancelLabel || 'Cancelar')}</button>
           <button type="button" class="btn ${opts.danger ? 'danger' : 'primary'} block" data-nx-confirm="yes">${esc(opts.confirmLabel || 'Confirmar')}</button>
@@ -6302,7 +6304,7 @@ function expeditionRewardChips(r) {
   Object.keys(r.pearls || {}).forEach(k => { const pt = PEARL_TABLE.find(x => x.key === k); out.push(`<span>${nxIconSvg('perola-' + k, 'nx-inline') || (pt && pt.icon) || '⚪'}×${r.pearls[k]}</span>`); });
   if (r.chest) out.push(`<span>${nxIconSvg('bau-equip', 'nx-inline') || '🎁'}×${r.chest}${r.chestBoost ? ` +${r.chestBoost}` : ''}</span>`);
   if (r.gem && GEM_DEFS[r.gem]) out.push(`<span>${nxIconSvg('gema-' + r.gem, 'nx-inline') || GEM_DEFS[r.gem].icon}T1</span>`);
-  if (r.alch) out.push(`<span>${nxIconSvg('alquimia-' + r.alch.type, 'nx-inline') || '💠'}Nv.${r.alch.lvl}</span>`);
+  if (r.alch) out.push(`<span>${nxIconSvg(alchIconKey(r.alch.type, r.alch.lvl), 'nx-inline') || '💠'}Nv.${r.alch.lvl}</span>`);
   return out.join('');
 }
 function hoSelectedPets(p) {
@@ -6434,6 +6436,22 @@ function hoStorageBar(p, h) {
 // ---------- Bancada de Desmanche ----------
 function hoPartRarity(item) { return HIDEOUT_PART_RARITIES.includes(item && item.rarity) ? item.rarity : 'comum'; }
 function hoDismantleBase(item) { return 1 + Math.floor((item.upgrade || 0) / 3); }
+// v124: confirmação bonita para desmanchar (em vez da janela cinzenta do navegador).
+function dismantleConfirm(items) {
+  const p = App.player;
+  const byR = {}; items.forEach(it => { const r = hoPartRarity(it); (byR[r] = byR[r] || []).push(it); });
+  const keys = HIDEOUT_PART_RARITIES.filter(r => byR[r]);
+  const min = items.reduce((a, it) => a + hoDismantleBase(it), 0);
+  const free = hoStorageFree(p);
+  const rows = keys.map(r => { const n = byR[r].length, g = byR[r].reduce((a, it) => a + hoDismantleBase(it), 0), c = hoRarity(r).color;
+    return `<div class="dc-row" style="--c:${c}">${hoPartIc(r)}<span><b style="color:${c}">${n}× ${hoRarity(r).name}</b><small>→ ${g}${g < n * 2 ? `–${g + n}` : ''} ${hoPartName(r)}</small></span></div>`; }).join('');
+  const one = items.length === 1 ? items[0] : null;
+  const html = `${one ? `<div class="dc-item" style="${rarityBoxStyle(one)}"><span class="dc-item-ic">${itemIconHtml(one)}</span><span><b style="color:${one.rarityColor}">${esc(one.name)}${one.upgrade ? ` +${one.upgrade}` : ''}</b><small>${SLOT_NAMES[one.slot]} · Nv.${one.itemLevel || 1} · ${one.rarityName}</small></span></div>` : ''}
+    <div class="dc-rows">${rows}</div>
+    <div class="dc-store"><span>${nxIconSvg(hoStationImg(hoStation('bau')), 'nx-inline') || '🧰'} Baú: ${hoStorageUsed(p.hideout)}/${hoStorageCap(p)}</span><span class="${min > free ? 'warn' : 'ok'}">${min > free ? `Só cabem ${free} peças` : `+${min} peças ou mais`}</span></div>
+    <p class="dc-warn">⚠️ Não dá para desfazer. Os itens bloqueados e equipados ficam de fora.</p>`;
+  return nxConfirm('', { html, title: one ? 'Desmanchar item?' : `Desmanchar ${items.length} itens?`, icon: nxIconSvg(hoStationImg(hoStation('desmanche'))) || '🔨', confirmLabel: `🔨 Desmanchar${one ? '' : ` ${items.length}`}`, cancelLabel: 'Cancelar', danger: true });
+}
 function dismantleItems(ids) {
   const p = App.player, h = p.hideout;
   if (!h) return;
@@ -6562,12 +6580,18 @@ function craftForgeState(p) {
   const ready = !!(eq && (eq.upgrade || 0) >= 9 && sac && parts >= CRAFT_FORGE_PARTS);
   return { eq, r, cands, sac, parts, ready, canImprove: !!(eq && craftImprovableStats(eq).length) };
 }
-function forgeAction(mode) {
+async function forgeAction(mode) {
   const p = App.player, h = p.hideout, st = craftForgeState(p);
   if (!h || !st.ready) { sfx.error(); return; }
   if (mode === 'melhorar' && !st.canImprove) { sfx.error(); toast('Este Peitoral já está no máximo da raridade.'); return; }
   const what = mode === 'melhorar' ? 'tentar melhorar' : 'tentar um bónus de Craft';
-  if (!confirm(`Vais ${what} com ${Math.round(CRAFT_FORGE_CHANCE * 100)}% de hipótese de sucesso.\nGastas sempre ${st.sac.name} e ${CRAFT_FORGE_PARTS}× ${hoPartName(st.r)}. O teu Peitoral equipado não se perde.\nContinuar?`)) return;
+  const fhtml = `<p class="dc-lead">Vais ${what} com <b class="dc-pct">${Math.round(CRAFT_FORGE_CHANCE * 100)}%</b> de hipótese de sucesso.</p>
+    <div class="dc-rows">
+      <div class="dc-row" style="--c:${st.sac.rarityColor}"><span class="dc-item-ic">${itemIconHtml(st.sac)}</span><span><b style="color:${st.sac.rarityColor}">${esc(st.sac.name)}</b><small>Sacrifício · Nv.${st.sac.itemLevel || 1} · gasta-se</small></span></div>
+      <div class="dc-row" style="--c:${hoRarity(st.r).color}">${hoPartIc(st.r)}<span><b style="color:${hoRarity(st.r).color}">${CRAFT_FORGE_PARTS}× ${hoPartName(st.r)}</b><small>gastam-se (tens ${st.parts})</small></span></div>
+    </div>
+    <p class="dc-warn">O teu Peitoral equipado nunca se perde.</p>`;
+  if (!await nxConfirm('', { html: fhtml, title: mode === 'melhorar' ? 'Tentar melhorar?' : 'Tentar bónus de Craft?', icon: nxIconSvg(mode === 'melhorar' ? 'hammer' : 'sparkle') || '⚒️', confirmLabel: mode === 'melhorar' ? '⚒️ Tentar' : '✨ Tentar', cancelLabel: 'Cancelar' })) return;
   p.inventory = p.inventory.filter(it => it.id !== st.sac.id);
   h.parts[st.r] -= CRAFT_FORGE_PARTS;
   App.hoForgeSac = null;
@@ -6894,30 +6918,30 @@ function bindHideoutStation(key) {
     const b = $('btn-ho-rest'); if (b) b.addEventListener('click', restAction);
   } else if (key === 'desmanche') {
     els('[data-ho-dis-r]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoDisRarity = b.dataset.hoDisR; rerender(); }));
-    els('[data-ho-dis]').forEach(b => b.addEventListener('click', () => {
+    els('[data-ho-dis]').forEach(b => b.addEventListener('click', async () => {
       const it = App.player.inventory.find(x => x.id === b.dataset.hoDis);
       if (!it) return;
       const big = ['lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada'].includes(it.rarity) || (it.upgrade || 0) >= 5;
-      if (big && !confirm(`Desmanchar ${it.name}? Não dá para desfazer.`)) return;
+      if (big && !await dismantleConfirm([it])) return;
       dismantleItems([it.id]);
     }));
     els('[data-ho-multi]').forEach(b => b.addEventListener('click', () => {
       sfx.tab(); const k = b.dataset.hoMulti; const set = new Set(App.hoDisMulti || []);
       if (set.has(k)) set.delete(k); else set.add(k); App.hoDisMulti = [...set]; rerender();
     }));
-    const mb = $('btn-ho-dis-multi'); if (mb) mb.addEventListener('click', () => {
+    const mb = $('btn-ho-dis-multi'); if (mb) mb.addEventListener('click', async () => {
       const sel = new Set(App.hoDisMulti || []);
-      const ids = App.player.inventory.filter(it => !it.locked && sel.has(hoPartRarity(it))).map(it => it.id);
-      if (!ids.length) return;
-      if (!confirm(`Desmanchar ${ids.length} ${ids.length === 1 ? 'item' : 'itens'} (${[...sel].map(r => hoRarity(r).name).join(', ')})? Os bloqueados e equipados ficam. Não dá para desfazer.`)) return;
-      dismantleItems(ids);
+      const items = App.player.inventory.filter(it => !it.locked && sel.has(hoPartRarity(it)));
+      if (!items.length) return;
+      if (!await dismantleConfirm(items)) return;
+      dismantleItems(items.map(it => it.id));
     });
-    els('[data-ho-dis-all]').forEach(b => b.addEventListener('click', () => {
+    els('[data-ho-dis-all]').forEach(b => b.addEventListener('click', async () => {
       const r = b.dataset.hoDisAll;
-      const ids = App.player.inventory.filter(it => !it.locked && hoPartRarity(it) === r).map(it => it.id);
-      if (!ids.length) return;
-      if (!confirm(`Desmanchar ${ids.length} ${ids.length === 1 ? 'item' : 'itens'} ${hoRarity(r).name}? Os bloqueados ficam. Não dá para desfazer.`)) return;
-      dismantleItems(ids);
+      const items = App.player.inventory.filter(it => !it.locked && hoPartRarity(it) === r);
+      if (!items.length) return;
+      if (!await dismantleConfirm(items)) return;
+      dismantleItems(items.map(it => it.id));
     }));
   } else if (key === 'craft') {
     els('[data-ho-craft-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoCraftTab = b.dataset.hoCraftTab; rerender(); }));
@@ -9436,7 +9460,7 @@ function renderAlchemyBody(body, p) {
   const slotsHtml = `<div class="slot-grid" style="grid-template-columns:repeat(3,1fr); margin-bottom:12px;">${p.alchemySlots.map((s, i) => {
     const def = s ? ALCHEMY_STONE_DEFS[s.type] : null;
     return `<div class="equip-slot${s ? ' filled' : ''}${s && alchIsPerfect(s.level) ? ' alch-perfect' : ''}" data-alch-slot="${i}">
-      <div class="ic">${def ? nxEnt('alquimia-' + s.type, def.icon) : '🔮'}</div>
+      <div class="ic">${def ? nxEnt(alchIconKey(s.type, s.level), def.icon) : '🔮'}</div>
       <div class="lbl">${def ? def.name : 'Vazio'}</div>
       ${def ? `<div class="itemname" style="color:var(--gold-bright);">${alchLevelText(s.level)}</div><div class="tiny alch-slot-bonus">${alchStoneLabel(s.type, s.level)}</div>` : `<div class="tiny">Toca p/ encaixar</div>`}
     </div>`;
@@ -9565,7 +9589,7 @@ function openAlchemySlotModal(slotIdx) {
     const def = ALCHEMY_STONE_DEFS[current.type];
     html += `
       <div class="item-row">
-        <div class="item-ic">${nxEnt('alquimia-' + current.type, def.icon)}</div>
+        <div class="item-ic">${nxEnt(alchIconKey(current.type, current.level), def.icon)}</div>
         <div class="item-mid"><div class="item-name">${alchFullName(current.type, current.level)}</div><div class="tiny" style="color:var(--gold-bright);">${alchStoneLabel(current.type, current.level)}</div><div class="tiny">${def.desc}</div></div>
       </div>
       <button class="btn ghost block" id="btn-unsocket-alch" style="margin:10px 0;">Remover (volta para a bolsa)</button>
@@ -9581,7 +9605,7 @@ function openAlchemySlotModal(slotIdx) {
     } else {
       html += options.map(o => `
         <div class="item-row" data-pick-alch="${o.type}" data-pick-level="${o.level}">
-          <div class="item-ic">${nxEnt('alquimia-' + o.type, ALCHEMY_STONE_DEFS[o.type].icon)}</div>
+          <div class="item-ic">${nxEnt(alchIconKey(o.type, o.level), ALCHEMY_STONE_DEFS[o.type].icon)}</div>
           <div class="item-mid"><div class="item-name">${alchFullName(o.type, o.level)}</div><div class="tiny"><b style="color:var(--gold-bright);">${alchStoneLabel(o.type, o.level)}</b> · Tens ${o.count}</div></div>
           <button class="btn small primary">Encaixar</button>
         </div>`).join('');
@@ -13329,7 +13353,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v123</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v124</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -14327,9 +14351,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "esconderijo-trofeus", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "esconderijo-trofeus", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 122;
+const NX_ICON_VER = 124;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;

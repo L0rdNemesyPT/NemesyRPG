@@ -1060,3 +1060,18 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ho-mchip i{width:14px;height:14px;border-radius:4px;border:1px solid var(--c);display:inline-grid;place-items:center;font-style:normal;font-size:10px;}
 .ho-mchip.on{background:rgba(255,255,255,.08);box-shadow:0 0 8px var(--c);}
 .ho-mchip.on i{background:var(--c);color:#000;}
+/* v124: confirmação de desmanche / forja */
+.nx-confirm-ic .nx-ic{width:56px;height:56px;}
+div.nx-confirm-msg{text-align:left;}
+.dc-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;}
+.dc-item-ic .nx-ic,.dc-item-ic .nx-k{width:34px;height:34px;font-size:26px;}
+.dc-item b,.dc-row b{display:block;font-size:13px;line-height:1.2;}
+.dc-item small,.dc-row small{display:block;font-size:11px;color:var(--muted);}
+.dc-rows{display:flex;flex-direction:column;gap:5px;}
+.dc-row{display:flex;align-items:center;gap:9px;padding:6px 9px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:8px;background:var(--bg-void);}
+.dc-row .ho-part.img,.dc-row .ho-part.img .nx-ic{width:30px;height:30px;}
+.dc-store{display:flex;justify-content:space-between;gap:8px;margin-top:9px;font-size:12px;}
+.dc-store .ok{color:var(--craft-green,#8EE06A);} .dc-store .warn{color:#e08b8b;}
+.dc-warn{margin-top:8px;font-size:11.5px;color:#e8b3a0;text-align:center;}
+.dc-lead{font-size:13px;margin-bottom:8px;text-align:center;}
+.dc-pct{color:#f0a0a0;}
