@@ -11221,13 +11221,13 @@ function renderMapaBody(tile) {
       </div>
       <div class="section-title">👾 Monstros</div>
       <div class="map-list">
-        ${r.monsters.map(m => `<div class="map-list-row"><span class="map-list-ic">${m.icon}</span><span>${m.name}</span></div>`).join('')}
+        ${r.monsters.map(m => `<div class="map-list-row"><span class="map-list-ic">${nxCreature(m.name, m.icon)}</span><span>${m.name}</span></div>`).join('')}
       </div>
       <div class="section-title">👑 Chefes <span class="tiny muted" style="margin-left:6px;">${bossesDone}/${r.bosses.length}</span></div>
       <div class="map-list">
         ${r.bosses.map(b => {
           const done = p.defeatedBosses.includes(b.name);
-          return `<div class="map-list-row${done ? ' done' : ''}"><span class="map-list-ic">${b.icon}</span>
+          return `<div class="map-list-row${done ? ' done' : ''}"><span class="map-list-ic">${nxCreature(b.name, b.icon)}</span>
             <span style="flex:1;">${b.name} <span class="tiny muted">Nv. ${b.lv}${b.isGate ? ' · guardião' : ''}</span></span>
             <span class="tiny">${done ? '✅' : (unlocked ? '⚔️' : '🔒')}</span></div>`;
         }).join('')}
@@ -11266,7 +11266,7 @@ function renderMapaBody(tile) {
         <div class="tiny" style="margin-top:8px;">🎁 Recompensa: ${d.setKey ? SET_DEFS[d.setKey].name : (d.tier === 2 && !d.noAltar ? 'equipamento + tentativa no Altar' : 'equipamento')}${d.talismanDrop ? ` · ${Math.round(d.talismanDrop.chance * 100)}% ${TALISMAN_DEFS[d.talismanDrop.key].name}` : ''}${d.divineChance ? ` · ${String(d.divineChance * 100).replace('.', ',')}% item 💠 Divino` : ''}${d.bossDrop ? ` · ${Math.round(d.bossDrop.chance * 100)}% ${LUNAR_DEFS[d.bossDrop.key].icon} ${LUNAR_DEFS[d.bossDrop.key].name}` : ''}</div>
         ${dungeonMiniBosses(d).map(m => `<div class="tiny muted" style="margin-top:4px;">${m.icon} Mini-chefe (onda ${m.atWave}): ${m.name}${d.miniBossDrop ? ` · ${Math.round(d.miniBossDrop.chance * 100)}% ${LUNAR_DEFS[d.miniBossDrop.key].icon}` : ''}</div>`).join('')}
         <div class="boss-line">${d.bossIcon} ${d.bossName}${cleared ? ' — já derrotado' : ''}</div>
-        ${d.monsters ? `<div class="monster-strip">${d.monsters.map(m => `<span class="monster-chip" title="${m.name}">${m.icon}</span>`).join('')}</div>` : ''}
+        ${d.monsters ? `<div class="monster-strip">${d.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>` : ''}
         ${eligible
           ? `<button class="btn small danger" style="margin-top:10px;" data-enter-dungeon="${d.key}">Entrar na dungeon</button>`
           : `<p class="tiny muted" style="margin-top:10px;">Disponível a partir do nível ${d.minLv}.</p>`}
@@ -11310,7 +11310,7 @@ function renderMapaBody(tile) {
         </div>
         <div class="boss-line">${cat.bossIcon} ${cat.bossName} — muito mais forte que um chefe normal deste nível${cleared ? ' · já derrotado' : ''}</div>
         ${dungeonMiniBosses(cat).map(m => `<div class="tiny muted" style="margin-top:4px;">${m.icon} Mini-chefe (ronda ${m.atWave}): ${m.name}</div>`).join('')}
-        <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${m.icon}</span>`).join('')}</div>
+        <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>
         <div class="tiny" style="margin-top:8px;">🎁 ${catacumbaRewardsText(cat)}</div>
         ${hasKey
           ? `<button class="btn small danger" style="margin-top:10px;" data-enter-catacumba="${cat.key}">🗝️ Usar chave e entrar</button>`
@@ -13353,7 +13353,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v127</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v128</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -14351,9 +14351,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 127;
+const NX_ICON_VER = 128;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -14411,19 +14411,34 @@ function nxNameIndex() {
   NX_NAME_INDEX = idx;
   return idx;
 }
+let NX_CREATURE_SLUGS = null;
+function nxCreatureSlugs() {
+  if (NX_CREATURE_SLUGS) return NX_CREATURE_SLUGS;
+  const set = new Set();
+  const walk = (o, inMon, depth) => {
+    if (!o || typeof o !== 'object' || depth > 6) return;
+    if (Array.isArray(o)) { o.forEach(x => walk(x, inMon, depth + 1)); return; }
+    if (inMon && typeof o.name === 'string') set.add(nxSlug(o.name));
+    Object.keys(o).forEach(k => { const v = o[k]; if (v && typeof v === 'object') walk(v, inMon || /monst|boss|chefe|mini|final|enem/i.test(k), depth + 1); });
+  };
+  try { [REGIONS, DUNGEONS, CATACUMBAS, TOWERS].forEach(x => walk(x, false, 0)); } catch (e) { return set; }
+  NX_CREATURE_SLUGS = set;
+  return set;
+}
 function nxKeyForName(text) {
   const n = nxNameNorm(text);
   if (!n) return null;
   if (/^sementes?(-|$)/.test(n)) return 'item-semente';
   const idx = nxNameIndex();
   let key = idx[n];
+  if (key && !NX_ICON_IMG.has(key.replace(/_/g, '-'))) key = null; // ex.: mascote "Lobo" sem imagem → usa a do monstro Lobo
   if (!key) { // nome com algo à frente/atrás ("Pedra do Dano (T1)", "Cebola · ativo")
     let best = '';
     Object.keys(idx).forEach(k => { if (k.length > best.length && (n.startsWith(k + '-') || n === k)) best = k; });
     key = best ? idx[best] : null;
   }
   if (!key) { const c = 'chefe-' + n, m = 'monstro-' + n; key = NX_ICON_IMG.has(c) ? c : NX_ICON_IMG.has(m) ? m : null; }
-  if (!key) { // monstro/chefe com algo à frente ("General dos Condenados (Nv.140)")
+  if (!key && !nxCreatureSlugs().has(n)) { // monstro/chefe com algo à frente ("General dos Condenados (Nv.140)"), mas não outro monstro ("Lobo Lunar" ≠ "Lobo")
     for (const k of NX_ICON_IMG) { const b = k.replace(/^(chefe|monstro)-/, ''); if (b !== k && n.startsWith(b + '-')) { key = k; break; } }
   }
   if (key) key = key.replace(/_/g, '-');
