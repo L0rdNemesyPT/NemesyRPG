@@ -944,8 +944,9 @@ function difficultyUnlocked(p, d) {
   return (p.level || 1) >= d.minLevel && !!p.divinoUnlocked;
 }
 function difficultyStatsText(d) {
-  if (d.hpMult) return `HP ×${d.hpMult} · Dano ×${d.dmgMult} · Defesa ×${d.defMult}`;
-  return `×${d.statMult} mais fortes (HP/Dano/Defesa)`;
+  const x = v => String(v).replace('.', ',');
+  if (d.hpMult) return `HP ×${x(d.hpMult)} · Dano ×${x(d.dmgMult)} · Defesa ×${x(d.defMult)}`;
+  return `×${x(d.statMult)} mais fortes (HP/Dano/Defesa)`;
 }
 // Fundo estilo Diablo 3: caixa do item tingida com a cor da raridade (borda + gradiente + brilho).
 function rarityBoxStyle(item) {
@@ -3087,20 +3088,20 @@ function bossGapMultiplier(bossLevel, playerLevel) {
 }
 
 const RANDOM_EVENTS = [
-  { key: 'demoniaco', name: 'Evento Demoníaco', icon: '🔺️', dmgMult: 1.5, hpMult: 1.3, defMult: 0.7,
-    desc: 'Os monstros ficam selvagens: dano ×1.5 e vida ×1.3, mas a defesa cai para ×0.7.' },
-  { key: 'corrompido', name: 'Corrompido', icon: '🪯', dmgMult: 3.5, hpMult: 1.2, defMult: 0.2,
-    desc: 'Monstros corrompidos: dano ×3.5 e vida ×1.2, mas a defesa despenha para ×0.2 — letais, mas frágeis.' },
-  { key: 'nod', name: 'Hand of Nod', icon: '⚜️', dmgMult: 1.0, hpMult: 1.5, defMult: 1.0, critBonus: 0.20,
-    desc: 'Uma bênção sombria: vida ×1.5 e +20% de chance dos monstros causarem dano crítico.' },
+  { key: 'demoniaco', name: 'Demoníaco', icon: '😈', dmgMult: 1.5, hpMult: 1.3, defMult: 0.7,
+    desc: 'Os monstros ficam selvagens: dano ×1,5 e vida ×1,3, mas a defesa cai para ×0,7.' },
+  { key: 'corrompido', name: 'Corrompido', icon: '☠️', dmgMult: 3.5, hpMult: 1.2, defMult: 0.2,
+    desc: 'Monstros corrompidos: dano ×3,5 e vida ×1,2, mas a defesa despenha para ×0,2 — letais, mas frágeis.' },
+  { key: 'nod', name: 'Renegados', icon: '🗡️', dmgMult: 1.0, hpMult: 1.5, defMult: 1.0, critBonus: 0.20,
+    desc: 'Uma bênção sombria: vida ×1,5 e +20% de chance dos monstros causarem dano crítico.' },
   { key: 'kappa', name: 'Kappa', icon: '❄️', dmgMult: 0.7, hpMult: 2.0, defMult: 1.3,
-    desc: 'Presença gélida: dano ×0.7, vida ×2.0 e defesa ×1.3 — combates mais longos e defensivos.' },
+    desc: 'Presença gélida: dano ×0,7, vida ×2 e defesa ×1,3 — combates mais longos e defensivos.' },
   { key: 'praga', name: 'Praga', icon: '☣️', dmgMult: 0.5, hpMult: 4.0, defMult: 1.2,
-    desc: 'Uma doença assola os monstros: dano ×0.5 e defesa ×1.2, mas a vida dispara para ×4.0 — combates longos e desgastantes.' },
+    desc: 'Uma doença assola os monstros: dano ×0,5 e defesa ×1,2, mas a vida dispara para ×4 — combates longos e desgastantes.' },
   { key: 'escuridao', name: 'Escuridão', icon: '💀', dmgMult: 1.5, hpMult: 1.5, defMult: 1.5,
-    desc: 'As trevas envolvem os monstros: dano, vida e defesa sobem todos ×1.5 — um desafio equilibrado, mas mais duro em tudo.' },
+    desc: 'As trevas envolvem os monstros: dano, vida e defesa sobem todos ×1,5 — um desafio equilibrado, mas mais duro em tudo.' },
   { key: 'atormentados', name: 'Atormentados', icon: '👹', dmgMult: 2.0, hpMult: 3.0, defMult: 0.2, bleedChance: 0.35,
-    desc: 'Especialistas em sangramento: dano ×2 e vida ×3, mas defesa a ×0.2 — e cada ataque deles tem 35% de hipótese de te fazer sangrar.' }
+    desc: 'Especialistas em sangramento: dano ×2 e vida ×3, mas defesa a ×0,2 — e cada ataque deles tem 35% de hipótese de te fazer sangrar.' }
 ];
 function rollRandomEvent() {
   if (Math.random() > 0.15) return null;
@@ -3938,10 +3939,13 @@ function showInfoModal(icon, title, bodyHtml) {
 
 function showEventInfoModal(ev) {
   const rows = [];
-  if (ev.dmgMult !== undefined) rows.push(`Dano dos monstros: <b>×${ev.dmgMult}</b>`);
-  if (ev.hpMult !== undefined) rows.push(`Vida dos monstros: <b>×${ev.hpMult}</b>`);
-  if (ev.defMult !== undefined) rows.push(`Defesa dos monstros: <b>×${ev.defMult}</b>`);
+  const x = v => String(v).replace('.', ',');
+  if (ev.dmgMult !== undefined) rows.push(`Dano dos monstros: <b>×${x(ev.dmgMult)}</b>`);
+  if (ev.hpMult !== undefined) rows.push(`Vida dos monstros: <b>×${x(ev.hpMult)}</b>`);
+  if (ev.defMult !== undefined) rows.push(`Defesa dos monstros: <b>×${x(ev.defMult)}</b>`);
   if (ev.critBonus) rows.push(`Chance de crítico dos monstros: <b>+${Math.round(ev.critBonus * 100)}%</b>`);
+  if (ev.bleedChance) rows.push(`Hipótese de te fazerem sangrar: <b>${Math.round(ev.bleedChance * 100)}%</b> por ataque`);
+  if (EVENT_DROPS[ev.key]) rows.push(EVENT_DROPS[ev.key]);
   const battlesLeft = ev.battlesLeft !== undefined ? `<p class="tiny" style="margin-top:8px;">Continua ativo durante mais ${ev.battlesLeft} batalha(s).</p>` : '';
   showInfoModal(ev.icon, ev.name, `<p class="tiny">${ev.desc || ''}</p><div class="divider"></div>${rows.map(r => `<p class="tiny" style="margin-top:4px;">${r}</p>`).join('')}${battlesLeft}`);
 }
@@ -5000,7 +5004,7 @@ function renderWikiBody() {
         <div class="card raised">
           <div class="row between">
             <span style="font-weight:700;">${r.icon} ${r.name}</span>
-            <span class="pill">${r.event ? 'evento · 0,5%' : r.special ? r.sourceLabel : pct(r.chance)}</span>
+            <span class="pill">${r.event ? 'extra · 0,5%' : r.special ? r.sourceLabel : pct(r.chance)}</span>
           </div>
           <p class="tiny" style="margin-top:6px;">Multiplicador de poder: ×${r.mult}${r.event ? ' · não entra na tabela normal, é uma hipótese extra e independente' : ''}${r.special ? ` · nunca cai ao acaso — ${r.sourceLabel}` : ''}${r.corrupted ? ' · corrompido: vem sempre com um debuff de HP' : ''}</p>
         </div>
@@ -5196,12 +5200,12 @@ function renderWikiBody() {
     `;
   } else if (t === 'eventos') {
     body.innerHTML = `
-      <p class="muted" style="margin-bottom:10px;">15% de hipótese de surgir a cada combate; quando surge, fica ativo durante 3 a 6 batalhas seguidas, alterando o dano, a vida e a defesa dos monstros durante esse período.</p>
+      <p class="muted" style="margin-bottom:10px;">15% de hipótese de surgir em cada combate contra monstros e chefes das regiões; quando surge, fica ativo durante 3 a 6 desses combates, alterando o dano, a vida e a defesa dos monstros. Não afeta dungeons, catacumbas, a Torre nem Rifts.</p>
       ${RANDOM_EVENTS.map(ev => {
         const rows = [];
-        if (ev.dmgMult !== undefined) rows.push(`Dano ×${ev.dmgMult}`);
-        if (ev.hpMult !== undefined) rows.push(`Vida ×${ev.hpMult}`);
-        if (ev.defMult !== undefined) rows.push(`Defesa ×${ev.defMult}`);
+        if (ev.dmgMult !== undefined) rows.push(`Dano ×${String(ev.dmgMult).replace('.', ',')}`);
+        if (ev.hpMult !== undefined) rows.push(`Vida ×${String(ev.hpMult).replace('.', ',')}`);
+        if (ev.defMult !== undefined) rows.push(`Defesa ×${String(ev.defMult).replace('.', ',')}`);
         if (ev.critBonus) rows.push(`+${Math.round(ev.critBonus * 100)}% crítico`);
         if (ev.bleedChance) rows.push(`${Math.round(ev.bleedChance * 100)}% de hipótese de Sangramento por ataque`);
         const dropInfo = EVENT_DROPS[ev.key];
@@ -6130,7 +6134,7 @@ function renderTabBatalha() {
   const diffDesc = d => {
     if (!difficultyUnlocked(p, d)) return `Abre no nível ${d.minLevel}`;
     if (d.key === 'comum') return 'Monstros como estão no jogo';
-    return `${difficultyStatsText(d)} · Ouro ×${d.goldMult} · XP ×${d.xpMult}${d.divineItemChance ? ` · Chefes: ${String(d.divineItemChance * 100).replace('.', ',')}% de item Divino` : ''}`;
+    return `${difficultyStatsText(d)} · Ouro ×${String(d.goldMult).replace('.', ',')} · XP ×${String(d.xpMult).replace('.', ',')}${d.divineItemChance ? ` · Chefes: ${String(d.divineItemChance * 100).replace('.', ',')}% de item Divino` : ''}`;
   };
   const icon = (key, emo, cls) => nxIconsEnabled() && NX_ICON_IMG.has(key) ? nxIconSvg(key, cls) : `<span class="bt-emo">${emo}</span>`;
 
@@ -11990,9 +11994,9 @@ function startCombat(opts) {
   resetCombatScreenChrome();
   showScreen('screen-combat');
   addCombatLog({ text: `Um(a) ${opts.name} apareceu!`, cls: 'good' });
-  if (diff.statMult > 1) addCombatLog({ text: `${diff.icon} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${diff.statMult} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
+  if (diff.statMult > 1) addCombatLog({ text: `${diff.icon} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
-  if (eventApplied) addCombatLog({ text: `${eventApplied.icon} ${eventApplied.name} está a afetar este combate!`, cls: 'hit' });
+  if (eventApplied) addCombatLog({ text: `${eventApplied.icon} Evento ${eventApplied.name}: os monstros estão alterados neste combate!`, cls: 'hit' });
   if (element) addCombatLog({ text: `O inimigo tem afinidade elemental: ${element}.`, cls: 'hit' });
   renderCombat();
 }
@@ -12899,39 +12903,49 @@ function finishWildOrBossVictory() {
   }
   // Monstros afetados pela Praga têm uma baixa chance de deixar cair uma arma
   // já com o bónus de Envenenamento (garantido, não é uma hipótese entre outras).
+  const eventBagFull = () => (p.inventory || []).length >= INVENTORY_MAX;
+  const eventFullMsg = what => drops.push(`🎒 Mochila cheia (${INVENTORY_MAX} itens): ${what} não coube. Vende alguns itens.`);
   if (c.eventApplied && c.eventApplied.key === 'praga' && Math.random() < 0.06) {
+    if (eventBagFull()) eventFullMsg('a arma envenenada da Praga'); else {
     const weapon = generateItem('weapon', c.level);
     const poisonDef = BONUS_PLUS_POOL.find(b => b.key === 'envenenamento');
     weapon.bonuses.push({ key: 'envenenamento', value: poisonDef.roll() });
     p.inventory.push(weapon);
     drops.push(`☣️🧪 A Praga deixou cair uma arma envenenada: ${weapon.name}!`);
+    }
   }
   // Monstros afetados pela Escuridão têm uma baixa chance de deixar cair uma
   // peça de armadura já com o bónus de Esquiva (garantido, tal como a Praga).
   if (c.eventApplied && c.eventApplied.key === 'escuridao' && Math.random() < 0.06) {
+    if (eventBagFull()) eventFullMsg('a armadura esquiva da Escuridão'); else {
     const slot = ARMOR_SLOTS[Math.floor(Math.random() * ARMOR_SLOTS.length)];
     const armor = generateItem(slot, c.level);
     const dodgeDef = BONUS_PLUS_POOL.find(b => b.key === 'esquiva');
     armor.bonuses.push({ key: 'esquiva', value: dodgeDef.roll() });
     p.inventory.push(armor);
     drops.push(`💀🌀 A Escuridão deixou cair uma armadura esquiva: ${armor.name}!`);
+    }
   }
   // Monstros afetados pelos Atormentados têm uma hipótese muito baixa de deixar cair o
   // Amuleto dos Atormentados: um item único com imunidade permanente a Sangramento,
   // à parte dos drops normais e não obtenível de nenhuma outra forma.
   if (c.eventApplied && c.eventApplied.key === 'atormentados' && Math.random() < 0.01) {
+    if (eventBagFull()) eventFullMsg('o Amuleto dos Atormentados'); else {
     const amulet = generateItem('amulet', c.level, null, null, RARITIES.find(r => r.key === 'unico'));
     amulet.name = 'Amuleto dos Atormentados';
     amulet.uniqueEffect = 'bleedImmune';
     p.inventory.push(amulet);
-    drops.push(`👹🩸🚫 Os Atormentados deixaram cair o lendário Amuleto dos Atormentados!`);
+    drops.push(`👹🩸🚫 Os Atormentados deixaram cair o Amuleto dos Atormentados (Único, imune a Sangramento)!`);
+    }
   }
   // 💠 Divino: os chefes têm uma hipótese pequena de deixar cair um item Divino.
   if (isBoss && diff.divineItemChance && Math.random() < diff.divineItemChance) {
-    const divSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
-    const divineItem = generateItem(divSlot, c.level, null, false, DIVINO_RARITY);
-    p.inventory.push(divineItem);
-    drops.push(`💠✨ ITEM DIVINO! ${divineItem.name}!`);
+    if (eventBagFull()) eventFullMsg('o item 💠 Divino'); else {
+      const divSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+      const divineItem = generateItem(divSlot, c.level, null, false, DIVINO_RARITY);
+      p.inventory.push(divineItem);
+      drops.push(`💠✨ ITEM DIVINO! ${divineItem.name}!`);
+    }
   }
   // Derrotar o Soberano da Floresta Negra no Único (ou superior) desbloqueia a dificuldade Divino.
   const divinoDef = MONSTER_DIFFICULTY.find(d => d.key === 'divino');
@@ -12949,7 +12963,8 @@ function finishWildOrBossVictory() {
     }
   }
   if (p.fortuneBattlesLeft > 0) p.fortuneBattlesLeft--;
-  if (p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
+  // O evento só gasta uma batalha nos combates que afetou (não em Rifts).
+  if (c.eventApplied && p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
   tickProfessionCooldowns(p);
   consumeTalismanBattle();
 
@@ -13085,7 +13100,7 @@ function handlePlayerDefeated() {
   c.goldLost = goldLost;
   p.hp = Math.max(1, Math.round(effectiveStats(p).hp * 0.5));
   p.stats.losses++;
-  if (p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
+  if (c.eventApplied && p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
   tickProfessionCooldowns(p);
   consumeTalismanBattle();
   saveGame();
@@ -13536,7 +13551,7 @@ function renderCombat() {
   const elementChip = document.querySelector('[data-info-element]');
   if (elementChip) elementChip.addEventListener('click', () => showElementInfoModal(elementChip.dataset.infoElement));
 
-  $('cb-event-banner').innerHTML = c.eventApplied ? `<div class="event-banner" id="cb-event-tap">${c.eventApplied.icon} ${c.eventApplied.name} ativo · toca para detalhes</div>` : '';
+  $('cb-event-banner').innerHTML = c.eventApplied ? `<div class="event-banner" id="cb-event-tap">${c.eventApplied.icon} Evento ${c.eventApplied.name} · toca para detalhes</div>` : '';
   const eventTap = $('cb-event-tap');
   if (eventTap) eventTap.addEventListener('click', () => showEventInfoModal(c.eventApplied));
 
@@ -13693,7 +13708,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v132</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v134</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -13846,6 +13861,13 @@ function wireStaticEvents() {
 // código já assume existir (pérolas, pergaminhos, baús, intervalo de Dano
 // das armas, etc.), venha de que versão do save vier.
 function applyPlayerMigrations(player) {
+  // v133: o evento ativo guardado no save segue sempre a definição atual (nome, ícone, efeitos),
+  // ex.: "Hand of Nod" → "Renegados". Só as batalhas que faltam vêm do save.
+  if (player && player.activeEvent) {
+    const evDef = RANDOM_EVENTS.find(e => e.key === player.activeEvent.key);
+    if (evDef) player.activeEvent = Object.assign({}, evDef, { battlesLeft: player.activeEvent.battlesLeft });
+    else player.activeEvent = null;
+  }
   if (!player.equipment) player.equipment = {};
   if (!Array.isArray(player.talismans)) player.talismans = [];
   player.talismans = player.talismans
