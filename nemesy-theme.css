@@ -1002,3 +1002,61 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ho-road-step .tiny{font-size:9.5px;font-variant-numeric:tabular-nums;}
 /* v121: troféu de vitória com imagem própria */
 .combat-end .glyph .nx-ic{width:96px;height:96px;margin:0 auto;display:block;}
+/* v123: Bancada de Craft */
+:root{--craft-green:#8EE06A;}
+.ho-tabs .tab-chip{flex:1;text-align:center;}
+.ho-bench{position:relative;border:2px solid #6a5130;border-radius:12px;padding:18px 8px 12px;
+  background:repeating-linear-gradient(90deg,rgba(0,0,0,.18) 0 2px,transparent 2px 46px),linear-gradient(180deg,#5a3d22,#3d2814 60%,#2c1d0f);
+  box-shadow:inset 0 2px 0 rgba(255,220,160,.15),inset 0 -10px 20px rgba(0,0,0,.5),0 8px 18px rgba(0,0,0,.6);}
+.ho-bench::before{content:"";position:absolute;left:10px;right:10px;top:6px;height:3px;border-radius:2px;background:rgba(255,220,160,.12);}
+.ho-slots{display:flex;align-items:center;justify-content:center;gap:6px;}
+.ho-slot{width:88px;height:100px;border-radius:12px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:radial-gradient(circle at 50% 38%,#2b2219,#0d0a07 75%);border:2px solid #8a6a2a;box-shadow:inset 0 0 18px rgba(0,0,0,.9),0 3px 6px rgba(0,0,0,.6);}
+.ho-slot::after{content:"";position:absolute;inset:4px;border-radius:9px;border:1px dashed rgba(228,191,74,.18);pointer-events:none;}
+.ho-slot.glow{border-color:var(--c);box-shadow:inset 0 0 18px rgba(0,0,0,.9),0 0 12px var(--c);}
+.ho-slot .nx-ic,.ho-slot .ho-part.img .nx-ic{width:52px;height:52px;filter:drop-shadow(0 3px 4px rgba(0,0,0,.9));}
+.ho-slot .ho-part.img{width:52px;height:52px;}
+.ho-slot .nx-k{font-size:40px;line-height:1;}
+.ho-slot-n{position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:20px;height:20px;border-radius:50%;background:#1a140d;border:1px solid #8a6a2a;font-size:10px;font-weight:800;display:grid;place-items:center;color:var(--gold-bright);z-index:2;}
+.ho-slot-q{position:absolute;top:6px;right:7px;font-weight:800;font-size:11.5px;color:var(--gold-bright);text-shadow:0 1px 2px #000;}
+.ho-slot-lb{font-size:9.5px;color:var(--muted);text-align:center;line-height:1.1;}
+.ho-slot-empty{font-size:30px;color:rgba(228,191,74,.25);font-weight:800;}
+.ho-plus{font-weight:800;color:var(--gold-bright);font-size:17px;text-shadow:0 1px 2px #000;}
+.ho-arrow{text-align:center;color:var(--gold-bright);font-size:18px;margin:8px 0 2px;}
+.ho-result{display:flex;align-items:center;gap:10px;justify-content:center;padding:8px;border-radius:10px;border:1px solid var(--c);background:rgba(0,0,0,.35);box-shadow:0 0 14px rgba(0,0,0,.4);}
+.ho-result.off{opacity:.45;}
+.ho-result .ho-part.img,.ho-result .ho-part.img .nx-ic{width:42px;height:42px;}
+.ho-result b{font-size:14px;}
+.ho-btn-green{background:linear-gradient(180deg,#9fe07f,#5d9a43) !important;border-color:#b8f09a !important;color:#10200a !important;}
+.ho-prow{display:flex;align-items:center;gap:8px;padding:6px 9px;border:1px solid var(--line);border-left:3px solid var(--c);border-radius:8px;background:#100c08;margin-top:6px;cursor:pointer;}
+.ho-prow.on{background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 1px var(--c);}
+.ho-prow.top{cursor:default;opacity:.7;}
+.ho-prow .ho-part.img,.ho-prow .ho-part.img .nx-ic{width:30px;height:30px;}
+.ho-prow-t{flex:1;font-size:12.5px;}
+.ho-mini{font-family:var(--font-display);font-weight:700;font-size:11px;border-radius:6px;padding:5px 8px;border:1px solid #6b7480;background:linear-gradient(180deg,#4a525c,#2f353d);color:#fff;white-space:nowrap;}
+.ho-mini.gold{background:linear-gradient(180deg,#e4bf4a,#b48a1e);color:#1c1409;border-color:#8a6a1c;}
+.ho-mini.off{opacity:.5;}
+.ho-bench-cap{text-align:center;margin-top:10px;color:#d8c9a6;}
+.ho-reqs{display:flex;flex-direction:column;gap:3px;margin-top:10px;}
+.ho-reqs span{font-size:11.5px;} .ho-reqs .ok{color:#a9d18e;} .ho-reqs .no{color:#e08b8b;}
+.ho-choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;}
+.ho-choice-card{display:flex;flex-direction:column;align-items:center;gap:3px;border:1px solid var(--line);border-radius:10px;padding:10px 6px;background:#120d08;color:var(--parchment);text-align:center;cursor:pointer;}
+.ho-choice-card .nx-ic{width:34px;height:34px;}
+.ho-choice-card b{font-family:var(--font-display);font-size:12.5px;color:var(--gold-bright);}
+.ho-choice-card.on{border-color:var(--gold-bright);box-shadow:0 0 12px rgba(228,191,74,.3);}
+.ho-choice-card:disabled{opacity:.45;cursor:default;}
+.ho-pct{display:inline-block;margin-top:4px;font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;background:#3a1d1d;border:1px solid #8e3a3a;color:#f0a0a0;}
+.ho-cbonus{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.ho-cbonus span{font-size:11px;padding:5px 7px;border-radius:6px;border:1px solid rgba(142,224,106,.45);background:rgba(142,224,106,.08);color:var(--craft-green);}
+.ho-maxrow{display:flex;flex-direction:column;gap:3px;margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#100c08;font-size:12px;}
+.ho-maxrow i{color:var(--muted);font-style:normal;font-size:11px;}
+.pill.craft-pill{border-color:rgba(142,224,106,.7) !important;color:var(--craft-green) !important;background:rgba(142,224,106,.10);}
+.pill.craft-pill small{font-size:8.5px;font-weight:800;letter-spacing:.06em;border:1px solid rgba(142,224,106,.6);border-radius:6px;padding:0 4px;margin-left:3px;}
+.ho-forge-res .nx-ic{width:78px;height:78px;}
+.ho-forge-res.ok .nx-ic{filter:drop-shadow(0 0 14px rgba(142,224,106,.7));}
+.ho-forge-res.ko .nx-ic{filter:grayscale(.6) drop-shadow(0 0 10px rgba(198,92,92,.6));}
+.ho-mchips{display:flex;flex-wrap:wrap;gap:6px;}
+.ho-mchip{font-size:12px;font-weight:700;padding:6px 10px;border-radius:18px;border:1px solid var(--c);background:#120d08;color:var(--parchment);display:flex;gap:6px;align-items:center;cursor:pointer;}
+.ho-mchip i{width:14px;height:14px;border-radius:4px;border:1px solid var(--c);display:inline-grid;place-items:center;font-style:normal;font-size:10px;}
+.ho-mchip.on{background:rgba(255,255,255,.08);box-shadow:0 0 8px var(--c);}
+.ho-mchip.on i{background:var(--c);color:#000;}
