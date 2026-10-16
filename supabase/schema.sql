@@ -323,6 +323,7 @@ declare
   v_corruption jsonb := 'null'::jsonb;
   v_set text := null;
   v_unique text := null;
+  v_craft text := null;
   v_i integer;
   v_g jsonb;
   v_out jsonb;
@@ -430,12 +431,20 @@ begin
     v_unique := 'bleedImmune';
   end if;
 
+  -- v123: bónus de Craft (Esconderijo), só em Peitorais.
+  if jsonb_typeof(p_item->'craftBonus') = 'object' then
+    if p_item->'craftBonus'->>'key' not in ('hp', 'regen', 'bossred', 'sorte') or v_slot <> 'chest' then
+      raise exception 'Este item tem um bónus de Craft inválido e não pode ser vendido.';
+    end if;
+    v_craft := p_item->'craftBonus'->>'key';
+  end if;
+
   if coalesce(p_item->>'socketSlots', '1') ~ '^[1-3]$' then v_socket_slots := (coalesce(p_item->>'socketSlots', '1'))::integer;
   else raise exception 'Este item tem sockets inválidos e não pode ser vendido.'; end if;
   for v_i in 0 .. v_socket_slots - 1 loop
     v_g := case when jsonb_typeof(p_item->'sockets') = 'array' then p_item->'sockets'->v_i else null end;
     if v_g is not null and jsonb_typeof(v_g) = 'object'
-      and v_g->>'type' in ('defesa', 'dano', 'vida', 'critico')
+      and v_g->>'type' in ('defesa', 'dano', 'vida', 'critico', 'chefes')
       and coalesce(v_g->>'tier', '') ~ '^[0-2]$' then
       v_sockets := v_sockets || jsonb_build_array(jsonb_build_object('type', v_g->>'type', 'tier', (v_g->>'tier')::integer));
     else
@@ -455,6 +464,7 @@ begin
     'corruption', v_corruption, 'setKey', v_set
   );
   if v_unique is not null then v_out := v_out || jsonb_build_object('uniqueEffect', v_unique); end if;
+  if v_craft is not null then v_out := v_out || jsonb_build_object('craftBonus', jsonb_build_object('key', v_craft)); end if;
   if p_item->>'season' = '1' then v_out := v_out || jsonb_build_object('season', 1); end if;
   return v_out;
 end;
