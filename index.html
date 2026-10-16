@@ -6122,7 +6122,7 @@ const HIDEOUT_UPGRADE_COST = { 2: 40000, 3: 80000, 4: 150000, 5: 250000 };
 const HIDEOUT_STATIONS = [
   { key: 'expedicoes', name: 'Mesa de Expedições', short: 'Expedições', icon: '🗺️', img: 'map', lv: 1, x: 17, y: 25,
     desc: 'Envia mascotes numa expedição de 1, 4 ou 8 horas (1, 2 ou 3 mascotes). Voltam com ouro, sementes e um Baú de Equipamento (melhor nas mais longas) e, às vezes, uma Gema, Pérola ou Pedra.' },
-  { key: 'trofeus', name: 'Sala de Troféus', short: 'Troféus', icon: '🏆', img: 'goblet', lv: 5, x: 50, y: 22,
+  { key: 'trofeus', name: 'Sala de Troféus', short: 'Troféus', icon: '🏆', img: 'trofeu-vitoria', lv: 5, x: 50, y: 22,
     desc: 'Cada chefe de região, dungeon e catacumba que já venceste fica aqui exposto. A cada 4 troféus: +1% Dano e +1% HP, para sempre.' },
   { key: 'bau', name: 'Baú do Jogador', short: 'Baú', icon: '🧰', img: 'chest', lv: 2, x: 83, y: 25,
     desc: 'O armazém do Esconderijo: guarda as peças da Bancada de Desmanche e, mais tarde, outras coisas do Esconderijo. Começas com 20 espaços; ao abrir o Baú passas a ter 300 (até 600 no Nv. 5).' },
@@ -6138,7 +6138,7 @@ const HIDEOUT_STATIONS = [
     desc: 'Uma vez por dia escolhes 1 de 3 bênçãos (ouro, XP, dano, defesa, crítico ou sorte) para as próximas 20 batalhas.' }
 ];
 function hoStation(key) { return HIDEOUT_STATIONS.find(s => s.key === key) || null; }
-function hoStationImg(st) { const k = 'esconderijo-' + st.key; return NX_ICON_IMG.has(k) ? k : st.img; }
+function hoStationImg(st) { const k = 'esconderijo-' + st.key; return st.key !== 'trofeus' && NX_ICON_IMG.has(k) ? k : st.img; }
 function hoStationIc(st, cls) { return nxIconSvg(hoStationImg(st), cls) || st.icon; }
 function hideoutLevel(p) { return p && p.hideout ? p.hideout.level : 0; }
 function hoUnlocked(p, st) { return hideoutLevel(p) >= st.lv; }
@@ -6732,7 +6732,7 @@ function renderHoTrofeus(p, h) {
   const list = hoTrophies(p), got = list.filter(t => t.got).length, bonus = Math.round(trophyBonusPct(p) * 100);
   const toNext = TROPHY_STEP - (got % TROPHY_STEP);
   return `<p class="muted" style="margin-bottom:8px;">Cada chefe de região, dungeon e catacumba que já venceste ganha um lugar na sala. A cada ${TROPHY_STEP} troféus: <b>+1% Dano e +1% HP</b>, para sempre.</p>
-    <div class="ho-note">${nxIconSvg('goblet', 'nx-inline') || '🏆'} ${got}/${list.length} troféus · bónus atual: +${bonus}% Dano e +${bonus}% HP${got < list.length ? ` · faltam ${toNext} para o próximo` : ''}</div>
+    <div class="ho-note">${nxIconSvg('trofeu-vitoria', 'nx-inline') || '🏆'} ${got}/${list.length} troféus · bónus atual: +${bonus}% Dano e +${bonus}% HP${got < list.length ? ` · faltam ${toNext} para o próximo` : ''}</div>
     <div class="ho-trophies">${list.map(t => `<div class="ho-trophy${t.got ? '' : ' off'}"><span class="ho-trophy-ic">${t.got ? t.ic : '❔'}</span><b>${t.got ? esc(t.name) : '???'}</b><span class="tiny">${esc(t.sub)}</span></div>`).join('')}</div>`;
 }
 
@@ -13353,7 +13353,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v124</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v125</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -14339,7 +14339,7 @@ const NX_ICON_MAP = {
   '⚔': 'swords', '🧝': 'hero', '🎒': 'pack', '🗺': 'map', '🏙': 'castle', '🧬': 'rune', '💱': 'trade', '📚': 'books', '🪙': 'coin', '⚙': 'gear',
   '🛡': 'shield', '🔮': 'orb', '🎁': 'chest', '💠': 'gem', '⚗': 'flask', '📜': 'scroll', '🧪': 'potion', '📙': 'tome', '📗': 'tomeGreen', '📖': 'openbook',
   '⚪': 'pearl', '🦪': 'bau-ostra', '🌱': 'item-semente', '🌾': 'wheat', '🍲': 'cauldron',
-  '🛒': 'purse', '🔨': 'hammer', '⛏': 'pick', '🏆': 'goblet', '🏴‍☠': 'banner', '🎮': 'season',
+  '🛒': 'purse', '🔨': 'hammer', '⛏': 'pick', '🏆': 'trofeu-vitoria', '🏴‍☠': 'banner', '🎮': 'season',
   '💎': 'diamond', '⚒': 'smith', '✨': 'sparkle', '🏰': 'fortress', '💀': 'skull', '🌩': 'storm', '🐾': 'paw',
   '🌀': 'portal', '🌙': 'moon', '⛪': 'cathedral', '🏝': 'oasis', '🔥': 'flame', '👹': 'demon',
   '🌿': 'leaf', '🌋': 'volcano', '❄': 'snow', '⛈': 'thunder', '☠': 'corrupt', '🌲': 'pine',
@@ -14351,7 +14351,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "esconderijo-trofeus", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 124;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
