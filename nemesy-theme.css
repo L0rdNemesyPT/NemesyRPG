@@ -1205,6 +1205,46 @@ div.nx-confirm-msg{text-align:left;}
 .rm-warn{color:var(--blood-bright)!important;font-weight:700;}
 .rm-sheet .rm-atk{white-space:nowrap;flex-shrink:0;padding:11px 13px;}
 .rm-sh-x{position:absolute;top:-9px;right:-6px;width:22px;height:22px;border-radius:50%;border:1px solid var(--line);background:#1a140d;color:var(--muted);font:800 12px var(--font-body);cursor:pointer;display:grid;place-items:center;padding:0;}
+/* v141: Mapa / Lista */
+.bt-view{display:flex;gap:4px;padding:3px;margin:0 0 9px;border:1px solid var(--line);border-radius:10px;background:#0e0b08;}
+.bt-view button{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:30px;border:0;border-radius:7px;background:none;color:var(--muted);font:700 12px var(--font-body);letter-spacing:.02em;cursor:pointer;}
+.bt-view button.on{background:linear-gradient(180deg,#3a2c16,#22190d);color:var(--gold-bright);box-shadow:inset 0 0 0 1px rgba(228,191,74,.45);}
+.bt-view .bt-view-ic,.bt-view .nx-ic{width:18px;height:18px;}
+.bt-view .bt-emo{font-size:14px;}
+.bt-view-lines{display:inline-flex;flex-direction:column;gap:2.5px;width:14px;}
+.bt-view-lines i{display:block;height:2px;border-radius:1px;background:currentColor;}
+.bt-view-lines i:nth-child(2){width:80%;}
+.bl-wrap{position:relative;}
+.bl-pills{position:relative;display:flex;justify-content:space-between;gap:8px;min-height:30px;margin-bottom:6px;}
+.bl-pills .bt-pill{position:static;}
+.bl-pills .bt-tip{top:38px;}
+.bl-pills .bt-tip.q{left:0;}
+.bl-pills .bt-tip.ev{right:0;}
+.bl-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:10px 2px 6px;}
+.bl-h span{font-family:var(--font-display);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold-bright);}
+.bl-h small{font-size:11px;color:var(--muted);}
+.bl-group{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:linear-gradient(180deg,rgba(30,23,14,.92),rgba(16,12,8,.92));}
+.bl-row{display:flex;align-items:center;gap:11px;width:100%;padding:9px 11px;border:0;border-top:1px solid rgba(255,255,255,.05);background:none;color:var(--text);text-align:left;cursor:pointer;font:inherit;}
+.bl-row:first-child{border-top:0;}
+.bl-row:active{background:rgba(228,191,74,.08);}
+.bl-ic{position:relative;flex-shrink:0;width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 50% 35%,#2b2418,#0d0a07);border:2px solid var(--c,#8a7a5a);}
+.bl-ic .rm-img{width:40px;height:40px;}
+.bl-ic .rm-emo{font-size:24px;}
+.bl-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.bl-t b{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bl-t small{font-size:11.5px;color:var(--muted);}
+.bl-pet{color:#c9b6f0;}
+.bl-warn{font-style:normal;font-size:11px;color:#f0a35a;}
+.bl-go{flex-shrink:0;padding:7px 12px;border-radius:8px;font:800 12px var(--font-body);letter-spacing:.02em;color:#1b1206;background:linear-gradient(180deg,#f3d27a,#c9a227);box-shadow:0 2px 0 #7a5d14;}
+.bl-row.boss .bl-ic{--c:#C95A5A;box-shadow:0 0 10px rgba(201,90,90,.35);}
+.bl-row.boss .bl-go{color:#fff;background:linear-gradient(180deg,#c0473f,#8a2620);box-shadow:0 2px 0 #4f1410;}
+.bl-row.gate .bl-ic{--c:var(--gold-bright);width:50px;height:50px;box-shadow:0 0 12px rgba(228,191,74,.45);}
+.bl-row.gate .bl-ic .rm-img{width:46px;height:46px;}
+.bl-row.gate{background:linear-gradient(90deg,rgba(228,191,74,.09),transparent 70%);}
+.bl-crown{position:absolute;top:-11px;left:50%;transform:translateX(-50%);font-size:13px;line-height:1;filter:drop-shadow(0 1px 1px #000);}
+.bl-ok{position:absolute;right:-4px;bottom:-3px;width:17px;height:17px;border-radius:50%;background:linear-gradient(#6E9A58,#3d6230);border:1.5px solid #bfe3a8;color:#fff;font:900 9.5px/14px var(--font-body);text-align:center;}
+.bl-row.done .bl-ic .rm-img,.bl-row.done .bl-ic .rm-emo{filter:saturate(.6) brightness(.8);}
+.bl-row.done .bl-t small{color:#9fd27f;}
 @media (prefers-reduced-motion:reduce){.rm-sheet,.bt-tip{transition:none;animation:none;}}
 
 /* ===== v132: Mercado (Trades) com categorias ===== */
