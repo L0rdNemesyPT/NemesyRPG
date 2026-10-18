@@ -1524,3 +1524,10 @@ div.nx-confirm-msg{text-align:left;}
 .bar.bar-es .bar-fill{background:linear-gradient(90deg,#3e8fc7,#9fe3ff);box-shadow:0 0 8px rgba(159,227,255,.55);}
 .bar.bar-es .bar-num{font-size:9.5px;color:#eaf8ff;}
 .log-line.es{color:var(--es-c);border-left-color:var(--es-d);background:linear-gradient(90deg,rgba(62,143,199,.14),transparent);}
+
+/* v152: ícones de raridade (orbes) */
+.rarity-ic .nx-ic{width:16px;height:16px;margin:0;vertical-align:-3px;}
+.nx-k[data-nx-key^="rar-"] .nx-ic, .nx-tx .nx-ic[src*="rar-"]{filter:drop-shadow(0 0 2px rgba(0,0,0,.6));}
+.bt-diff-btn i.rar-dot,.bt-dopt i.rar-dot{width:18px;height:18px;border-radius:0;background:none;box-shadow:none;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:12px;}
+.bt-diff-btn i.rar-dot .nx-ic,.bt-dopt i.rar-dot .nx-ic{width:18px;height:18px;margin:0;}
+.bt-diff-btn i.rar-dot:empty,.bt-dopt i.rar-dot:empty{width:10px;height:10px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c);}

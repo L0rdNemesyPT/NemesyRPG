@@ -968,6 +968,17 @@ function rarityBoxStyle(item) {
   const rgb = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
   return `border-color:${hex}; background:linear-gradient(135deg, rgba(${rgb},0.34), rgba(${rgb},0.10)); box-shadow:inset 0 0 14px rgba(${rgb},0.22), 0 0 6px rgba(${rgb},0.20);`;
 }
+// v152: ícone de raridade (orbe com a cor da raridade; Demoníaco = triângulo invertido).
+function rarIc(key, emoji) {
+  const r = RARITIES.find(x => x.key === key);
+  return nxEnt('rar-' + key, emoji || (r ? r.icon : ''));
+}
+// Texto já guardado com o emoji da raridade à frente ("🟣 Espada…"): troca esse emoji pelo orbe.
+function rarLead(html) {
+  const t = String(html);
+  const r = RARITIES.find(x => t.startsWith(x.icon + ' '));
+  return r ? rarIc(r.key, r.icon) + t.slice(r.icon.length) : t;
+}
 const NORMAL_RARITIES = RARITIES.filter(r => !r.event && !r.special);
 const DEMONIACO_RARITY = RARITIES.find(r => r.key === 'demoniaco');
 const SET_RARITY = RARITIES.find(r => r.key === 'set');
@@ -1695,7 +1706,7 @@ function finishTowerFight() {
     const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
     const item = generateItem(slot, T.bossLv, null, 2 + (td.qualityBoost || 0));
     p.inventory.push(item);
-    drops.push(`${item.rarityIcon} ${item.name} (${item.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${T.bossLv})`);
+    drops.push(`${rarIc(item.rarity, item.rarityIcon)} ${item.name} (${item.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${T.bossLv})`);
     if (Math.random() < T.divineChance) {
       const divSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
       const divineItem = generateItem(divSlot, T.bossLv, null, false, DIVINO_RARITY);
@@ -1735,7 +1746,7 @@ function renderTowerBody(body, T) {
     if (!difficultyUnlocked(p, sel)) { sel = towerDiff('comum', T); p.towerDifficulty = 'comum'; }
     const best = p.towerBest && p.towerBest[T.key] ? towerDiff(p.towerBest[T.key], T) : null;
     const diffChips = MONSTER_DIFFICULTY.map(d0 => { const d = towerDiff(d0.key, T); const lk = !difficultyUnlocked(p, d);
-      return `<button class="tab-chip${sel.key === d.key ? ' active' : ''}${lk ? ' is-locked' : ''}" data-tower-diff="${d.key}" style="${sel.key === d.key ? `border-color:${d.color}; color:${d.color};` : lk ? 'opacity:.5;' : ''}">${d.icon} ${d.name}${lk ? ' 🔒' : ''}</button>`; }).join('');
+      return `<button class="tab-chip${sel.key === d.key ? ' active' : ''}${lk ? ' is-locked' : ''}" data-tower-diff="${d.key}" style="${sel.key === d.key ? `border-color:${d.color}; color:${d.color};` : lk ? 'opacity:.5;' : ''}">${rarIc(d.key, d.icon)} ${d.name}${lk ? ' 🔒' : ''}</button>`; }).join('');
     const diffInfo = sel.key === 'comum'
       ? 'Dificuldade normal da torre.'
       : `Inimigos HP ×${sel.hp.toLocaleString('pt-PT')} · Dano ×${sel.dmg.toLocaleString('pt-PT')} · Defesa ×${sel.def.toLocaleString('pt-PT')} (mais duro que na Batalha) · Ouro ×${sel.goldMult.toLocaleString('pt-PT')} · XP ×${sel.xpMult.toLocaleString('pt-PT')} · +${sel.qualityBoost} rolo${sel.qualityBoost > 1 ? 's' : ''} de raridade nos tesouros e no chefe.`;
@@ -1815,7 +1826,7 @@ function renderTowerBody(body, T) {
       <div class="row between tiny"><span>❤️ HP</span><span>${p.hp} / ${pStats.hp}</span></div>
       <div class="tower-bar"><i style="width:${hpPct}%;"></i></div>
       <p class="tiny muted" style="margin-top:4px;">O HP não recupera entre salas — só nas Fontes e com poções.${t.blessing ? ` ✨ Bênção: +${Math.round(t.blessing * 100)}% dano.` : ''}</p>
-      <div class="tower-loot"><span>🪙 ${t.loot.gold.toLocaleString('pt-PT')}</span><span>✨ ${t.loot.xp.toLocaleString('pt-PT')} XP</span>${lootList.map(s => `<span>${esc(s)}</span>`).join('')}</div>
+      <div class="tower-loot"><span>🪙 ${t.loot.gold.toLocaleString('pt-PT')}</span><span>✨ ${t.loot.xp.toLocaleString('pt-PT')} XP</span>${lootList.map(s => `<span>${rarLead(esc(s))}</span>`).join('')}</div>
       <div class="row" style="gap:8px; margin-top:10px;">
         <button class="btn small primary block" id="btn-tower-doors">🚪 Escolher porta (andar ${t.floor + 1})</button>
       </div>
@@ -4675,7 +4686,7 @@ async function renderTabCriador() {
       <div class="item-row" style="margin-top:6px;">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
-          <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${esc(item.name)}${item.upgrade ? ` +${item.upgrade}` : ''}</div>
+          <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${esc(item.name)}${item.upgrade ? ` +${item.upgrade}` : ''}</div>
           <div class="item-stats">${itemStatsLine(item)}</div>
           <div class="row" style="gap:4px; flex-wrap:wrap; margin-top:4px;">${(item.bonuses || []).map(b => `<span class="pill" style="border-color:var(--arcane-bright); color:var(--arcane-bright);">${esc(bonusPlusLabel(b))}</span>`).join('')}${item.plusBonus ? plus2Chip(item.plusBonus) : ''}</div>
         </div>
@@ -4903,7 +4914,7 @@ function renderWikiBody() {
   } else if (t === 'itens') {
     const p = App.player || {};
     const lvNow = Math.min(MAX_LEVEL, Math.max(1, p.level || 1));
-    const rarName = k => { const r = RARITIES.find(x => x.key === k); return r ? `${r.icon} ${r.name}` : k; };
+    const rarName = k => { const r = RARITIES.find(x => x.key === k); return r ? `${rarIc(r.key, r.icon)} ${r.name}` : k; };
     const pc = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`;
     const diffs = MONSTER_DIFFICULTY;
     const t2 = DUNGEONS.filter(d => d.tier === 2), t1 = DUNGEONS.filter(d => d.tier !== 2);
@@ -4978,7 +4989,7 @@ function renderWikiBody() {
       <div class="card raised" style="overflow-x:auto;">
         <p class="tiny" style="margin-bottom:6px;">Cada rolo sorteia uma raridade e fica a melhor.</p>
         <table class="wiki-table">
-          <tr><th>Rolos</th>${order.map(r => `<th>${r.icon}</th>`).join('')}</tr>
+          <tr><th>Rolos</th>${order.map(r => `<th>${rarIc(r.key, r.icon)}</th>`).join('')}</tr>
           ${rollRows.map(n => `<tr><td>${n}</td>${rarityOdds(n).map(v => `<td>${v >= 0.0995 ? Math.round(v * 100) + '%' : pc(v)}</td>`).join('')}</tr>`).join('')}
         </table>
       </div>
@@ -5048,7 +5059,7 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Escolhe-se antes de entrar, tal como na Batalha, mas a torre é um pouco mais dura (stats ×${TOWER_DIFF_HARDER.toLocaleString('pt-PT')} acima de Comum). Mais dificuldade = mais ouro, XP e melhores itens nos tesouros e no chefe, mas entrada mais cara. O Divino do chefe não muda.</p>
         <table class="wiki-table" style="margin-top:6px;">
           <tr><th></th><th>Inimigos</th><th>Ouro</th><th>XP</th><th>Rolos</th><th>Entrada</th></tr>
-          ${MONSTER_DIFFICULTY.map(d0 => { const d = towerDiff(d0.key, T); const f = v => '×' + v.toLocaleString('pt-PT'); return `<tr><td>${d.icon}</td><td>${d.hp === d.dmg && d.dmg === d.def ? f(d.hp) : `${f(d.hp)}*`}</td><td>${f(d.goldMult)}</td><td>${f(d.xpMult)}</td><td>+${d.qualityBoost}</td><td>${d.cost.toLocaleString('pt-PT')}</td></tr>`; }).join('')}
+          ${MONSTER_DIFFICULTY.map(d0 => { const d = towerDiff(d0.key, T); const f = v => '×' + v.toLocaleString('pt-PT'); return `<tr><td>${rarIc(d.key, d.icon)}</td><td>${d.hp === d.dmg && d.dmg === d.def ? f(d.hp) : `${f(d.hp)}*`}</td><td>${f(d.goldMult)}</td><td>${f(d.xpMult)}</td><td>+${d.qualityBoost}</td><td>${d.cost.toLocaleString('pt-PT')}</td></tr>`; }).join('')}
         </table>
         <p class="tiny muted" style="margin-top:4px;">Inimigos = HP, Dano e Defesa. *Divino: HP ×${towerDiff('divino', T).hp.toLocaleString('pt-PT')}, Dano ×${towerDiff('divino', T).dmg.toLocaleString('pt-PT')}, Defesa ×${towerDiff('divino', T).def.toLocaleString('pt-PT')}.</p>
         <p class="tiny muted" style="margin-top:6px;">O 💠 Divino abre como na Batalha: nível 150 e o Soberano da Floresta Negra derrotado no 🟠 Único.</p>
@@ -5078,7 +5089,7 @@ function renderWikiBody() {
       ${RARITIES.map(r => `
         <div class="card raised">
           <div class="row between">
-            <span style="font-weight:700;">${r.icon} ${r.name}</span>
+            <span style="font-weight:700;">${rarIc(r.key, r.icon)} ${r.name}</span>
             <span class="pill">${r.event ? 'extra · 0,5%' : r.special ? r.sourceLabel : pct(r.chance)}</span>
           </div>
           <p class="tiny" style="margin-top:6px;">Multiplicador de poder: ×${r.mult}${r.event ? ' · não entra na tabela normal, é uma hipótese extra e independente' : ''}${r.special ? ` · nunca cai ao acaso — ${r.sourceLabel}` : ''}${r.corrupted ? ' · corrompido: vem sempre com um debuff de HP' : ''}</p>
@@ -5148,7 +5159,7 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Um bónus extra, à parte dos Bónus+ normais (máx. 1 por item). Só se mexe com os pergaminhos ➕, que são drops muito raros da 🗼 Torre: 📜 <b>Feitiço ➕</b> adiciona o bónus ➕ e 🔧 <b>Reforço ➕</b> troca-o por outro à sorte. Os Feitiços e Reforços normais não lhe tocam, e os pergaminhos ➕ não tocam nos bónus normais.</p>
         <p class="tiny" style="margin-top:6px;"><b>Armas:</b> ${BONUS_PLUS2_POOL.filter(b => b.slots.includes('weapon')).map(b => `${b.icon} ${b.label(`${b.min}–${b.max}`)}`).join(' · ')}</p>
         <p class="tiny" style="margin-top:4px;"><b>Outros itens:</b> ${BONUS_PLUS2_POOL.filter(b => !b.slots.includes('weapon')).map(b => `${b.icon} ${b.label(`${b.min}–${b.max}`)}`).join(' · ')}</p>
-        <p class="tiny muted" style="margin-top:4px;">Hipótese por combate ganho na Torre: ${MONSTER_DIFFICULTY.map(d => `${d.icon} ${(Math.round(towerPlus2Chance(d.key) * 1000) / 10).toLocaleString('pt-PT')}%`).join(' · ')} (metade Feitiço ➕, metade Reforço ➕).</p>
+        <p class="tiny muted" style="margin-top:4px;">Hipótese por combate ganho na Torre: ${MONSTER_DIFFICULTY.map(d => `${rarIc(d.key, d.icon)} ${(Math.round(towerPlus2Chance(d.key) * 1000) / 10).toLocaleString('pt-PT')}%`).join(' · ')} (metade Feitiço ➕, metade Reforço ➕).</p>
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🧬 Raças dos inimigos</span>
@@ -6151,7 +6162,7 @@ function initRegionMap(p, region, fightWild, fightBoss) {
       const m = t.mon, d = MONSTER_DIFFICULTY.find(x => x.key === (p.fightDifficulty || 'comum')) || MONSTER_DIFFICULTY[0];
       sheet.className = 'rm-sheet on hz';
       sheet.innerHTML = `<button type="button" class="rm-sh-x" aria-label="Fechar">×</button><div class="rm-sh-ic" style="border-color:${d.color};">${rmCreatureImg(m.name, m.icon)}</div>
-        <div class="rm-sh-mid"><b>${esc(m.name)}</b><div class="tiny">${d.icon} ${d.name} · Nv. ${p.level}${m.pet ? ' · 🐾 mascote' : ''}</div>
+        <div class="rm-sh-mid"><b>${esc(m.name)}</b><div class="tiny">${rarIc(d.key, d.icon)} ${d.name} · Nv. ${p.level}${m.pet ? ' · 🐾 mascote' : ''}</div>
 </div>
         <button type="button" class="btn primary rm-atk" id="rm-atk">${rmAtkLabel(hordeSize(p))}</button>
         <div class="rm-hz"><span>Quantos de uma vez</span>${hordePickerHtml(p, 'sm')}</div>`;
@@ -6257,7 +6268,7 @@ function regionListHtml(p, region, diff, pillsHtml) {
   return `
     <div class="bl-wrap">
       <div class="bl-pills">${pillsHtml}</div>
-      <div class="bl-h"><span>Monstros</span><small>${diff.icon || ''} ${esc(diff.name)} · Nv. ${p.level}</small></div>
+      <div class="bl-h"><span>Monstros</span><small>${rarIc(diff.key, diff.icon || '')} ${esc(diff.name)} · Nv. ${p.level}</small></div>
       <div class="bl-horde"><div class="bl-hz-t"><b>Quantos de uma vez</b><small id="bl-hz-bonus">${hordeBonusText(hordeSize(p))}</small></div>${hordePickerHtml(p)}</div>
       <div class="bl-group">${mons}</div>
       <div class="bl-h"><span>Chefes</span><small>${won}/${region.bosses.length} derrotados</small></div>
@@ -6320,7 +6331,7 @@ function renderTabBatalha() {
   }
 
   const diffPop = MONSTER_DIFFICULTY.map(d => { const lk = !difficultyUnlocked(p, d); return `
-    <button type="button" class="bt-dopt${d.key === activeDiff.key ? ' on' : ''}${lk ? ' lock' : ''}" data-set-difficulty="${d.key}" style="--c:${d.color};"><i></i><div><b>${d.name}${lk ? ' 🔒' : ''}</b><span>${diffDesc(d)}</span></div></button>`; }).join('');
+    <button type="button" class="bt-dopt${d.key === activeDiff.key ? ' on' : ''}${lk ? ' lock' : ''}" data-set-difficulty="${d.key}" style="--c:${d.color};"><i class="rar-dot">${rarIc(d.key, '')}</i><div><b>${d.name}${lk ? ' 🔒' : ''}</b><span>${diffDesc(d)}</span></div></button>`; }).join('');
 
   $('hub-content').innerHTML = `
     <div class="bt-strip">
@@ -6331,7 +6342,7 @@ function renderTabBatalha() {
       </div>
       <button type="button" class="bt-arr" id="bt-next" aria-label="Região seguinte" ${ri >= maxR ? 'disabled' : ''}>›</button>
       <div class="bt-diff">
-        <button type="button" class="bt-diff-btn" id="bt-diff-btn" style="--c:${activeDiff.color};"><i></i><span>${activeDiff.name}</span><em>▾</em></button>
+        <button type="button" class="bt-diff-btn" id="bt-diff-btn" style="--c:${activeDiff.color};"><i class="rar-dot">${rarIc(activeDiff.key, '')}</i><span>${activeDiff.name}</span><em>▾</em></button>
         <div class="bt-pop" id="bt-pop" hidden>${diffPop}</div>
       </div>
     </div>
@@ -7144,7 +7155,7 @@ function renderHoDesmanche(p, h) {
       <div class="ho-mchips">${groups.map(x => `<button class="ho-mchip${sel.includes(x.key) ? ' on' : ''}" data-ho-multi="${x.key}" style="--c:${x.r.color}"><i>${sel.includes(x.key) ? '✓' : ''}</i>${x.r.name} (${x.items.length})</button>`).join('')}</div>
       <button class="btn primary block" id="btn-ho-dis-multi" style="margin-top:8px;"${n && !full ? '' : ' disabled'}>${nxIconSvg('hammer', 'nx-inline') || '🔨'} ${n ? `Desmanchar ${n} ${n === 1 ? 'item' : 'itens'}` : 'Escolhe as raridades'}</button>`; })() : ''}
     <div class="inv-label" style="margin-top:12px;">Raridade</div>
-    ${groups.length ? `<div class="tab-strip" style="padding-bottom:8px;">${groups.map(x => `<button class="tab-chip${x.key === App.hoDisRarity ? ' active' : ''}" data-ho-dis-r="${x.key}" style="${x.key === App.hoDisRarity ? '' : `border-color:${x.r.color};`}">${x.r.icon} ${x.r.name} (${x.items.length})</button>`).join('')}</div>
+    ${groups.length ? `<div class="tab-strip" style="padding-bottom:8px;">${groups.map(x => `<button class="tab-chip${x.key === App.hoDisRarity ? ' active' : ''}" data-ho-dis-r="${x.key}" style="${x.key === App.hoDisRarity ? '' : `border-color:${x.r.color};`}">${rarIc(x.r.key, x.r.icon)} ${x.r.name} (${x.items.length})</button>`).join('')}</div>
     <button class="btn small ghost" data-ho-dis-all="${g.key}" style="border-color:${g.r.color}; width:100%; margin-bottom:8px;"${full ? ' disabled' : ''}>${nxIconSvg('hammer', 'nx-inline') || '🔨'} Desmanchar todos os ${g.r.name} (${g.items.length})</button>
     ${list.map(it => `<div class="ho-row" style="${rarityBoxStyle(it)}">
       <div class="item-ic">${itemIconHtml(it)}</div>
@@ -7864,7 +7875,7 @@ async function renderAmigosBody() {
 function friendTradeItemsHtml(items, gold) {
   const parts = (items || []).map(it => `<div class="fr-item" style="${rarityBoxStyle(it)}"><span class="fr-item-ic">${itemIconHtml(it)}</span>
     <span class="fr-item-mid"><span class="fr-item-name" style="color:${it.rarityColor}">${esc(agreeItemName(it.name || 'Item'))}${it.upgrade ? ` <span class="upgrade-badge">+${Number(it.upgrade)}</span>` : ''}</span>
-    <span class="tiny">${it.rarityIcon || ''} ${it.rarityName || ''} · ${SLOT_NAMES[it.slot] || ''} · Nv. ${it.itemLevel || 1}</span>
+    <span class="tiny">${rarIc(it.rarity, it.rarityIcon || '')} ${it.rarityName || ''} · ${SLOT_NAMES[it.slot] || ''} · Nv. ${it.itemLevel || 1}</span>
     <span class="tiny item-stats">${itemStatsLine(it)}</span></span></div>`);
   if (gold > 0) parts.push(`<div class="fr-gold">🪙 ${tradeNum(gold)} de ouro</div>`);
   return parts.join('') || '<p class="tiny muted">Nada.</p>';
@@ -8065,7 +8076,7 @@ function friendPickRows(items, picked, attr, search) {
     return `<button type="button" class="fr-item pick${on ? ' on' : ''}" ${attr}="${esc(it.id)}" style="${rarityBoxStyle(it)}">
       <span class="fr-check">${on ? '✔' : ''}</span><span class="fr-item-ic">${itemIconHtml(it)}</span>
       <span class="fr-item-mid"><span class="fr-item-name" style="color:${it.rarityColor}">${esc(agreeItemName(it.name || 'Item'))}${it.upgrade ? ` <span class="upgrade-badge">+${Number(it.upgrade)}</span>` : ''}</span>
-      <span class="tiny">${it.rarityIcon || ''} ${it.rarityName || ''} · ${SLOT_NAMES[it.slot] || ''} · Nv. ${it.itemLevel || 1}</span>
+      <span class="tiny">${rarIc(it.rarity, it.rarityIcon || '')} ${it.rarityName || ''} · ${SLOT_NAMES[it.slot] || ''} · Nv. ${it.itemLevel || 1}</span>
       <span class="tiny item-stats">${itemStatsLine(it)}</span></span></button>`;
   }).join('') || '<p class="tiny muted">Sem itens.</p>') + (list.length > shown.length ? `<p class="tiny muted" style="margin-top:4px;">+${list.length - shown.length} itens — usa a pesquisa.</p>` : '');
 }
@@ -9488,14 +9499,14 @@ function renderMochilaBody() {
     const rarBar = `<div class="inv-label">Raridade</div>
       <div class="tab-strip" style="padding-bottom:8px;">
         <button class="tab-chip${rarFilter === 'all' ? ' active' : ''}" data-inv-rarity="all">Todas</button>
-        ${rarityGroups.map(g => `<button class="tab-chip${rarFilter === g.r.key ? ' active' : ''}" data-inv-rarity="${g.r.key}" style="${rarFilter === g.r.key ? '' : `border-color:${g.r.color};`}">${g.r.icon} ${g.count}</button>`).join('')}
+        ${rarityGroups.map(g => `<button class="tab-chip${rarFilter === g.r.key ? ' active' : ''}" data-inv-rarity="${g.r.key}" style="${rarFilter === g.r.key ? '' : `border-color:${g.r.color};`}">${rarIc(g.r.key, g.r.icon)} ${g.count}</button>`).join('')}
       </div>`;
 
     const sellBar = `<details class="inv-sell">
       <summary>💰 Vender em massa por raridade</summary>
       <p class="tiny muted" style="margin-top:6px;">Os itens 🔒 bloqueados nunca são vendidos.${p.inventory.some(i => i.locked) ? ` (${p.inventory.filter(i => i.locked).length} bloqueados)` : ''}</p>
       <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
-        ${rarityGroups.map(g => `<button class="btn small ghost" data-sell-rarity="${g.r.key}" style="border-color:${g.r.color};">${g.r.icon} ${g.r.name} (${g.count}) · ${g.total}🪙</button>`).join('')}
+        ${rarityGroups.map(g => `<button class="btn small ghost" data-sell-rarity="${g.r.key}" style="border-color:${g.r.color};">${rarIc(g.r.key, g.r.icon)} ${g.r.name} (${g.count}) · ${g.total}🪙</button>`).join('')}
       </div>
     </details>`;
 
@@ -9514,7 +9525,7 @@ function renderMochilaBody() {
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
           <div class="row between" style="align-items:flex-start; gap:6px;">
-            <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.locked ? '🔒 ' : ''}${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
+            <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.locked ? '🔒 ' : ''}${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
             ${badge(cmp)}
           </div>
           <div class="item-sub tiny" style="color:${item.rarityColor}">${SLOT_NAMES[item.slot]} · Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ` · <span style="color:var(--gold-bright);">${SET_DEFS[item.setKey].icon} ${SET_DEFS[item.setKey].name}</span>` : ''}</div>
@@ -9847,7 +9858,7 @@ function renderFeiticosBody(body, p) {
       <div class="row" style="gap:10px;">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div style="flex:1;">
-          <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name}</div>
+          <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name}</div>
           <div class="tiny">Nv.${item.itemLevel || 1} · ${SLOT_NAMES[slot]} · ${bonuses.length}/${ITEM_BONUS_MAX_SLOTS} bónus</div>
         </div>
       </div>
@@ -9967,7 +9978,7 @@ function openChest(chestId) {
       <div class="item-row" style="${rarityBoxStyle(item)}">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
-          <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name}</div>
+          <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name}</div>
           <div class="item-sub tiny" style="color:${item.rarityColor}">Nv.${item.itemLevel || 1} · ${item.rarityName}</div>
           <div class="item-stats">${itemStatsLine(item)}</div>
           <div class="item-compare ${cmp.cls}">${cmp.label}</div>
@@ -10007,7 +10018,7 @@ function openChest(chestId) {
       <div class="item-row" style="${rarityBoxStyle(item)}">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
-          <div class="item-name"><span class="rarity-ic">${item.rarityIcon}</span>${item.name}</div>
+          <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name}</div>
           <div class="item-sub tiny" style="color:${item.rarityColor}">Nv.${item.itemLevel || 1} · ${item.rarityName}</div>
           <div class="item-stats">${itemStatsLine(item)}</div>
           <div class="item-compare ${cmp.cls}">${cmp.label}</div>
@@ -10100,7 +10111,7 @@ function performOpenAllChests(type, matching, totalCost) {
   let resultHtml = '';
   resultHtml += equipFound.map(item => {
     const cmp = compareToEquipped(item, p);
-    return `<p class="tiny"><span class="rarity-ic">${item.rarityIcon}</span>${item.name} · ${item.rarityName} <span class="item-compare ${cmp.cls}" style="display:inline;">(${cmp.label})</span></p>`;
+    return `<p class="tiny"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name} · ${item.rarityName} <span class="item-compare ${cmp.cls}" style="display:inline;">(${cmp.label})</span></p>`;
   }).join('');
   Object.keys(stonesFound).forEach(stype => {
     resultHtml += `<p class="tiny">${ALCHEMY_STONE_DEFS[stype].icon} ${ALCHEMY_STONE_DEFS[stype].name} ×${stonesFound[stype]}</p>`;
@@ -10800,7 +10811,7 @@ function itemSheetHtml(item, slot, p) {
       <div class="sheet-ic">${itemIconHtml(item)}</div>
       <div style="flex:1; min-width:0;">
         <div class="sheet-name" style="color:${item.rarityColor};">${item.locked ? '🔒 ' : ''}${esc(item.name)}${up ? ` <span class="upgrade-badge">+${up}</span>` : ''}</div>
-        <div class="tiny">${item.rarityIcon} ${item.rarityName} · ${SLOT_NAMES[item.slot]} · Nível ${item.itemLevel || 1}</div>
+        <div class="tiny">${rarIc(item.rarity, item.rarityIcon)} ${item.rarityName} · ${SLOT_NAMES[item.slot]} · Nível ${item.itemLevel || 1}</div>
         ${ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : ''}
         <div class="sheet-bar" title="Melhoria ${up}/9"><i style="width:${up / 9 * 100}%;"></i></div>
         <div class="tiny muted">Ferreiro ${up}/9 · Venda ${itemSellValue(item).toLocaleString('pt-PT')} 🪙</div>
@@ -12493,7 +12504,7 @@ function startCombat(opts) {
   resetCombatScreenChrome();
   showScreen('screen-combat');
   addCombatLog({ text: hordeN > 1 ? `👥 Uma horda de ${hordeN} × ${opts.name} apareceu! Todos atacam em cada ronda.` : `Um(a) ${opts.name} apareceu!`, cls: 'good' });
-  if (diff.statMult > 1) addCombatLog({ text: `${diff.icon} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
+  if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (eventApplied) addCombatLog({ text: `${eventApplied.icon} Evento ${eventApplied.name}: os monstros estão alterados neste combate!`, cls: 'hit' });
   if (element) addCombatLog({ text: `O inimigo tem afinidade elemental: ${element}.`, cls: 'hit' });
@@ -13590,7 +13601,7 @@ function wildRewardRoll(c) {
     p.chests.push(newChest('equip', c.level, qualityBoost));
     drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} (abre na Mochila)`);
     if (isRift) drops.push('⭕️ Recompensa de Rift — muito acima do normal!');
-    if (diff.statMult > 1) drops.push(`${diff.icon} Dificuldade ${diff.name} — qualidade deste item bem superior!`);
+    if (diff.statMult > 1) drops.push(`${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name} — qualidade deste item bem superior!`);
   }
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
   // Livro das Profissões: só chefes de nível 20+.
@@ -13901,7 +13912,7 @@ function showCombatEnd(won, info) {
         <span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">🪙 +<b data-count="${info.goldGain}">${anim ? 0 : info.goldGain}</b></span>
       </div>
       <div class="end-xp"><div class="end-xp-top tiny"><span>Nv. ${pl.level}${lvlUp ? ' ⬆️' : ''}</span><span>${maxed ? 'Máximo' : xpTo + '%'}</span></div><div class="end-xp-bar"><i data-to="${xpTo}"${lvlUp ? ' data-lvl="1"' : ''} style="width:${xpFrom}%;"></i></div></div>
-      ${info.drops && info.drops.length ? `<div class="card raised${anim ? ' loot-anim' : ''}" style="text-align:left; width:100%; border-left:3px solid var(--gold-bright);"><div class="tiny muted" style="margin-bottom:6px; font-weight:700;">🎁 Espólio</div>${info.drops.map((d, i) => `<p class="tiny loot-line ${lootLineClass(d)}" style="margin-top:4px; animation-delay:${(0.55 + i * 0.16).toFixed(2)}s;">✦ ${d}</p>`).join('')}</div>` : ''}
+      ${info.drops && info.drops.length ? `<div class="card raised${anim ? ' loot-anim' : ''}" style="text-align:left; width:100%; border-left:3px solid var(--gold-bright);"><div class="tiny muted" style="margin-bottom:6px; font-weight:700;">🎁 Espólio</div>${info.drops.map((d, i) => `<p class="tiny loot-line ${lootLineClass(d)}" style="margin-top:4px; animation-delay:${(0.55 + i * 0.16).toFixed(2)}s;">✦ ${rarLead(d)}</p>`).join('')}</div>` : ''}
       <button class="btn primary block" id="btn-combat-continue">Continuar</button>`;
   } else {
     html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">Derrota</h2>
@@ -14506,7 +14517,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v151</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v152</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -15550,9 +15561,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 150;
+const NX_ICON_VER = 152;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -15604,6 +15615,8 @@ function nxNameIndex() {
     [['Livro da Amnésia', 'amnesia'], ['Livros da Amnésia', 'amnesia'], ['Livro de Habilidades', 'habilidades'], ['Livros de Habilidades', 'habilidades'],
      ['Livro das Profissões', 'profissoes'], ['Livros das Profissões', 'profissoes'], ['Livro do Ferreiro', 'ferreiro'], ['Livros do Ferreiro', 'ferreiro'],
      ['Pergaminho de Feitiço', 'feitico'], ['Pergaminho de Reforço', 'reforco'], ['Pergaminhos de Feitiço', 'feitico'], ['Pergaminhos de Reforço', 'reforco']].forEach(([n, k]) => put(n, 'livro-' + k));
+    [['Comum', 'comum'], ['Incomum', 'incomum'], ['Raro', 'raro'], ['Rara', 'raro'], ['Lendário', 'lendario'], ['Lendária', 'lendario'],
+     ['Único', 'unico'], ['Única', 'unico'], ['Demoníaco', 'demoniaco'], ['Demoníaca', 'demoniaco'], ['Divino', 'divino'], ['Divina', 'divino']].forEach(([n, k]) => put(n, 'rar-' + k));
     REGIONS.forEach(r => put(r.name, 'banner-' + r.key));
     DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, 'dungeon-torre'));
   } catch (e) { /* defs ainda não carregadas */ return {}; }
