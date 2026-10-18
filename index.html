@@ -6634,7 +6634,7 @@ const HIDEOUT_STATIONS = [
   { key: 'lareira', name: 'Lareira', short: 'Lareira', icon: '🔥', img: 'flame', lv: 1, x: 15, y: 54,
     desc: 'Descansa junto ao fogo: enche o HP e ficas Descansado (+10% XP durante algumas batalhas). Uma vez a cada 8 horas.' },
   { key: 'craft', name: 'Bancada de Craft', short: 'Craft', icon: '⚒️', img: 'smith', lv: 1, x: 85, y: 54,
-    desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja o teu Peitoral +9 com um Peitoral de sacrifício e 30 peças: melhorar os stats ou ganhar um bónus de Craft (5% de sucesso).' },
+    desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja o teu Peitoral +9 com um Peitoral de sacrifício e 30 peças: melhorar os stats ou ganhar um bónus de Craft (15% / 10% de sucesso).' },
   { key: 'desmanche', name: 'Bancada de Desmanche', short: 'Desmanche', icon: '🔨', img: 'hammer', lv: 1, x: 17, y: 84,
     desc: 'Desmancha itens que não queres e recebe peças da mesma raridade, para usar na Bancada de Craft.' },
   { key: 'boneco', name: 'Boneco de Treino', short: 'Boneco', icon: '🎯', img: 'swords', lv: 3, x: 50, y: 86,
@@ -7156,11 +7156,13 @@ function renderHoDesmanche(p, h) {
 //    Set, Demoníaca, Divina e Temporada não se obtêm a juntar.
 //  • Forjar equipamento (só Peitoral): Peitoral equipado a +9 + Peitoral de sacrifício (mesma raridade, ±10 níveis)
 //    + 30 peças da mesma raridade. Tentar melhorar (+2% nos stats, até ao máximo da raridade) ou tentar bónus de Craft.
-//    5% de sucesso; o sacrifício e as peças gastam-se sempre; o Peitoral equipado nunca se perde.
+//    15% (melhorar) / 10% (bónus) de sucesso; o sacrifício e as peças gastam-se sempre; o Peitoral equipado nunca se perde.
 const CRAFT_JOIN_CHAIN = ['comum', 'incomum', 'raro', 'lendario', 'unico'];
 const CRAFT_JOIN_COST = 3;
 const CRAFT_FORGE_PARTS = 30;
-const CRAFT_FORGE_CHANCE = 0.05;
+const CRAFT_IMPROVE_CHANCE = 0.15;  // v149: era 5%
+const CRAFT_BONUS_CHANCE = 0.10;    // v149: era 5%
+const craftForgeChance = mode => mode === 'melhorar' ? CRAFT_IMPROVE_CHANCE : CRAFT_BONUS_CHANCE;
 const CRAFT_FORGE_LEVEL_RANGE = 10;
 const CRAFT_IMPROVE_PCT = 0.02;
 const CRAFT_BONUS_DEFS = {
@@ -7247,7 +7249,7 @@ async function forgeAction(mode) {
   if (!h || !st.ready) { sfx.error(); return; }
   if (mode === 'melhorar' && !st.canImprove) { sfx.error(); toast('Este Peitoral já está no máximo da raridade.'); return; }
   const what = mode === 'melhorar' ? 'tentar melhorar' : 'tentar um bónus de Craft';
-  const fhtml = `<p class="dc-lead">Vais ${what} com <b class="dc-pct">${Math.round(CRAFT_FORGE_CHANCE * 100)}%</b> de hipótese de sucesso.</p>
+  const fhtml = `<p class="dc-lead">Vais ${what} com <b class="dc-pct">${Math.round(craftForgeChance(mode) * 100)}%</b> de hipótese de sucesso.</p>
     <div class="dc-rows">
       <div class="dc-row" style="--c:${st.sac.rarityColor}"><span class="dc-item-ic">${itemIconHtml(st.sac)}</span><span><b style="color:${st.sac.rarityColor}">${esc(st.sac.name)}</b><small>Sacrifício · Nv.${st.sac.itemLevel || 1} · gasta-se</small></span></div>
       <div class="dc-row" style="--c:${hoRarity(st.r).color}">${hoPartIc(st.r)}<span><b style="color:${hoRarity(st.r).color}">${CRAFT_FORGE_PARTS}× ${hoPartName(st.r)}</b><small>gastam-se (tens ${st.parts})</small></span></div>
@@ -7257,7 +7259,7 @@ async function forgeAction(mode) {
   p.inventory = p.inventory.filter(it => it.id !== st.sac.id);
   h.parts[st.r] -= CRAFT_FORGE_PARTS;
   App.hoForgeSac = null;
-  const ok = Math.random() < CRAFT_FORGE_CHANCE;
+  const ok = Math.random() < craftForgeChance(mode);
   const eq = st.eq;
   let msg;
   if (ok && mode === 'melhorar') {
@@ -7327,7 +7329,7 @@ function renderHoCraftForjar(p, h) {
   const maxRows = CRAFT_IMPROVE_STATS.filter(k => (eq.baseStats[k] || 0) > 0).map(k => {
     const isPct = k === 'crit' || k === 'dmgReducedFromBossPct';
     const f = v => isPct ? pct(v) : Math.round(v);
-    const lbl = { def: 'Defesa', hp: 'HP', crit: 'Crítico', dmgReducedFromBossPct: 'Redução dano Bosses' }[k];
+    const lbl = { def: '<span class="st-def">Defesa</span>', es: '<span class="st-es">Escudo Mágico</span>', hp: 'HP', crit: 'Crítico', dmgReducedFromBossPct: 'Redução dano Bosses' }[k] || k;
     return `<span>${lbl}: <b>${f(eq.baseStats[k])}</b> <i>/ máx. ${f(craftStatMax(eq, k))}</i></span>`;
   }).join('');
   return `<div class="ho-bench">
@@ -7337,9 +7339,9 @@ function renderHoCraftForjar(p, h) {
     <div class="ho-reqs">${reqs.map(([ok, t]) => `<span class="${ok ? 'ok' : 'no'}">${ok ? '✔' : '✖'} ${t}</span>`).join('')}</div>
     <div class="ho-choice">
       <button class="ho-choice-card${mode === 'melhorar' ? ' on' : ''}" data-ho-forge-mode="melhorar"${st.canImprove ? '' : ' disabled'}>${nxIconSvg('hammer') || '🔨'}<b>Tentar melhorar</b>
-        <span class="tiny">${st.canImprove ? `+${Math.round(CRAFT_IMPROVE_PCT * 100)}% nos stats, até ao máximo da raridade` : 'Já está no máximo da raridade'}</span><span class="ho-pct">${Math.round(CRAFT_FORGE_CHANCE * 100)}% sucesso</span></button>
+        <span class="tiny">${st.canImprove ? `+${Math.round(CRAFT_IMPROVE_PCT * 100)}% nos stats, até ao máximo da raridade` : 'Já está no máximo da raridade'}</span><span class="ho-pct">${Math.round(CRAFT_IMPROVE_CHANCE * 100)}% sucesso</span></button>
       <button class="ho-choice-card${mode === 'bonus' ? ' on' : ''}" data-ho-forge-mode="bonus">${nxIconSvg('sparkle') || '✨'}<b>Tentar bónus de Craft</b>
-        <span class="tiny">${cb ? 'Troca o bónus atual por um novo' : 'Ganha 1 bónus de Craft (verde)'}</span><span class="ho-pct">${Math.round(CRAFT_FORGE_CHANCE * 100)}% sucesso</span></button>
+        <span class="tiny">${cb ? 'Troca o bónus atual por um novo' : 'Ganha 1 bónus de Craft (verde)'}</span><span class="ho-pct">${Math.round(CRAFT_BONUS_CHANCE * 100)}% sucesso</span></button>
     </div>
     ${mode === 'melhorar' ? `<div class="ho-maxrow">${maxRows}</div>` : `<div class="inv-label" style="margin-top:12px;">Bónus de Craft possíveis${cb ? ' · atual:' : ''}</div>
       ${cb ? `<div style="margin-bottom:6px;">${craftBonusChip(eq)}</div>` : ''}
@@ -14499,7 +14501,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v147</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v149</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
