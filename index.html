@@ -4411,7 +4411,7 @@ function renderStatusBar() {
         <span class="sb-lvl">Nv. ${p.level}</span>
       </div>
       <div class="bar bar-hp"><div class="bar-fill" style="width:${clamp(p.hp / stats.hp * 100, 0, 100)}%"></div></div>
-      <div class="hp-num"><span>${Math.max(0,p.hp)}/${stats.hp} HP</span><span>${p.xp}/${need} XP</span></div>
+      <div class="hp-num"><span>${Math.max(0,p.hp)}/${stats.hp}<small> HP</small></span><span>${p.xp}/${need}<small> XP</small></span></div>
       <div class="bar bar-xp"><div class="bar-fill" style="width:${clamp(p.xp / need * 100, 0, 100)}%"></div></div>
     </div>
     <div class="sb-gold">🪙 ${p.gold}</div>
@@ -6115,7 +6115,8 @@ function initRegionMap(p, region, fightWild, fightBoss) {
       const f = $('rm-flash'); if (f) { f.style.setProperty('--x', t.x + '%'); f.style.setProperty('--y', t.y + '%'); f.classList.add('go'); }
       clearInterval(App.rmTimer);
       setTimeout(() => { S.busy = false; t.boss ? fightBoss(t.boss) : fightWild(t.mon); }, 260);
-    });
+    });    // v146: em ecrãs pequenos o cartão pode ficar escondido por baixo — desliza até ele.
+    requestAnimationFrame(() => { try { const r = sheet.getBoundingClientRect(), nav = $('nav'), lim = nav ? nav.getBoundingClientRect().top : innerHeight; if (r.bottom > lim - 4) sheet.scrollIntoView({ block: 'end', behavior: 'smooth' }); } catch (e) { /* ignora */ } });
   };
   const goTo = t => {
     if (S.busy) return;
@@ -6583,7 +6584,7 @@ const HIDEOUT_STATIONS = [
   { key: 'trofeus', name: 'Sala de Troféus', short: 'Troféus', icon: '🏆', img: 'trofeu-vitoria', lv: 5, x: 50, y: 22,
     desc: 'Cada chefe de região, dungeon e catacumba que já venceste fica aqui exposto. A cada 4 troféus: +1% Dano e +1% HP, para sempre.' },
   { key: 'bau', name: 'Baú do Jogador', short: 'Baú', icon: '🧰', img: 'chest', lv: 2, x: 83, y: 25,
-    desc: 'O armazém do Esconderijo: guarda as peças da Bancada de Desmanche e, mais tarde, outras coisas do Esconderijo. Começas com 20 espaços; ao abrir o Baú passas a ter 300 (até 600 no Nv. 5).' },
+    desc: 'O armazém do Esconderijo: guarda as peças da Bancada de Desmanche e, mais tarde, outras coisas do Esconderijo. Começas com 20 espaços; ao abrir o Baú passas a ter 300 (até 700 no Nv. 6).' },
   { key: 'lareira', name: 'Lareira', short: 'Lareira', icon: '🔥', img: 'flame', lv: 1, x: 15, y: 54,
     desc: 'Descansa junto ao fogo: enche o HP e ficas Descansado (+10% XP durante algumas batalhas). Uma vez a cada 8 horas.' },
   { key: 'craft', name: 'Bancada de Craft', short: 'Craft', icon: '⚒️', img: 'smith', lv: 1, x: 85, y: 54,
@@ -11886,7 +11887,8 @@ function renderMapaBody(tile) {
           </div>
           ${!eligible ? '<span class="pill">🔒</span>' : (cleared ? '<span class="pill" style="color:var(--gold-bright);border-color:var(--gold);">✅</span>' : '')}
         </div>
-        <div class="tiny" style="margin-top:8px;">🎁 Recompensa: ${d.setKey ? SET_DEFS[d.setKey].name : (d.tier === 2 && !d.noAltar ? 'equipamento + tentativa no Altar' : 'equipamento')}${d.talismanDrop ? ` · ${Math.round(d.talismanDrop.chance * 100)}% ${TALISMAN_DEFS[d.talismanDrop.key].name}` : ''}${d.divineChance ? ` · ${String(d.divineChance * 100).replace('.', ',')}% item 💠 Divino` : ''}${d.bossDrop ? ` · ${Math.round(d.bossDrop.chance * 100)}% ${LUNAR_DEFS[d.bossDrop.key].icon} ${LUNAR_DEFS[d.bossDrop.key].name}` : ''}</div>
+        <div class="tiny" style="margin-top:8px;">🎒 Saco: XP e ouro em cada sala${d.waves >= DG_MILESTONE_MIN_WAVES ? ` · baú a cada ${DG_MILESTONE_EVERY} salas` : ''}</div>
+        <div class="tiny" style="margin-top:4px;">🎁 Recompensa: ${d.setKey ? SET_DEFS[d.setKey].name : (d.tier === 2 && !d.noAltar ? 'equipamento + tentativa no Altar' : 'equipamento')}${d.talismanDrop ? ` · ${Math.round(d.talismanDrop.chance * 100)}% ${TALISMAN_DEFS[d.talismanDrop.key].name}` : ''}${d.divineChance ? ` · ${String(d.divineChance * 100).replace('.', ',')}% item 💠 Divino` : ''}${d.bossDrop ? ` · ${Math.round(d.bossDrop.chance * 100)}% ${LUNAR_DEFS[d.bossDrop.key].icon} ${LUNAR_DEFS[d.bossDrop.key].name}` : ''}</div>
         ${dungeonMiniBosses(d).map(m => `<div class="tiny muted" style="margin-top:4px;">${m.icon} Mini-chefe (onda ${m.atWave}): ${m.name}${d.miniBossDrop ? ` · ${Math.round(d.miniBossDrop.chance * 100)}% ${LUNAR_DEFS[d.miniBossDrop.key].icon}` : ''}</div>`).join('')}
         <div class="boss-line">${d.bossIcon} ${d.bossName}${cleared ? ' — já derrotado' : ''}</div>
         ${d.monsters ? `<div class="monster-strip">${d.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>` : ''}
@@ -12120,6 +12122,8 @@ function turnInBiologoPlusQuest(level) {
 function addCombatLog(msg) { App.combat.log.push(msg); }
 
 function resetCombatScreenChrome() {
+  // v146: nunca deixar o combate "bloqueado" por uma transição de dungeon que ficou a meio.
+  $('screen-combat').classList.remove('dg-transit');
   $('cb-end-screen').style.display = 'none';
   $('cb-log').style.display = '';
   const bottom = document.querySelector('#screen-combat .combat-bottom');
@@ -12573,7 +12577,7 @@ function dgBagHtml(c, d, mode) {
   const totalMs = d.waves >= DG_MILESTONE_MIN_WAVES ? Math.floor((d.waves - 1) / DG_MILESTONE_EVERY) : 0;
   const inner = b.rooms
     ? `<b data-dgp-bag-xp>${nxNum(b.xp)}</b> XP · <b>${nxNum(b.gold)}</b> 🪙${totalMs ? ` · 🎁 ${ch}/${totalMs}` : ''}`
-    : `<span>Vazio · cada sala vencida enche o saco${totalMs ? ` · 🎁 a cada ${DG_MILESTONE_EVERY} salas` : ''}</span>`;
+    : `<span>Vazio · cada sala vencida enche o saco${totalMs ? ` · ${totalMs} baús de etapa` : ''}</span>`;
   const plus = mode === 'next' && c.bagLast ? `<em class="dgp-bag-plus">+${nxNum(c.bagLast.xp)} XP</em>` : '';
   return `<div class="dgp-bag${b.rooms ? '' : ' empty'}"><span class="dgp-bag-ic">🎒</span><span class="dgp-bag-t">${inner}</span>${plus}</div>`;
 }
@@ -12650,6 +12654,7 @@ function showDungeonPath(mode) {
     clearTimeout(App.dgpTimer);
     const kept = dgBagCashOutHalf(c);
     if (kept) saveGame();
+    $('screen-combat').classList.remove('dg-transit');
     sfx.flee(); App.combat = null; goHub();
     toast(kept ? `Saíste de ${d.name}. 🎒 +${nxNum(kept.xp)} XP · +${nxNum(kept.gold)} 🪙` : `Saíste de ${d.name}.`);
   });
@@ -14298,6 +14303,8 @@ function renderCombat() {
 
   const cls = CLASSES[p.class];
   const allAbilities = cls.abilities.concat(p.evolution ? [EVOLUTIONS[p.class].find(e => e.key === p.evolution).ability] : [], craftAbilityKeys(p));
+  $('cb-abilities').classList.toggle('many', allAbilities.length >= 5);
+  $('screen-combat').classList.toggle('has-horde', !!c.horde);
   $('cb-abilities').innerHTML = allAbilities.map(key => {
     const ab = ABILITIES[key];
     const onCd = !!c.cooldowns[key];
@@ -14402,7 +14409,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v145</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v146</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

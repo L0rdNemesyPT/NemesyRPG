@@ -1472,3 +1472,33 @@ div.nx-confirm-msg{text-align:left;}
 .cb-ally .ally-img.sm,.cb-ally .ally-emo.sm{width:22px;height:22px;flex-shrink:0;font-size:14px;border:1.5px solid var(--c,#8cc0ff);border-radius:50%;}
 .cb-ally b{font:700 11.5px var(--font-body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .cb-ally small{font-size:10px;color:var(--muted);white-space:nowrap;}
+
+/* v146: o combate cabe sempre no ecrã (5–6 habilidades, horda, amigo). Se mesmo assim não couber, o ecrã desliza. */
+#screen-combat{overflow-y:auto;overscroll-behavior:contain;}
+#screen-combat .combat-log{min-height:84px;}
+.ability-grid.many{grid-template-columns:repeat(3,1fr);gap:6px;}
+.ability-grid.many .ab-btn{min-height:54px;padding:7px 4px 6px;}
+.ability-grid.many .ab-btn .ic .nx-ic{width:26px;height:26px;}
+.ability-grid.many .ab-btn .nm{font-size:10.5px;line-height:1.15;}
+.ability-grid.many .ab-btn .lv{font-size:9px;padding:0 6px;}
+#screen-combat.has-scene.has-horde .combat-top{padding-bottom:14px;}
+#screen-combat.has-horde .cb-horde{margin-top:6px;padding:4px 8px;}
+@media (max-height:720px){
+  #screen-combat .combat-log{min-height:60px;}
+  #screen-combat .event-banner{padding:5px 10px;font-size:11.5px;}
+  .cb-h-c{width:34px;height:34px;}
+  .cb-h-c .rm-img{width:30px;height:30px;}
+  #screen-combat .combat-top{padding-top:calc(6px + var(--safe-top));}
+  .ab-btn{min-height:54px;}
+  #screen-combat.has-scene .combat-top{padding-bottom:28px;}
+  #screen-combat .combat-bottom{padding-top:9px;}
+  #cb-btn-attack{padding:10px !important;}
+}
+
+/* v146: ecrãs estreitos (≤380px) — nomes da Cidade/Wiki e números da barra de estado sem partir */
+@media (max-width:380px){
+  .wiki-tile-lb{font-size:9.5px;letter-spacing:.02em;overflow-wrap:normal;word-break:normal;hyphens:auto;}
+  .hp-num{font-size:10px;white-space:nowrap;gap:6px;}
+  .hp-num span{white-space:nowrap;}
+  .hp-num small{display:none;}
+}
