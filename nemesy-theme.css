@@ -1531,3 +1531,10 @@ div.nx-confirm-msg{text-align:left;}
 .bt-diff-btn i.rar-dot,.bt-dopt i.rar-dot{width:18px;height:18px;border-radius:0;background:none;box-shadow:none;display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:12px;}
 .bt-diff-btn i.rar-dot .nx-ic,.bt-dopt i.rar-dot .nx-ic{width:18px;height:18px;margin:0;}
 .bt-diff-btn i.rar-dot:empty,.bt-dopt i.rar-dot:empty{width:10px;height:10px;border-radius:50%;background:var(--c);box-shadow:0 0 6px var(--c);}
+
+/* v153: Cidade → Trabalhos (mapa) */
+.tb-map{position:relative;width:100%;aspect-ratio:4/5;max-height:60vh;border:2px solid #6a5130;border-radius:10px;overflow:hidden;isolation:isolate;background:#2b3d1e;box-shadow:0 6px 18px rgba(0,0,0,.6);}
+.tb-map::after{content:"";position:absolute;inset:0;box-shadow:inset 0 0 50px rgba(0,0,0,.75);pointer-events:none;z-index:2;}
+.tb-bg{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;}
+.tb-st .ho-st-base{background:radial-gradient(circle at 50% 35%,#3e3122,#15100acc);}
+.tb-emo{font-size:30px;line-height:1;filter:drop-shadow(0 3px 3px rgba(0,0,0,.8));}
