@@ -452,6 +452,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
           <div class="status-icons" id="cb-enemy-status"></div>
         </div>
       </div>
+      <div class="cb-horde" id="cb-horde" hidden></div>
       <div id="cb-event-banner"></div>
     </div>
     <div class="combat-log" id="cb-log"></div>
@@ -3170,7 +3171,8 @@ function applyDamage(dmg, def, level) {
 }
 
 // Resolve one player ability use. Mutates enemy.hp and battleState. Returns log lines: {text, cls}
-function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget) {
+function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget, extraMult) {
+  const aoeMult = extraMult || 1;
   const ab = ABILITIES[abilityKey];
   const lvlIdx = abilityLevelOf(player, abilityKey);
   const eff = ab.levels[lvlIdx];
@@ -3179,7 +3181,7 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
 
   const skillMult = 1 + (pStats.skillDmgPct || 0) / 100;
   function dealHit(mult, forceCrit) {
-    let dmg = pStats.dmg * mult * skillMult;
+    let dmg = pStats.dmg * mult * skillMult * aoeMult;
     const crit = forceCrit || Math.random() < critChance;
     if (crit && !enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
     if (isBossTarget && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
@@ -3195,7 +3197,7 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
     case 'dot': {
       const hit = dealHit(eff.dmgMult, false);
       msgs.push({ text: `${ab.icon} ${ab.name}: ${hit.final} de dano${hit.crit ? ' — crítico!' : ''}.`, cls: hit.crit ? 'crit' : 'hit' });
-      battleState.enemyStatus.push({ type: eff.status, duration: eff.duration, dmg: Math.round(pStats.dmg * (0.15 + eff.dotMult * 0.15) * skillMult) });
+      battleState.enemyStatus.push({ type: eff.status, duration: eff.duration, dmg: Math.max(1, Math.round(pStats.dmg * (0.15 + eff.dotMult * 0.15) * skillMult * aoeMult)) });
       msgs.push({ text: `O inimigo sofre ${eff.status} durante ${eff.duration} rondas.`, cls: 'good' });
       break;
     }
@@ -5145,6 +5147,9 @@ function renderWikiBody() {
   } else if (t === 'regioes') {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">O nível máximo do herói é <b>${MAX_LEVEL}</b>. Os monstros têm sempre o teu nível; os chefes têm um nível fixo. Derrota o chefe 🔓 de cada região para abrires a seguinte.</p>
+      <div class="card raised"><span style="font-weight:700;">👥 Hordas</span>
+        <p class="tiny" style="margin-top:6px;">Ao escolher um monstro (no mapa ou na lista) decides quantos enfrentas de uma vez: 1 a ${HORDE_MAX}. Atacas um alvo de cada vez (toca na fila da horda para mudar) e, na vez dos inimigos, todos os vivos atacam. Rotativa, Chuva e Terramoto atingem todos com ${Math.round(HORDE_AOE_MULT * 100)}% do dano.</p>
+        <p class="tiny" style="margin-top:4px;">Cada monstro derrotado dá logo o seu XP, ouro e drops, e conta para a Tarefa. Vencer a horda toda dá um bónus de XP e ouro: ${[2, 3, 4, 5].map(n => `${n} → +${Math.round(HORDE_BONUS[n] * 100)}%`).join(' · ')}. Se perderes a meio, ficas com o que já ganhaste mas sem o bónus. O Evento gasta só 1 batalha por horda. Os chefes são sempre 1 contra 1.</p></div>
       ${REGIONS.map(r => `<div class="card raised">
         <div class="row between"><span style="font-weight:700;">${r.icon} ${r.name}</span><span class="pill">Nv. ${r.minLv}–${r.maxLv}</span></div>
         <p class="tiny" style="margin-top:6px;"><b>Monstros:</b> ${r.monsters.map(m => `${m.icon} ${m.name}`).join(' · ')}</p>
@@ -6090,10 +6095,13 @@ function initRegionMap(p, region, fightWild, fightBoss) {
         <button type="button" class="btn danger rm-atk" id="rm-atk">⚔️ Desafiar</button>`;
     } else {
       const m = t.mon, d = MONSTER_DIFFICULTY.find(x => x.key === (p.fightDifficulty || 'comum')) || MONSTER_DIFFICULTY[0];
-      sheet.className = 'rm-sheet on';
+      sheet.className = 'rm-sheet on hz';
       sheet.innerHTML = `<button type="button" class="rm-sh-x" aria-label="Fechar">×</button><div class="rm-sh-ic" style="border-color:${d.color};">${rmCreatureImg(m.name, m.icon)}</div>
-        <div class="rm-sh-mid"><b>${esc(m.name)}</b><div class="tiny">${d.icon} ${d.name} · Nv. ${p.level}${m.pet ? ' · pode deixar cair um mascote' : ''}</div></div>
-        <button type="button" class="btn primary rm-atk" id="rm-atk">⚔️ Atacar</button>`;
+        <div class="rm-sh-mid"><b>${esc(m.name)}</b><div class="tiny">${d.icon} ${d.name} · Nv. ${p.level}${m.pet ? ' · 🐾 mascote' : ''}</div>
+</div>
+        <button type="button" class="btn primary rm-atk" id="rm-atk">${rmAtkLabel(hordeSize(p))}</button>
+        <div class="rm-hz"><span>Quantos de uma vez</span>${hordePickerHtml(p, 'sm')}</div>`;
+      bindHordePicker(sheet, n => { const a = $('rm-atk'); if (a) a.innerHTML = rmAtkLabel(n); });
     }
     sheet.querySelector('.rm-sh-x').addEventListener('click', e => { e.stopPropagation(); sheet.classList.remove('on'); t.el.classList.remove('engaged', 'sel'); if (S.target === t) S.target = null; });
     $('rm-atk').addEventListener('click', () => {
@@ -6150,6 +6158,24 @@ function initRegionMap(p, region, fightWild, fightBoss) {
 // ============================================================
 // TAB: BATALHA
 // ============================================================
+// v144: seletor "quantos de uma vez" (1–5) — no cartão do monstro (mapa) e no topo da lista.
+function hordePickerHtml(p, cls) {
+  const n = hordeSize(p);
+  return `<div class="hz-pick ${cls || ''}" role="group" aria-label="Monstros por combate">${Array.from({ length: HORDE_MAX }, (_, i) => i + 1).map(k =>
+    `<button type="button" class="${k === n ? 'on' : ''}" data-horde-n="${k}">${k}</button>`).join('')}</div>`;
+}
+function rmAtkLabel(n) { return `⚔️ Atacar${n > 1 ? ` ×${n}<small class="rm-hz-t">+${Math.round((HORDE_BONUS[n] || 0) * 100)}%</small>` : ''}`; }
+function hordeBonusText(n) { return n > 1 ? `+${Math.round((HORDE_BONUS[n] || 0) * 100)}% se venceres todos` : 'um de cada vez'; }
+function bindHordePicker(root, onChange) {
+  els('[data-horde-n]', root).forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const p = App.player, n = clamp(Number(b.dataset.hordeN) || 1, 1, HORDE_MAX);
+    if (n === hordeSize(p)) return;
+    sfx.tab(); p.hordeSize = n; saveGame();
+    els('[data-horde-n]', root).forEach(x => x.classList.toggle('on', Number(x.dataset.hordeN) === n));
+    if (onChange) onChange(n);
+  }));
+}
 // v141: a região pode ver-se em mapa (por defeito) ou numa lista simples. A escolha fica neste aparelho.
 const REGION_VIEW_KEY = 'nemesy_region_view';
 function regionViewMode() { try { return localStorage.getItem(REGION_VIEW_KEY) === 'lista' ? 'lista' : 'mapa'; } catch (e) { return App.regionView === 'lista' ? 'lista' : 'mapa'; } }
@@ -6160,7 +6186,7 @@ function regionListHtml(p, region, diff, pillsHtml) {
     <button type="button" class="bl-row" data-bl-wild="${i}">
       <span class="bl-ic" style="--c:${diff.color || '#B9B4A8'};">${rmCreatureImg(m.name, m.icon)}</span>
       <span class="bl-t"><b>${esc(m.name)}</b><small>Nv. ${p.level}${m.pet ? ' · <span class="bl-pet">🐾 mascote</span>' : ''}</small></span>
-      <span class="bl-go">Atacar</span>
+      <span class="bl-go">Atacar${hordeSize(p) > 1 ? ` ×${hordeSize(p)}` : ''}</span>
     </button>`).join('');
   const order = region.bosses.map((b, i) => ({ b, i })).sort((x, y) => (x.b.isGate ? 1 : 0) - (y.b.isGate ? 1 : 0));
   const bosses = order.map(({ b, i }) => {
@@ -6177,6 +6203,7 @@ function regionListHtml(p, region, diff, pillsHtml) {
     <div class="bl-wrap">
       <div class="bl-pills">${pillsHtml}</div>
       <div class="bl-h"><span>Monstros</span><small>${diff.icon || ''} ${esc(diff.name)} · Nv. ${p.level}</small></div>
+      <div class="bl-horde"><div class="bl-hz-t"><b>Quantos de uma vez</b><small id="bl-hz-bonus">${hordeBonusText(hordeSize(p))}</small></div>${hordePickerHtml(p)}</div>
       <div class="bl-group">${mons}</div>
       <div class="bl-h"><span>Chefes</span><small>${won}/${region.bosses.length} derrotados</small></div>
       <div class="bl-group">${bosses}</div>
@@ -6297,18 +6324,20 @@ function renderTabBatalha() {
     if (b.classList.contains('on')) return;
     sfx.tab(); setRegionViewMode(b.dataset.btView); renderTabBatalha();
   }));
-  const fightWild = m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: p.level, category: m.category || 'outro' });
+  const fightWild = m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: p.level, category: m.category || 'outro', count: hordeSize(p) });
   const fightBoss = boss => startCombat({ kind: 'boss', name: boss.name, icon: boss.icon, level: boss.lv, regionIndex: App.selectedRegionIndex, isGate: boss.isGate, category: boss.category });
   if (listView) {
     clearInterval(App.rmTimer);
     els('[data-bl-wild]').forEach(b => b.addEventListener('click', () => fightWild(region.monsters[Number(b.dataset.blWild)])));
+    bindHordePicker($('hub-content'), n => {
+      const t = $('bl-hz-bonus'); if (t) t.textContent = hordeBonusText(n);
+      els('[data-bl-wild] .bl-go').forEach(g => { g.textContent = n > 1 ? `Atacar ×${n}` : 'Atacar'; });
+    });
     els('[data-bl-boss]').forEach(b => b.addEventListener('click', () => fightBoss(region.bosses[Number(b.dataset.blBoss)])));
     return;
   }
   // Mapa vivo: o "Atacar" abre o mesmo combate de sempre.
-  initRegionMap(p, region,
-    m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: p.level, category: m.category || 'outro' }),
-    boss => startCombat({ kind: 'boss', name: boss.name, icon: boss.icon, level: boss.lv, regionIndex: App.selectedRegionIndex, isGate: boss.isGate, category: boss.category }));
+  initRegionMap(p, region, fightWild, fightBoss);
 }
 
 // ============================================================
@@ -12039,12 +12068,144 @@ if (typeof document !== 'undefined') {
   }, true);
 }
 
+// ============================================================
+// v144: 👥 HORDAS — no separador Batalha escolhes lutar com 1 a 5 monstros normais de uma vez.
+// Atacas um alvo de cada vez (toca na fila para mudar); na vez dos inimigos, todos os vivos
+// atacam. Cada monstro derrotado dá logo a sua recompensa (XP, ouro, drops, Tarefa); vencer a
+// horda toda dá um bónus de XP e ouro por cima. Rotativa, Chuva e Terramoto atingem todos (60%).
+// Por baixo, o combate continua a ter um só "c.enemy": é o alvo atual. O estado de cada
+// inimigo (estados, atordoado, defesa reduzida) é guardado/carregado ao trocar de alvo.
+// ============================================================
+const HORDE_MAX = 5;
+const HORDE_BONUS = { 1: 0, 2: 0.10, 3: 0.20, 4: 0.35, 5: 0.50 };
+const HORDE_AOE = ['rotativa', 'chuva', 'terramoto'];
+const HORDE_AOE_MULT = 0.6;
+const HORDE_EKEYS = ['enemyStatus', 'enemyStunned', 'enemyDefDebuff', 'enemyRegenBlocked'];
+function hordeSize(p) { return clamp(Math.floor(Number(p && p.hordeSize) || 1), 1, HORDE_MAX); }
+function hordeInit(c, extraEnemies) {
+  const mk = (enemy, i) => ({ letter: String.fromCharCode(65 + i), label: `${c.name} ${String.fromCharCode(65 + i)}`, enemy, dead: false,
+    st: { enemyStatus: [], enemyStunned: false, enemyDefDebuff: null, enemyRegenBlocked: 0 } });
+  c.horde = [mk(c.enemy, 0)].concat(extraEnemies.map((e, i) => mk(e, i + 1)));
+  c.hordeIdx = 0;
+  c.hordeLoot = { xp: 0, gold: 0, drops: [], kills: 0 };
+}
+function hordeSave(c) { const m = c.horde[c.hordeIdx]; HORDE_EKEYS.forEach(k => { m.st[k] = c.battleState[k]; }); }
+function hordeLoad(c, i) { c.hordeIdx = i; const m = c.horde[i]; HORDE_EKEYS.forEach(k => { c.battleState[k] = m.st[k]; }); c.enemy = m.enemy; }
+function hordeSwitch(c, i) { if (!c.horde || i < 0 || i === c.hordeIdx) return; hordeSave(c); hordeLoad(c, i); }
+function hordeLabel(c) { return c && c.horde ? c.horde[c.hordeIdx].label : (c ? c.name : ''); }
+function hordeAddLoot(c, r) {
+  c.hordeLoot.xp += r.xpGain; c.hordeLoot.gold += r.goldGain; c.hordeLoot.kills++;
+  r.drops.forEach(d => c.hordeLoot.drops.push(d));
+}
+// Junta drops iguais ("Baú de Equipamento" ×3).
+function hordeCompactDrops(list) {
+  const out = [], n = {};
+  list.forEach(d => { if (n[d] === undefined) { n[d] = 1; out.push(d); } else n[d]++; });
+  return out.map(d => n[d] > 1 ? `${d} ×${n[d]}` : d);
+}
+function hordeKill(c, m) {
+  const cur = c.hordeIdx, idx = c.horde.indexOf(m);
+  hordeSwitch(c, idx);
+  m.dead = true; m.enemy.hp = 0;
+  seasonOnEnemyDefeated(c);
+  const r = wildRewardRoll(c);
+  hordeAddLoot(c, r);
+  hordeSwitch(c, cur);
+  addCombatLog({ text: `💀 ${m.label} foi derrotado! +${r.xpGain} XP · +${r.goldGain} 🪙`, cls: 'crit' });
+  sfx.enemyDown();
+}
+// Trata das mortes depois de uma ação. Devolve true se o combate acabou (horda vencida).
+function hordeResolveDeaths(c) {
+  const fresh = c.horde.filter(m => !m.dead && m.enemy.hp <= 0);
+  if (!fresh.length) return false;
+  const left = c.horde.filter(m => !m.dead && m.enemy.hp > 0);
+  const tgt = c.horde[c.hordeIdx];
+  const last = left.length ? null : (fresh.includes(tgt) ? tgt : fresh[fresh.length - 1]);
+  fresh.forEach(m => { if (m !== last) hordeKill(c, m); });
+  if (last) { hordeSwitch(c, c.horde.indexOf(last)); last.dead = true; handleEnemyDefeated(); return true; }
+  if (c.horde[c.hordeIdx].dead) { hordeSwitch(c, c.horde.findIndex(m => !m.dead)); c._fxDead = false; }
+  saveGame();
+  return false;
+}
+function hordePostPlayerAction() {
+  const c = App.combat, p = App.player;
+  hordeSave(c);
+  // 1) estados (sangramento, veneno…) em cada inimigo
+  c.horde.forEach(m => {
+    if (m.dead || !m.st.enemyStatus || !m.st.enemyStatus.length) return;
+    m.st.enemyStatus.forEach(s => {
+      if (s.duration <= 0) return;
+      m.enemy.hp -= s.dmg;
+      const fl = statusFlavor(s.type);
+      addCombatLog({ text: `${fl.icon} ${fl.name} causa ${s.dmg} de dano a ${m.label}.`, cls: 'hit' });
+      s.duration--;
+    });
+    m.st.enemyStatus = m.st.enemyStatus.filter(s => s.duration > 0);
+  });
+  hordeLoad(c, c.hordeIdx);
+  // 2) mortes
+  if (hordeResolveDeaths(c)) return;
+  // 3) vez dos inimigos: os teus estados (fogo, veneno, sangramento) contam uma vez; depois cada vivo ataca
+  tickPlayerDots(c, p);
+  if (p.hp <= 0 && !passiveUndyingSave(c, p)) { handlePlayerDefeated(); return; }
+  const target = c.hordeIdx;
+  for (let i = 0; i < c.horde.length; i++) {
+    const m = c.horde[i];
+    if (m.dead) continue;
+    hordeSwitch(c, i);
+    if (c.battleState.enemyStunned) {
+      addCombatLog({ text: `💫 ${m.label} está atordoado e perde a ronda.`, cls: 'good' });
+      c.battleState.enemyStunned = false;
+      continue;
+    }
+    resolveEnemyTurn({ noDots: true });
+    if (p.hp <= 0 && !passiveUndyingSave(c, p)) { hordeSwitch(c, target); handlePlayerDefeated(); return; }
+  }
+  hordeSwitch(c, target);
+  // 4) a defesa reduzida e o bloqueio de regeneração de cada inimigo descem 1 ronda
+  hordeSave(c);
+  c.horde.forEach(m => {
+    if (m.st.enemyDefDebuff) { m.st.enemyDefDebuff.duration--; if (m.st.enemyDefDebuff.duration <= 0) m.st.enemyDefDebuff = null; }
+    if (m.st.enemyRegenBlocked > 0) m.st.enemyRegenBlocked--;
+  });
+  hordeLoad(c, c.hordeIdx);
+  combatRoundTail(c, p, false);
+}
+// Rotativa / Chuva / Terramoto numa horda: atingem todos os vivos com 60% do dano.
+function hordeAoe(key, p, pStats) {
+  const c = App.combat, ab = ABILITIES[key], cur = c.hordeIdx;
+  const parts = []; let extra = null, anyCrit = false;
+  c.horde.forEach((m, i) => {
+    if (m.dead || m.enemy.hp <= 0) return;
+    hordeSwitch(c, i);
+    const before = m.enemy.hp;
+    const ms = useAbility(key, p, pStats, c.enemy, c.battleState, false, HORDE_AOE_MULT);
+    parts.push(`${m.letter} ${Math.max(0, before - m.enemy.hp)}`);
+    if (ms.some(x => x.cls === 'crit')) anyCrit = true;
+    if (!extra) extra = ms.filter(x => x.cls === 'good');
+  });
+  hordeSwitch(c, cur);
+  const out = [{ text: `${ab.icon} ${ab.name} atinge ${parts.length} inimigo${parts.length > 1 ? 's' : ''} (60%): ${parts.join(' · ')}${anyCrit ? ' — com crítico!' : ''}`, cls: anyCrit ? 'crit' : 'hit' }];
+  (extra || []).forEach(x => out.push({ text: x.text.replace(/^O inimigo sofre/, 'Os inimigos sofrem').replace('do inimigo', 'dos inimigos'), cls: x.cls }));
+  return out;
+}
+function hordeFinishVictory(c, p) {
+  const n = c.horde.length, b = HORDE_BONUS[n] || 0;
+  const bx = Math.round(c.hordeLoot.xp * b), bg = Math.round(c.hordeLoot.gold * b);
+  if (bg) p.gold += bg;
+  if (bx) grantXp(bx);
+  const drops = [`👥 Horda de ${n}: ${c.hordeLoot.xp} XP · ${c.hordeLoot.gold} 🪙${b ? ` + bónus de ${Math.round(b * 100)}% (+${bx} XP · +${bg} 🪙)` : ''}`].concat(hordeCompactDrops(c.hordeLoot.drops));
+  return { xpGain: c.hordeLoot.xp + bx, goldGain: c.hordeLoot.gold + bg, drops };
+}
+
 function startCombat(opts) {
   if (!guardAllowsFight(() => startCombat(opts))) return;
   sfx.click();
   const p = App.player;
   const isBoss = opts.kind === 'boss';
   const enemy = enemyStatsFor(opts.level, isBoss);
+  // v144: horda (1–5 monstros normais ao mesmo tempo, só no separador Batalha).
+  const hordeN = !isBoss && opts.kind === 'wild' ? clamp(Math.floor(Number(opts.count) || 1), 1, HORDE_MAX) : 1;
 
   let gapMult = 1;
   if (isBoss) {
@@ -12083,8 +12244,26 @@ function startCombat(opts) {
     if (eventApplied.bleedChance) enemy.bleedChance = eventApplied.bleedChance;
   }
 
-  let element = null;
-  if (opts.level >= 50 && Math.random() < 0.30) element = ['fogo', 'gelo', 'eletricidade', 'caos'][Math.floor(Math.random() * 4)];
+  const rollElement = () => opts.level >= 50 && Math.random() < 0.30 ? ['fogo', 'gelo', 'eletricidade', 'caos'][Math.floor(Math.random() * 4)] : null;
+  const element = rollElement();
+  // Os restantes monstros da horda: mesmos multiplicadores (dificuldade + evento) que o primeiro.
+  const hordeExtra = [];
+  for (let i = 1; i < hordeN; i++) {
+    const e = enemyStatsFor(opts.level, false);
+    if (diff.statMult > 1) {
+      e.hp = Math.round(e.hp * (diff.hpMult || diff.statMult)); e.maxHp = e.hp;
+      e.dmg = Math.round(e.dmg * (diff.dmgMult || diff.statMult));
+      e.def = Math.round(e.def * (diff.defMult || diff.statMult));
+    }
+    if (eventApplied) {
+      e.dmg = Math.max(1, Math.round(e.dmg * eventApplied.dmgMult));
+      e.hp = Math.round(e.hp * eventApplied.hpMult); e.maxHp = e.hp;
+      e.def = Math.round(e.def * eventApplied.defMult);
+      if (eventApplied.critBonus) e.critChance = (e.critChance || 0.05) + eventApplied.critBonus;
+      if (eventApplied.bleedChance) e.bleedChance = eventApplied.bleedChance;
+    }
+    hordeExtra.push(Object.assign(e, { element: rollElement(), critImmune: false, category: opts.category || 'outro' }));
+  }
 
   App.combat = {
     kind: opts.kind, name: opts.name, icon: opts.icon, level: opts.level, isBoss,
@@ -12094,9 +12273,10 @@ function startCombat(opts) {
     battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false },
     cooldowns: {}, log: [], eventApplied, ended: false
   };
+  if (hordeN > 1) hordeInit(App.combat, hordeExtra);
   resetCombatScreenChrome();
   showScreen('screen-combat');
-  addCombatLog({ text: `Um(a) ${opts.name} apareceu!`, cls: 'good' });
+  addCombatLog({ text: hordeN > 1 ? `👥 Uma horda de ${hordeN} × ${opts.name} apareceu! Todos atacam em cada ronda.` : `Um(a) ${opts.name} apareceu!`, cls: 'good' });
   if (diff.statMult > 1) addCombatLog({ text: `${diff.icon} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (eventApplied) addCombatLog({ text: `${eventApplied.icon} Evento ${eventApplied.name}: os monstros estão alterados neste combate!`, cls: 'hit' });
@@ -12561,7 +12741,7 @@ function useAbilityAction(key) {
   pStats = applyTempBuffsToStats(pStats, c.battleState, c.enemy.category);
   const hpBefore = c.enemy.hp;
   fxAbility(key);
-  const msgs = useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss);
+  const msgs = c.horde && HORDE_AOE.includes(key) ? hordeAoe(key, p, pStats) : useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss);
   msgs.forEach(m => addCombatLog(m));
   const hasCrit = msgs.some(m => m.cls === 'crit');
   const allGood = msgs.length && msgs.every(m => m.cls === 'good');
@@ -12878,6 +13058,7 @@ function openPotionModal() {
 function postPlayerAction() {
   const c = App.combat;
   const p = App.player;
+  if (c.horde) { hordePostPlayerAction(); return; }
   if (c.battleState.enemyStatus && c.battleState.enemyStatus.length) {
     c.battleState.enemyStatus.forEach(s => {
       if (s.duration <= 0) return;
@@ -12896,15 +13077,19 @@ function postPlayerAction() {
     resolveEnemyTurn();
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) { handlePlayerDefeated(); return; }
   }
+  combatRoundTail(c, p, true);
+}
+// Fim de cada ronda: buffs/debuffs descem 1, regeneração do herói e desenhar o ecrã.
+function combatRoundTail(c, p, tickEnemy) {
   if (c.battleState.critBuff) {
     if (c.battleState.critBuff.fresh) c.battleState.critBuff.fresh = false;
     else c.battleState.critBuff.rounds--;
     if (c.battleState.critBuff.rounds <= 0) { c.battleState.critBuff = null; c.battleState.critBuffActive = false; }
   }
-  ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff'].forEach(k => {
+  (tickEnemy ? ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff'] : ['playerDefBuff', 'potionDefBuff', 'potionAtkBuff']).forEach(k => {
     if (c.battleState[k]) { c.battleState[k].duration--; if (c.battleState[k].duration <= 0) c.battleState[k] = null; }
   });
-  if (c.battleState.enemyRegenBlocked > 0) { c.battleState.enemyRegenBlocked--; }
+  if (tickEnemy && c.battleState.enemyRegenBlocked > 0) { c.battleState.enemyRegenBlocked--; }
   if (p.hp > 0) {
     const pStats = effectiveStats(p);
     const poisoned = c.battleState.playerPoison && c.battleState.playerPoison.duration > 0;
@@ -12923,9 +13108,7 @@ function postPlayerAction() {
   renderCombat();
 }
 
-function resolveEnemyTurn() {
-  const c = App.combat, p = App.player;
-  const pStats = effectiveStats(p);
+function tickPlayerDots(c, p) {
   const hpBeforeDots = p.hp;
 
   if (c.battleState.playerBurn && c.battleState.playerBurn.duration > 0) {
@@ -12947,7 +13130,15 @@ function resolveEnemyTurn() {
     if (c.battleState.playerBleed.duration <= 0) c.battleState.playerBleed = null;
   }
   if (p.hp < hpBeforeDots) sfx.dot();
-  if (p.hp <= 0 && !passiveUndyingSave(c, p)) return;
+}
+function resolveEnemyTurn(opts) {
+  const c = App.combat, p = App.player;
+  const pStats = effectiveStats(p);
+  if (!(opts && opts.noDots)) {
+    tickPlayerDots(c, p);
+    if (p.hp <= 0 && !passiveUndyingSave(c, p)) return;
+  }
+  const cName = hordeLabel(c);
 
   const isBossFight = c.isBoss || c.isMiniBoss;
   const enemySkill = isBossFight ? BOSS_SKILLS[c.name] : (c.monsterName ? MOB_SKILLS[c.monsterName] : c.dungeonWaveSkill);
@@ -12958,13 +13149,13 @@ function resolveEnemyTurn() {
   if (isBossFight && !c.battleState.bossEnraged && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.3) {
     c.battleState.bossEnraged = true;
     c.enemy.dmg = Math.round(c.enemy.dmg * 1.35);
-    addCombatLog({ text: `😡 ${c.name} entra em fúria! O dano dele aumenta drasticamente.`, cls: 'hit' });
+    addCombatLog({ text: `😡 ${cName} entra em fúria! O dano dele aumenta drasticamente.`, cls: 'hit' });
   }
 
   const foodDodge = foodBonus('dodge');
   const dodgeChance = Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge);
   if (dodgeChance && Math.random() < dodgeChance) {
-    addCombatLog({ text: `Esquivaste do ataque de ${c.name}!`, cls: 'good' });
+    addCombatLog({ text: `Esquivaste do ataque de ${cName}!`, cls: 'good' });
     sfx.dodge();
     return;
   }
@@ -12978,7 +13169,7 @@ function resolveEnemyTurn() {
   if (elementEffect === 'caos') elementEffect = ['fogo', 'gelo', 'eletricidade'][Math.floor(Math.random() * 3)];
   let dmgMult = 1;
   if (elementEffect === 'eletricidade' && Math.random() < 0.20) { dmgMult = 1.5; addCombatLog({ text: '⚡ Descarga elétrica surpreendente!', cls: 'hit' }); }
-  if (heavyAttack) { dmgMult *= 1.8; addCombatLog({ text: `💥 ${c.name} desfere um ataque especial devastador!`, cls: 'hit' }); }
+  if (heavyAttack) { dmgMult *= 1.8; addCombatLog({ text: `💥 ${cName} desfere um ataque especial devastador!`, cls: 'hit' }); }
   if (enemySkillTriggered && enemySkill.type === 'heavy') dmgMult *= 1.7;
   if (enemySkillTriggered && enemySkill.type === 'defbreak') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 2; }
 
@@ -12994,14 +13185,14 @@ function resolveEnemyTurn() {
     const d2 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
     dmg = absorbPlayerShield(c, d1 + d2);
     p.hp -= dmg;
-    addCombatLog({ text: `${enemySkill.icon} ${c.name} usa ${enemySkill.label}: dois golpes, ${d1} + ${d2} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
+    addCombatLog({ text: `${enemySkill.icon} ${cName} usa ${enemySkill.label}: dois golpes, ${d1} + ${d2} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   } else {
     let incomingDmg = c.enemy.dmg * dmgMult;
     if (isBossFight && pStats.dmgReducedFromBossPct) incomingDmg *= (1 - pStats.dmgReducedFromBossPct);
     dmg = absorbPlayerShield(c, applyDamage(incomingDmg, pStats.def * defMult, p.level));
     p.hp -= dmg;
     const verb = enemySkillTriggered ? `usa ${enemySkill.label}` : 'ataca';
-    addCombatLog({ text: `${enemySkillTriggered ? enemySkill.icon : c.icon} ${c.name} ${verb}: ${dmg} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
+    addCombatLog({ text: `${enemySkillTriggered ? enemySkill.icon : c.icon} ${cName} ${verb}: ${dmg} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   }
   sfx.pain(enemyCrit);
 
@@ -13028,7 +13219,7 @@ function resolveEnemyTurn() {
   if (enemySkillTriggered && enemySkill.type === 'lifesteal') {
     const healAmt = Math.max(1, Math.round(dmg * 0.5));
     c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + healAmt);
-    addCombatLog({ text: `${enemySkill.icon} ${c.name} recupera ${healAmt} HP!`, cls: 'hit' });
+    addCombatLog({ text: `${enemySkill.icon} ${cName} recupera ${healAmt} HP!`, cls: 'hit' });
   }
 
   if (elementEffect === 'fogo') { c.battleState.playerBurn = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.2)) }; addCombatLog({ text: '🔥 Ficaste a arder!', cls: 'hit' }); }
@@ -13044,7 +13235,7 @@ function resolveEnemyTurn() {
 
 function handleEnemyDefeated() {
   const c = App.combat;
-  addCombatLog({ text: `${c.icon} ${c.name} foi derrotado!`, cls: 'crit' });
+  addCombatLog({ text: `${c.icon} ${hordeLabel(c)} foi derrotado!`, cls: 'crit' });
   c._fxLogIdx = c.log.length;
   fxEnemyDie();
   sfx.enemyDown();
@@ -13119,8 +13310,10 @@ function tickProfessionCooldowns(p) {
   if (p.farm && Array.isArray(p.farm.slots)) p.farm.slots.forEach(sl => { if (sl && sl.left > 0) sl.left--; });
 }
 
-function finishWildOrBossVictory() {
-  const c = App.combat, p = App.player;
+// v144: as recompensas de UM monstro/chefe (XP, ouro, Tarefa, drops). Usado no fim de um
+// combate normal e em cada monstro derrotado de uma horda.
+function wildRewardRoll(c) {
+  const p = App.player;
   const isBoss = c.isBoss;
   const isRift = !!c.isRift;
   const pStats = effectiveStats(p);
@@ -13135,7 +13328,6 @@ function finishWildOrBossVictory() {
   const goldGain = Math.round((isBoss ? (30 + c.level * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * riftMult * diff.goldMult * (1 + (pStats.goldPct || 0)));
   p.gold += goldGain;
   grantXp(xpGain);
-  p.stats.wins++;
   if (isBoss) p.stats.bossesKilled++;
   progressQuest(isBoss);
 
@@ -13279,6 +13471,16 @@ function finishWildOrBossVictory() {
       drops.push(`🗺️ Nova região desbloqueada: ${REGIONS[p.regionIndex].name}!`);
     }
   }
+  return { xpGain, goldGain, drops };
+}
+
+function finishWildOrBossVictory() {
+  const c = App.combat, p = App.player;
+  const isBoss = c.isBoss;
+  let r = wildRewardRoll(c);
+  if (c.horde) { hordeAddLoot(c, r); r = hordeFinishVictory(c, p); }
+  const { xpGain, goldGain, drops } = r;
+  p.stats.wins++;
   if (p.fortuneBattlesLeft > 0) p.fortuneBattlesLeft--;
   // O evento só gasta uma batalha nos combates que afetou (não em Rifts).
   if (c.eventApplied && p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
@@ -13457,7 +13659,7 @@ function showCombatEnd(won, info) {
       <button class="btn primary block" id="btn-combat-continue">Continuar</button>`;
   } else {
     html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">Derrota</h2>
-      <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">Perdeste 10% do teu ouro${c.goldLost ? ` (🪙 ${c.goldLost})` : ''} e voltaste à cidade com metade do teu HP máximo. Não desistas, herói.</p>${c.bagKept ? `<p class="tiny" style="margin-top:6px;">🎒 Ficaste com metade do saco da dungeon: <b>+${nxNum(c.bagKept.xp)} XP</b> e <b>+${nxNum(c.bagKept.gold)} 🪙</b>.</p>` : ''}</div>
+      <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">Perdeste 10% do teu ouro${c.goldLost ? ` (🪙 ${c.goldLost})` : ''} e voltaste à cidade com metade do teu HP máximo. Não desistas, herói.</p>${c.horde && c.hordeLoot && c.hordeLoot.kills ? `<p class="tiny" style="margin-top:6px;">👥 Derrotaste ${c.hordeLoot.kills} de ${c.horde.length} da horda e ficaste com <b>+${c.hordeLoot.xp} XP</b> e <b>+${c.hordeLoot.gold} 🪙</b>${c.hordeLoot.drops.length ? ` e ${c.hordeLoot.drops.length} drop${c.hordeLoot.drops.length > 1 ? 's' : ''}` : ''}. O bónus da horda perdeu-se.</p>` : ''}${c.bagKept ? `<p class="tiny" style="margin-top:6px;">🎒 Ficaste com metade do saco da dungeon: <b>+${nxNum(c.bagKept.xp)} XP</b> e <b>+${nxNum(c.bagKept.gold)} 🪙</b>.</p>` : ''}</div>
       <button class="btn primary block" id="btn-combat-continue">Voltar à cidade</button>`;
     if (c.isTower) html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">Derrota</h2>
       <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">A subida terminou no andar ${c.towerFloorLost || '?'}. Ficas com tudo o que já apanhaste e não perdes ouro. Voltaste com metade do teu HP máximo.</p></div>
@@ -13558,7 +13760,7 @@ function fxAfterCombatRender(c, p, pStats) {
   if (c._lvlAtStart == null) c._lvlAtStart = p.level || 1;
   const glyph = document.getElementById('cb-enemy-glyph');
   const panel = document.querySelector('#screen-combat .player-panel');
-  const key = `${c.name}|${c.level}|${c.waveIndex || 0}`;
+  const key = `${c.name}|${c.level}|${c.waveIndex || 0}|${c.hordeIdx || 0}`;
   const newLogs = (c.log || []).slice(c._fxLogIdx || 0);
   c._fxLogIdx = (c.log || []).length;
   const txt = newLogs.map(m => m.text || '').join(' ');
@@ -13836,6 +14038,21 @@ function sceneRaceClass(glyph, c) {
   ['animal', 'humano', 'demonio', 'morto_vivo', 'outro'].forEach(k => glyph.classList.toggle('race-' + k, k === cat));
 }
 
+function renderHordeRow(c) {
+  const el = $('cb-horde'); if (!el) return;
+  if (!c.horde) { el.hidden = true; el.innerHTML = ''; return; }
+  el.hidden = false;
+  el.innerHTML = `<span class="cb-h-l">Horda</span>` + c.horde.map((m, i) => {
+    const pct = m.dead ? 0 : clamp(m.enemy.hp / m.enemy.maxHp * 100, 0, 100);
+    return `<button type="button" class="cb-hchip${i === c.hordeIdx ? ' on' : ''}${m.dead ? ' dead' : ''}" data-horde-i="${i}"${m.dead ? ' disabled' : ''} aria-label="${esc(m.label)}">
+      <span class="cb-h-c">${rmCreatureImg(c.monsterName || c.name, c.icon)}<b>${m.letter}</b></span><span class="cb-h-b"><i style="width:${pct}%"></i></span></button>`;
+  }).join('');
+  els('[data-horde-i]', el).forEach(b => b.addEventListener('click', () => {
+    const i = Number(b.dataset.hordeI);
+    if (!App.combat || App.combat !== c || c.ended || !c.horde[i] || c.horde[i].dead || i === c.hordeIdx) return;
+    sfx.click(); hordeSwitch(c, i); renderCombat();
+  }));
+}
 function renderCombat() {
   const c = App.combat;
   if (!c) return;
@@ -13848,7 +14065,8 @@ function renderCombat() {
   const flashFx = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
   if (c._lastEnemyHp !== undefined && c.enemy.hp < c._lastEnemyHp) flashFx(glyphEl, 'fx-hit');
   c._lastEnemyHp = c.enemy.hp;
-  $('cb-enemy-name').textContent = c.name;
+  $('cb-enemy-name').textContent = hordeLabel(c);
+  renderHordeRow(c);
   $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isBoss ? ' · Chefe' : c.isRift ? ' · Rift ⭕️' : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
@@ -14032,7 +14250,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v143</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v144</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

@@ -1403,3 +1403,32 @@ div.nx-confirm-msg{text-align:left;}
    e etiquetas nunca passam por cima das janelas (opções, confirmações) abertas por cima. */
 .rm-map,.bl-wrap,.dgp-map,.ho-map{isolation:isolate;}
 .bt-pop{z-index:80;}
+
+/* v144: Hordas — seletor 1–5 e fila de inimigos no combate */
+.hz-pick{display:flex;gap:4px;}
+.hz-pick button{min-width:30px;height:28px;border-radius:7px;border:1px solid var(--line);background:#0f0c08;color:var(--muted);font:800 12.5px var(--font-body);cursor:pointer;padding:0 6px;}
+.hz-pick button.on{border-color:var(--gold-bright);color:var(--gold-bright);background:linear-gradient(180deg,#3a2c16,#22190d);box-shadow:inset 0 0 0 1px rgba(228,191,74,.4);}
+.hz-pick.sm button{min-width:25px;height:24px;font-size:11.5px;border-radius:6px;padding:0 4px;}
+.rm-sheet.hz{flex-wrap:wrap;}
+.rm-hz{flex-basis:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.07);}
+.rm-hz>span{font:700 11px var(--font-body);color:var(--muted);}
+.rm-hz-t{display:block;font:800 10.5px var(--font-body);color:#2f5a1e;letter-spacing:0;margin-top:1px;text-align:center;}
+.bl-horde{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 7px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:rgba(16,12,8,.85);}
+.bl-hz-t{display:flex;flex-direction:column;min-width:0;}
+.bl-hz-t b{font-size:12.5px;}
+.bl-hz-t small{font-size:11px;color:#9fd27f;}
+.cb-horde{display:flex;align-items:flex-start;gap:6px;margin-top:8px;padding:6px 8px;border:1px solid var(--line-soft);border-radius:11px;background:rgba(10,8,6,.72);}
+.cb-horde[hidden]{display:none;}
+.cb-h-l{align-self:center;font:800 9px var(--font-body);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);writing-mode:vertical-rl;transform:rotate(180deg);}
+.cb-hchip{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;padding:0;border:0;background:none;cursor:pointer;color:var(--text);}
+.cb-h-c{position:relative;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;border:2px solid #6a5a40;background:radial-gradient(circle at 50% 35%,#2b2418,#0d0a07);transition:transform .15s;}
+.cb-h-c .rm-img{width:35px;height:35px;}
+.cb-h-c .rm-emo{font-size:20px;}
+.cb-h-c b{position:absolute;right:-5px;bottom:-4px;min-width:16px;height:16px;border-radius:8px;background:#0d0a07;border:1px solid var(--line);font:800 9.5px/14px var(--font-body);text-align:center;color:var(--muted);}
+.cb-h-b{display:block;width:100%;max-width:46px;height:4px;border-radius:2px;background:#2a1a12;overflow:hidden;}
+.cb-h-b i{display:block;height:100%;background:linear-gradient(90deg,#9e2a2e,#e05a52);transition:width .3s;}
+.cb-hchip.on .cb-h-c{border-color:var(--gold-bright);box-shadow:0 0 0 2px rgba(228,191,74,.35),0 0 10px rgba(228,191,74,.5);transform:scale(1.07);}
+.cb-hchip.on .cb-h-c b{border-color:var(--gold-bright);color:var(--gold-bright);}
+.cb-hchip.dead{opacity:.35;cursor:default;}
+.cb-hchip.dead .cb-h-c::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font:900 20px var(--font-body);color:#ff8a8a;text-shadow:0 1px 3px #000;}
+@media (prefers-reduced-motion:reduce){.cb-h-c,.cb-h-b i{transition:none;}}
