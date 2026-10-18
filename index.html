@@ -5225,7 +5225,7 @@ function renderWikiBody() {
     const abCard = key => {
       const ab = ABILITIES[key];
       return `<div class="card raised" style="margin-bottom:10px;">
-        <div class="row between" style="margin-bottom:6px;"><span style="font-weight:700;">${ab.icon} ${ab.name}</span><span class="pill tiny">recarga ${ab.cooldown}</span></div>
+        <div class="row between" style="margin-bottom:6px;"><span style="font-weight:700;">${nxEnt('habilidade-' + key, ab.icon)} ${ab.name}</span><span class="pill tiny">recarga ${ab.cooldown}</span></div>
         <table class="wiki-table wiki-ab-table"><tr><th>Nv.</th><th>Efeito</th><th>Custo</th></tr>
           ${ab.levels.map((_, i) => `<tr class="${i === ABILITY_MASTER_LEVEL ? 'master' : ''}"><td>${i === ABILITY_MASTER_LEVEL ? '👑 ' : ''}${ROMAN[i]}</td><td>${abilityLevelText(key, i)}</td><td>${cost(i)}</td></tr>`).join('')}
         </table></div>`;
@@ -10556,7 +10556,7 @@ function renderGemsBody(body, p) {
     const socks = Array.from({ length: it.socketSlots || 1 }, (_, i) => (it.sockets || [])[i] || null);
     return `<button class="gem-sock-item" data-gem-slot="${slot}" title="${esc(SLOT_NAMES[slot])}">
       <span class="gem-sock-ic">${slotIconHtml(slot)}</span>
-      <span class="gem-sock-row">${socks.map(g => g ? `<span class="gem-dot on" title="${esc(GEM_DEFS[g.type].name)} T${g.tier + 1}">${GEM_DEFS[g.type].icon}<sup>${g.tier + 1}</sup></span>` : '<span class="gem-dot">◇</span>').join('')}</span>
+      <span class="gem-sock-row">${socks.map(g => g ? `<span class="gem-dot on" title="${esc(GEM_DEFS[g.type].name)} T${g.tier + 1}">${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}<sup>${g.tier + 1}</sup></span>` : '<span class="gem-dot">◇</span>').join('')}</span>
       <span class="gem-sock-lb">${esc(SLOT_NAMES[slot])}</span>
     </button>`;
   }).join('');
@@ -10776,7 +10776,7 @@ function itemSheetHtml(item, slot, p) {
   add('👑', 'Red. dano de chefes', base.dmgReducedFromBossPct || 0, tot.dmgReducedFromBossPct || 0, pc1);
   // Gemas encaixadas
   const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
-  const gemLines = socks.filter(Boolean).map(g => `${GEM_DEFS[g.type].icon} ${gemStatText(g.type, g.tier)}`);
+  const gemLines = socks.filter(Boolean).map(g => `${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)} ${gemStatText(g.type, g.tier)}`);
   // Set
   let setHtml = '';
   if (item.setKey && SET_DEFS[item.setKey]) {
@@ -10831,7 +10831,7 @@ function itemSheetHtml(item, slot, p) {
       <div class="sheet-h">🔷 Encaixes de gemas <span class="muted">(${socks.filter(Boolean).length}/${socks.length})</span></div>
       <div class="sheet-socks">
         ${socks.map((g, i) => g
-          ? `<button class="sheet-sock on" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${GEM_DEFS[g.type].icon}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier)}</small><em>🗑️</em></button>`
+          ? `<button class="sheet-sock on" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier)}</small><em>🗑️</em></button>`
           : `<button class="sheet-sock" data-open-socket="${i}"><span>◇</span><b>Vazio</b><small>+ Encaixar</small></button>`).join('')}
         ${(item.socketSlots || 1) < 3 ? `<button class="sheet-sock add" id="btn-add-socket"><span>＋</span><b>Abrir encaixe</b><small>${socketSlotCost(item)} 🪙</small></button>` : ''}
       </div>
@@ -10902,7 +10902,7 @@ async function removeGem(slot, socketIdx) {
   if (!item || !item.sockets[socketIdx]) return;
   const s = item.sockets[socketIdx];
   const gdef = GEM_DEFS[s.type];
-  if (!await nxConfirm(`Remover a ${gdef.name} T${s.tier + 1}? A gema é destruída no processo — não volta para a mochila.`, { title: 'Remover gema', icon: gdef.icon, confirmLabel: 'Remover', danger: true })) return;
+  if (!await nxConfirm(`Remover a ${gdef.name} T${s.tier + 1}? A gema é destruída no processo — não volta para a mochila.`, { title: 'Remover gema', icon: (nxIconsEnabled() && nxIconSvg('gema-' + s.type)) || gdef.icon, confirmLabel: 'Remover', danger: true })) return;
   if (item.sockets[socketIdx] !== s) return;
   item.sockets[socketIdx] = null;
   saveGame();
@@ -11954,8 +11954,8 @@ function renderMapaBody(tile) {
         </div>
         <div class="tiny" style="margin-top:8px;">🎒 Saco: XP e ouro em cada sala${d.waves >= DG_MILESTONE_MIN_WAVES ? ` · baú a cada ${DG_MILESTONE_EVERY} salas` : ''}</div>
         <div class="tiny" style="margin-top:4px;">🎁 Recompensa: ${d.setKey ? SET_DEFS[d.setKey].name : (d.tier === 2 && !d.noAltar ? 'equipamento + tentativa no Altar' : 'equipamento')}${d.talismanDrop ? ` · ${Math.round(d.talismanDrop.chance * 100)}% ${TALISMAN_DEFS[d.talismanDrop.key].name}` : ''}${d.divineChance ? ` · ${String(d.divineChance * 100).replace('.', ',')}% item 💠 Divino` : ''}${d.bossDrop ? ` · ${Math.round(d.bossDrop.chance * 100)}% ${LUNAR_DEFS[d.bossDrop.key].icon} ${LUNAR_DEFS[d.bossDrop.key].name}` : ''}</div>
-        ${dungeonMiniBosses(d).map(m => `<div class="tiny muted" style="margin-top:4px;">${m.icon} Mini-chefe (onda ${m.atWave}): ${m.name}${d.miniBossDrop ? ` · ${Math.round(d.miniBossDrop.chance * 100)}% ${LUNAR_DEFS[d.miniBossDrop.key].icon}` : ''}</div>`).join('')}
-        <div class="boss-line">${d.bossIcon} ${d.bossName}${cleared ? ' — já derrotado' : ''}</div>
+        ${dungeonMiniBosses(d).map(m => `<div class="tiny muted" style="margin-top:4px;">${nxCreature(m.name, m.icon)} Mini-chefe (onda ${m.atWave}): ${m.name}${d.miniBossDrop ? ` · ${Math.round(d.miniBossDrop.chance * 100)}% ${LUNAR_DEFS[d.miniBossDrop.key].icon}` : ''}</div>`).join('')}
+        <div class="boss-line">${nxCreature(d.bossName, d.bossIcon)} ${d.bossName}${cleared ? ' — já derrotado' : ''}</div>
         ${d.monsters ? `<div class="monster-strip">${d.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>` : ''}
         ${eligible
           ? `<button class="btn small danger" style="margin-top:10px;" data-enter-dungeon="${d.key}">Entrar na dungeon</button>`
@@ -11998,8 +11998,8 @@ function renderMapaBody(tile) {
           </div>
           <span class="pill" style="${hasKey ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">🗝️ ${keys}</span>
         </div>
-        <div class="boss-line">${cat.bossIcon} ${cat.bossName} — muito mais forte que um chefe normal deste nível${cleared ? ' · já derrotado' : ''}</div>
-        ${dungeonMiniBosses(cat).map(m => `<div class="tiny muted" style="margin-top:4px;">${m.icon} Mini-chefe (ronda ${m.atWave}): ${m.name}</div>`).join('')}
+        <div class="boss-line">${nxCreature(cat.bossName, cat.bossIcon)} ${cat.bossName} — muito mais forte que um chefe normal deste nível${cleared ? ' · já derrotado' : ''}</div>
+        ${dungeonMiniBosses(cat).map(m => `<div class="tiny muted" style="margin-top:4px;">${nxCreature(m.name, m.icon)} Mini-chefe (ronda ${m.atWave}): ${m.name}</div>`).join('')}
         <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>
         <div class="tiny" style="margin-top:8px;">🎁 ${catacumbaRewardsText(cat)}</div>
         ${hasKey
@@ -13220,15 +13220,15 @@ function bindMealButtons(root) {
 // Cidade → Cozinha
 function renderCozinhaBody(body, p) {
   const farm = ensureFarm(p); ensureMeals(p);
-  const pantry = Object.keys(CROP_DEFS).map(k => `<span${farm.crops[k] ? '' : ' class="off"'}>${CROP_DEFS[k].icon} ${farm.crops[k]}</span>`).join('');
+  const pantry = Object.keys(CROP_DEFS).map(k => `<span${farm.crops[k] ? '' : ' class="off"'}>${nxEnt('alimento-' + k, CROP_DEFS[k].icon)} ${farm.crops[k]}</span>`).join('');
   const recs = Object.keys(MEAL_DEFS).map(k => {
     const d = MEAL_DEFS[k], cost = mealCost(p, k);
     const hasIng = Object.keys(d.ing).every(c => farm.crops[c] >= d.ing[c]);
     const ok = hasIng && p.gold >= cost;
-    const ing = Object.keys(d.ing).map(c => `<span class="${farm.crops[c] >= d.ing[c] ? 'ok' : 'no'}">${CROP_DEFS[c].icon} ${farm.crops[c]}/${d.ing[c]}</span>`).join('');
+    const ing = Object.keys(d.ing).map(c => `<span class="${farm.crops[c] >= d.ing[c] ? 'ok' : 'no'}">${nxEnt('alimento-' + c, CROP_DEFS[c].icon)} ${farm.crops[c]}/${d.ing[c]}</span>`).join('');
     const owned = p.meals[k] || 0;
     return `<div class="card raised ck-rec${d.rare ? ' rare' : ''}">
-      <div class="ck-head"><div class="ck-ic">${d.icon}</div><div style="flex:1"><div class="ck-name">${d.name}${d.rare ? ' <span class="pill ck-rare">raro</span>' : ''}</div><div class="tiny muted">Dura ${d.battles} batalhas${owned ? ` · tens <b>${owned}</b>` : ''}</div></div></div>
+      <div class="ck-head"><div class="ck-ic">${nxEnt('prato-' + k, d.icon)}</div><div style="flex:1"><div class="ck-name">${d.name}${d.rare ? ' <span class="pill ck-rare">raro</span>' : ''}</div><div class="tiny muted">Dura ${d.battles} batalhas${owned ? ` · tens <b>${owned}</b>` : ''}</div></div></div>
       <div class="ck-fx">${Object.keys(d.fx).length >= 6 ? `<span>${mealFxText(d)}</span>` : mealFxList(d).map(f => `<span>${f}</span>`).join('')}</div>
       <div class="ck-ing">${ing}</div>
       <div class="ck-foot"><span class="tiny${p.gold >= cost ? '' : ' ck-poor'}">🪙 ${cost.toLocaleString('pt-PT')}</span>
@@ -14506,7 +14506,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v150</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v151</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -15542,7 +15542,9 @@ const NX_ICON_MAP = {
   '🌿': 'leaf', '🌋': 'volcano', '❄': 'snow', '⛈': 'thunder', '☠': 'corrupt', '🌲': 'pine',
   '🗡': 'sword', '🔪': 'dagger', '🪓': 'axe', '🔱': 'spear', '🪄': 'wand', '👑': 'crown', '🪖': 'helmet', '👕': 'armor', '🧣': 'cape', '🥾': 'boots', '🧤': 'gloves', '📿': 'amulet', '🔯': 'artifact', '🍀': 'clover',
   '🏹': 'bow', '🧙': 'staff', '⚖': 'trade', '⚜': 'guild', '🌳': 'pine', '👤': 'hero', '🗼': 'fortress', '📯': 'scroll', '🐺': 'wolf', '🧟': 'zombie', '🦂': 'scorpion',
-  '🍎': 'apple', '🥕': 'carrot', '🗝': 'key', '❤': 'heart', '👁': 'eye'
+  '🍎': 'apple', '🥕': 'carrot', '🗝': 'key', '❤': 'heart', '👁': 'eye',
+  // v151: imagens que já existiam mas não tinham emoji ligado
+  '🧭': 'compass', '⏳': 'hourglass', '⌛': 'hourglass', '❓': 'question', '❔': 'question', '🍺': 'bar', '🔧': 'livro-reforco', '📕': 'livro-ferreiro'
 };
 const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-glyph, .map-here-ic, .equip-slot .ic, .sb-mute, .stat-box .v-ic';
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
@@ -15601,7 +15603,7 @@ function nxNameIndex() {
     Object.keys(ABILITIES).forEach(k => { if (!['escudo', 'divino'].includes(k)) put(ABILITIES[k].name, 'habilidade-' + k); });
     [['Livro da Amnésia', 'amnesia'], ['Livros da Amnésia', 'amnesia'], ['Livro de Habilidades', 'habilidades'], ['Livros de Habilidades', 'habilidades'],
      ['Livro das Profissões', 'profissoes'], ['Livros das Profissões', 'profissoes'], ['Livro do Ferreiro', 'ferreiro'], ['Livros do Ferreiro', 'ferreiro'],
-     ['Pergaminho de Feitiço', 'feitico'], ['Pergaminho de Reforço', 'reforco']].forEach(([n, k]) => put(n, 'livro-' + k));
+     ['Pergaminho de Feitiço', 'feitico'], ['Pergaminho de Reforço', 'reforco'], ['Pergaminhos de Feitiço', 'feitico'], ['Pergaminhos de Reforço', 'reforco']].forEach(([n, k]) => put(n, 'livro-' + k));
     REGIONS.forEach(r => put(r.name, 'banner-' + r.key));
     DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, 'dungeon-torre'));
   } catch (e) { /* defs ainda não carregadas */ return {}; }
@@ -15631,7 +15633,7 @@ function nxKeyForName(text) {
   if (key && !NX_ICON_IMG.has(key.replace(/_/g, '-'))) key = null; // ex.: mascote "Lobo" sem imagem → usa a do monstro Lobo
   if (!key) { // nome com algo à frente/atrás ("Pedra do Dano (T1)", "Cebola · ativo")
     let best = '';
-    Object.keys(idx).forEach(k => { if (k.length > best.length && (n.startsWith(k + '-') || n === k)) best = k; });
+    Object.keys(idx).forEach(k => { if (k.length > best.length && (n.startsWith(k + '-') || n === k) && NX_ICON_IMG.has(idx[k].replace(/_/g, '-'))) best = k; });
     key = best ? idx[best] : null;
   }
   if (!key) { const c = 'chefe-' + n, m = 'monstro-' + n; key = NX_ICON_IMG.has(c) ? c : NX_ICON_IMG.has(m) ? m : null; }
