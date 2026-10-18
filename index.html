@@ -370,7 +370,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- ACCOUNT ENTRY -->
   <div class="screen" id="screen-account">
-    <span class="app-version-badge" id="app-version-badge">V 1.6.2</span>
+    <span class="app-version-badge" id="app-version-badge">V 1.7.0</span>
     <div class="account-panel">
       <div class="account-mark">⚔</div>
       <h1>Nemesy RPG</h1>
@@ -460,7 +460,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
       <div class="player-panel">
         <div class="row between" style="margin-bottom:6px; align-items:center;">
           <span style="font-weight:700; font-family:var(--font-display);"><span id="cb-player-icon">🧝</span> <span id="cb-player-name">Herói</span></span>
-          <span class="pill" id="cb-player-lv">Nv. 1</span>
+          <span class="cb-ally" id="cb-ally" hidden></span><span class="pill" id="cb-player-lv">Nv. 1</span>
         </div>
         <div class="bar bar-hp bar-lg"><div class="bar-fill" id="cb-player-hpfill" style="width:100%"></div><span class="bar-num"><span id="cb-player-hp">0/0</span></span></div>
         <div class="status-icons" id="cb-player-status"></div>
@@ -5380,7 +5380,11 @@ function renderWikiBody() {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">Herói → Esconderijo. Abre no nível ${HIDEOUT_MIN_LEVEL} por ${HIDEOUT_COST.toLocaleString('pt-PT')} de ouro. É um pequeno mapa de pedra: toca numa estação para o herói ir até lá e depois em "Abrir".</p>
       <div class="card raised"><span style="font-weight:700;">🏰 Níveis</span>
-        <p class="tiny" style="margin-top:6px;">5 níveis. Nv. 1: Expedições, Lareira, Desmanche e Craft · Nv. 2 (${HIDEOUT_UPGRADE_COST[2].toLocaleString('pt-PT')}): Baú do Jogador · Nv. 3 (${HIDEOUT_UPGRADE_COST[3].toLocaleString('pt-PT')}): Boneco de Treino · Nv. 4 (${HIDEOUT_UPGRADE_COST[4].toLocaleString('pt-PT')}): Santuário e 2.ª vaga de Expedição · Nv. 5 (${HIDEOUT_UPGRADE_COST[5].toLocaleString('pt-PT')}): Sala de Troféus.</p></div>
+        <p class="tiny" style="margin-top:6px;">6 níveis. Nv. 1: Expedições, Lareira, Desmanche e Craft · Nv. 2 (${HIDEOUT_UPGRADE_COST[2].toLocaleString('pt-PT')}): Baú do Jogador · Nv. 3 (${HIDEOUT_UPGRADE_COST[3].toLocaleString('pt-PT')}): Boneco de Treino · Nv. 4 (${HIDEOUT_UPGRADE_COST[4].toLocaleString('pt-PT')}): Santuário e 2.ª vaga de Expedição · Nv. 5 (${HIDEOUT_UPGRADE_COST[5].toLocaleString('pt-PT')}): Sala de Troféus · Nv. 6 (${HIDEOUT_UPGRADE_COST[6].toLocaleString('pt-PT')}): lugar de Amigo na Lareira.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🍺 Bar e Amigos <span class="tiny muted">· Nv. ${ALLY_HIDEOUT_LV}</span></span>
+        <p class="tiny" style="margin-top:6px;">No Nv. ${ALLY_HIDEOUT_LV}, a Lareira ganha 1 lugar para um amigo, recrutado no Bar da Cidade. Só podes ter 1: para trocar, manda-o embora (perdes o amigo e o ouro) e recruta outro.</p>
+        ${Object.keys(ALLY_DEFS).map(k => { const d = ALLY_DEFS[k]; return `<p class="tiny" style="margin-top:4px;">${d.icon} <b>${d.name}</b> (${d.cls}, ${d.price.toLocaleString('pt-PT')} 🪙): ${d.desc}</p>`; }).join('')}
+        <p class="tiny" style="margin-top:4px;">Entram com ${Math.round(ALLY_START_PCT * 100)}% do teu nível, ganham o mesmo XP que tu e sobem até ao teu nível. O dano é a percentagem da classe vezes o nível deles a dividir pelo teu. Não têm vida: agem logo a seguir a ti em todos os combates (numa horda, contra o teu alvo).</p></div>
       ${HIDEOUT_STATIONS.map(st => `<div class="card raised"><span style="font-weight:700;">${st.icon} ${st.name} <span class="tiny muted">· Nv. ${st.lv}</span></span><p class="tiny" style="margin-top:6px;">${st.desc}</p></div>`).join('')}
       <div class="card raised"><span style="font-weight:700;">🗺️ Expedições</span>
         <p class="tiny" style="margin-top:6px;">Todas dão ouro, sementes e 1 Baú de Equipamento ao teu nível. ${Object.keys(EXPEDITION_TYPES).map(k => { const d = EXPEDITION_TYPES[k]; return `${d.name} (${d.hours} h, ${d.pets} ${d.pets === 1 ? 'mascote' : 'mascotes'}): ${d.chestLabel.toLowerCase()}, ${Math.round(d.extraChance * 100)}% de extra`; }).join(' · ')}. O extra é 1 Gema T1, 1 Pérola ou 1 Pedra de Alquimia. O ouro sobe com o teu nível e um pouco com o nível médio das mascotes (+0,5% por nível). Uma mascote em expedição não pode estar ativa.</p></div>
@@ -6570,8 +6574,8 @@ function renderPassivasBody() {
 // ============================================================
 const HIDEOUT_MIN_LEVEL = 75;
 const HIDEOUT_COST = 15000;
-const HIDEOUT_MAX_LEVEL = 5;
-const HIDEOUT_UPGRADE_COST = { 2: 40000, 3: 80000, 4: 150000, 5: 250000 };
+const HIDEOUT_MAX_LEVEL = 6;
+const HIDEOUT_UPGRADE_COST = { 2: 40000, 3: 80000, 4: 150000, 5: 250000, 6: 400000 };
 // x / y = centro da estação no mapa (em %).
 const HIDEOUT_STATIONS = [
   { key: 'expedicoes', name: 'Mesa de Expedições', short: 'Expedições', icon: '🗺️', img: 'map', lv: 1, x: 17, y: 25,
@@ -6659,6 +6663,7 @@ function hideoutLevelPerks(lv) {
   const cap = HIDEOUT_STORAGE_BY_LEVEL[lv];
   if (cap) out.push({ ic: nxIconSvg(hoStationImg(hoStation('bau'))) || '🧰', t: `Baú: ${cap} espaços`, d: lv === 2 ? `antes ${HIDEOUT_STORAGE_BASE}` : `antes ${HIDEOUT_STORAGE_BY_LEVEL[lv - 1]}` });
   if (lv === 4) out.push({ ic: hoStationIc(hoStation('expedicoes')), t: '2.ª vaga de Expedição', d: '2 expedições ao mesmo tempo' });
+  if (lv === ALLY_HIDEOUT_LV) out.push({ ic: nxIconSvg('bar') || '🍺', t: 'Amigo na Lareira', d: 'Recruta 1 amigo no Bar da Cidade: luta contigo em todos os combates' });
   out.push({ ic: nxIconSvg('flame') || '🔥', t: `Lareira: ${8 + 2 * lv} batalhas`, d: 'de Descansado' });
   return out;
 }
@@ -6671,7 +6676,7 @@ function openHideoutUpgradeModal() {
     const st = HIDEOUT_STATIONS.filter(x => x.lv === lv);
     const cls = lv <= h.level ? 'done' : lv === next ? 'next' : '';
     return `<div class="ho-road-step ${cls}"><span class="ho-road-n">${lv <= h.level ? '✓' : lv}</span>
-      <span class="ho-road-ics">${st.map(x => hoStationIc(x)).join('')}</span>
+      <span class="ho-road-ics">${st.map(x => hoStationIc(x)).join('')}${lv === ALLY_HIDEOUT_LV ? (nxIconSvg('bar') || '🍺') : ''}</span>
       <span class="tiny">${lv === 1 ? HIDEOUT_COST.toLocaleString('pt-PT') : HIDEOUT_UPGRADE_COST[lv].toLocaleString('pt-PT')}</span></div>`;
   }).join('');
   openModal(`
@@ -6870,14 +6875,152 @@ function renderHoLareira(p, h) {
     ${h.restLeft > 0 ? `<div class="ho-note">✨ Descansado: +${Math.round(REST_XP_PCT * 100)}% XP · faltam ${h.restLeft} batalhas</div>` : ''}
     ${wait > 0 ? `<button class="btn" disabled style="width:100%;">Podes descansar daqui a <span data-ho-timer="${h.restAt + REST_COOLDOWN_MS}">${hoTimeLeft(wait)}</span></button>`
       : `<button class="btn primary" id="btn-ho-rest" style="width:100%;">Descansar</button>`}
-    <p class="tiny muted" style="margin-top:8px; text-align:center;">Uma vez a cada 8 horas.</p>`;
+    <p class="tiny muted" style="margin-top:8px; text-align:center;">Uma vez a cada 8 horas.</p>
+    ${renderHoAllySlot(p, h)}`;
+}
+
+// ============================================================
+// v145 (V 1.7.0): 🍺 BAR E AMIGOS — com o Esconderijo no Nv. 6, a Lareira ganha 1 lugar para um
+// amigo. Recruta-se no Bar (Cidade). Só há 1 amigo de cada vez: para trocar, manda-se embora o
+// atual (perde-se) e recruta-se outro. Entra com 40% do nível do herói, ganha o mesmo XP que ele
+// e sobe até ao nível dele. Não tem vida: age logo a seguir ao herói em todos os combates.
+// Dano = dano do herói × % da classe × (nível do amigo / nível do herói).
+// ============================================================
+const ALLY_HIDEOUT_LV = 6;
+const ALLY_START_PCT = 0.4;
+const ALLY_DEFS = {
+  guerreiro: { name: 'Sir Aldric', cls: 'Guerreiro', icon: '🛡️', color: '#E0A64A', price: 15000, dmgPct: 0.25, guard: 0.10, verb: 'golpeia com a espada',
+    short: 'Escudo: recebes −10% de dano', desc: 'Ataca com 25% do teu dano e protege-te: enquanto ele luta, recebes −10% de dano.' },
+  arqueiro: { name: 'Rowan', cls: 'Arqueiro', icon: '🏹', color: '#5FC6B8', price: 20000, dmgPct: 0.35, critBonus: 0.15, verb: 'dispara uma flecha',
+    short: 'Olho de falcão: +15% de crítico', desc: 'Dispara com 35% do teu dano e tem +15% de hipótese de crítico.' },
+  mago: { name: 'Magnus', cls: 'Mago', icon: '🔥', color: '#E06A4A', price: 25000, dmgPct: 0.30, ignoreDef: 0.40, burnChance: 0.20, verb: 'lança uma bola de fogo',
+    short: 'Bola de fogo: ignora 40% da defesa', desc: 'Bola de fogo com 30% do teu dano, que ignora 40% da defesa do inimigo e tem 20% de hipótese de o deixar em chamas.' },
+  berserk: { name: 'Bjorn', cls: 'Berserk', icon: '🪓', color: '#C95A5A', price: 30000, dmgPct: 0.45, furyEvery: 3, verb: 'ataca com o machado',
+    short: 'Fúria: golpe ×2 a cada 3 rondas', desc: 'Machadada com 45% do teu dano; a cada 3.ª ronda desfere um golpe furioso ×2.' }
+};
+function allyImg(type, cls) { return nxIconsEnabled() && NX_ICON_IMG.has('amigo-' + type) ? `<img class="ally-img${cls ? ' ' + cls : ''}" src="icons/amigo-${type}.webp?v=${NX_ICON_VER}" alt="" draggable="false">` : `<span class="ally-emo${cls ? ' ' + cls : ''}">${(ALLY_DEFS[type] || {}).icon || '🍺'}</span>`; }
+function allyStartLevel(p) { return Math.max(1, Math.floor((p.level || 1) * ALLY_START_PCT)); }
+// O amigo só luta com o Esconderijo no Nv. 6 (é lá que ele fica, junto à Lareira).
+function activeAlly(p) { return p && p.ally && ALLY_DEFS[p.ally.type] && hideoutLevel(p) >= ALLY_HIDEOUT_LV ? p.ally : null; }
+function allyPowerPct(p, a) { return ALLY_DEFS[a.type].dmgPct * Math.min(1, (a.level || 1) / Math.max(1, p.level || 1)); }
+function allyXpNeed(a) { return xpForLevel(a.level || 1); }
+// Mesmo XP que o herói (chamado em grantXp). Não passa do nível do herói.
+function allyGainXp(amount) {
+  const p = App.player, a = activeAlly(p);
+  if (!a || !(amount > 0)) return;
+  if (a.level >= p.level) { a.level = Math.min(a.level, p.level); a.xp = 0; return; }
+  a.xp = (a.xp || 0) + amount;
+  let up = false;
+  while (a.level < p.level && a.xp >= allyXpNeed(a)) { a.xp -= allyXpNeed(a); a.level++; up = true; }
+  if (a.level >= p.level) a.xp = 0;
+  if (up) {
+    const d = ALLY_DEFS[a.type];
+    if (App.combat && !App.combat.ended) addCombatLog({ text: `🍺 ${d.name} subiu para o Nv. ${a.level}!`, cls: 'ally' });
+    else toast(`🍺 ${d.name} subiu para o Nv. ${a.level}!`);
+  }
+}
+// A vez do amigo: logo a seguir à ação do herói, contra o alvo atual.
+function allyAct(c) {
+  const p = App.player, a = activeAlly(p);
+  if (!a || !c || c.ended || !c.enemy) return;
+  // Numa horda, se o alvo já caiu com o teu golpe, o amigo ataca o próximo vivo.
+  if (c.horde && c.enemy.hp <= 0) { const i = c.horde.findIndex(m => !m.dead && m.enemy.hp > 0); if (i >= 0) hordeSwitch(c, i); }
+  if (c.enemy.hp <= 0) return;
+  const d = ALLY_DEFS[a.type], ps = effectiveStats(p);
+  c.allyRounds = (c.allyRounds || 0) + 1;
+  let dmg = ps.dmg * allyPowerPct(p, a);
+  const crit = Math.random() < 0.05 + (d.critBonus || 0);
+  if (crit && !c.enemy.critImmune) dmg *= 1.8;
+  const fury = !!(d.furyEvery && c.allyRounds % d.furyEvery === 0);
+  if (fury) dmg *= 2;
+  const debuff = c.battleState.enemyDefDebuff ? (1 - c.battleState.enemyDefDebuff.pct) : 1;
+  const final = applyDamage(dmg, c.enemy.def * debuff * (1 - (d.ignoreDef || 0)), p.level);
+  c.enemy.hp -= final;
+  addCombatLog({ text: `${d.icon} ${d.name} ${d.verb}: ${final} de dano${crit && !c.enemy.critImmune ? ' — crítico!' : ''}${fury ? ' — golpe furioso!' : ''}`, cls: 'ally' });
+  if (d.burnChance && c.enemy.hp > 0 && Math.random() < d.burnChance) {
+    c.battleState.enemyStatus = c.battleState.enemyStatus || [];
+    c.battleState.enemyStatus.push({ type: 'chamas', duration: 2, dmg: Math.max(1, Math.round(final * 0.3)) });
+    addCombatLog({ text: `🔥 ${d.name} deixou o inimigo em chamas!`, cls: 'ally' });
+  }
+}
+// Guerreiro: o dano que o herói recebe desce 10%.
+function allyGuard(dmg) {
+  const a = activeAlly(App.player);
+  const g = a && ALLY_DEFS[a.type].guard;
+  return g && dmg > 0 ? Math.max(1, Math.round(dmg * (1 - g))) : dmg;
+}
+async function recruitAllyAction(type) {
+  const p = App.player, d = ALLY_DEFS[type];
+  if (!d) return;
+  if (hideoutLevel(p) < ALLY_HIDEOUT_LV) { sfx.error(); toast(`Precisas do Esconderijo no Nv. ${ALLY_HIDEOUT_LV}: é lá, junto à Lareira, que o amigo fica.`); return; }
+  if (p.ally) { sfx.error(); toast('Já tens um amigo. Manda-o embora primeiro para recrutares outro.'); return; }
+  if (p.gold < d.price) { sfx.error(); toast(`Precisas de ${d.price.toLocaleString('pt-PT')} de ouro.`); return; }
+  if (!await nxConfirm(`Recrutar ${d.name} (${d.cls}) por ${d.price.toLocaleString('pt-PT')} de ouro? Entra no Nv. ${allyStartLevel(p)} e fica junto à tua Lareira.`, { title: 'Recrutar amigo', icon: allyImg(type, 'cf'), confirmLabel: 'Recrutar' })) return;
+  if (p.ally || p.gold < d.price) return;
+  p.gold -= d.price;
+  p.ally = { type, level: allyStartLevel(p), xp: 0 };
+  sfx.evolve(); fxVibrate([20, 40, 20]); saveGame(); renderStatusBar();
+  toast(`🍺 ${d.name} juntou-se a ti! Vai lutar ao teu lado em todos os combates.`);
+  if (App.tab === 'loja') renderLojaBody(); else renderTabHeroi();
+}
+async function dismissAllyAction() {
+  const p = App.player, a = p.ally, d = a && ALLY_DEFS[a.type];
+  if (!d) return;
+  if (!await nxConfirm(`Mandar ${d.name} embora? Perdes este amigo (Nv. ${a.level}) e o ouro que pagaste. Depois podes recrutar outro no Bar.`, { title: 'Mandar embora', icon: allyImg(a.type, 'cf'), confirmLabel: 'Mandar embora', danger: true })) return;
+  if (p.ally !== a) return;
+  p.ally = null;
+  sfx.flee(); saveGame();
+  toast(`${d.name} foi-se embora.`);
+  if (App.tab === 'loja') renderLojaBody(); else renderTabHeroi();
+}
+function allyCardHtml(p, a, opts) {
+  const d = ALLY_DEFS[a.type], capped = a.level >= p.level, need = allyXpNeed(a);
+  const pct = capped ? 100 : Math.min(100, Math.round((a.xp || 0) / need * 100));
+  return `<div class="ally-card" style="--c:${d.color};">
+      <span class="ally-pt">${allyImg(a.type)}</span>
+      <div class="ally-mid"><b>${esc(d.name)}</b><span class="ally-role">${d.cls}</span>
+        <div class="ally-lv"><span>Nv. ${a.level}</span><span>${capped ? 'no teu nível' : `${pct}% para o Nv. ${a.level + 1}`}</span></div>
+        <div class="ally-xp"><i style="width:${pct}%"></i></div>
+        <small>${d.short} · ${Math.round(allyPowerPct(p, a) * 100)}% do teu dano</small></div>
+    </div>${opts && opts.dismiss ? `<button class="btn ghost small block" id="btn-ally-dismiss" style="margin-top:8px;">Mandar embora</button>` : ''}`;
+}
+function renderBarBody(body, p) {
+  const lvOk = hideoutLevel(p) >= ALLY_HIDEOUT_LV, a = p.ally && ALLY_DEFS[p.ally.type] ? p.ally : null;
+  body.innerHTML = `
+    <div class="bar-hero"><span class="bar-hero-ic">${nxIconSvg('bar') || '🍺'}</span>
+      <div><h3>O Javali Dourado</h3><p class="tiny muted">Mercenários à procura de trabalho. Recruta um e ele fica junto à Lareira do teu Esconderijo: luta ao teu lado em todos os combates.</p></div></div>
+    ${!lvOk ? `<div class="ho-note warn">🔒 Precisas do Esconderijo no Nv. ${ALLY_HIDEOUT_LV} (Herói → Esconderijo) para teres onde o amigo ficar.</div>` : ''}
+    ${a ? `<div class="inv-label" style="margin-top:12px;">O teu amigo</div>${allyCardHtml(p, a, { dismiss: true })}
+      <p class="tiny muted" style="margin-top:8px;">Só podes ter 1 amigo. Para trocar, manda-o embora e recruta outro (o ouro pago não volta).</p>` : ''}
+    <div class="inv-label" style="margin-top:12px;">${a ? 'Outros mercenários' : 'Recrutar'}</div>
+    ${Object.keys(ALLY_DEFS).map(k => { const d = ALLY_DEFS[k], mine = a && a.type === k, can = lvOk && !a && p.gold >= d.price;
+      return `<button type="button" class="bar-rec${mine ? ' mine' : ''}" data-bar-rec="${k}" style="--c:${d.color};">
+        <span class="bar-pt">${allyImg(k)}</span>
+        <span class="bar-mid"><b>${esc(d.name)}</b><span class="ally-role">${d.cls}</span><small>${d.desc}</small></span>
+        <span class="bar-price">${mine ? '<em>✓ contigo</em>' : `<span class="${can ? '' : 'off'}">${nxIconSvg('coin') || '🪙'}${d.price.toLocaleString('pt-PT')}</span>`}</span>
+      </button>`; }).join('')}
+    <p class="tiny muted" style="margin-top:10px;">Entram com ${Math.round(ALLY_START_PCT * 100)}% do teu nível (agora: Nv. ${allyStartLevel(p)}), ganham o mesmo XP que tu e sobem até ao teu nível. Não têm vida: agem logo a seguir a ti, antes dos inimigos.</p>`;
+  els('[data-bar-rec]', body).forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.barRec;
+    if (p.ally && p.ally.type === k) return;
+    if (p.ally) { sfx.error(); toast('Só podes ter 1 amigo. Manda o atual embora para recrutares outro.'); return; }
+    recruitAllyAction(k);
+  }));
+  const dm = $('btn-ally-dismiss'); if (dm) dm.addEventListener('click', dismissAllyAction);
+}
+function renderHoAllySlot(p, h) {
+  if (h.level < ALLY_HIDEOUT_LV) return `<div class="ho-ally-slot locked"><b>🔒 Amigo junto ao fogo</b><span class="tiny muted">No Esconderijo Nv. ${ALLY_HIDEOUT_LV}, a Lareira ganha um lugar para um amigo que luta contigo.</span></div>`;
+  const a = p.ally && ALLY_DEFS[p.ally.type] ? p.ally : null;
+  return `<div class="ho-ally-slot"><div class="row between" style="align-items:center;"><b>Amigo junto ao fogo</b><span class="ho-ally-tag">NV. ${ALLY_HIDEOUT_LV}</span></div>
+    ${a ? allyCardHtml(p, a) : `<p class="tiny muted" style="margin:6px 0 10px;">O lugar está vazio. Recruta um Guerreiro, Arqueiro, Mago ou Berserk no Bar da Cidade.</p>`}
+    <button class="btn ${a ? 'ghost' : 'primary'} small block" id="btn-ho-to-bar" style="margin-top:8px;">${a ? '🍺 Ir ao Bar' : '🍺 Recrutar no Bar'}</button></div>`;
 }
 
 // ---------- Baú do Jogador (armazém do Esconderijo) ----------
 // Guarda as peças do Desmanche (e, no futuro, outras coisas do Esconderijo).
 // 20 espaços de início; ao abrir o Baú (Nv. 2) o espaço sobe muito. 1 peça = 1 espaço.
 const HIDEOUT_STORAGE_BASE = 20;
-const HIDEOUT_STORAGE_BY_LEVEL = { 2: 300, 3: 400, 4: 500, 5: 600 };
+const HIDEOUT_STORAGE_BY_LEVEL = { 2: 300, 3: 400, 4: 500, 5: 600, 6: 700 };
 function hoStorageCap(p) { return HIDEOUT_STORAGE_BY_LEVEL[hideoutLevel(p)] || HIDEOUT_STORAGE_BASE; }
 function hoStorageUsed(h) { return HIDEOUT_PART_RARITIES.reduce((a, r) => a + ((h && h.parts && h.parts[r]) || 0), 0); }
 function hoStorageFree(p) { return Math.max(0, hoStorageCap(p) - hoStorageUsed(p.hideout)); }
@@ -7386,6 +7529,7 @@ function bindHideoutStation(key) {
     els('[data-ho-collect]').forEach(b => b.addEventListener('click', () => collectExpeditionAction(Number(b.dataset.hoCollect))));
   } else if (key === 'lareira') {
     const b = $('btn-ho-rest'); if (b) b.addEventListener('click', restAction);
+    const tb = $('btn-ho-to-bar'); if (tb) tb.addEventListener('click', () => { sfx.tab(); App.lojaTab = 'bar'; setTab('loja'); });
   } else if (key === 'desmanche') {
     els('[data-ho-dis-r]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoDisRarity = b.dataset.hoDisR; rerender(); }));
     els('[data-ho-dis]').forEach(b => b.addEventListener('click', async () => {
@@ -9033,6 +9177,7 @@ function feedPet(petId) {
 function grantXp(amount) {
   const p = App.player;
   p.xp += amount;
+  try { allyGainXp(amount); } catch (e) { /* o amigo nunca pode estragar o XP do herói */ }
   let leveled = false;
   while (p.level < MAX_LEVEL && p.xp >= xpForLevel(p.level)) {
     p.xp -= xpForLevel(p.level);
@@ -10836,7 +10981,8 @@ function renderTabLoja() {
     { key: 'classificacao', label: 'Classificação', icon: '🏆' },
     { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️', badge: blackMarketAvailableCount(p) },
     { key: 'temporada', label: 'Temporada', icon: '🎮', badge: seasonReadyCount(p) ? `🎁${seasonReadyCount(p)}` : null },
-    { key: 'cambio', label: 'Câmbio', icon: '⚖️' }
+    { key: 'cambio', label: 'Câmbio', icon: '⚖️' },
+    { key: 'bar', label: 'Bar', icon: nxEnt('bar', '🍺'), badge: hideoutLevel(p) >= ALLY_HIDEOUT_LV && !p.ally ? 'Novo' : null }
   ];
   const current = sections.find(x => x.key === App.lojaTab);
   if (!current) {
@@ -10877,6 +11023,7 @@ function renderLojaBody() {
   if (!body) return;
 
   if (App.lojaTab === 'temporada') { renderSeasonBody(body, p); return; }
+  if (App.lojaTab === 'bar') { renderBarBody(body, p); return; }
   if (App.lojaTab === 'cozinha') { renderCozinhaBody(body, p); return; }
   if (App.lojaTab === 'loja') {
     const potionsHtml = Object.keys(POTION_DEFS).map(key => {
@@ -13058,6 +13205,7 @@ function openPotionModal() {
 function postPlayerAction() {
   const c = App.combat;
   const p = App.player;
+  allyAct(c);
   if (c.horde) { hordePostPlayerAction(); return; }
   if (c.battleState.enemyStatus && c.battleState.enemyStatus.length) {
     c.battleState.enemyStatus.forEach(s => {
@@ -13183,13 +13331,13 @@ function resolveEnemyTurn(opts) {
     if (isBossFight && pStats.dmgReducedFromBossPct) dmgMult *= (1 - pStats.dmgReducedFromBossPct);
     const d1 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
     const d2 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
-    dmg = absorbPlayerShield(c, d1 + d2);
+    dmg = absorbPlayerShield(c, allyGuard(d1 + d2));
     p.hp -= dmg;
     addCombatLog({ text: `${enemySkill.icon} ${cName} usa ${enemySkill.label}: dois golpes, ${d1} + ${d2} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   } else {
     let incomingDmg = c.enemy.dmg * dmgMult;
     if (isBossFight && pStats.dmgReducedFromBossPct) incomingDmg *= (1 - pStats.dmgReducedFromBossPct);
-    dmg = absorbPlayerShield(c, applyDamage(incomingDmg, pStats.def * defMult, p.level));
+    dmg = absorbPlayerShield(c, allyGuard(applyDamage(incomingDmg, pStats.def * defMult, p.level)));
     p.hp -= dmg;
     const verb = enemySkillTriggered ? `usa ${enemySkill.label}` : 'ataca';
     addCombatLog({ text: `${enemySkillTriggered ? enemySkill.icon : c.icon} ${cName} ${verb}: ${dmg} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
@@ -14098,6 +14246,10 @@ function renderCombat() {
   if (eventTap) eventTap.addEventListener('click', () => showEventInfoModal(c.eventApplied));
 
   $('cb-player-name').textContent = p.name;
+  { const al = activeAlly(p), box = $('cb-ally');
+    if (box) { box.hidden = !al; if (al) { const d = ALLY_DEFS[al.type], k = `${al.type}|${al.level}|${c.allyRounds || 0}`;
+      if (box.dataset.k !== k) { box.dataset.k = k; box.style.setProperty('--c', d.color);
+        box.innerHTML = `${allyImg(al.type, 'sm')}<b>${esc(d.name)}</b><small>Nv. ${al.level}${d.furyEvery ? ` · ${'🪓'.repeat(((c.allyRounds || 0) % d.furyEvery) + 1)}` : ''}</small>`; box.title = `${d.name} · ${d.cls} · ${d.short}`; } } } }
   const cbIc = $('cb-player-icon'); const avKey = `${p.class}|${p.evolution || ''}`;
   if (cbIc.dataset.av !== avKey) { cbIc.dataset.av = avKey; cbIc.innerHTML = heroAvatarHtml(p, 'tiny'); }
   $('cb-player-lv').textContent = 'Nv. ' + p.level;
@@ -14250,7 +14402,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v144</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v145</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -14411,6 +14563,12 @@ function wireStaticEvents() {
 // código já assume existir (pérolas, pergaminhos, baús, intervalo de Dano
 // das armas, etc.), venha de que versão do save vier.
 function applyPlayerMigrations(player) {
+  // v145: amigo do Bar
+  if (player && player.ally !== undefined && player.ally !== null) {
+    const a = player.ally;
+    if (typeof a !== 'object' || !ALLY_DEFS[a.type]) player.ally = null;
+    else player.ally = { type: a.type, level: clamp(Math.floor(Number(a.level) || 1), 1, MAX_LEVEL), xp: Math.max(0, Math.floor(Number(a.xp) || 0)) };
+  }
   // v133: o evento ativo guardado no save segue sempre a definição atual (nome, ícone, efeitos),
   // ex.: "Hand of Nod" → "Renegados". Só as batalhas que faltam vêm do save.
   if (player && player.activeEvent) {
@@ -14529,9 +14687,19 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 1.6.2';
+const APP_VERSION_LABEL = 'V 1.7.0';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v145', title: 'V 1.7.0 · Amigos de combate!', items: [
+    ['🏰', 'O Esconderijo tem agora o Nv. 6 (400 000 de ouro). A Lareira ganha um lugar para um amigo que luta contigo.'],
+    ['🍺', 'Novo Bar na Cidade: recruta Sir Aldric (Guerreiro, 15 000), Rowan (Arqueiro, 20 000), Magnus (Mago, 25 000) ou Bjorn (Berserk, 30 000).'],
+    ['⚔️', 'O amigo age logo a seguir a ti em todos os combates. O Guerreiro protege-te, o Arqueiro acerta críticos, o Mago queima e ignora defesa, o Berserk entra em fúria.'],
+    ['⬆️', 'Os amigos entram com 40% do teu nível, ganham o mesmo XP que tu e sobem até ao teu nível. Só podes ter 1: para trocar, manda-o embora e recruta outro.'],
+    ['👥', 'Hordas: na Batalha escolhes lutar com 1 a 5 monstros de uma vez. Cada um dá a sua recompensa e vencer todos dá até +50% de XP e ouro.'],
+    ['🗺️', 'A região pode ver-se em Mapa ou em Lista.'],
+    ['🏯', 'Dungeons em caminho: as salas seguem-se sozinhas, o saco da dungeon junta XP e ouro em cada sala e há baús de etapa a cada 10 salas.'],
+    ['🪨', 'Novo bónus de Craft no Peitoral: a habilidade Terramoto.']
+  ] },
   { id: 'v130', title: 'Regiões vivas!', items: [
     ['🗺️', 'Batalha → Mapa: cada região tem agora o seu mapa, com os monstros a passear e os chefes nos seus covis.'],
     ['🚶', 'Toca num monstro ou chefe: o teu herói caminha até ele e podes atacar. O combate é o mesmo de sempre.'],
@@ -15268,9 +15436,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 143;
+const NX_ICON_VER = 145;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
