@@ -1502,3 +1502,25 @@ div.nx-confirm-msg{text-align:left;}
   .hp-num span{white-space:nowrap;}
   .hp-num small{display:none;}
 }
+
+/* v147: Escudo Mágico — Defesa a branco, Escudo a azul-claro */
+:root{--es-c:#9FE3FF;--es-d:#3E8FC7;--def-c:#F4F1EA;}
+.st-def{color:var(--def-c) !important;}
+.st-es{color:var(--es-c) !important;}
+.item-stats .st-def,.item-stats .st-es,.trd-stats .st-def,.trd-stats .st-es,.trd-desc .st-def,.trd-desc .st-es{font-weight:700;}
+.es-ic{width:16px !important;height:16px !important;vertical-align:-3px;}
+.ak-tag{display:inline-block;margin-top:4px;font:800 9.5px var(--font-body);letter-spacing:.08em;text-transform:uppercase;padding:2px 7px;border-radius:6px;border:1px solid;}
+.ak-tag.ak-def{color:var(--def-c);border-color:#8a8576;background:rgba(244,241,234,.06);}
+.ak-tag.ak-hybrid{color:var(--es-c);border-color:var(--es-d);background:linear-gradient(90deg,rgba(244,241,234,.08),rgba(159,227,255,.12));}
+.ak-tag.ak-es{color:var(--es-c);border-color:var(--es-d);background:rgba(159,227,255,.1);}
+.doll-stats .es-tot b{color:var(--es-c);}
+.stat-box.es{border-color:var(--es-d);}
+.cb-es{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.cb-es[hidden]{display:none;}
+.cb-es-ic{display:grid;place-items:center;width:20px;height:20px;flex-shrink:0;}
+.cb-es-ic .es-ic{width:20px !important;height:20px !important;vertical-align:0;}
+.cb-es .bar{flex:1;}
+.bar.bar-es{height:12px;background:#08141c;border:1px solid #24506e;}
+.bar.bar-es .bar-fill{background:linear-gradient(90deg,#3e8fc7,#9fe3ff);box-shadow:0 0 8px rgba(159,227,255,.55);}
+.bar.bar-es .bar-num{font-size:9.5px;color:#eaf8ff;}
+.log-line.es{color:var(--es-c);border-left-color:var(--es-d);background:linear-gradient(90deg,rgba(62,143,199,.14),transparent);}
