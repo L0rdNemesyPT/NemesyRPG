@@ -1538,3 +1538,9 @@ div.nx-confirm-msg{text-align:left;}
 .tb-bg{position:absolute;inset:0;width:100%;height:100%;display:block;z-index:0;}
 .tb-st .ho-st-base{background:radial-gradient(circle at 50% 35%,#3e3122,#15100acc);}
 .tb-emo{font-size:30px;line-height:1;filter:drop-shadow(0 3px 3px rgba(0,0,0,.8));}
+
+/* v154: língua no ecrã de entrada */
+.account-lang{position:absolute;top:calc(10px + var(--safe-top, 0px));left:14px;z-index:2;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(10,8,6,.72);border:1px solid var(--line, #4a3a22);box-shadow:0 2px 8px rgba(0,0,0,.5);}
+.account-lang button{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border:0;border-radius:999px;background:none;color:var(--muted);font-family:var(--font-display);font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;}
+.account-lang button.on{background:linear-gradient(180deg,#e4bf4a,#a8831f);color:#1a1208;box-shadow:0 0 8px rgba(228,191,74,.35);}
+.account-lang .al-flag{font-size:14px;line-height:1;}
