@@ -1400,6 +1400,35 @@ const TOWERS = [
       21: [{ name: 'Lich do Abismo', icon: '☠️', category: 'morto_vivo' }, { name: 'Senhor do Fosso', icon: '👹', category: 'demonio' }]
     },
     boss: { name: 'Devorador do Abismo', icon: '🌑', category: 'outro' }
+  },
+  // v158: LABIRINTO DA CRIPTA — torre em labirinto. Cada andar é um labirinto de salas (size × size) com
+  // nevoeiro: só se veem as salas ao lado das já visitadas. Em cada andar um Guardião guarda a 🗝️ chave
+  // que abre a 🪜 escada; no último andar a escada leva ao chefe final. Recompensas iguais à Torre do Abismo.
+  { key: 'cripta', maze: true, name: 'Labirinto da Cripta', icon: '🌀', img: 'dungeon-labirinto-cripta', minLv: 120, cost: 8000, floors: 5, size: 6,
+    lvStart: 120, lvEnd: 170, bossLv: 180, divineChance: 0.015, miniFloors: [], fountainFloors: [],
+    eliteMult: { hp: 1.5, dmg: 1.5, def: 1.5 },
+    mobMult: { hp: 1.35, dmg: 1.25, def: 1.15 },
+    miniMult: { hp: 1.5, dmg: 1.3, def: 1.2 },
+    bossMult: { hp: 2.1, dmg: 1.6, def: 1.3 },
+    monsters: [
+      { name: 'Esqueleto Errante', icon: '💀', category: 'morto_vivo' },
+      { name: 'Carniçal da Cripta', icon: '🧟', category: 'morto_vivo' },
+      { name: 'Espectro Lamentoso', icon: '👻', category: 'morto_vivo' },
+      { name: 'Rato da Cripta', icon: '🐀', category: 'animal' },
+      { name: 'Aranha Tumular', icon: '🕷️', category: 'animal' },
+      { name: 'Cavaleiro Ossudo', icon: '🦴', category: 'morto_vivo' },
+      { name: 'Necromante Encapuzado', icon: '🧙', category: 'humano' },
+      { name: 'Gárgula Tumular', icon: '🗿', category: 'outro' }
+    ],
+    // Guardiões da chave: um por andar (andar 1 → 1.º, …).
+    minis: [
+      { name: 'Carcereiro Ossudo', icon: '⛓️', category: 'morto_vivo' },
+      { name: 'Viúva da Cripta', icon: '🕸️', category: 'animal' },
+      { name: 'Sentinela de Osso', icon: '🛡️', category: 'morto_vivo' },
+      { name: 'Bruxa das Catacumbas', icon: '🧙‍♀️', category: 'humano' },
+      { name: 'Guardião Sem Rosto', icon: '🎭', category: 'demonio' }
+    ],
+    boss: { name: 'Minotauro da Cripta', icon: '🐂', category: 'demonio' }
   }
 ];
 Object.assign(MOB_SKILLS, {
@@ -1412,14 +1441,28 @@ Object.assign(MOB_SKILLS, {
   'Esqueleto Guardião': { chance: 0.22, type: 'defbreak', icon: '🦴', label: 'Golpe Quebra-Escudos' },
   'Espectro da Torre': { chance: 0.22, type: 'bleed', icon: '👻', label: 'Toque Gelado' },
   'Gárgula de Pedra': { chance: 0.22, type: 'heavy', icon: '🗿', label: 'Queda de Pedra' },
-  'Olho do Abismo': { chance: 0.22, type: 'defbreak', icon: '👁️', label: 'Olhar Corrosivo' }
+  'Olho do Abismo': { chance: 0.22, type: 'defbreak', icon: '👁️', label: 'Olhar Corrosivo' },
+  'Esqueleto Errante': { chance: 0.22, type: 'defbreak', icon: '💀', label: 'Golpe Oco' },
+  'Carniçal da Cripta': { chance: 0.22, type: 'poison', icon: '🧟', label: 'Mordida Pútrida' },
+  'Espectro Lamentoso': { chance: 0.22, type: 'bleed', icon: '👻', label: 'Lamento Gelado' },
+  'Rato da Cripta': { chance: 0.22, type: 'multi', icon: '🐀', label: 'Dentadas' },
+  'Aranha Tumular': { chance: 0.22, type: 'poison', icon: '🕷️', label: 'Veneno Tumular' },
+  'Cavaleiro Ossudo': { chance: 0.22, type: 'heavy', icon: '🦴', label: 'Golpe de Osso' },
+  'Necromante Encapuzado': { chance: 0.22, type: 'lifesteal', icon: '🧙', label: 'Dreno Sombrio' },
+  'Gárgula Tumular': { chance: 0.22, type: 'heavy', icon: '🗿', label: 'Queda de Pedra' }
 });
 Object.assign(BOSS_SKILLS, {
   'Rainha das Aranhas': { chance: BOSS_SKILL_CHANCE, type: 'poison', icon: '🕸️', label: 'Ninho Venenoso' },
   'Arquimago Renegado': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '🧙‍♂️', label: 'Tempestade Arcana' },
   'Lich do Abismo': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '☠️', label: 'Colheita de Almas' },
   'Senhor do Fosso': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '👹', label: 'Esmagar' },
-  'Devorador do Abismo': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🌑', label: 'Devorar' }
+  'Devorador do Abismo': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🌑', label: 'Devorar' },
+  'Carcereiro Ossudo': { chance: BOSS_SKILL_CHANCE, type: 'defbreak', icon: '⛓️', label: 'Correntes' },
+  'Viúva da Cripta': { chance: BOSS_SKILL_CHANCE, type: 'poison', icon: '🕸️', label: 'Teia Venenosa' },
+  'Sentinela de Osso': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🛡️', label: 'Investida de Osso' },
+  'Bruxa das Catacumbas': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '🧙‍♀️', label: 'Fogo-Fátuo' },
+  'Guardião Sem Rosto': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '🎭', label: 'Roubo de Rosto' },
+  'Minotauro da Cripta': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🐂', label: 'Marrada do Labirinto' }
 });
 
 function towerDef(key) { return TOWERS.find(t => t.key === key) || null; }
@@ -1438,7 +1481,10 @@ function towerDiff(key, T) {
   });
 }
 function towerRunDiff(t) { return towerDiff(t && t.diff ? t.diff : 'comum', t ? towerDef(t.key) : null); }
-function towerFloorLv(T, f) { return f >= T.floors ? T.bossLv : Math.round(T.lvStart + (f - 1) * (T.lvEnd - T.lvStart) / (T.floors - 2)); }
+function towerFloorLv(T, f) {
+  if (T && T.maze) return Math.round(T.lvStart + (Math.min(f, T.floors) - 1) * (T.lvEnd - T.lvStart) / Math.max(1, T.floors - 1));
+  return f >= T.floors ? T.bossLv : Math.round(T.lvStart + (f - 1) * (T.lvEnd - T.lvStart) / (T.floors - 2));
+}
 function towerPickRoom() {
   const total = TOWER_ROOM_WEIGHTS.reduce((a, w) => a + w[1], 0);
   let r = Math.random() * total;
@@ -1489,19 +1535,19 @@ function towerAddLoot(t, txt) { if (t) { t.loot.list.push(txt); if (t.loot.list.
 function towerEnter(key) {
   const p = App.player, T = towerDef(key);
   if (!T) return;
-  if (p.tower) { renderTabMapa(); return; }
+  if (p.tower) { if (p.tower.key !== key) { sfx.error(); const O = towerDef(p.tower.key); toast(`Já estás numa subida: ${O ? O.name : 'outra torre'}. Termina-a primeiro.`); } renderTabMapa(); return; }
   if ((p.level || 1) < T.minLv) { sfx.error(); toast(`Precisas de nível ${T.minLv}.`); return; }
   const d = towerDiff(p.towerDifficulty || 'comum', T);
   if (!difficultyUnlocked(p, d)) { sfx.error(); toast(`${d.icon} ${d.name} ainda está bloqueada.`); return; }
   if ((p.gold || 0) < d.cost) { sfx.error(); toast(`Precisas de ${d.cost} de ouro para entrar.`); return; }
   p.gold -= d.cost;
-  p.tower = towerGenerate(T);
+  p.tower = T.maze ? mazeNewRun(T) : towerGenerate(T);
   p.tower.diff = d.key;
   saveGame();
   sfx.questdone();
   renderStatusBar();
   renderTabMapa();
-  toast(`🗼 Entraste na ${T.name} (${d.icon} ${d.name}). Escolhe a primeira porta!`);
+  toast(T.maze ? `${T.icon} Entraste no ${T.name} (${d.icon} ${d.name}). Encontra a 🗝️ chave!` : `🗼 Entraste na ${T.name} (${d.icon} ${d.name}). Escolhe a primeira porta!`);
 }
 
 async function towerLeave() {
@@ -1511,7 +1557,7 @@ async function towerLeave() {
   const T = towerDef(t.key);
   p.tower = null;
   saveGame();
-  toast(`🚪 Saíste da ${T ? T.name : 'torre'} no andar ${t.floor}.`);
+  toast(`🚪 Saíste ${T && T.maze ? 'do' : 'da'} ${T ? T.name : 'torre'} no andar ${t.floor}.`);
   renderTabMapa();
 }
 
@@ -1563,7 +1609,7 @@ function towerShowRoomResult(icon, title, sub, lines, extraHtml) {
     </div>
     ${lines.map(l => `<div class="card raised" style="margin-bottom:6px; padding:10px 12px;"><span style="font-size:13px;">${l}</span></div>`).join('')}
     ${extraHtml || ''}
-    <button class="btn primary block" id="btn-tower-room-ok" style="margin-top:12px;">Continuar a subir ↑</button>
+    <button class="btn primary block" id="btn-tower-room-ok" style="margin-top:12px;">${App.player.tower && App.player.tower.maze ? 'Continuar' : 'Continuar a subir ↑'}</button>
   `);
   $('btn-tower-room-ok').addEventListener('click', () => { closeModal(); renderTabMapa(); });
 }
@@ -1598,25 +1644,32 @@ function towerChoose(lane) {
   const type = t.rows[fIdx][lane];
   if (['monstro', 'elite', 'mini', 'chefe'].includes(type)) { startTowerCombat(lane); return; }
   sfx.click();
-  const pStats = effectiveStats(p);
   towerAdvance(t, lane);
+  const r = towerApplyRoom(type, f, lv);
+  if (r) towerShowRoomResult(r.icon, r.title, r.sub, r.lines, r.extra);
+}
+// Efeito de uma sala sem combate (Tesouro, Fonte, Mistério). Usado pela Torre e pelo Labirinto.
+function towerApplyRoom(type, f, lv) {
+  const p = App.player, t = p.tower, pStats = effectiveStats(p);
   if (type === 'tesouro') {
     const lines = towerTreasure(p, lv, 1);
     saveGame(); renderStatusBar(); sfx.gold();
-    towerShowRoomResult('🎁', 'Sala do Tesouro', `Andar ${f} · Nv. ${lv}`, lines);
-  } else if (type === 'fonte') {
+    return { icon: '🎁', title: 'Sala do Tesouro', sub: `Andar ${f} · Nv. ${lv}`, lines };
+  }
+  if (type === 'fonte') {
     const before = p.hp;
     p.hp = Math.min(pStats.hp, p.hp + Math.round(pStats.hp * TOWER_FOUNTAIN_HEAL));
     saveGame(); renderStatusBar(); sfx.questdone();
-    towerShowRoomResult('⛲', 'Fonte', `Andar ${f}`, [`❤️ Recuperaste ${p.hp - before} HP (${p.hp}/${pStats.hp}).`],
-      '<p class="tiny muted" style="margin-top:8px; text-align:center;">Enquanto estiveres nesta Fonte podes sair da torre com tudo o que apanhaste.</p>');
-  } else if (type === 'misterio') {
+    return { icon: '⛲', title: 'Fonte', sub: `Andar ${f}`, lines: [`❤️ Recuperaste ${p.hp - before} HP (${p.hp}/${pStats.hp}).`],
+      extra: `<p class="tiny muted" style="margin-top:8px; text-align:center;">Enquanto estiveres nesta Fonte podes sair ${t && t.maze ? 'do labirinto' : 'da torre'} com tudo o que apanhaste.</p>` };
+  }
+  if (type === 'misterio') {
     const r = Math.random();
     let lines, icon = '❓', title = 'Mistério';
     if (r < 0.40) { lines = towerTreasure(p, lv, 1); icon = '🎁'; title = 'Mistério: um tesouro escondido!'; sfx.gold(); }
     else if (r < 0.65) {
       t.blessing = Math.min(0.30, (t.blessing || 0) + 0.10);
-      lines = [`✨ Bênção do Abismo: +10% de dano até ao fim da subida (total +${Math.round(t.blessing * 100)}%).`];
+      lines = [`✨ Bênção: +10% de dano até ao fim da subida (total +${Math.round(t.blessing * 100)}%).`];
       towerAddLoot(t, '✨ Bênção +10% dano'); icon = '✨'; title = 'Mistério: uma bênção!'; sfx.levelup();
     } else if (r < 0.80) {
       const before = p.hp; p.hp = Math.min(pStats.hp, p.hp + Math.round(pStats.hp * 0.25));
@@ -1627,8 +1680,254 @@ function towerChoose(lane) {
       lines = [`🪤 Uma armadilha! Perdeste ${Math.max(0, lost)} HP (${p.hp}/${pStats.hp}).`]; icon = '🪤'; title = 'Mistério: armadilha!'; sfx.error();
     }
     saveGame(); renderStatusBar();
-    towerShowRoomResult(icon, title, `Andar ${f} · Nv. ${lv}`, lines);
+    return { icon, title, sub: `Andar ${f} · Nv. ${lv}`, lines };
   }
+  return null;
+}
+
+// ============================================================
+// v158: LABIRINTO (torres com T.maze)
+// Cada andar: grelha n×n. cells[i] = { o: aberturas (N=1, E=2, S=4, W=8), t: tipo da sala ou null, m: monstro }
+// vis[i] = 1 se já visitada. Só se veem as salas visitadas e as que lhes estão ligadas por uma passagem.
+// ============================================================
+const MAZE_DIRS = [[1, 0, -1, 4], [2, 1, 0, 8], [4, 0, 1, 1], [8, -1, 0, 2]]; // [bit, dx, dy, bit oposto]
+const MAZE_ROOM_WEIGHTS = [['monstro', 50], ['elite', 10], ['tesouro', 14], ['fonte', 8], ['misterio', 18]];
+const MAZE_FILL = 0.55;
+const MAZE_ROOM_INFO = Object.assign({}, TOWER_ROOM_INFO, {
+  entrada: { icon: '🏁', name: 'Entrada', desc: 'Onde começa o andar.' },
+  chave: { icon: '🗝️', name: 'Guardião da Chave', desc: 'Um mini-chefe guarda a chave da escada deste andar.' },
+  escada: { icon: '🪜', name: 'Escada', desc: 'Sobe para o andar seguinte. Precisas da chave do andar.' },
+  chefe: { icon: '👑', name: 'Chefe final', desc: 'Atrás da última porta. Precisas da chave do andar.' }
+});
+function mazeNeighbors(lab, i) {
+  const n = lab.n, x = i % n, y = Math.floor(i / n), out = [];
+  MAZE_DIRS.forEach(([bit, dx, dy]) => { if (lab.cells[i].o & bit) { const nx = x + dx, ny = y + dy; if (nx >= 0 && ny >= 0 && nx < n && ny < n) out.push(ny * n + nx); } });
+  return out;
+}
+function mazeDistances(lab, from) {
+  const d = new Array(lab.cells.length).fill(-1), q = [from]; d[from] = 0;
+  while (q.length) { const c = q.shift(); mazeNeighbors(lab, c).forEach(nb => { if (d[nb] < 0) { d[nb] = d[c] + 1; q.push(nb); } }); }
+  return d;
+}
+function mazeGenerateFloor(T, floor) {
+  const n = T.size, N = n * n, cells = Array.from({ length: N }, () => ({ o: 0, t: null, m: null }));
+  // labirinto perfeito (DFS) + algumas passagens extra para haver mais de um caminho
+  const start = (n - 1) * n + (Math.random() < 0.5 ? 0 : n - 1);
+  const seen = new Array(N).fill(false), stack = [start]; seen[start] = true;
+  while (stack.length) {
+    const c = stack[stack.length - 1], x = c % n, y = Math.floor(c / n);
+    const opts = MAZE_DIRS.filter(([, dx, dy]) => { const nx = x + dx, ny = y + dy; return nx >= 0 && ny >= 0 && nx < n && ny < n && !seen[ny * n + nx]; });
+    if (!opts.length) { stack.pop(); continue; }
+    const [bit, dx, dy, ob] = opts[Math.floor(Math.random() * opts.length)];
+    const nb = (y + dy) * n + (x + dx);
+    cells[c].o |= bit; cells[nb].o |= ob; seen[nb] = true; stack.push(nb);
+  }
+  for (let k = 0; k < Math.round(N * 0.12); k++) {
+    const c = Math.floor(Math.random() * N), x = c % n, y = Math.floor(c / n);
+    const [bit, dx, dy, ob] = MAZE_DIRS[Math.floor(Math.random() * 4)];
+    const nx = x + dx, ny = y + dy;
+    if (nx >= 0 && ny >= 0 && nx < n && ny < n) { cells[c].o |= bit; cells[ny * n + nx].o |= ob; }
+  }
+  const lab = { n, cells, start, pos: start, vis: new Array(N).fill(0) };
+  lab.vis[start] = 1; cells[start].t = 'entrada';
+  // escada (ou chefe) na sala mais longe; a chave longe da entrada E da escada
+  const ds = mazeDistances(lab, start);
+  const maxD = Math.max(...ds);
+  const far = ds.map((d, i) => [d, i]).filter(([d]) => d >= maxD - 1).map(([, i]) => i);
+  const exit = far[Math.floor(Math.random() * far.length)];
+  cells[exit].t = floor >= T.floors ? 'chefe' : 'escada';
+  const de = mazeDistances(lab, exit);
+  const keyCands = ds.map((d, i) => i).filter(i => i !== exit && i !== start && ds[i] >= maxD * 0.45 && de[i] >= maxD * 0.45);
+  const keyPool = keyCands.length ? keyCands : ds.map((d, i) => i).filter(i => i !== exit && i !== start);
+  keyPool.sort((a, b) => (ds[b] + de[b]) - (ds[a] + de[a]));
+  const key = keyPool[Math.floor(Math.random() * Math.min(3, keyPool.length))];
+  cells[key].t = 'chave';
+  // restantes salas
+  const total = MAZE_ROOM_WEIGHTS.reduce((a, w) => a + w[1], 0);
+  cells.forEach((c, i) => {
+    if (c.t || Math.random() > MAZE_FILL) return;
+    let r = Math.random() * total;
+    for (const [k, w] of MAZE_ROOM_WEIGHTS) { if ((r -= w) < 0) { c.t = k; break; } }
+    if (ds[i] <= 1 && (c.t === 'elite')) c.t = 'monstro';
+  });
+  // pelo menos 2 Fontes por andar
+  let fontes = cells.filter(c => c.t === 'fonte').length;
+  const empties = cells.map((c, i) => i).filter(i => !cells[i].t && ds[i] >= 3);
+  while (fontes < 2 && empties.length) { const k = empties.splice(Math.floor(Math.random() * empties.length), 1)[0]; cells[k].t = 'fonte'; fontes++; }
+  cells.forEach(c => { if (c.t === 'monstro' || c.t === 'elite') c.m = Math.floor(Math.random() * T.monsters.length); });
+  return lab;
+}
+function mazeNewRun(T) {
+  return { key: T.key, maze: true, floor: 1, lab: mazeGenerateFloor(T, 1), hasKey: false, explored: 0, loot: { gold: 0, xp: 0, list: [] }, blessing: 0, startedAt: Date.now() };
+}
+function mazeRevealed(lab, i) { return !!lab.vis[i] || mazeNeighbors(lab, i).some(nb => lab.vis[nb]); }
+function mazeCanEnter(lab, i) { return !lab.vis[i] && mazeNeighbors(lab, i).some(nb => lab.vis[nb]); }
+function mazeMarkVisited(t, i) { const lab = t.lab; if (!lab.vis[i]) { lab.vis[i] = 1; t.explored = (t.explored || 0) + 1; } lab.pos = i; }
+function mazeTap(i) {
+  const p = App.player, t = p.tower;
+  if (!t || !t.maze) return;
+  const T = towerDef(t.key), lab = t.lab, cell = lab.cells[i];
+  if (!cell) return;
+  if (i === lab.pos) { mazeRoomInfo(i); return; }
+  if (lab.vis[i]) {
+    // voltar a uma sala já visitada (o herói atravessa as salas limpas)
+    if ((cell.t === 'escada' || cell.t === 'chefe') && t.hasKey) { mazeUseExit(i); return; }
+    lab.pos = i; sfx.click(); saveGame(); renderTabMapa(); return;
+  }
+  if (!mazeCanEnter(lab, i)) { sfx.error(); toast('Ainda não há caminho para essa sala.'); return; }
+  const f = t.floor, lv = towerFloorLv(T, f);
+  if (cell.t === 'monstro' || cell.t === 'elite') { mazeStartCombat(i); return; }
+  if (cell.t === 'chave') { mazeStartCombat(i); return; }
+  if (cell.t === 'escada' || cell.t === 'chefe') {
+    if (!t.hasKey) { sfx.error(); mazeMarkVisited(t, i); saveGame(); renderTabMapa(); toast('🔒 A porta está trancada. Encontra a 🗝️ chave deste andar (guardada por um Guardião).'); return; }
+    mazeMarkVisited(t, i); mazeUseExit(i); return;
+  }
+  sfx.click();
+  mazeMarkVisited(t, i);
+  const r = cell.t ? towerApplyRoom(cell.t, f, lv) : null;
+  if (cell.t === 'tesouro' || cell.t === 'misterio') cell.t = 'feito';
+  if (cell.t === 'fonte') cell.u = 1;
+  saveGame();
+  if (r) towerShowRoomResult(r.icon, r.title, r.sub, r.lines, r.extra); else renderTabMapa();
+}
+function mazeUseExit(i) {
+  const p = App.player, t = p.tower, T = towerDef(t.key), cell = t.lab.cells[i];
+  if (cell.t === 'chefe') { mazeStartCombat(i); return; }
+  // escada → andar seguinte
+  t.floor++; t.hasKey = false; t.lab = mazeGenerateFloor(T, t.floor);
+  saveGame(); sfx.questdone();
+  const lv = towerFloorLv(T, t.floor);
+  towerShowRoomResult('🪜', `Andar ${t.floor} / ${T.floors}`, `Monstros Nv. ${lv}`, [
+    `Subiste a escada. Um novo labirinto, ainda coberto de nevoeiro.`,
+    t.floor >= T.floors ? `👑 Este é o último andar: atrás da porta trancada está o ${T.boss.icon} ${T.boss.name} (Nv. ${T.bossLv}).` : `🗝️ Encontra o Guardião da chave para abrires a próxima escada.`
+  ]);
+}
+function mazeRoomInfo(i) {
+  const t = App.player.tower, cell = t.lab.cells[i];
+  const info = MAZE_ROOM_INFO[cell.t] || null;
+  toast(info ? `${info.icon} ${info.name}` : '📍 Sala vazia');
+}
+function mazeStartCombat(i) {
+  if (!guardAllowsFight(() => mazeStartCombat(i))) return;
+  const p = App.player, t = p.tower;
+  if (!t || !t.maze) return;
+  const T = towerDef(t.key), cell = t.lab.cells[i], f = t.floor;
+  const type = cell.t;
+  const isBoss = type === 'chefe', isMini = type === 'chave', isElite = type === 'elite';
+  const lv = isBoss ? T.bossLv : towerFloorLv(T, f) + (isMini ? 3 : 0);
+  let name, icon, category, monsterName = null, mult;
+  if (isBoss) { name = T.boss.name; icon = T.boss.icon; category = T.boss.category; mult = T.bossMult; }
+  else if (isMini) { const m = T.minis[(f - 1) % T.minis.length]; name = m.name; icon = m.icon; category = m.category; mult = T.miniMult; }
+  else {
+    const m = T.monsters[cell.m != null ? cell.m : 0];
+    name = isElite ? `${m.name} · Elite` : m.name; icon = m.icon; category = m.category; monsterName = m.name;
+    const mm = T.mobMult;
+    mult = isElite ? { hp: mm.hp * T.eliteMult.hp, dmg: mm.dmg * T.eliteMult.dmg, def: mm.def * T.eliteMult.def } : mm;
+  }
+  sfx.click();
+  const enemy = enemyStatsFor(lv, isBoss || isMini);
+  enemy.hp = Math.round(enemy.hp * (mult.hp || 1)); enemy.maxHp = enemy.hp;
+  enemy.dmg = Math.round(enemy.dmg * (mult.dmg || 1));
+  enemy.def = Math.round(enemy.def * (mult.def || 1));
+  const td = towerRunDiff(t);
+  if (td.key !== 'comum') {
+    enemy.hp = Math.round(enemy.hp * td.hp); enemy.maxHp = enemy.hp;
+    enemy.dmg = Math.round(enemy.dmg * td.dmg);
+    enemy.def = Math.round(enemy.def * td.def);
+  }
+  App.combat = {
+    kind: 'tower', towerDiff: td.key, isTower: true, towerKey: T.key, mazeCell: i, towerLane: null, towerRoom: type, isElite,
+    name, icon, level: lv, isBoss, isMiniBoss: isMini, monsterName,
+    regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
+    enemy: Object.assign(enemy, { element: null, critImmune: false, category: category || 'outro' }),
+    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false, towerBlessing: t.blessing || 0 },
+    cooldowns: {}, log: [], eventApplied: null, ended: false
+  };
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `${T.icon} ${T.name} · Andar ${f}/${T.floors} · ${td.icon} ${td.name}`, cls: 'good' });
+  addCombatLog({ text: `${icon} ${name} apareceu!${isMini ? ' Guarda a 🗝️ chave do andar.' : isElite ? ' (Elite ×1,5)' : ''}`, cls: isBoss || isMini || isElite ? 'hit' : 'good' });
+  if (t.blessing) addCombatLog({ text: `✨ Bênção: +${Math.round(t.blessing * 100)}% de dano.`, cls: 'good' });
+  renderCombat();
+}
+// Depois de ganhar um combate no labirinto.
+function mazeAfterWin(t, c, drops) {
+  const i = c.mazeCell, cell = t.lab.cells[i];
+  mazeMarkVisited(t, i);
+  if (c.towerRoom === 'chave') { t.hasKey = true; cell.t = 'chave-ok'; drops.push('🗝️ Ficaste com a chave da escada deste andar!'); towerAddLoot(t, '🗝️ Chave do andar ' + t.floor); }
+  else if (cell.t === 'monstro' || cell.t === 'elite') cell.t = 'feito';
+}
+function mazeWikiHtml(T) {
+  return `<div class="section-title" style="margin-top:16px;">${T.icon} ${T.name}</div>
+    <div class="card raised">
+      <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
+      <p class="tiny" style="margin-top:6px;">Entrada: desde ${T.cost.toLocaleString('pt-PT')} de ouro (depende da dificuldade) · ${T.floors} andares de labirinto com ${T.size}×${T.size} salas · monstros Nv. ${T.lvStart} → ${T.lvEnd} · chefe final Nv. ${T.bossLv}.</p>
+      <p class="tiny" style="margin-top:4px;">🌫️ Nevoeiro: só vês as salas visitadas e as que lhes estão ligadas. Toca numa sala a brilhar para entrar; as salas já visitadas atravessam-se de graça. As paredes mudam em cada subida.</p>
+      <p class="tiny" style="margin-top:4px;">🗝️ Em cada andar há um Guardião (mini-chefe) com a chave. Sem a chave a 🪜 escada fica trancada. No andar ${T.floors}, a porta trancada leva ao ${T.boss.icon} ${T.boss.name}.</p>
+      <p class="tiny" style="margin-top:4px;">⛲ O HP não recupera entre salas — só nas Fontes (há pelo menos 2 por andar) e com poções. Só podes sair numa Fonte; se morreres ou fugires, ficas com tudo o que apanhaste.</p>
+      <p class="tiny" style="margin-top:4px;">🎁 Recompensas iguais às da Torre do Abismo: XP e ouro de cada combate, Tesouros, Elites e Guardiões dão tesouro, e o chefe dá um item garantido e ${String(T.divineChance * 100).replace('.', ',')}% de item Divino.</p>
+    </div>`;
+}
+function renderMazeRun(body, T, t) {
+  const p = App.player, pStats = effectiveStats(p), lab = t.lab, n = lab.n;
+  const hpPct = clamp(p.hp / pStats.hp * 100, 0, 100);
+  const lootList = t.loot.list.slice(-6);
+  const cur = lab.cells[lab.pos];
+  const atFountain = cur && cur.t === 'fonte';
+  const W = { 1: 'wN', 2: 'wE', 4: 'wS', 8: 'wW' };
+  const ic = c => {
+    const info = MAZE_ROOM_INFO[c.t];
+    if (c.t === 'monstro' || c.t === 'elite') { const m = T.monsters[c.m || 0]; return nxCreature(m.name, m.icon); }
+    if (c.t === 'chave') { const m = T.minis[(t.floor - 1) % T.minis.length]; return nxCreature(m.name, m.icon); }
+    if (c.t === 'chefe') return nxCreature(T.boss.name, T.boss.icon);
+    if (c.t === 'chave-ok') return '🗝️';
+    return info ? info.icon : '';
+  };
+  let cellsHtml = '';
+  for (let i = 0; i < n * n; i++) {
+    const c = lab.cells[i], vis = !!lab.vis[i], rev = vis || mazeRevealed(lab, i);
+    const cls = ['lc'];
+    [1, 2, 4, 8].forEach(b => { if (!(c.o & b)) cls.push(W[b]); });
+    cls.push(vis ? 'done' : rev ? 'seen' : 'fog');
+    if (!vis && rev) cls.push('move');
+    if ((c.t === 'escada' || c.t === 'chefe') && rev) cls.push(t.hasKey ? 'exit-open' : 'exit-lock');
+    if (c.t === 'chave' && rev) cls.push('key');
+    let inner = '';
+    if (i === lab.pos) inner = `<span class="lhero">${heroAvatarHtml(p)}</span>`;
+    else if (rev) {
+      const showIc = !vis || ['entrada', 'fonte', 'escada', 'chefe', 'chave-ok'].includes(c.t);
+      inner = c.t && c.t !== 'feito' && showIc ? `<span class="lic${c.t === 'fonte' && c.u ? ' used' : ''}">${ic(c)}</span>` : '<span class="lic dim">·</span>';
+    }
+    cellsHtml += `<button type="button" class="${cls.join(' ')}" data-maze-cell="${i}"${rev ? '' : ' tabindex="-1"'}>${inner}</button>`;
+  }
+  const exits = [[1, 'Norte'], [2, 'Este'], [4, 'Sul'], [8, 'Oeste']].filter(([b]) => cur.o & b).map(([, nm]) => nm).join(' · ');
+  const curInfo = MAZE_ROOM_INFO[cur.t];
+  const td = towerRunDiff(t);
+  body.innerHTML = `
+    <div class="tower-hd">
+      <div class="tiny" style="color:${td.color}; font-weight:700; margin-bottom:2px;">${td.icon} Dificuldade ${td.name}</div>
+      <h3>${T.icon} Andar ${t.floor} / ${T.floors} · Nv. ${towerFloorLv(T, t.floor)}</h3>
+      <div class="row between tiny"><span>❤️ HP</span><span>${p.hp} / ${pStats.hp}</span></div>
+      <div class="tower-bar"><i style="width:${hpPct}%;"></i></div>
+      <div class="maze-chips"><span class="${t.hasKey ? 'ok' : ''}">🗝️ ${t.hasKey ? 'Chave na mão' : 'Sem chave'}</span><span>🧭 ${lab.vis.filter(Boolean).length}/${n * n} salas</span>${t.blessing ? `<span>✨ +${Math.round(t.blessing * 100)}% dano</span>` : ''}</div>
+      <div class="tower-loot"><span>🪙 ${t.loot.gold.toLocaleString('pt-PT')}</span><span>✨ ${t.loot.xp.toLocaleString('pt-PT')} XP</span></div>
+    </div>
+    <p class="tiny" style="color:var(--gold-bright); margin-bottom:6px;">Toca numa sala a brilhar para avançar. Salas já visitadas atravessam-se de graça.</p>
+    <div class="maze" id="maze" style="grid-template-columns:repeat(${n},1fr);">${cellsHtml}</div>
+    <div class="card raised" style="margin-top:10px;">
+      <div class="row between"><b>📍 ${curInfo && cur.t !== 'feito' ? `${curInfo.icon} ${curInfo.name}` : 'Sala vazia'}</b><span class="tiny muted">Saídas: ${exits}</span></div>
+      ${atFountain ? '<button class="btn small ghost block" id="btn-tower-leave" style="margin-top:8px;">🚪 Sair com o que apanhei</button>' : '<p class="tiny muted" style="margin-top:4px;">O HP não recupera entre salas — só nas ⛲ Fontes e com poções. Só podes sair numa ⛲ Fonte.</p>'}
+    </div>
+    ${lootList.length ? `<div class="card raised"><div class="tiny muted" style="margin-bottom:4px;">🎒 Últimos achados</div><div class="tower-loot" style="margin:0;">${lootList.map(s => `<span>${rarLead(esc(s))}</span>`).join('')}</div></div>` : ''}
+    <div class="tower-legend" style="margin-top:8px;">${['monstro', 'elite', 'tesouro', 'fonte', 'misterio', 'chave', 'escada', 'chefe'].map(k => `<span>${MAZE_ROOM_INFO[k].icon} ${MAZE_ROOM_INFO[k].name}</span>`).join('')}</div>`;
+  els('[data-maze-cell]').forEach(b => b.addEventListener('click', () => mazeTap(parseInt(b.dataset.mazeCell, 10))));
+  const leave = $('btn-tower-leave');
+  if (leave) leave.addEventListener('click', towerLeave);
+  // Põe o labirinto à vista (como o andar atual na Torre).
+  requestAnimationFrame(() => {
+    const hc = $('hub-content'), mz = $('maze');
+    if (hc && mz && hc.scrollTop < mz.offsetTop - 120) hc.scrollTop = Math.max(0, mz.offsetTop - 120);
+  });
 }
 
 function startTowerCombat(lane) {
@@ -1662,7 +1961,7 @@ function startTowerCombat(lane) {
     enemy.def = Math.round(enemy.def * td.def);
   }
   App.combat = {
-    kind: 'tower', towerDiff: td.key, isTower: true, towerLane: lane, towerRoom: type, isElite,
+    kind: 'tower', towerDiff: td.key, isTower: true, towerKey: T.key, towerLane: lane, towerRoom: type, isElite,
     name, icon, level: lv, isBoss, isMiniBoss: isMini, monsterName,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
     enemy: Object.assign(enemy, { element: null, critImmune: false, category: category || 'outro' }),
@@ -1703,7 +2002,7 @@ function finishTowerFight() {
   }
   if (t) {
     t.loot.gold += goldGain; t.loot.xp += xpGain;
-    towerAdvance(t, c.towerLane);
+    if (t.maze) mazeAfterWin(t, c, drops); else towerAdvance(t, c.towerLane);
     if (c.isElite || c.isMiniBoss) drops.push(...towerTreasure(p, lv, c.isMiniBoss ? 2 : 1));
   }
   if (boss) { const cs = rollCoreStoneDrop(p, lv, CORE_STONE_TOWER_CHANCE); if (cs) { drops.push(cs); towerAddLoot(t, cs); } }
@@ -1723,7 +2022,7 @@ function finishTowerFight() {
     p.towerClears[T.key] = (p.towerClears[T.key] || 0) + 1;
     p.towerBest = p.towerBest || {};
     if (SEASON_DIFF_ORDER.indexOf(td.key) > SEASON_DIFF_ORDER.indexOf(p.towerBest[T.key] || '')) p.towerBest[T.key] = td.key;
-    drops.push(`🏆 Chegaste ao topo da ${T.name} (${td.icon} ${td.name})!${t ? ` Nesta subida: 🪙 ${t.loot.gold} · ✨ ${t.loot.xp} XP.` : ''}`);
+    drops.push(`🏆 ${T.maze ? `Venceste o ${T.name}` : `Chegaste ao topo da ${T.name}`} (${td.icon} ${td.name})!${t ? ` Nesta subida: 🪙 ${t.loot.gold} · ✨ ${t.loot.xp} XP.` : ''}`);
     p.tower = null;
   }
   tickProfessionCooldowns(p);
@@ -1736,7 +2035,7 @@ function finishTowerFight() {
 // Derrota ou fuga dentro da torre: a subida acaba, mas não se perde ouro (já pagaste a entrada).
 function endTowerRunByDefeat() {
   const p = App.player, t = p.tower;
-  const floor = t ? t.floor + 1 : 0;
+  const floor = t ? (t.maze ? t.floor : t.floor + 1) : 0;
   p.tower = null;
   return floor;
 }
@@ -1758,15 +2057,15 @@ function renderTowerBody(body, T) {
     body.innerHTML = `
       <div class="card raised tower-entry">
         <div class="row between"><span style="font-weight:700; font-size:16px;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
-        <p class="tiny" style="margin-top:8px;">Sobe ${T.floors} andares, escolhendo a porta em cada um. O mapa muda em cada subida — nunca há duas torres iguais.</p>
+        <p class="tiny" style="margin-top:8px;">${T.maze ? `${T.floors} andares de labirinto com ${T.size}×${T.size} salas e nevoeiro: só vês as salas ao lado das que já visitaste. Em cada andar vence o Guardião da 🗝️ chave e sobe pela 🪜 escada. Os labirintos mudam em cada subida.` : `Sobe ${T.floors} andares, escolhendo a porta em cada um. O mapa muda em cada subida — nunca há duas torres iguais.`}</p>
         <div class="tower-facts">
           <div class="card">🪜 ${T.floors} andares<br><span class="muted">Nv. ${T.lvStart} → ${T.lvEnd}</span></div>
-          <div class="card">💀 Mini-chefes<br><span class="muted">andares ${T.miniFloors.join(' e ')}</span></div>
+          ${T.maze ? `<div class="card">🗝️ Guardiões<br><span class="muted">1 por andar · guardam a chave</span></div>` : `<div class="card">💀 Mini-chefes<br><span class="muted">andares ${T.miniFloors.join(' e ')}</span></div>`}
           <div class="card">👑 Chefe final<br><span class="muted">Nv. ${T.bossLv} · muito forte</span></div>
           <div class="card">💠 Item Divino<br><span class="muted">${String(T.divineChance * 100).replace('.', ',')}% no chefe final</span></div>
         </div>
         <p class="tiny" style="margin-top:10px;">⚔️ Cada combate dá o XP e o ouro do monstro. 🎁 Os Tesouros dão equipamento, itens do jogo ou ouro. O HP não recupera entre salas — só nas ⛲ Fontes e com poções. Se morreres, ficas com tudo o que já apanhaste.</p>
-        <p class="tiny" style="margin-top:6px; color:var(--muted);">Mistura todas as raças: 🐺 🗡️ 😈 💀 ❔${clears ? ` · Já chegaste ao topo ${clears}×${best ? ` (melhor: ${best.icon} ${best.name})` : ''}` : ''}</p>
+        <p class="tiny" style="margin-top:6px; color:var(--muted);">${T.maze ? 'Mortos-vivos e criaturas da cripta: 💀 🧟 👻 🕷️' : 'Mistura todas as raças: 🐺 🗡️ 😈 💀 ❔'}${clears ? ` · Já chegaste ao topo ${clears}×${best ? ` (melhor: ${best.icon} ${best.name})` : ''}` : ''}</p>
         <div class="section-title" style="margin:12px 0 6px;">Dificuldade</div>
         <div class="row" style="gap:6px; flex-wrap:wrap; margin-bottom:6px;">${diffChips}</div>
         <p class="tiny muted">${diffInfo} O Divino do chefe continua ${String(T.divineChance * 100).replace('.', ',')}%.</p>
@@ -1790,6 +2089,7 @@ function renderTowerBody(body, T) {
     });
     return;
   }
+  if (T.maze) { renderMazeRun(body, T, t); return; }
   const pStats = effectiveStats(p);
   const curType = t.floor > 0 ? t.rows[t.floor - 1][t.lane] : null;
   const atFountain = curType === 'fonte';
@@ -4504,8 +4804,8 @@ function renderStatusBar() {
         <span class="sb-lvl">Nv. ${p.level}</span>
       </div>
       <div class="bar bar-hp"><div class="bar-fill" style="width:${clamp(p.hp / stats.hp * 100, 0, 100)}%"></div></div>
-      <div class="hp-num"><span>${Math.max(0,p.hp)}/${stats.hp}<small> HP</small></span><span>${p.xp}/${need}<small> XP</small></span></div>
-      <div class="bar bar-xp"><div class="bar-fill" style="width:${clamp(p.xp / need * 100, 0, 100)}%"></div></div>
+      <div class="hp-num"><span>${Math.max(0,p.hp)}/${stats.hp}<small> HP</small></span><span>${p.level >= MAX_LEVEL && p.xp >= need ? `<b class="xp-max">MÁX</b> ${p.xp}` : `${p.xp}/${need}`}<small> XP</small></span></div>
+      <div class="bar bar-xp${p.level >= MAX_LEVEL && p.xp >= need ? ' xp-full' : ''}"><div class="bar-fill" style="width:${clamp(p.xp / need * 100, 0, 100)}%"></div></div>
     </div>
     <div class="sb-gold">🪙 ${p.gold}</div>
     <button class="sb-mute" id="btn-open-settings">⚙️</button>
@@ -5083,7 +5383,7 @@ function renderWikiBody() {
     ['wcalc-slot', 'wcalc-rar', 'wcalc-lv'].forEach(id => $(id).addEventListener(id === 'wcalc-lv' ? 'input' : 'change', calc));
     calc();
   } else if (t === 'torres') {
-    body.innerHTML = TOWERS.map(T => `
+    body.innerHTML = TOWERS.map(T => T.maze ? mazeWikiHtml(T) : `
       <p class="muted" style="margin-bottom:10px;">Mapa → Torres. Sobes andar a andar e escolhes a porta em cada um, como num labirinto. O mapa é gerado ao acaso em cada subida.</p>
       <div class="card raised">
         <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
@@ -9285,6 +9585,9 @@ function feedPet(petId) {
 
 function grantXp(amount) {
   const p = App.player;
+  // v157: no nível máximo o XP tem um teto (o XP do nível ${MAX_LEVEL}). Quem já estiver cheio não ganha
+  // mais até doar à Guild; quem já tinha XP acima do teto (de antes) não perde nada, só deixa de subir.
+  const wasMax = p.level >= MAX_LEVEL, before = Number(p.xp) || 0;
   p.xp += amount;
   try { allyGainXp(amount); } catch (e) { /* o amigo nunca pode estragar o XP do herói */ }
   let leveled = false;
@@ -9292,6 +9595,10 @@ function grantXp(amount) {
     p.xp -= xpForLevel(p.level);
     p.level++;
     leveled = true;
+  }
+  if (p.level >= MAX_LEVEL) {
+    const cap = xpForLevel(MAX_LEVEL);
+    if (p.xp > cap) p.xp = wasMax && before > cap ? before : cap;
   }
   // Subir de nível enche o HP até ao máximo REAL (com equipamento, sets, passivas…).
   if (leveled) p.hp = Math.max(p.hp, effectiveStats(p).hp);
@@ -12076,7 +12383,7 @@ function mapaGroups(p) {
     { title: 'Torres', tiles: TOWERS.map(T => {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
-      return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: nxEnt('dungeon-torre', T.icon), label: T.name, sub: `Nv. ${T.minLv}+`, scene: 'torre',
+      return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: nxEnt(T.img && NX_ICON_IMG.has(T.img) ? T.img : 'dungeon-torre', T.icon), label: T.name, sub: `Nv. ${T.minLv}+`, scene: 'torre',
         locked: (p.level || 1) < T.minLv, badge: run ? `${towerRunDiff(run).icon}${run.floor}/${T.floors}` : (p.level || 1) < T.minLv ? '🔒' : (clears ? '✅' : null) };
     }) }
   ];
@@ -14123,10 +14430,11 @@ function showCombatEnd(won, info) {
   if (won) fxVictoryScreen(info);
   const wasRift = !!c.isRift;
   const wasTower = !!c.isTower;
-  if (wasTower && won) $('btn-combat-continue').textContent = App.player.tower ? 'Continuar a subir ↑' : 'Voltar ao Mapa';
+  const towerBackKey = c.towerKey || (App.player.tower && App.player.tower.key) || TOWERS[0].key;
+  if (wasTower && won) $('btn-combat-continue').textContent = App.player.tower ? (App.player.tower.maze ? 'Continuar no labirinto' : 'Continuar a subir ↑') : 'Voltar ao Mapa';
   $('btn-combat-continue').addEventListener('click', () => {
     App.combat = null;
-    if (wasTower) { App.tab = 'mapa'; App.mapaTab = 'tower:' + TOWERS[0].key; goHub(); return; }
+    if (wasTower) { App.tab = 'mapa'; App.mapaTab = 'tower:' + towerBackKey; goHub(); return; }
     if (!wasRift && Math.random() < RIFT_CHANCE) showRiftInterception(); else goHub();
   });
 }
@@ -14714,7 +15022,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v156</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v160</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -14847,8 +15155,9 @@ function wireStaticEvents() {
     const c = App.combat;
     if (c && c.isTower) {
       if (!await nxConfirm('Fugir termina a subida da torre. Ficas com tudo o que já apanhaste.', { title: 'Fugir da torre', icon: '🏃', confirmLabel: 'Fugir', danger: true })) return;
+      const backKey = c.towerKey || (App.player.tower && App.player.tower.key) || TOWERS[0].key;
       const floor = endTowerRunByDefeat();
-      saveGame(); sfx.flee(); App.combat = null; App.tab = 'mapa'; App.mapaTab = 'tower:' + TOWERS[0].key; goHub();
+      saveGame(); sfx.flee(); App.combat = null; App.tab = 'mapa'; App.mapaTab = 'tower:' + backKey; goHub();
       toast(`Fugiste da torre no andar ${floor}.`);
       return;
     }
@@ -15767,9 +16076,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 156;
+const NX_ICON_VER = 160;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -15824,7 +16133,7 @@ function nxNameIndex() {
     [['Comum', 'comum'], ['Incomum', 'incomum'], ['Raro', 'raro'], ['Rara', 'raro'], ['Lendário', 'lendario'], ['Lendária', 'lendario'],
      ['Único', 'unico'], ['Única', 'unico'], ['Demoníaco', 'demoniaco'], ['Demoníaca', 'demoniaco'], ['Divino', 'divino'], ['Divina', 'divino']].forEach(([n, k]) => put(n, 'rar-' + k));
     REGIONS.forEach(r => put(r.name, 'banner-' + r.key));
-    DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, 'dungeon-torre'));
+    DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, d.img && NX_ICON_IMG.has(d.img) ? d.img : 'dungeon-torre'));
   } catch (e) { /* defs ainda não carregadas */ return {}; }
   NX_NAME_INDEX = idx;
   return idx;
