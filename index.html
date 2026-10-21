@@ -779,7 +779,7 @@ function enemyNamesByCategory(cat) {
   const add = (n, c) => { if (n && (c || 'outro') === cat && !names.includes(n)) names.push(n); };
   REGIONS.forEach(r => { (r.monsters || []).forEach(m => add(m.name, m.category)); (r.bosses || []).forEach(b => add(b.name, b.category)); });
   DUNGEONS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.category)); if (!d.monsters && (d.category || 'outro') === cat) add(`ondas da ${d.name}`, cat); dungeonMiniBosses(d).forEach(m => add(m.name, m.category)); add(d.bossName, d.bossCategory); });
-  CATACUMBAS.forEach(c => { (c.monsters || []).forEach(m => add(m.name, m.category)); dungeonMiniBosses(c).forEach(m => add(m.name, m.category)); add(c.bossName, c.bossCategory); });
+  CATACUMBAS.forEach(c => { (c.monsters || []).forEach(m => add(m.name, m.category)); dungeonMiniBosses(c).forEach(m => add(m.name, m.category)); add(c.bossName, c.bossCategory); if (c.bossPhase2) add(c.bossPhase2.name, c.bossPhase2.category); });
   (typeof TOWERS !== 'undefined' ? TOWERS : []).forEach(T => { (T.monsters || []).forEach(m => add(m.name, m.category)); [].concat(...Object.values(T.minis || {})).forEach(m => add(m.name, m.category)); if (T.boss) add(T.boss.name, T.boss.category); });
   return names;
 }
@@ -859,7 +859,16 @@ const MOB_SKILLS = {
   'Cavaleiro Morto-Vivo': { chance: 0.18, type: 'heavy', icon: '🧟', label: 'Lâmina Sepulcral' },
   'Arqueira Espectral': { chance: 0.18, type: 'multi', icon: '👻', label: 'Flechas Fantasma' },
   'Paladino Caído': { chance: 0.18, type: 'lifesteal', icon: '🪦', label: 'Bênção Profana' },
-  'Berserker Esquelético': { chance: 0.18, type: 'bleed', icon: '🦴', label: 'Fúria dos Ossos' }
+  'Berserker Esquelético': { chance: 0.18, type: 'bleed', icon: '🦴', label: 'Fúria dos Ossos' },
+  // v166: Templo das Almas
+  'Samurai Amaldiçoado': { chance: 0.18, type: 'crit_guaranteed', icon: '⚔️', label: 'Iaijutsu' },
+  'Oni Vermelho': { chance: 0.18, type: 'heavy', icon: '👹', label: 'Golpe de Kanabō' },
+  'Ninja das Sombras': { chance: 0.18, type: 'multi', icon: '🥷', label: 'Chuva de Shuriken' },
+  'Tengu Corvo': { chance: 0.18, type: 'defbreak', icon: '👺', label: 'Vendaval do Tengu' },
+  'Arqueiro Kyudo': { chance: 0.18, type: 'crit_guaranteed', icon: '🏹', label: 'Flecha Certeira' },
+  'Kitsune Demoníaca': { chance: 0.18, type: 'burn', icon: '🦊', label: 'Fogo-Fátuo' },
+  'Monge Sohei': { chance: 0.18, type: 'defbreak', icon: '🙏', label: 'Golpe de Naginata' },
+  'Alma Penada': { chance: 0.18, type: 'lifesteal', icon: '👻', label: 'Roubo de Alma' }
 };
 
 const DUNGEON_WAVE_SKILLS = {
@@ -910,7 +919,12 @@ const BOSS_SKILLS = {
   'Rainha do Inverno Eterno': { chance: BOSS_SKILL_CHANCE, type: 'defbreak', icon: '👸', label: 'Coroa de Gelo' },
   'General dos Condenados': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '🧟‍♂️', label: 'Ordem de Ataque' },
   'Campeã Imortal': { chance: BOSS_SKILL_CHANCE, type: 'lifesteal', icon: '🧛‍♀️', label: 'Sede Eterna' },
-  'Rei dos Heróis Caídos': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🧛', label: 'Juízo dos Caídos' }
+  'Rei dos Heróis Caídos': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🧛', label: 'Juízo dos Caídos' },
+  // v166: Templo das Almas
+  'Ronin Sem Mestre': { chance: BOSS_SKILL_CHANCE, type: 'bleed', icon: '🎭', label: 'Corte Sem Honra' },
+  'General Oni': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '👹', label: 'Kanabō Esmagador' },
+  'Xogum Demoníaco': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '🏯', label: 'Iaijutsu do Xogum' },
+  'Xogum Demoníaco Desperto': { chance: BOSS_SKILL_CHANCE * 1.5, type: 'lifesteal', icon: '👹', label: 'Devorar Almas' }
 };
 
 const RARITIES = [
@@ -1351,7 +1365,34 @@ const CATACUMBAS = [
     bossExtraMult: { hp: 2.4, dmg: 1.85, def: 1.4 },
     divinoChance: 0.02,
     rewards: { xpMult: 1.0, goldMult: 1.0, equipChance: 1, equipLv: 125, pedrasChance: 0, skillBookChance: 0, nephalemChance: 0.15, smithBookChance: 0.02 },
-    monsters: [ { name: 'Cavaleiro Morto-Vivo', icon: '🧟', category: 'morto_vivo' }, { name: 'Arqueira Espectral', icon: '👻', category: 'morto_vivo' }, { name: 'Paladino Caído', icon: '🪦', category: 'morto_vivo' }, { name: 'Berserker Esquelético', icon: '🦴', category: 'morto_vivo' } ] }
+    monsters: [ { name: 'Cavaleiro Morto-Vivo', icon: '🧟', category: 'morto_vivo' }, { name: 'Arqueira Espectral', icon: '👻', category: 'morto_vivo' }, { name: 'Paladino Caído', icon: '🪦', category: 'morto_vivo' }, { name: 'Berserker Esquelético', icon: '🦴', category: 'morto_vivo' } ] },
+  // v166: Templo das Almas — samurais e guerreiros demoníacos. 28 monstros + mini-chefes nas rondas
+  // 15 e 25 + chefe de 2 fases na ronda 31 (aos 50% de HP liberta o demónio: muda de raça, fica mais
+  // forte e limpa os efeitos negativos). Chave só de chefes de Nv. 150–200. Mascote Kitsune no chefe.
+  { key: 'templo_almas', name: 'Templo das Almas T3', icon: '🏯', keyName: 'Chave do Templo das Almas', scene: 'templo',
+    monsterLvMin: 160, monsterLvMax: 190, monsterWaves: 28, bossLv: 200,
+    keyMinLv: 150, keyMaxLv: 200,
+    miniBosses: [
+      { atWave: 15, name: 'Ronin Sem Mestre', icon: '🎭', lv: 180, category: 'humano', mult: { hp: 1.6, dmg: 1.4, def: 1.2 } },
+      { atWave: 25, name: 'General Oni', icon: '👹', lv: 190, category: 'demonio', mult: { hp: 1.8, dmg: 1.5, def: 1.25 } }
+    ],
+    bossName: 'Xogum Demoníaco', bossIcon: '🏯', bossCategory: 'humano',
+    bossPhase2: { atPct: 0.5, name: 'Xogum Demoníaco Desperto', icon: '👹', category: 'demonio', mult: { dmg: 1.3, def: 1.15 } },
+    bossPet: 'kitsune',
+    waveExtraMult: { hp: 1.35, dmg: 1.3, def: 1.15 },
+    bossExtraMult: { hp: 2.4, dmg: 1.85, def: 1.4 },
+    divinoChance: 0.025,
+    rewards: { xpMult: 1.5, goldMult: 1.5, equipChance: 1, equipLv: 175, pedrasChance: 0.25, skillBookChance: 0.30, nephalemChance: 0.15, smithBookChance: 0.02 },
+    monsters: [
+      { name: 'Samurai Amaldiçoado', icon: '⚔️', category: 'humano' },
+      { name: 'Oni Vermelho', icon: '👹', category: 'demonio' },
+      { name: 'Ninja das Sombras', icon: '🥷', category: 'humano' },
+      { name: 'Tengu Corvo', icon: '👺', category: 'demonio' },
+      { name: 'Arqueiro Kyudo', icon: '🏹', category: 'humano' },
+      { name: 'Kitsune Demoníaca', icon: '🦊', category: 'demonio' },
+      { name: 'Monge Sohei', icon: '🙏', category: 'humano' },
+      { name: 'Alma Penada', icon: '👻', category: 'morto_vivo' }
+    ] }
 ];
 
 // ============================================================
@@ -2200,6 +2241,7 @@ function catacumbaRewardsText(cat) {
   if (rw.nephalemChance) parts.push(`💎 Pedra Nephalen (${pc(rw.nephalemChance)})`);
   if (cat.divinoChance) parts.push(`💠 item Divino Nv. ${cat.bossLv} (${pc(cat.divinoChance)})`);
   if (rw.smithBookChance) parts.push(`📕 Livro do Ferreiro (${pc(rw.smithBookChance)})`);
+  if (cat.bossPet && PET_DEFS[cat.bossPet]) parts.push(`🐾 mascote ${PET_DEFS[cat.bossPet].icon} ${PET_DEFS[cat.bossPet].name} (~${pc(PET_DROP_CHANCE)}, uma vez)`);
   return parts.join(' · ');
 }
 // Livro do Ferreiro (v76): gasto numa tentativa de melhoria, dá +5% de hipótese de sucesso.
@@ -2356,7 +2398,8 @@ const PET_DEFS = {
   minotauro:   { name: 'Minotauro',    icon: '🦬', role: 'Brutamontes', mult: { hp: 1.2, def: 0.8, crit: 0.3, dmg: 1.0 } },
   quimera:     { name: 'Quimera',      icon: '🦄', role: 'Mítico',      mult: { hp: 1.0, def: 0.7, crit: 0.8, dmg: 0.8 } },
   fenixestelar:{ name: 'Fênix Estelar', icon: '☄️', role: 'Renascer',    mult: { hp: 1.6, crit: 0.6, dmg: 0.6, dodge: 0.5 } },
-  dragaoestelar:{ name: 'Dragão Estelar', icon: '🌠', role: 'Cataclismo', mult: { hp: 0.8, def: 0.6, crit: 0.8, dmg: 1.2 } }
+  dragaoestelar:{ name: 'Dragão Estelar', icon: '🌠', role: 'Cataclismo', mult: { hp: 0.8, def: 0.6, crit: 0.8, dmg: 1.2 } },
+  kitsune:     { name: 'Kitsune',      icon: '🦊', role: 'Ilusão',      mult: { hp: 0.6, def: 0.3, crit: 0.9, dmg: 1.0, dodge: 0.6 } } // v166: Templo das Almas
 };
 
 // Bónus que um mascote dá ao herói (só quando está ativo): depende do nível, de ser
@@ -4934,7 +4977,7 @@ const ADMIN_ADD_KEYS = [
   ['profession_book', '📗 Livro das Profissões'], ['amnesia_book', '📘 Livro da Amnésia'], ['altar_charge', '🔥 Tentativa no Altar'],
   ['potion_hp', '🧪 Poção de HP'], ['potion_hp2', '⚗️ Poção de HP Maior'], ['potion_def', '🔵 Poção da Defesa'],
   ['potion_atk', '🔴 Poção do Ataque'], ['potion_fortune', '🍀 Poção da Fortuna'],
-  ['key_demonio_t1', '🗝️ Chave da Catacumba do Demônio'], ['key_morte_t2', '🗝️ Chave das Catacumbas da Morte'],
+  ['key_demonio_t1', '🗝️ Chave da Catacumba do Demônio'], ['key_morte_t2', '🗝️ Chave das Catacumbas da Morte'], ['key_templo_almas', '🗝️ Chave do Templo das Almas'],
   ['pearl_branca', '⚪ Pérola Branca'], ['pearl_azul', '🔵 Pérola Azul'], ['pearl_vermelha', '🔴 Pérola Vermelha'], ['pearl_verde', '🟢 Pérola Verde']
 ];
 function adminOpLabel(op) {
@@ -5684,6 +5727,7 @@ function renderWikiBody() {
   } else if (t === 'mascotes') {
     const petSources = {};
     REGIONS.forEach(r => r.monsters.concat(r.bosses).forEach(m => { if (m.pet && !petSources[m.pet]) petSources[m.pet] = { name: m.name, icon: m.icon, region: r.name }; }));
+    CATACUMBAS.forEach(cat => { if (cat.bossPet && !petSources[cat.bossPet]) petSources[cat.bossPet] = { name: cat.bossName, icon: cat.bossIcon, region: cat.name }; });
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">~8% de chance ao derrotar o monstro (ou chefe) certo, uma vez por tipo. Alimenta-os na aba Herói.</p>
       ${Object.keys(PET_DEFS).map(k => {
@@ -5727,6 +5771,7 @@ function renderWikiBody() {
           <span style="font-weight:700;">${cat.icon} ${cat.name}</span>
           <p class="tiny" style="margin-top:6px;">${cat.monsterWaves} monstros (Nv.${cat.monsterLvMin}–${cat.monsterLvMax})${dungeonMiniBosses(cat).map(m => ` · ronda ${m.atWave}: mini-chefe ${m.icon} ${m.name} (Nv.${m.lv})`).join('')} · ronda ${catacumbaTotalWaves(cat)}: chefe final ${cat.bossIcon} ${cat.bossName} (Nv.${cat.bossLv})</p>
           <p class="tiny" style="margin-top:6px; color:var(--muted);">Monstros: ${cat.monsters.map(m => `${m.icon} ${m.name}`).join(' · ')}</p>
+          ${cat.bossPhase2 ? `<p class="tiny" style="margin-top:6px; color:#ff8a7a;">💢 Chefe de 2 fases: o ${cat.bossName} (${CATEGORY_NAMES[cat.bossCategory]}) aos ${Math.round(cat.bossPhase2.atPct * 100)}% de HP torna-se ${cat.bossPhase2.icon} ${cat.bossPhase2.name} (${CATEGORY_NAMES[cat.bossPhase2.category]}): +${Math.round(((cat.bossPhase2.mult.dmg || 1) - 1) * 100)}% dano, +${Math.round(((cat.bossPhase2.mult.def || 1) - 1) * 100)}% defesa e livra-se de venenos, sangramentos e outros efeitos.</p>` : ''}
           <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🗝️ ${cat.keyName}: ${catacumbaKeyText(cat)}, com ${Math.round(CATACUMB_KEY_DROP_CHANCE * 1000) / 10}% de hipótese por chefe (a sorte no drop de itens soma-se a isto).</p>
           <p class="tiny" style="margin-top:6px;">🎁 Recompensas: ${catacumbaRewardsText(cat)}.</p>
         </div>
@@ -12481,7 +12526,7 @@ function mapaGroups(p) {
   const catTiles = CATACUMBAS.map(cat => {
     const keys = (p.catacumbKeys && p.catacumbKeys[cat.key]) || 0;
     const cleared = (p.clearedCatacumbas || []).includes(cat.key);
-    return { key: 'cat:' + cat.key, kind: 'catacumba', ref: cat, icon: nxEnt('dungeon-' + cat.key, cat.icon), label: cat.name, scene: 'cripta',
+    return { key: 'cat:' + cat.key, kind: 'catacumba', ref: cat, icon: nxEnt('dungeon-' + cat.key, cat.icon), label: cat.name, scene: cat.scene && SCENES[cat.scene] ? cat.scene : 'cripta',
       sub: `Nv. ${cat.monsterLvMin}+`, locked: keys <= 0, badge: `🗝️${keys}${cleared ? ' ✅' : ''}` };
   });
   const groups = [
@@ -12621,6 +12666,7 @@ function renderMapaBody(tile) {
           <span class="pill" style="${hasKey ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">🗝️ ${keys}</span>
         </div>
         <div class="boss-line">${nxCreature(cat.bossName, cat.bossIcon)} ${cat.bossName} — muito mais forte que um chefe normal deste nível${cleared ? ' · já derrotado' : ''}</div>
+        ${cat.bossPhase2 ? `<div class="tiny" style="margin-top:4px; color:#ff8a7a;">💢 Fase 2 aos ${Math.round(cat.bossPhase2.atPct * 100)}% de HP: ${nxCreature(cat.bossPhase2.name, cat.bossPhase2.icon)} ${cat.bossPhase2.name} (${CATEGORY_NAMES[cat.bossPhase2.category]})</div>` : ''}
         ${dungeonMiniBosses(cat).map(m => `<div class="tiny muted" style="margin-top:4px;">${nxCreature(m.name, m.icon)} Mini-chefe (ronda ${m.atWave}): ${m.name}</div>`).join('')}
         <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>
         <div class="tiny" style="margin-top:8px;">🎁 ${catacumbaRewardsText(cat)}</div>
@@ -13997,6 +14043,26 @@ function tickPlayerDots(c, p) {
   }
   if (p.hp < hpBeforeDots) sfx.dot();
 }
+// v166: chefes de 2 fases (Templo das Almas). Ao descer dos X% de HP, o chefe muda de forma:
+// nome/ícone/raça novos, mais dano e defesa, e limpa os efeitos negativos que tinha.
+function bossPhaseCheck(c) {
+  const cat = c && c.isCatacumba && c.isBoss ? c.catacumbaDef : null;
+  const ph = cat && cat.bossPhase2;
+  if (!ph || c.bossPhase2 || c.enemy.hp <= 0 || c.enemy.hp > c.enemy.maxHp * (ph.atPct || 0.5)) return false;
+  c.bossPhase2 = true;
+  const m = ph.mult || {};
+  c.enemy.dmg = Math.round(c.enemy.dmg * (m.dmg || 1));
+  c.enemy.def = Math.round(c.enemy.def * (m.def || 1));
+  c.enemy.category = ph.category || c.enemy.category;
+  const old = c.name;
+  c.name = ph.name; c.icon = ph.icon;
+  if (c.battleState) { c.battleState.enemyStatus = []; c.battleState.enemyDefDebuff = null; c.battleState.enemyStunned = false; }
+  addCombatLog({ text: `💢 ${old} liberta o demónio interior! Torna-se ${ph.icon} ${ph.name} — mais dano e defesa, e livra-se de todos os efeitos.`, cls: 'hit' });
+  try { sfx.evolve(); } catch (e) {}
+  const g = document.getElementById('cb-enemy-glyph');
+  if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
+  return true;
+}
 function resolveEnemyTurn(opts) {
   const c = App.combat, p = App.player;
   const pStats = effectiveStats(p);
@@ -14004,6 +14070,7 @@ function resolveEnemyTurn(opts) {
     tickPlayerDots(c, p);
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) return;
   }
+  bossPhaseCheck(c);
   const cName = hordeLabel(c);
 
   const isBossFight = c.isBoss || c.isMiniBoss;
@@ -14400,6 +14467,14 @@ function finishCatacumba() {
     drops.push(`💠✨ ITEM DIVINO! ${divineItem.name}!`);
   }
   { const cs = rollCoreStoneDrop(p, cat.bossLv, CORE_STONE_DUNGEON_CHANCE); if (cs) drops.push(cs); }
+  // v166: mascote do chefe (uma vez por tipo).
+  if (cat.bossPet && PET_DEFS[cat.bossPet] && !(p.pets || []).find(pp => pp.type === cat.bossPet)
+    && Math.random() < PET_DROP_CHANCE + (effectiveStats(p).dropLuckBonus || 0)) {
+    p.pets = p.pets || [];
+    p.pets.push({ id: 'pet_' + Math.random().toString(36).slice(2, 8), type: cat.bossPet, level: 1 });
+    if (!p.activePet) p.activePet = p.pets[p.pets.length - 1].id;
+    drops.push(`🐾 Encontraste um bebé ${PET_DEFS[cat.bossPet].name}!`);
+  }
 
   tickProfessionCooldowns(p);
   consumeTalismanBattle();
@@ -14778,7 +14853,8 @@ const SCENES = {
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
   cripta:        { sky: ['#010302', '#040a07', '#08130e'], sun: null, layers: [['arches', '#24362e', 0.25, 0], ['floor', '#101a15', 0.80, 0]], fx: 'candles' },
   eclipse:       { sky: ['#05030a', '#1c1026', '#4a2a1a'], sun: null, eclipse: true, layers: [['ruins', '#2a1d2e', 0.50, 0], ['hills', '#140c18', 0.80, 10]], fx: 'motes' },
-  rift:          { sky: ['#06010d', '#2a0c4a', '#7a2ac0'], sun: null, layers: [['vortex', '#c08cff', 0.5, 0], ['hills', '#0c0418', 0.80, 14]], fx: 'motes' }
+  rift:          { sky: ['#06010d', '#2a0c4a', '#7a2ac0'], sun: null, layers: [['vortex', '#c08cff', 0.5, 0], ['hills', '#0c0418', 0.80, 14]], fx: 'motes' },
+  templo:        { sky: ['#0b0307', '#3a0b14', '#a8321f'], sun: '#ff6a4a', layers: [['peaks', '#2c0b12', 0.50, 46], ['clouds', '#ff8a6a', 0.46, 0], ['pagoda', '#170509', 0.72, 0], ['torii', '#0b0204', 0.88, 0]], fx: 'sakura' } // v166
 };
 function sceneRng(seed) { let a = 0; for (let i = 0; i < seed.length; i++) a = (a * 31 + seed.charCodeAt(i)) | 0; return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 function sceneLayer(type, color, base, amp, R, W, H) {
@@ -14851,6 +14927,36 @@ function sceneLayer(type, color, base, amp, R, W, H) {
     });
     return `<g>${g}</g><rect x="0" y="${f(y0)}" width="${W}" height="${f(H - y0)}" fill="${color}" opacity=".8"/>`;
   }
+  // v166: Templo das Almas — pagode com telhados curvos, lanternas e um torii à frente.
+  if (type === 'pagoda') {
+    let g = `<rect x="0" y="${f(y0)}" width="${W}" height="${f(H - y0)}" fill="${color}"/>`;
+    const roof = (cx, y, rw) => `<path d="M${f(cx - rw)} ${f(y)} Q${f(cx - rw * 0.55)} ${f(y - 5)} ${f(cx - rw * 0.42)} ${f(y - 13)} L${f(cx + rw * 0.42)} ${f(y - 13)} Q${f(cx + rw * 0.55)} ${f(y - 5)} ${f(cx + rw)} ${f(y)} Z" fill="${color}"/>`;
+    const pag = (cx, base, tiers, w0) => {
+      let y = base, out = '';
+      for (let i = 0; i < tiers; i++) {
+        const bw = w0 * (1 - i * 0.16), bh = 20 - i * 1.5;
+        out += `<rect x="${f(cx - bw / 2)}" y="${f(y - bh)}" width="${f(bw)}" height="${f(bh)}" fill="${color}"/>`;
+        out += `<rect x="${f(cx - bw * 0.18)}" y="${f(y - bh + 5)}" width="${f(bw * 0.36)}" height="${f(bh - 8)}" fill="#ff9a4a" opacity=".55" class="sc-lava"/>`;
+        y -= bh; out += roof(cx, y, bw * 0.78); y -= 12;
+      }
+      out += `<rect x="${f(cx - 1.5)}" y="${f(y - 26)}" width="3" height="28" fill="${color}"/>`;
+      for (let k = 0; k < 4; k++) out += `<circle cx="${f(cx)}" cy="${f(y - 6 - k * 6)}" r="${f(3.4 - k * 0.5)}" fill="${color}"/>`;
+      return out;
+    };
+    g += pag(W * 0.70, y0 + 2, 5, 64) + pag(W * 0.40, y0 + 2, 2, 46) + pag(W * 0.93, y0 + 2, 3, 40);
+    [0.08, 0.30, 0.52, 0.84].forEach(k => { const x = W * k, y = y0 - 4; g += `<rect x="${f(x - 0.8)}" y="${f(y)}" width="1.6" height="10" fill="${color}"/><ellipse cx="${f(x)}" cy="${f(y - 4)}" rx="4" ry="5" fill="#ff7a3a" class="sc-lava"/><circle cx="${f(x)}" cy="${f(y - 4)}" r="11" fill="#ff6a2a" opacity=".18"/>`; });
+    return g;
+  }
+  if (type === 'torii') {
+    const x = W * 0.20, w = 96, top = y0 - 92;
+    return `<rect x="0" y="${f(y0)}" width="${W}" height="${f(H - y0)}" fill="${color}"/>
+      <rect x="${f(x - w / 2 + 10)}" y="${f(top + 10)}" width="9" height="${f(y0 - top - 10)}" fill="${color}"/>
+      <rect x="${f(x + w / 2 - 19)}" y="${f(top + 10)}" width="9" height="${f(y0 - top - 10)}" fill="${color}"/>
+      <path d="M${f(x - w / 2 - 12)} ${f(top + 2)} Q${f(x)} ${f(top + 10)} ${f(x + w / 2 + 12)} ${f(top + 2)} L${f(x + w / 2 + 8)} ${f(top + 10)} Q${f(x)} ${f(top + 17)} ${f(x - w / 2 - 8)} ${f(top + 10)} Z" fill="${color}"/>
+      <rect x="${f(x - w / 2 + 2)}" y="${f(top + 26)}" width="${f(w - 4)}" height="6" fill="${color}"/>
+      <rect x="${f(x - 4)}" y="${f(top + 12)}" width="8" height="15" fill="${color}"/>
+      <path d="M${f(x - w / 2 - 12)} ${f(top + 2)} Q${f(x)} ${f(top + 10)} ${f(x + w / 2 + 12)} ${f(top + 2)}" stroke="#8a1a1a" stroke-width="1.5" fill="none" opacity=".7"/>`;
+  }
   if (type === 'floor') return `<rect x="0" y="${f(y0)}" width="${W}" height="${f(H - y0)}" fill="${color}"/><rect x="0" y="${f(y0)}" width="${W}" height="2" fill="#000" opacity=".5"/>`;
   if (type === 'vortex') return `<g class="sc-spin" style="transform-origin:${W / 2}px ${H * 0.42}px">${[70, 52, 34, 18].map((r, i) => `<ellipse cx="${W / 2}" cy="${f(H * 0.42)}" rx="${r * 1.5}" ry="${r}" fill="none" stroke="${color}" stroke-width="${3 - i * 0.5}" stroke-dasharray="${18 - i * 3} ${10 + i * 2}" opacity="${0.35 + i * 0.15}"/>`).join('')}<circle cx="${W / 2}" cy="${f(H * 0.42)}" r="10" fill="#fff" opacity=".85"/></g>`;
   return '';
@@ -14860,7 +14966,7 @@ function sceneSvg(key) {
   if (sceneCache[key]) return sceneCache[key];
   const sc = SCENES[key] || SCENES.planicies, R = sceneRng(key), W = 390, H = 300;
   let stars = '';
-  if (['planicies', 'tundra', 'florestanegra', 'corrompidas', 'pinaculo', 'rift', 'eclipse'].includes(key)) for (let i = 0; i < 26; i++) stars += `<circle cx="${Math.round(R() * W)}" cy="${Math.round(R() * H * 0.45)}" r="${(0.4 + R() * 0.9).toFixed(1)}" fill="#fff" opacity="${(0.25 + R() * 0.6).toFixed(2)}" class="sc-star" style="animation-delay:${(R() * 4).toFixed(1)}s"/>`;
+  if (['planicies', 'tundra', 'florestanegra', 'corrompidas', 'pinaculo', 'rift', 'eclipse', 'templo'].includes(key)) for (let i = 0; i < 26; i++) stars += `<circle cx="${Math.round(R() * W)}" cy="${Math.round(R() * H * 0.45)}" r="${(0.4 + R() * 0.9).toFixed(1)}" fill="#fff" opacity="${(0.25 + R() * 0.6).toFixed(2)}" class="sc-star" style="animation-delay:${(R() * 4).toFixed(1)}s"/>`;
   const svg = `<svg class="scene-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
     <defs><linearGradient id="sc-sky-${key}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sc.sky[0]}"/><stop offset=".55" stop-color="${sc.sky[1]}"/><stop offset="1" stop-color="${sc.sky[2]}"/></linearGradient>
       <linearGradient id="sc-snowcap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></linearGradient>
@@ -14884,6 +14990,7 @@ function combatSceneKey(c) {
   if (c.isRift) return 'rift';
   if (c.isTower) return 'torre';
   if (c.isDungeon && c.dungeonDef && c.dungeonDef.scene && SCENES[c.dungeonDef.scene]) return c.dungeonDef.scene;
+  if (c.isCatacumba && c.catacumbaDef && c.catacumbaDef.scene && SCENES[c.catacumbaDef.scene]) return c.catacumbaDef.scene;
   if (c.isDungeon || c.isCatacumba) return 'cripta';
   const p = App.player;
   const idx = c.regionIndexForBoss != null ? c.regionIndexForBoss : (App.selectedRegionIndex != null ? App.selectedRegionIndex : p.regionIndex);
@@ -14932,13 +15039,13 @@ function renderCombat() {
 
   const glyphEl = $('cb-enemy-glyph');
   { const gk = nxCreature(c.monsterName || c.name, c.icon); if (glyphEl.dataset.ent !== gk) { glyphEl.dataset.ent = gk; glyphEl.innerHTML = gk; } }
-  glyphEl.className = 'enemy-glyph' + (c.isBoss ? ' boss' : c.isMiniBoss ? ' mini' : c.isRift ? ' mini' : '');
+  glyphEl.className = 'enemy-glyph' + (c.isBoss ? ' boss' : c.isMiniBoss ? ' mini' : c.isRift ? ' mini' : '') + (c.bossPhase2 ? ' phase2' : '');
   const flashFx = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
   if (c._lastEnemyHp !== undefined && c.enemy.hp < c._lastEnemyHp) flashFx(glyphEl, 'fx-hit');
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isBoss ? ' · Chefe' : c.isRift ? ' · Rift ⭕️' : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : c.isRift ? ' · Rift ⭕️' : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -15131,7 +15238,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v165</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v166</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -15429,6 +15536,14 @@ function migrateLevelCap(p) {
 const APP_VERSION_LABEL = 'V 1.7.0';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v166', title: 'Templo das Almas!', items: [
+    ['🏯', 'Nova Catacumba em Mapa → Catacumbas: o Templo das Almas T3, para heróis de nível 150+. 28 ondas de samurais e guerreiros demoníacos (Nv. 160–190).'],
+    ['🗝️', 'A Chave do Templo das Almas cai dos chefes de nível 150 a 200.'],
+    ['🎭', 'Dois mini-chefes pelo caminho: o Ronin Sem Mestre (ronda 15) e o General Oni (ronda 25).'],
+    ['💢', 'O chefe final, o Xogum Demoníaco (Nv. 200), tem 2 fases: aos 50% de HP liberta o demónio interior, muda de Humano para Demónio, fica mais forte e livra-se de todos os efeitos.'],
+    ['🦊', 'Nova mascote: a Kitsune, que pode cair do Xogum Demoníaco.'],
+    ['🎁', 'Recompensas: Baú de Equipamento Nv. 175 garantido, hipótese de item Divino, Pedra Nephalen, Livros e Pedras do Núcleo.']
+  ] },
   { id: 'v162', title: 'Labirinto da Cripta!', items: [
     ['🌀', 'Nova torre em Mapa → Torres: o Labirinto da Cripta, a partir do nível 120. São 5 andares de labirinto, diferentes em cada subida.'],
     ['🌫️', 'Nevoeiro: só vês as salas ao lado das que já visitaste. Explora à luz da tocha e encontra o caminho.'],
@@ -16193,9 +16308,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 163;
+const NX_ICON_VER = 166;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;

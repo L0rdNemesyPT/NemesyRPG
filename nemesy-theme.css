@@ -1694,3 +1694,12 @@ div.nx-confirm-msg{text-align:left;}
 .ho-fp-dot{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--craft-green);box-shadow:0 0 6px rgba(142,224,106,.8);}
 .craft-x2{font-size:10px;font-weight:800;color:var(--craft-green);border:1px solid rgba(142,224,106,.6);border-radius:6px;padding:0 4px;margin-left:2px;}
 .ho-cbonus>span .nx-ic{width:18px;height:18px;vertical-align:-4px;}
+
+/* v166: Templo das Almas — pétalas de cerejeira e chefe de 2 fases */
+.fx-sakura i{width:7px; height:5px; border-radius:70% 0 70% 0; background:linear-gradient(135deg,#ffd1dc,#ff8fab); opacity:.85; animation-name:scSakura; top:-8px !important;}
+.fx-sakura i:nth-child(3n){width:5px; height:4px; background:linear-gradient(135deg,#ffe4ea,#ff9fb8);}
+.fx-sakura i:nth-child(4n){opacity:.6;}
+@keyframes scSakura{0%{transform:translate(0,0) rotate(0deg);} 50%{transform:translate(-30px,170px) rotate(200deg);} 100%{transform:translate(-70px,340px) rotate(420deg); opacity:0;}}
+.enemy-glyph.phase2{box-shadow:0 0 0 2px #ff3b2a, 0 0 22px rgba(255,59,42,.65), inset 0 0 18px rgba(255,59,42,.35) !important;}
+.enemy-glyph.fx-phase2{animation:nxPhase2 .9s ease-out;}
+@keyframes nxPhase2{0%{transform:scale(1); filter:brightness(1);} 25%{transform:scale(1.18) rotate(-4deg); filter:brightness(2.2) saturate(1.6);} 55%{transform:scale(.94) rotate(3deg); filter:brightness(1.4);} 100%{transform:scale(1); filter:none;}}
