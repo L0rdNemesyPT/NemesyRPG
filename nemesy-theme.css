@@ -1675,3 +1675,9 @@ div.nx-confirm-msg{text-align:left;}
 .maze .lock-b{position:absolute;right:6%;bottom:6%;font-size:clamp(10px,3vw,14px);line-height:1;filter:drop-shadow(0 1px 2px #000);}
 .maze .lock-b .nx-ic{width:1.2em;height:1.2em;}
 .maze .lhero{position:relative;z-index:2;box-shadow:0 0 14px rgba(255,180,90,.8),0 0 0 2px rgba(0,0,0,.4);}
+
+/* v163: Armas da Cripta */
+.ak-tag.crypt-tag{background:linear-gradient(90deg,rgba(120,90,200,.25),rgba(60,40,110,.25));border-color:#9b7be0;color:#d9c8ff;}
+.crypt-line{margin:6px 0 2px;padding:6px 9px;border-radius:8px;background:rgba(120,90,200,.12);border:1px solid rgba(155,123,224,.45);color:#e6dcff;}
+.crypt-line b{color:#f2d36b;}
+.crypt-txt{color:#c9b4ff;font-weight:700;}
