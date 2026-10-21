@@ -1629,3 +1629,49 @@ div.nx-confirm-msg{text-align:left;}
 .maze .lc.move{background:rgba(242,211,107,.12);box-shadow:inset 0 0 0 2px rgba(242,211,107,.75);}
 .maze .lc.exit-open{box-shadow:inset 0 0 0 2px rgba(120,220,120,.8);}
 #hub-content{overflow-anchor:none;}
+
+/* v162: Labirinto mais bonito — tocha, paredes de pedra, nevoeiro vivo e brilho das salas */
+.maze .maze-light{position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(circle at var(--hx) var(--hy),rgba(255,176,90,.26) 0,rgba(255,150,60,.12) 11%,rgba(0,0,0,0) 22%,rgba(0,0,0,.38) 38%,rgba(0,0,0,.66) 62%,rgba(0,0,0,.82) 100%);
+  animation:mzTorch 2.6s ease-in-out infinite alternate;transition:background-position .4s;}
+@keyframes mzTorch{0%{opacity:.92}35%{opacity:1}60%{opacity:.86}100%{opacity:.97}}
+.maze .lc{z-index:1;}
+/* paredes de pedra: borda em relevo cinzento-pedra com sombra */
+.maze .lc{border-color:#6f665a;border-style:ridge;}
+.maze .lc.wN{border-top-width:5px}.maze .lc.wS{border-bottom-width:5px}.maze .lc.wE{border-right-width:5px}.maze .lc.wW{border-left-width:5px}
+.maze .lc.done,.maze .lc.seen{filter:drop-shadow(0 0 0 transparent);}
+.maze .lc:not(.fog){box-shadow:inset 0 0 6px rgba(0,0,0,.55);}
+/* nevoeiro a mexer: uma só névoa contínua por cima de todas as salas escondidas */
+.maze .lc.fog{overflow:hidden;border-width:0!important;background:rgba(8,6,5,.92);box-shadow:none;}
+.maze .lc.fog::before{content:"";position:absolute;pointer-events:none;
+  width:calc(var(--n) * 100% + 40%);height:calc(var(--n) * 100% + 40%);
+  left:calc(var(--cx) * -100% - 20%);top:calc(var(--cy) * -100% - 20%);
+  background:
+    radial-gradient(ellipse 22% 14% at 18% 22%,rgba(175,165,190,.30),transparent 70%),
+    radial-gradient(ellipse 28% 16% at 62% 30%,rgba(155,147,175,.26),transparent 70%),
+    radial-gradient(ellipse 20% 18% at 40% 58%,rgba(170,160,185,.28),transparent 70%),
+    radial-gradient(ellipse 30% 15% at 78% 72%,rgba(145,137,165,.26),transparent 70%),
+    radial-gradient(ellipse 24% 16% at 22% 85%,rgba(165,155,180,.24),transparent 70%);
+  animation:mzMist 16s ease-in-out infinite alternate;}
+@keyframes mzMist{0%{transform:translate(0,0)}50%{transform:translate(6%,-3%)}100%{transform:translate(-5%,4%)}}
+.maze .lc.rev-new{animation:mzReveal .9s ease-out both;}
+@keyframes mzReveal{0%{background-color:rgba(9,7,6,.93);filter:brightness(.3) blur(2px)}100%{filter:none}}
+/* brilho das salas pelo conteúdo */
+.maze .lc.t-tesouro .lic,.maze .lc.t-misterio .lic{filter:drop-shadow(0 0 6px rgba(242,201,76,.85));}
+.maze .lc.t-tesouro{background:radial-gradient(circle,rgba(242,201,76,.22),rgba(30,22,14,.18) 70%);}
+.maze .lc.t-fonte{background:radial-gradient(circle,rgba(110,190,255,.25),rgba(30,22,14,.18) 70%);}
+.maze .lc.t-fonte .lic:not(.used){animation:mzSpark 1.8s ease-in-out infinite;}
+@keyframes mzSpark{50%{filter:drop-shadow(0 0 8px rgba(140,210,255,1)) brightness(1.25);}}
+.maze .lc.t-elite{background:radial-gradient(circle,rgba(220,60,50,.28),rgba(30,22,14,.18) 70%);}
+.maze .lc.t-elite .lic{filter:drop-shadow(0 0 6px rgba(230,70,60,.9));}
+.maze .lc.t-chave{background:radial-gradient(circle,rgba(242,211,107,.30),rgba(30,22,14,.18) 70%);}
+.maze .lc.t-chave .lic{animation:mzKey 1.4s ease-in-out infinite;}
+@keyframes mzKey{50%{transform:scale(1.08);filter:drop-shadow(0 0 10px rgba(242,211,107,1));}}
+.maze .lc.t-chave-ok .lic{filter:drop-shadow(0 0 6px rgba(242,211,107,.9));}
+.maze .lc.t-escada,.maze .lc.t-chefe{background:radial-gradient(circle,rgba(160,120,255,.22),rgba(30,22,14,.18) 70%);}
+.maze .lc.exit-lock .lic{filter:grayscale(.5) brightness(.75);}
+.maze .lc.exit-open{background:radial-gradient(circle,rgba(120,220,120,.30),rgba(30,22,14,.18) 70%);animation:mzOpen 1.6s ease-in-out infinite;}
+@keyframes mzOpen{50%{box-shadow:inset 0 0 0 2px rgba(120,220,120,.95),inset 0 0 14px rgba(120,220,120,.5);}}
+.maze .lock-b{position:absolute;right:6%;bottom:6%;font-size:clamp(10px,3vw,14px);line-height:1;filter:drop-shadow(0 1px 2px #000);}
+.maze .lock-b .nx-ic{width:1.2em;height:1.2em;}
+.maze .lhero{position:relative;z-index:2;box-shadow:0 0 14px rgba(255,180,90,.8),0 0 0 2px rgba(0,0,0,.4);}
