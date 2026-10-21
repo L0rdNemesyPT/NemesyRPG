@@ -1590,3 +1590,42 @@ div.nx-confirm-msg{text-align:left;}
 .alch-core-sum{margin-top:8px;padding-top:8px;border-top:1px solid var(--line-soft);}
 .alch-core-sum.off{opacity:.6;}
 @media (max-width:360px){.nuc .ns{width:66px}.nuc .ns-b{width:52px;height:52px}.nuc .ns-b .nx-ic{width:38px;height:38px}.nuc .core-b{width:78px;height:78px}.nuc .core-b .nx-ic{width:58px;height:58px}}
+
+/* v157: XP no máximo (nível 200) */
+.bar-xp.xp-full .bar-fill{background:linear-gradient(90deg,#c9a227,#f2d36b)!important;box-shadow:0 0 8px rgba(242,211,107,.6);}
+.hp-num .xp-max{color:var(--gold-bright);font-weight:800;letter-spacing:.04em;margin-right:2px;}
+
+/* v158: Labirinto da Cripta */
+.maze{position:relative;display:grid;aspect-ratio:1/1;border:3px solid #5a4424;border-radius:10px;overflow:hidden;background:#0b0907;box-shadow:inset 0 0 30px rgba(0,0,0,.9),0 6px 16px rgba(0,0,0,.6);isolation:isolate;}
+.maze .lc{position:relative;display:grid;place-items:center;padding:0;margin:0;border:0 solid #7a5c36;background:radial-gradient(circle at 50% 45%,#3a2e22,#241b13);color:inherit;cursor:pointer;min-width:0;min-height:0;}
+.maze .lc.wN{border-top-width:3px}.maze .lc.wS{border-bottom-width:3px}.maze .lc.wE{border-right-width:3px}.maze .lc.wW{border-left-width:3px}
+.maze .lc.fog{background:repeating-linear-gradient(45deg,#0e0b09 0 6px,#120e0b 6px 12px);border-color:#0e0b09;cursor:default;}
+.maze .lc.done{background:radial-gradient(circle at 50% 45%,#2e251a,#1a140e);}
+.maze .lc.seen{background:radial-gradient(circle at 50% 45%,#40311f,#22190f);}
+.maze .lc.move{box-shadow:inset 0 0 0 2px rgba(242,211,107,.75);animation:mzMove 1.3s ease-in-out infinite;}
+@keyframes mzMove{50%{box-shadow:inset 0 0 0 2px rgba(242,211,107,.2);}}
+.maze .lc.key .lic{filter:drop-shadow(0 0 6px rgba(242,211,107,.9));}
+.maze .lc.exit-lock .lic{filter:grayscale(.4) drop-shadow(0 0 4px rgba(200,60,60,.8));}
+.maze .lc.exit-open{box-shadow:inset 0 0 0 2px rgba(120,220,120,.8);}
+.maze .lic{font-size:clamp(14px,4.6vw,22px);line-height:1;filter:drop-shadow(0 2px 2px #000);display:grid;place-items:center;width:80%;height:80%;}
+.maze .lic .nx-ic,.maze .lic img{width:100%;height:100%;object-fit:contain;}
+.maze .lic.dim{opacity:.35;font-size:12px;}
+.maze .lic.used{opacity:.45;filter:grayscale(.6);}
+.maze .lhero{width:84%;height:84%;border-radius:50%;overflow:hidden;display:grid;place-items:center;border:2px solid var(--gold-bright);box-shadow:0 0 10px rgba(242,211,107,.6);background:#120d08;}
+.maze .lhero .hero-av,.maze .lhero img{width:100%;height:100%;object-fit:cover;}
+.maze .lhero .hero-av-fallback{font-size:16px;}
+.maze-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.maze-chips span{font-size:11.5px;padding:2px 8px;border-radius:8px;background:rgba(0,0,0,.4);border:1px solid #4a3a22;}
+.maze-chips span.ok{border-color:#9fd27f;color:#cdeebb;}
+.maze .lc.fog{box-shadow:inset 0 0 0 1px rgba(255,235,200,.035);}
+
+/* v161: fundo de pedra no Labirinto (as salas ficam translúcidas por cima) */
+.maze{background-color:#0b0907;background-size:cover;background-position:center;}
+.maze .lc{background:rgba(30,22,14,.18);border-color:#9a7444;box-shadow:none;}
+.maze .lc.wN{box-shadow:inset 0 3px 3px -2px rgba(0,0,0,.7);}
+.maze .lc.done{background:rgba(20,14,8,.30);}
+.maze .lc.seen{background:rgba(70,52,30,.32);}
+.maze .lc.fog{background:repeating-linear-gradient(45deg,rgba(8,6,5,.94) 0 6px,rgba(14,11,9,.94) 6px 12px);border-color:transparent;box-shadow:inset 0 0 0 1px rgba(255,235,200,.035);}
+.maze .lc.move{background:rgba(242,211,107,.12);box-shadow:inset 0 0 0 2px rgba(242,211,107,.75);}
+.maze .lc.exit-open{box-shadow:inset 0 0 0 2px rgba(120,220,120,.8);}
+#hub-content{overflow-anchor:none;}
