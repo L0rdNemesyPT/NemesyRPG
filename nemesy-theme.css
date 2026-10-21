@@ -1047,7 +1047,7 @@ body:not(.fx-off) .equip-slot.alch-perfect{animation:alchPerfect 2.8s ease-in-ou
 .ho-choice-card:disabled{opacity:.45;cursor:default;}
 .ho-pct{display:inline-block;margin-top:4px;font-size:11px;font-weight:800;padding:2px 8px;border-radius:10px;background:#3a1d1d;border:1px solid #8e3a3a;color:#f0a0a0;}
 .ho-cbonus{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
-.ho-cbonus span{font-size:11px;padding:5px 7px;border-radius:6px;border:1px solid rgba(142,224,106,.45);background:rgba(142,224,106,.08);color:var(--craft-green);}
+.ho-cbonus>span{font-size:11px;padding:5px 7px;border-radius:6px;border:1px solid rgba(142,224,106,.45);background:rgba(142,224,106,.08);color:var(--craft-green);}
 .ho-maxrow{display:flex;flex-direction:column;gap:3px;margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#100c08;font-size:12px;}
 .ho-maxrow i{color:var(--muted);font-style:normal;font-size:11px;}
 .pill.craft-pill{border-color:rgba(142,224,106,.7) !important;color:var(--craft-green) !important;background:rgba(142,224,106,.10);}
@@ -1681,3 +1681,16 @@ div.nx-confirm-msg{text-align:left;}
 .crypt-line{margin:6px 0 2px;padding:6px 9px;border-radius:8px;background:rgba(120,90,200,.12);border:1px solid rgba(155,123,224,.45);color:#e6dcff;}
 .crypt-line b{color:#f2d36b;}
 .crypt-txt{color:#c9b4ff;font-weight:700;}
+
+/* v164: forja de Armas — escolher Peitoral ou Arma */
+.ho-forge-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.ho-fp{position:relative;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:#120d08;color:var(--parchment);text-align:left;cursor:pointer;}
+.ho-fp .nx-ic{width:30px;height:30px;flex:none;}
+.ho-fp-empty{width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:20px;opacity:.5;flex:none;}
+.ho-fp span{display:flex;flex-direction:column;line-height:1.2;min-width:0;}
+.ho-fp b{font-family:var(--font-display);font-size:12.5px;color:var(--gold-bright);}
+.ho-fp small{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ho-fp.on{border-color:var(--gold-bright);box-shadow:0 0 12px rgba(228,191,74,.3);background:#1a130a;}
+.ho-fp-dot{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--craft-green);box-shadow:0 0 6px rgba(142,224,106,.8);}
+.craft-x2{font-size:10px;font-weight:800;color:var(--craft-green);border:1px solid rgba(142,224,106,.6);border-radius:6px;padding:0 4px;margin-left:2px;}
+.ho-cbonus>span .nx-ic{width:18px;height:18px;vertical-align:-4px;}

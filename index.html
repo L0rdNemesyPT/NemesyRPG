@@ -3179,7 +3179,7 @@ function effectiveStats(player) {
       if (!s) return;
       const gdef = GEM_DEFS[s.type];
       if (!gdef) return;
-      const val = gdef.base * (s.tier + 1);
+      const val = gdef.base * (s.tier + 1) * craftGemMult(item);
       if (gdef.stat === 'hp') hp += val; else if (gdef.stat === 'dmg') { dmg += val; dmgMin += val; dmgMax += val; }
       else if (gdef.stat === 'def') def += val; else if (gdef.stat === 'crit') crit += val;
       else if (gdef.stat === 'bossPct') gemBossPct += val;
@@ -3237,7 +3237,8 @@ function effectiveStats(player) {
     if (item.corruption && item.corruption.hpDebuff) hp -= item.corruption.hpDebuff;
     if (item.uniqueEffect === 'bleedImmune') bleedImmune = true;
     const cbd = craftBonusDef(item); // v123: bónus de Craft (Esconderijo)
-    if (cbd) { if (cbd.hp) hp += cbd.hp; if (cbd.regen) itemRegenPct += cbd.regen; if (cbd.bossred) itemDmgReducedFromBossPct += cbd.bossred; if (cbd.luck) itemCraftLuck += cbd.luck; }
+    if (cbd) { if (cbd.hp) hp += cbd.hp; if (cbd.regen) itemRegenPct += cbd.regen; if (cbd.bossred) itemDmgReducedFromBossPct += cbd.bossred; if (cbd.luck) itemCraftLuck += cbd.luck;
+      if (cbd.bossPct) itemDmgVsBossPct += cbd.bossPct; if (cbd.vsDemon) itemDmgVsDemonios += cbd.vsDemon; if (cbd.vsUndead) itemDmgVsMortos += cbd.vsUndead; }
   });
 
   if (player.activePet) {
@@ -3352,7 +3353,8 @@ function itemBonusScore(item) {
   }
   if (craftBonusDef(item)) {
     const cb = craftBonusDef(item);
-    score += (cb.hp || 0) * 1 + (cb.regen || 0) * BONUS_SCORE_WEIGHTS.regeneracao + (cb.bossred || 0) * 600 + (cb.luck || 0) * 400;
+    score += (cb.hp || 0) * 1 + (cb.regen || 0) * BONUS_SCORE_WEIGHTS.regeneracao + (cb.bossred || 0) * 600 + (cb.luck || 0) * 400
+      + (cb.bossPct || 0) * 100 * 10 + (cb.vsDemon || 0) * BONUS_SCORE_WEIGHTS.vs_demonios + (cb.vsUndead || 0) * BONUS_SCORE_WEIGHTS.vs_mortos + (cb.gemMult ? 40 : 0);
   }
   if (item.altarBonus) {
     const ab = item.altarBonus;
@@ -5862,6 +5864,10 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Todas dão ouro, sementes e 1 Baú de Equipamento ao teu nível. ${Object.keys(EXPEDITION_TYPES).map(k => { const d = EXPEDITION_TYPES[k]; return `${d.name} (${d.hours} h, ${d.pets} ${d.pets === 1 ? 'mascote' : 'mascotes'}): ${d.chestLabel.toLowerCase()}, ${Math.round(d.extraChance * 100)}% de extra`; }).join(' · ')}. O extra é 1 Gema T1, 1 Pérola ou 1 Pedra de Alquimia. O ouro sobe com o teu nível e um pouco com o nível médio das mascotes (+0,5% por nível). Uma mascote em expedição não pode estar ativa.</p></div>
       <div class="card raised"><span style="font-weight:700;">🔨 Peças do Desmanche</span>
         <p class="tiny" style="margin-top:6px;">Cada item dá peças da sua raridade (Comum, Incomum, Rara, Lendária, Única, Demoníaca, Set, Divina e Temporada): 1 por item, +1 por cada 3 níveis de melhoria e 25% de hipótese de mais 1. As peças ficam no Baú do Esconderijo (1 peça = 1 espaço): ${HIDEOUT_STORAGE_BASE} espaços no início, ${HIDEOUT_STORAGE_BY_LEVEL[2]} ao abrir o Baú do Jogador (Nv. 2) e até ${HIDEOUT_STORAGE_BY_LEVEL[6]} no Nv. 6. Vão servir para a Bancada de Craft.</p></div>
+      <div class="card raised"><span style="font-weight:700;">⚒️ Forjar equipamento (Bancada de Craft)</span>
+        <p class="tiny" style="margin-top:6px;">Funciona com o Peitoral e com a Arma equipados a +9: junta um item de sacrifício do mesmo tipo e raridade (±${CRAFT_FORGE_LEVEL_RANGE} níveis) e ${CRAFT_FORGE_PARTS} peças dessa raridade. 🔨 Tentar melhorar (${Math.round(CRAFT_IMPROVE_CHANCE * 100)}%): +${Math.round(CRAFT_IMPROVE_PCT * 100)}% nos stats, até ao máximo da raridade. ✨ Tentar bónus de Craft (${Math.round(CRAFT_BONUS_CHANCE * 100)}%): 1 bónus verde por item; um novo sucesso troca o anterior. O sacrifício e as peças gastam-se sempre; o item equipado nunca se perde.</p>
+        <p class="tiny" style="margin-top:6px;"><b>Peitoral:</b> ${craftBonusKeysFor('chest').map(k => `${CRAFT_BONUS_DEFS[k].icon} ${CRAFT_BONUS_DEFS[k].label}`).join(' · ')}</p>
+        <p class="tiny" style="margin-top:4px;"><b>Arma:</b> ${craftBonusKeysFor('weapon').map(k => `${CRAFT_BONUS_DEFS[k].icon} ${CRAFT_BONUS_DEFS[k].label}`).join(' · ')}</p></div>
     `;
   } else if (t === 'agricultura') {
     body.innerHTML = `
@@ -7061,7 +7067,7 @@ const HIDEOUT_STATIONS = [
   { key: 'lareira', name: 'Lareira', short: 'Lareira', icon: '🔥', img: 'flame', lv: 1, x: 15, y: 54,
     desc: 'Descansa junto ao fogo: enche o HP e ficas Descansado (+10% XP durante algumas batalhas). Uma vez a cada 8 horas.' },
   { key: 'craft', name: 'Bancada de Craft', short: 'Craft', icon: '⚒️', img: 'smith', lv: 1, x: 85, y: 54,
-    desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja o teu Peitoral +9 com um Peitoral de sacrifício e 30 peças: melhorar os stats ou ganhar um bónus de Craft (15% / 10% de sucesso).' },
+    desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja o teu Peitoral ou a tua Arma +9 com um item de sacrifício do mesmo tipo e 30 peças: melhorar os stats ou ganhar um bónus de Craft (15% / 10% de sucesso).' },
   { key: 'desmanche', name: 'Bancada de Desmanche', short: 'Desmanche', icon: '🔨', img: 'hammer', lv: 1, x: 17, y: 84,
     desc: 'Desmancha itens que não queres e recebe peças da mesma raridade, para usar na Bancada de Craft.' },
   { key: 'boneco', name: 'Boneco de Treino', short: 'Boneco', icon: '🎯', img: 'swords', lv: 3, x: 50, y: 86,
@@ -7581,7 +7587,7 @@ function renderHoDesmanche(p, h) {
 // v123: 3 quadradinhos na bancada.
 //  • Juntar peças: 3 peças da mesma raridade → 1 da raridade seguinte (Comum → Incomum → Rara → Lendária → Única).
 //    Set, Demoníaca, Divina e Temporada não se obtêm a juntar.
-//  • Forjar equipamento (só Peitoral): Peitoral equipado a +9 + Peitoral de sacrifício (mesma raridade, ±10 níveis)
+//  • Forjar equipamento (Peitoral ou, desde a v164, Arma): item equipado a +9 + item do mesmo tipo de sacrifício (mesma raridade, ±10 níveis)
 //    + 30 peças da mesma raridade. Tentar melhorar (+2% nos stats, até ao máximo da raridade) ou tentar bónus de Craft.
 //    15% (melhorar) / 10% (bónus) de sucesso; o sacrifício e as peças gastam-se sempre; o Peitoral equipado nunca se perde.
 const CRAFT_JOIN_CHAIN = ['comum', 'incomum', 'raro', 'lendario', 'unico'];
@@ -7593,12 +7599,21 @@ const craftForgeChance = mode => mode === 'melhorar' ? CRAFT_IMPROVE_CHANCE : CR
 const CRAFT_FORGE_LEVEL_RANGE = 10;
 const CRAFT_IMPROVE_PCT = 0.02;
 const CRAFT_BONUS_DEFS = {
-  hp:      { icon: '❤️', label: '+300 HP', hp: 300 },
-  regen:   { icon: '💚', label: '+2% Regeneração de HP por ronda', regen: 2 },
-  bossred: { icon: '🛡️', label: '+5% Redução de dano de Bosses', bossred: 0.05 },
-  sorte:   { icon: '🍀', label: '+5% Sorte de drop', luck: 0.05 },
-  terramoto: { icon: '🪨', label: 'Habilidade Terramoto', ability: 'terramoto' } // v142
+  hp:      { icon: '❤️', label: '+300 HP', hp: 300, slot: 'chest' },
+  regen:   { icon: '💚', label: '+2% Regeneração de HP por ronda', regen: 2, slot: 'chest' },
+  bossred: { icon: '🛡️', label: '+5% Redução de dano de Bosses', bossred: 0.05, slot: 'chest' },
+  sorte:   { icon: '🍀', label: '+5% Sorte de drop', luck: 0.05, slot: 'chest' },
+  terramoto: { icon: '🪨', label: 'Habilidade Terramoto', ability: 'terramoto', slot: 'chest' }, // v142
+  // v164: bónus de Craft das Armas.
+  w_boss:   { icon: '🏆', label: '+5% Dano contra Chefes', bossPct: 0.05, slot: 'weapon' },
+  w_demon:  { icon: '😈', label: '+10% Dano contra Demónios', vsDemon: 10, slot: 'weapon' },
+  w_undead: { icon: '💀', label: '+10% Dano contra Mortos-Vivos', vsUndead: 10, slot: 'weapon' },
+  w_gems:   { icon: '💎', label: '×2 nos stats das Gemas desta Arma', gemMult: 2, slot: 'weapon' }
 };
+const CRAFT_FORGE_SLOTS = ['chest', 'weapon'];
+const craftForgeSlotName = s => s === 'weapon' ? 'Arma' : 'Peitoral';
+function craftBonusKeysFor(slot) { return Object.keys(CRAFT_BONUS_DEFS).filter(k => CRAFT_BONUS_DEFS[k].slot === slot); }
+function craftGemMult(item) { const d = craftBonusDef(item); return d && d.gemMult ? d.gemMult : 1; }
 // v142: habilidades que vêm do bónus de Craft do Peitoral equipado (por agora só o Terramoto).
 function craftAbilityKeys(p) {
   const d = craftBonusDef(p && p.equipment && p.equipment.chest);
@@ -7614,7 +7629,7 @@ function abilityLevelOf(p, key) {
   if (ABILITIES[key] && ABILITIES[key].craft) return craftAbilityLevel(p);
   return p.abilities[key] ? p.abilities[key].level : 0;
 }
-function craftBonusDef(item) { return item && item.craftBonus && CRAFT_BONUS_DEFS[item.craftBonus.key] || null; }
+function craftBonusDef(item) { const d = item && item.craftBonus && CRAFT_BONUS_DEFS[item.craftBonus.key]; return d && d.slot === item.slot ? d : null; }
 function craftBonusChip(item) {
   const d = craftBonusDef(item);
   return d ? `<span class="pill craft-pill">${d.icon} ${d.label} <small>CRAFT</small></span>` : '';
@@ -7639,6 +7654,7 @@ function craftStatMax(item, stat) {
   const power = (1 + lv * 0.35) * rar.mult;
   const hi = 1 + STAT_VARIANCE;
   const ak = armorKindOf(item);
+  if (stat === 'dmg') return item.slot === 'weapon' ? Math.round(power * 1.4 * hi) : 0; // v164: forja de Armas
   if (stat === 'def') return Math.round(power * 1.1 * hi * (ak === 'hybrid' ? ES_HYBRID_DEF : 1));
   if (stat === 'es') return ak === 'def' ? 0 : Math.round(power * 1.1 * hi * ES_VALUE_MULT * (ak === 'hybrid' ? ES_HYBRID_ES : 1));
   if (stat === 'hp') return Math.round(power * 0.8 * hi);
@@ -7646,42 +7662,54 @@ function craftStatMax(item, stat) {
   if (stat === 'dmgReducedFromBossPct') return 0.08;
   return 0;
 }
-const CRAFT_IMPROVE_STATS = ['def', 'es', 'hp', 'crit', 'dmgReducedFromBossPct'];
+const CRAFT_IMPROVE_STATS = ['dmg', 'def', 'es', 'hp', 'crit', 'dmgReducedFromBossPct'];
 function craftImprovableStats(item) {
   return CRAFT_IMPROVE_STATS.filter(k => (item.baseStats[k] || 0) > 0 && (item.baseStats[k] || 0) < craftStatMax(item, k) - 1e-9);
 }
 function craftImproveItem(item) {
   craftImprovableStats(item).forEach(k => {
     const old = item.baseStats[k] || 0, max = craftStatMax(item, k);
-    const isInt = k === 'def' || k === 'hp' || k === 'es';
+    const isInt = k === 'def' || k === 'hp' || k === 'es' || k === 'dmg';
     let nv = isInt ? Math.max(old + 1, Math.round(old * (1 + CRAFT_IMPROVE_PCT))) : +(old * (1 + CRAFT_IMPROVE_PCT)).toFixed(4);
     nv = Math.min(max, nv);
     const delta = nv - old;
     item.baseStats[k] = nv;
     item.stats[k] = isInt ? Math.round((item.stats[k] || 0) + delta) : +((item.stats[k] || 0) + delta).toFixed(4);
+    // Armas: o intervalo mín–máx sobe na mesma proporção que o Dano médio.
+    if (k === 'dmg' && old > 0) {
+      const f = nv / old;
+      ['dmgMin', 'dmgMax'].forEach(x => {
+        if (item.baseStats[x] === undefined) return;
+        const ob = item.baseStats[x], nb = Math.max(1, Math.round(ob * f));
+        item.baseStats[x] = nb;
+        if (item.stats[x] !== undefined) item.stats[x] = Math.max(1, item.stats[x] + (nb - ob));
+      });
+    }
   });
 }
+function craftForgeSlot() { return CRAFT_FORGE_SLOTS.includes(App.hoForgeSlot) ? App.hoForgeSlot : 'chest'; }
 function craftForgeState(p) {
-  const h = p.hideout, eq = p.equipment && p.equipment.chest;
+  const slot = craftForgeSlot();
+  const h = p.hideout, eq = p.equipment && p.equipment[slot];
   const r = eq ? hoPartRarity(eq) : null;
-  const cands = eq ? (p.inventory || []).filter(it => it.slot === 'chest' && !it.locked && it.rarity === eq.rarity && Math.abs((it.itemLevel || 1) - (eq.itemLevel || 1)) <= CRAFT_FORGE_LEVEL_RANGE) : [];
+  const cands = eq ? (p.inventory || []).filter(it => it.slot === slot && !it.locked && it.rarity === eq.rarity && Math.abs((it.itemLevel || 1) - (eq.itemLevel || 1)) <= CRAFT_FORGE_LEVEL_RANGE) : [];
   if (!cands.some(x => x.id === App.hoForgeSac)) App.hoForgeSac = cands.length ? cands.slice().sort((a, b) => itemPowerScore(a) - itemPowerScore(b))[0].id : null;
   const sac = cands.find(x => x.id === App.hoForgeSac) || null;
   const parts = r ? (h.parts[r] || 0) : 0;
   const ready = !!(eq && (eq.upgrade || 0) >= 9 && sac && parts >= CRAFT_FORGE_PARTS);
-  return { eq, r, cands, sac, parts, ready, canImprove: !!(eq && craftImprovableStats(eq).length) };
+  return { slot, sn: craftForgeSlotName(slot), eq, r, cands, sac, parts, ready, canImprove: !!(eq && craftImprovableStats(eq).length) };
 }
 async function forgeAction(mode) {
   const p = App.player, h = p.hideout, st = craftForgeState(p);
   if (!h || !st.ready) { sfx.error(); return; }
-  if (mode === 'melhorar' && !st.canImprove) { sfx.error(); toast('Este Peitoral já está no máximo da raridade.'); return; }
+  if (mode === 'melhorar' && !st.canImprove) { sfx.error(); toast(`Est${st.slot === 'weapon' ? 'a' : 'e'} ${st.sn} já está no máximo da raridade.`); return; }
   const what = mode === 'melhorar' ? 'tentar melhorar' : 'tentar um bónus de Craft';
   const fhtml = `<p class="dc-lead">Vais ${what} com <b class="dc-pct">${Math.round(craftForgeChance(mode) * 100)}%</b> de hipótese de sucesso.</p>
     <div class="dc-rows">
       <div class="dc-row" style="--c:${st.sac.rarityColor}"><span class="dc-item-ic">${itemIconHtml(st.sac)}</span><span><b style="color:${st.sac.rarityColor}">${esc(st.sac.name)}</b><small>Sacrifício · Nv.${st.sac.itemLevel || 1} · gasta-se</small></span></div>
       <div class="dc-row" style="--c:${hoRarity(st.r).color}">${hoPartIc(st.r)}<span><b style="color:${hoRarity(st.r).color}">${CRAFT_FORGE_PARTS}× ${hoPartName(st.r)}</b><small>gastam-se (tens ${st.parts})</small></span></div>
     </div>
-    <p class="dc-warn">O teu Peitoral equipado nunca se perde.</p>`;
+    <p class="dc-warn">${st.slot === 'weapon' ? 'A tua' : 'O teu'} ${st.sn} equipad${st.slot === 'weapon' ? 'a' : 'o'} nunca se perde.</p>`;
   if (!await nxConfirm('', { html: fhtml, title: mode === 'melhorar' ? 'Tentar melhorar?' : 'Tentar bónus de Craft?', icon: nxIconSvg(mode === 'melhorar' ? 'hammer' : 'sparkle') || '⚒️', confirmLabel: mode === 'melhorar' ? '⚒️ Tentar' : '✨ Tentar', cancelLabel: 'Cancelar' })) return;
   p.inventory = p.inventory.filter(it => it.id !== st.sac.id);
   h.parts[st.r] -= CRAFT_FORGE_PARTS;
@@ -7692,13 +7720,13 @@ async function forgeAction(mode) {
   if (ok && mode === 'melhorar') {
     const before = itemStatsLine(eq);
     craftImproveItem(eq);
-    msg = `<p class="tiny">Os stats do teu Peitoral subiram.</p><p class="tiny muted" style="margin-top:6px;">Antes: ${before}</p><p class="tiny" style="margin-top:4px; color:var(--craft-green);">Agora: ${itemStatsLine(eq)}</p>`;
+    msg = `<p class="tiny">Os stats ${st.slot === 'weapon' ? 'da tua' : 'do teu'} ${st.sn} subiram.</p><p class="tiny muted" style="margin-top:6px;">Antes: ${before}</p><p class="tiny" style="margin-top:4px; color:var(--craft-green);">Agora: ${itemStatsLine(eq)}</p>`;
   } else if (ok) {
-    const keys = Object.keys(CRAFT_BONUS_DEFS);
+    const keys = craftBonusKeysFor(st.slot);
     const old = eq.craftBonus && eq.craftBonus.key;
     const k = keys[Math.floor(Math.random() * keys.length)];
     eq.craftBonus = { key: k };
-    msg = `<p class="tiny">O teu Peitoral ganhou um bónus de Craft:</p><div style="margin-top:8px;">${craftBonusChip(eq)}</div>${old && old !== k ? `<p class="tiny muted" style="margin-top:6px;">Substituiu: ${CRAFT_BONUS_DEFS[old].label}</p>` : ''}`;
+    msg = `<p class="tiny">${st.slot === 'weapon' ? 'A tua' : 'O teu'} ${st.sn} ganhou um bónus de Craft:</p><div style="margin-top:8px;">${craftBonusChip(eq)}</div>${old && old !== k && CRAFT_BONUS_DEFS[old] ? `<p class="tiny muted" style="margin-top:6px;">Substituiu: ${CRAFT_BONUS_DEFS[old].label}</p>` : ''}`;
   }
   if (ok) { sfx.evolve(); fxVibrate([20, 40, 20]); } else sfx.error();
   p.hp = Math.min(p.hp, effectiveStats(p).hp);
@@ -7706,7 +7734,7 @@ async function forgeAction(mode) {
   openModal(`<div style="text-align:center;">
       <div class="ho-forge-res ${ok ? 'ok' : 'ko'}">${ok ? (nxIconSvg(mode === 'melhorar' ? 'hammer' : 'sparkle') || '✨') : (nxIconSvg('skull') || '💥')}</div>
       <h3 style="margin:6px 0; color:${ok ? 'var(--craft-green)' : 'var(--blood-bright)'};">${ok ? 'Sucesso!' : 'Falhou'}</h3>
-      ${ok ? msg : `<p class="tiny">A forja não pegou. O item de sacrifício e as ${CRAFT_FORGE_PARTS} peças foram gastos; o teu Peitoral ficou igual.</p>`}
+      ${ok ? msg : `<p class="tiny">A forja não pegou. O item de sacrifício e as ${CRAFT_FORGE_PARTS} peças foram gastos; ${st.slot === 'weapon' ? 'a tua' : 'o teu'} ${st.sn} ficou igual.</p>`}
     </div>
     <button class="btn primary block" id="btn-forge-ok" style="margin-top:14px;">Continuar</button>`);
   $('btn-forge-ok').addEventListener('click', () => { closeModal(); renderTabHeroi(); });
@@ -7739,15 +7767,17 @@ function renderHoCraftJuntar(p, h) {
     <p class="tiny muted" style="margin-top:10px;">Peças de Set, Demoníacas, Divinas e da Temporada não se obtêm a juntar — só a desmanchar itens dessas raridades.</p>`;
 }
 function renderHoCraftForjar(p, h) {
-  const st = craftForgeState(p), eq = st.eq;
-  if (!eq) return `<div class="ho-note warn">Precisas de ter um Peitoral equipado. Por agora, a forja só funciona com Peitorais.</div>`;
+  const st = craftForgeState(p), eq = st.eq, sn = st.sn, fem = st.slot === 'weapon';
+  const pick = `<div class="ho-forge-pick">${CRAFT_FORGE_SLOTS.map(sl => { const it = p.equipment && p.equipment[sl];
+    return `<button class="ho-fp${sl === st.slot ? ' on' : ''}" data-ho-forge-slot="${sl}">${it ? itemIconHtml(it) : `<span class="ho-fp-empty">${sl === 'weapon' ? '⚔️' : '🛡️'}</span>`}<span><b>${craftForgeSlotName(sl)}</b><small>${it ? `+${it.upgrade || 0} · ${it.rarityName}` : 'nada equipado'}</small></span>${it && craftBonusDef(it) ? '<i class="ho-fp-dot"></i>' : ''}</button>`; }).join('')}</div>`;
+  if (!eq) return `${pick}<div class="ho-note warn">Precisas de ter ${fem ? 'uma Arma equipada' : 'um Peitoral equipado'} para usar a forja.</div>`;
   const col = eq.rarityColor, up9 = (eq.upgrade || 0) >= 9;
   const s1 = hoSlotHtml(1, itemIconHtml(eq), { c: up9 ? col : null, q: `+${eq.upgrade || 0}`, lb: 'Equipado' });
   const s2 = st.sac ? hoSlotHtml(2, itemIconHtml(st.sac), { c: col, q: `Nv.${st.sac.itemLevel || 1}`, lb: 'Sacrifício' }) : hoSlotHtml(2, '', { empty: '？', lb: 'Sacrifício' });
   const s3 = hoSlotHtml(3, hoPartIc(st.r), { c: st.parts >= CRAFT_FORGE_PARTS ? col : null, q: `${Math.min(st.parts, CRAFT_FORGE_PARTS)}/${CRAFT_FORGE_PARTS}`, lb: 'Peças' });
   const reqs = [
-    [up9, `Peitoral equipado a +9 (está a +${eq.upgrade || 0})`],
-    [!!st.sac, `Peitoral ${eq.rarityName} na Mochila, Nv. ${Math.max(1, (eq.itemLevel || 1) - CRAFT_FORGE_LEVEL_RANGE)}–${(eq.itemLevel || 1) + CRAFT_FORGE_LEVEL_RANGE}`],
+    [up9, `${sn} equipad${fem ? 'a' : 'o'} a +9 (está a +${eq.upgrade || 0})`],
+    [!!st.sac, `${sn} ${eq.rarityName} na Mochila, Nv. ${Math.max(1, (eq.itemLevel || 1) - CRAFT_FORGE_LEVEL_RANGE)}–${(eq.itemLevel || 1) + CRAFT_FORGE_LEVEL_RANGE}`],
     [st.parts >= CRAFT_FORGE_PARTS, `${CRAFT_FORGE_PARTS}× ${hoPartName(st.r)} (tens ${st.parts})`]
   ];
   const mode = App.hoForgeMode === 'melhorar' && st.canImprove ? 'melhorar' : (App.hoForgeMode === 'melhorar' ? 'bonus' : (App.hoForgeMode || 'bonus'));
@@ -7756,10 +7786,10 @@ function renderHoCraftForjar(p, h) {
   const maxRows = CRAFT_IMPROVE_STATS.filter(k => (eq.baseStats[k] || 0) > 0).map(k => {
     const isPct = k === 'crit' || k === 'dmgReducedFromBossPct';
     const f = v => isPct ? pct(v) : Math.round(v);
-    const lbl = { def: '<span class="st-def">Defesa</span>', es: '<span class="st-es">Escudo Mágico</span>', hp: 'HP', crit: 'Crítico', dmgReducedFromBossPct: 'Redução dano Bosses' }[k] || k;
+    const lbl = { dmg: 'Dano médio', def: '<span class="st-def">Defesa</span>', es: '<span class="st-es">Escudo Mágico</span>', hp: 'HP', crit: 'Crítico', dmgReducedFromBossPct: 'Redução dano Bosses' }[k] || k;
     return `<span>${lbl}: <b>${f(eq.baseStats[k])}</b> <i>/ máx. ${f(craftStatMax(eq, k))}</i></span>`;
   }).join('');
-  return `<div class="ho-bench">
+  return `${pick}<div class="ho-bench">
       <div class="ho-slots">${s1}<span class="ho-plus">+</span>${s2}<span class="ho-plus">+</span>${s3}</div>
       <div class="tiny ho-bench-cap"><b style="color:${col}">${esc(eq.name)}</b> · ${eq.rarityName} · Nv.${eq.itemLevel || 1}</div>
     </div>
@@ -7772,9 +7802,9 @@ function renderHoCraftForjar(p, h) {
     </div>
     ${mode === 'melhorar' ? `<div class="ho-maxrow">${maxRows}</div>` : `<div class="inv-label" style="margin-top:12px;">Bónus de Craft possíveis${cb ? ' · atual:' : ''}</div>
       ${cb ? `<div style="margin-bottom:6px;">${craftBonusChip(eq)}</div>` : ''}
-      <div class="ho-cbonus">${Object.keys(CRAFT_BONUS_DEFS).map(k => `<span>${CRAFT_BONUS_DEFS[k].icon} ${CRAFT_BONUS_DEFS[k].label}</span>`).join('')}</div>`}
+      <div class="ho-cbonus">${craftBonusKeysFor(st.slot).map(k => `<span>${CRAFT_BONUS_DEFS[k].icon} ${CRAFT_BONUS_DEFS[k].label}</span>`).join('')}</div>`}
     <button class="btn primary block" id="btn-ho-forge" style="margin-top:12px;"${st.ready && (mode !== 'melhorar' || st.canImprove) ? '' : ' disabled'}>${mode === 'melhorar' ? '⚒️ Tentar melhorar' : '✨ Tentar bónus de Craft'}</button>
-    <div class="ho-note warn">Sucesso ou falha, o item de sacrifício e as ${CRAFT_FORGE_PARTS} peças são gastos. O Peitoral equipado nunca se perde. Cada Peitoral só tem 1 bónus de Craft: um novo sucesso troca o anterior.</div>
+    <div class="ho-note warn">Sucesso ou falha, o item de sacrifício e as ${CRAFT_FORGE_PARTS} peças são gastos. ${fem ? 'A Arma equipada' : 'O Peitoral equipado'} nunca se perde. Cada ${sn} só tem 1 bónus de Craft: um novo sucesso troca o anterior.</div>
     ${st.cands.length > 1 ? `<div class="inv-label" style="margin-top:12px;">Item de sacrifício (${st.cands.length} possíveis)</div>
       ${st.cands.slice().sort((a, b) => itemPowerScore(a) - itemPowerScore(b)).slice(0, 30).map(it => `<div class="ho-row${it.id === App.hoForgeSac ? ' pick' : ''}" style="${rarityBoxStyle(it)}">
         <div class="item-ic">${itemIconHtml(it)}</div>
@@ -8040,6 +8070,7 @@ function bindHideoutStation(key) {
     els('[data-ho-join-r]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoJoinR = b.dataset.hoJoinR; rerender(); }));
     els('[data-ho-join]').forEach(b => b.addEventListener('click', () => joinPartsAction(App.hoJoinR, b.dataset.hoJoin === 'all' ? Infinity : 1)));
     els('[data-ho-forge-mode]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoForgeMode = b.dataset.hoForgeMode; rerender(); }));
+    els('[data-ho-forge-slot]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoForgeSlot = b.dataset.hoForgeSlot; App.hoForgeSac = null; rerender(); }));
     els('[data-ho-sac]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoForgeSac = b.dataset.hoSac; rerender(); }));
     const fb = $('btn-ho-forge'); if (fb) fb.addEventListener('click', () => forgeAction(App.hoForgeMode));
   } else if (key === 'boneco') {
@@ -10921,7 +10952,7 @@ function sanitizeItem(item) {
   item.nephalemBonus = nb && NEPHALEM_BONUS_POOL.some(x => x.key === nb.key) && Number.isFinite(Number(nb.value)) ? { key: nb.key, value: Number(nb.value) } : null;
   const ab = item.altarBonus && ALTAR_BONUS_POOL.find(x => x.key === item.altarBonus.key);
   item.altarBonus = ab ? { key: ab.key, dmgPct: ab.dmgPct, dmgVsBossPct: ab.dmgVsBossPct, dmgReducedFromBossPct: ab.dmgReducedFromBossPct, hpFlat: ab.hpFlat } : null;
-  if (item.craftBonus !== undefined) item.craftBonus = item.slot === 'chest' && item.craftBonus && CRAFT_BONUS_DEFS[item.craftBonus.key] ? { key: item.craftBonus.key } : null;
+  if (item.craftBonus !== undefined) item.craftBonus = item.craftBonus && CRAFT_BONUS_DEFS[item.craftBonus.key] && CRAFT_BONUS_DEFS[item.craftBonus.key].slot === item.slot ? { key: item.craftBonus.key } : null;
   const hpDebuff = item.corruption ? Number(item.corruption.hpDebuff) : NaN;
   item.corruption = Number.isFinite(hpDebuff) && hpDebuff > 0 ? { hpDebuff: Math.round(hpDebuff) } : null;
   item.setKey = item.setKey && SET_DEFS[item.setKey] ? item.setKey : null;
@@ -11028,8 +11059,8 @@ async function sellAllByRarity(rarityKey) {
 
 // v91: menu das Gemas no mesmo estilo da Alquimia/Feitiços.
 const GEM_COMBINE_COST = [100, 300];
-function gemStatText(type, tier) {
-  const d = GEM_DEFS[type], v = d.base * (tier + 1);
+function gemStatText(type, tier, mult) {
+  const d = GEM_DEFS[type], v = +(d.base * (tier + 1) * (mult || 1)).toFixed(4);
   if (d.stat === 'crit') return `+${Math.round(v * 100)}% Crítico`;
   if (d.stat === 'bossPct') return `+${Math.round(v * 100)}% Dano vs. Chefes`;
   if (d.stat === 'esPct') return `+${Math.round(v * 100)}% Escudo Mágico`;
@@ -11268,7 +11299,7 @@ function itemSheetHtml(item, slot, p) {
   add('👑', 'Red. dano de chefes', base.dmgReducedFromBossPct || 0, tot.dmgReducedFromBossPct || 0, pc1);
   // Gemas encaixadas
   const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
-  const gemLines = socks.filter(Boolean).map(g => `${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)} ${gemStatText(g.type, g.tier)}`);
+  const gemLines = socks.filter(Boolean).map(g => `${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)} ${gemStatText(g.type, g.tier, craftGemMult(item))}${craftGemMult(item) > 1 ? ' <span class="craft-x2">×2</span>' : ''}`);
   // Set
   let setHtml = '';
   if (item.setKey && SET_DEFS[item.setKey]) {
@@ -11317,7 +11348,7 @@ function itemSheetHtml(item, slot, p) {
       <div class="sheet-h" style="margin-top:8px;">➕ Bónus ➕ <span class="muted">(${item.plusBonus ? 1 : 0}/1)</span></div>
       ${item.plusBonus ? `<div>${plus2Chip(item.plusBonus)}</div>` : '<p class="tiny muted">Nenhum — usa um 📜 Feitiço ➕ (drop da Torre).</p>'}
       ${slot === 'weapon' ? `<div class="sheet-h" style="margin-top:8px;">💎 Nephalen</div><p class="tiny ${nb ? 'sheet-bonus' : 'muted'}">${nb ? `${nb.icon} ${nb.label(item.nephalemBonus.value)}` : up >= 9 ? 'Ainda sem bónus — podes usar uma Pedra Nephalen (abaixo).' : 'Disponível quando a arma estiver em +9.'}</p>` : ''}
-      ${(item.slot === 'chest') ? `<div class="sheet-h" style="margin-top:8px;">⚒️ Craft <span class="muted">(${craftBonusDef(item) ? 1 : 0}/1)</span></div>${craftBonusDef(item) ? `<div>${craftBonusChip(item)}</div>` : '<p class="tiny muted">Nenhum — Herói → Esconderijo → Bancada de Craft (Peitoral a +9).</p>'}` : ''}
+      ${CRAFT_FORGE_SLOTS.includes(item.slot) ? `<div class="sheet-h" style="margin-top:8px;">⚒️ Craft <span class="muted">(${craftBonusDef(item) ? 1 : 0}/1)</span></div>${craftBonusDef(item) ? `<div>${craftBonusChip(item)}</div>` : `<p class="tiny muted">Nenhum — Herói → Esconderijo → Bancada de Craft (${craftForgeSlotName(item.slot)} a +9).</p>`}` : ''}
       ${slot === 'artifact' ? `<div class="sheet-h" style="margin-top:8px;">🔥 Altar</div><p class="tiny ${ab ? 'sheet-bonus' : 'muted'}">${ab ? `${ab.icon} ${ab.name} — ${ab.desc}` : 'Sem bónus de Altar (Mapa → Altar).'}</p>` : ''}
     </div>
 
@@ -11325,7 +11356,7 @@ function itemSheetHtml(item, slot, p) {
       <div class="sheet-h">🔷 Encaixes de gemas <span class="muted">(${socks.filter(Boolean).length}/${socks.length})</span></div>
       <div class="sheet-socks">
         ${socks.map((g, i) => g
-          ? `<button class="sheet-sock on" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier)}</small><em>🗑️</em></button>`
+          ? `<button class="sheet-sock on" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier, craftGemMult(item))}</small><em>🗑️</em></button>`
           : `<button class="sheet-sock" data-open-socket="${i}"><span>◇</span><b>Vazio</b><small>+ Encaixar</small></button>`).join('')}
         ${(item.socketSlots || 1) < 3 ? `<button class="sheet-sock add" id="btn-add-socket"><span>＋</span><b>Abrir encaixe</b><small>${socketSlotCost(item)} 🪙</small></button>` : ''}
       </div>
@@ -15100,7 +15131,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v163</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v164</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
