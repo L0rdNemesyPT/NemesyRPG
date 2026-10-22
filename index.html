@@ -2283,6 +2283,10 @@ const BOSS_MONSTER_PARTS = {
   pena_fenix_estelar_ancestral: { name: 'Pena de Fênix Estelar Ancestral', icon: '🌟' },
   nucleo_cristal_ancestral: { name: 'Núcleo de Cristal Ancestral', icon: '💠' }
 };
+// v167: cada parte sabe a sua chave (para o ícone material-<chave>).
+[MONSTER_PARTS, BOSS_MONSTER_PARTS].forEach(T => Object.keys(T).forEach(k => { T[k].key = k; }));
+function setIc(key) { const d = SET_DEFS[key]; return d ? nxEnt('set-' + key, d.icon) : ''; }
+function partIc(part) { return part ? nxEnt('material-' + part.key, part.icon) : ''; }
 // Liga cada parte normal (dropada por monstros comuns) à sua versão de boss.
 const BOSS_PART_FOR = {
   pelo_lobo: 'pelo_lobo_alfa', escama_salamandra: 'escama_salamandra_ancestral',
@@ -2326,7 +2330,7 @@ function rollBossPartDrop(p, partKeys, luck) {
   p.monsterParts = p.monsterParts || {};
   p.monsterParts[key] = (p.monsterParts[key] || 0) + 1;
   const part = BOSS_MONSTER_PARTS[key];
-  return `${part.icon} Parte de Boss encontrada: ${part.name}! (Up+ → Biólogo+)`;
+  return `${partIc(part)} Parte de Boss encontrada: ${part.name}! (Up+ → Biólogo+)`;
 }
 
 // Missões do Biólogo: uma de 15 em 15 níveis a começar no 30. Cada uma pede uma
@@ -3107,6 +3111,13 @@ if (typeof document !== 'undefined' && document.addEventListener) {
       const sp = document.createElement('span'); sp.className = 'hero-av-fallback'; sp.textContent = t.dataset.avFallback; t.replaceWith(sp);
     }
   }, true);
+}
+// v167: ícone (imagem) da classe/evolução — classe-<chave>.
+function classIc(key, emoji) { return nxEnt('classe-' + key, emoji); }
+function heroIconHtml(player) {
+  const cls = player && CLASSES[player.class];
+  const evo = cls && player.evolution ? (EVOLUTIONS[player.class] || []).find(e => e.key === player.evolution) : null;
+  return evo ? classIc(evo.key, evo.icon) : cls ? classIc(player.class, cls.icon) : '🧝';
 }
 function heroIcon(player) {
   const cls = player && CLASSES[player.class];
@@ -5635,7 +5646,7 @@ function renderWikiBody() {
         const s = SET_DEFS[k];
         const dungeon = DUNGEONS.find(d => d.setKey === k);
         return `<div class="card raised">
-          <span style="font-weight:700;">${s.icon} ${s.name}</span>
+          <span style="font-weight:700;">${setIc(k)} ${s.name}</span>
           ${s.bonuses.map(b => `<p class="tiny" style="margin-top:5px;">${b.count}+ peças: ${b.desc}</p>`).join('')}
           ${dungeon ? `<p class="tiny" style="margin-top:6px; color:var(--gold-bright);">Obtido em: ${dungeon.icon} ${dungeon.name}</p>` : ''}
         </div>`;
@@ -5701,8 +5712,8 @@ function renderWikiBody() {
       ${Object.keys(CLASSES).map(ck => {
         const cls = CLASSES[ck];
         const evos = EVOLUTIONS[ck] || [];
-        return `<div class="section-title">${cls.icon} ${cls.name}</div>${cls.abilities.map(abCard).join('')}
-          ${evos.map(e => `<div class="tiny muted" style="margin:4px 0 6px;">${e.icon} Evolução ${e.name}</div>${abCard(e.ability)}`).join('')}`;
+        return `<div class="section-title">${classIc(ck, cls.icon)} ${cls.name}</div>${cls.abilities.map(abCard).join('')}
+          ${evos.map(e => `<div class="tiny muted" style="margin:4px 0 6px;">${classIc(e.key, e.icon)} Evolução ${e.name}</div>${abCard(e.ability)}`).join('')}`;
       }).join('')}
       <div class="section-title">🪨 Habilidade de Craft</div>
       <div class="card raised" style="margin-bottom:10px;">
@@ -8163,7 +8174,7 @@ function renderTabHeroi() {
     App.heroiTab = null;
     App.guildTab = null;
     $('hub-content').innerHTML = `
-      <div class="section-title">${heroIcon(p)} Herói</div>
+      <div class="section-title">${heroIconHtml(p)} Herói</div>
       <p class="muted" style="margin-bottom:12px;">Escolhe o que queres ver.</p>
       <div class="wiki-grid">
         ${sections.map(s => `<button class="wiki-tile${s.locked ? ' is-locked' : ''}" data-heroitab="${s.key}">
@@ -9510,7 +9521,7 @@ function renderHeroiPerfilBody(part) {
       ${EVOLUTIONS[p.class].map(e => `
         <div class="card raised" data-evolve="${e.key}">
           <div class="row" style="gap:10px;">
-            <div style="font-size:26px;">${e.icon}</div>
+            <div style="font-size:26px;">${classIc(e.key, e.icon)}</div>
             <div style="flex:1;">
               <div style="font-weight:700;">${e.name}</div>
               <div class="tiny">Nova habilidade: ${ABILITIES[e.ability].icon} ${ABILITIES[e.ability].name} — ${ABILITIES[e.ability].desc}</div>
@@ -9523,7 +9534,7 @@ function renderHeroiPerfilBody(part) {
     `;
   } else if (p.evolution) {
     const evo = EVOLUTIONS[p.class].find(e => e.key === p.evolution);
-    evoHtml = `<div class="section-title">🌟 Evolução</div><div class="card raised"><div class="row" style="gap:10px;"><div style="font-size:26px;">${evo.icon}</div><div><div style="font-weight:700;">${evo.name}</div><div class="tiny">Caminho de evolução ativo</div></div></div></div>`;
+    evoHtml = `<div class="section-title">🌟 Evolução</div><div class="card raised"><div class="row" style="gap:10px;"><div style="font-size:26px;">${classIc(evo.key, evo.icon)}</div><div><div style="font-weight:700;">${evo.name}</div><div class="tiny">Caminho de evolução ativo</div></div></div></div>`;
   }
 
   const allAbilities = cls.abilities.concat(p.evolution ? [EVOLUTIONS[p.class].find(e => e.key === p.evolution).ability] : []);
@@ -9644,7 +9655,7 @@ function renderHeroiPerfilBody(part) {
       ${petsHtml}`;
   } else {
     html = heroSheetHtml + `
-    <div class="section-title">${heroIcon(p)} ${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
+    <div class="section-title">${heroIconHtml(p)} ${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
     <div class="stat-grid">
       <div class="stat-box"><div class="v">${stats.hp}</div><div class="k">HP máximo</div></div>
       <div class="stat-box"><div class="v">${stats.dmgMin}–${stats.dmgMax}</div><div class="k">Dano</div></div>
@@ -10024,7 +10035,7 @@ function renderMochilaBody() {
             <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.locked ? '🔒 ' : ''}${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
             ${badge(cmp)}
           </div>
-          <div class="item-sub tiny" style="color:${item.rarityColor}">${SLOT_NAMES[item.slot]} · Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ` · <span style="color:var(--gold-bright);">${SET_DEFS[item.setKey].icon} ${SET_DEFS[item.setKey].name}</span>` : ''}</div>
+          <div class="item-sub tiny" style="color:${item.rarityColor}">${SLOT_NAMES[item.slot]} · Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ` · <span style="color:var(--gold-bright);">${setIc(item.setKey)} ${SET_DEFS[item.setKey].name}</span>` : ''}</div>
           <div class="item-stats">${itemStatsLine(item)}</div>
           ${bonusChips ? `<div class="row" style="gap:4px; flex-wrap:wrap; margin-top:5px;">${bonusChips}</div>` : ''}
         </div>
@@ -11350,7 +11361,7 @@ function itemSheetHtml(item, slot, p) {
   if (item.setKey && SET_DEFS[item.setKey]) {
     const sd = SET_DEFS[item.setKey];
     const have = EQUIP_SLOTS.filter(s => p.equipment[s] && p.equipment[s].setKey === item.setKey).length;
-    setHtml = `<div class="sheet-sec"><div class="sheet-h">${sd.icon} ${sd.name} <span class="muted">(${have} peças)</span></div>
+    setHtml = `<div class="sheet-sec"><div class="sheet-h">${setIc(item.setKey)} ${sd.name} <span class="muted">(${have} peças)</span></div>
       ${sd.bonuses.map(b => `<p class="tiny sheet-set${have >= b.count ? ' on' : ''}">${have >= b.count ? '✅' : '▫️'} ${b.count} peças: ${b.desc}</p>`).join('')}</div>`;
   }
   // Ferreiro
@@ -12395,7 +12406,7 @@ function leaderboardRowsHtml(rows, valueFn) {
       <div class="item-ic">${medals[i] || (i + 1)}</div>
       <div class="item-mid">
         <div class="item-name">${esc(r.name)}${r.is_me ? ' <span class="tiny" style="color:var(--gold-bright);">(tu)</span>' : ''}</div>
-        <div class="tiny">${cls.icon} ${cls.name} · Nível ${Number(r.level) || 1}</div>
+        <div class="tiny">${classIc(CLASSES[r.class] ? r.class : 'guerreiro', cls.icon)} ${cls.name} · Nível ${Number(r.level) || 1}</div>
       </div>
       <div style="font-weight:800; color:var(--gold-bright); white-space:nowrap;">${valueFn(r)}</div>
     </div>`;
@@ -12702,7 +12713,7 @@ function renderQuestCard(q, part, have, done, locked, reward, accent, turninAttr
   const ready = !locked && !done && have >= q.qty;
   return `<div class="card raised" style="border-left:3px solid ${done ? 'var(--gold-bright)' : locked ? 'var(--line)' : accent}; ${locked ? 'opacity:0.6;' : ''} margin-bottom:10px;">
     <div class="row" style="gap:12px; align-items:center;">
-      <div style="font-size:30px;">${part.icon}</div>
+      <div style="font-size:30px;">${partIc(part)}</div>
       <div style="flex:1;">
         <div class="row between" style="align-items:center;">
           <span style="font-weight:700; font-family:var(--font-display);">Nível ${q.level}</span>
@@ -12806,7 +12817,7 @@ function turnInBiologoQuest(level) {
   renderStatusBar();
   renderBiologoBody();
   showInfoModal('🔬', 'Missão do Biólogo concluída!', `
-    <p class="tiny">Entregaste ${q.qty}x ${MONSTER_PARTS[q.partKey].icon} ${MONSTER_PARTS[q.partKey].name}.</p>
+    <p class="tiny">Entregaste ${q.qty}x ${partIc(MONSTER_PARTS[q.partKey])} ${MONSTER_PARTS[q.partKey].name}.</p>
     <div class="divider"></div>
     <p class="tiny">+${reward.xp} XP</p>
     <p class="tiny">+${reward.gold} 🪙 Ouro</p>
@@ -12840,7 +12851,7 @@ function turnInBiologoPlusQuest(level) {
   renderStatusBar();
   renderBiologoPlusBody();
   showInfoModal('☠️', 'Missão do Biólogo+ concluída!', `
-    <p class="tiny">Entregaste ${q.qty}x ${BOSS_MONSTER_PARTS[q.partKey].icon} ${BOSS_MONSTER_PARTS[q.partKey].name}.</p>
+    <p class="tiny">Entregaste ${q.qty}x ${partIc(BOSS_MONSTER_PARTS[q.partKey])} ${BOSS_MONSTER_PARTS[q.partKey].name}.</p>
     <div class="divider"></div>
     <p class="tiny">+${reward.xp} XP</p>
     <p class="tiny">+${reward.gold} 🪙 Ouro</p>
@@ -14320,7 +14331,7 @@ function wildRewardRoll(c) {
     p.monsterParts = p.monsterParts || {};
     p.monsterParts[monsterDef.partKey] = (p.monsterParts[monsterDef.partKey] || 0) + 1;
     const part = MONSTER_PARTS[monsterDef.partKey];
-    drops.push(`${part.icon} Encontraste: ${part.name}! (Up+ → Biólogo)`);
+    drops.push(`${partIc(part)} Encontraste: ${part.name}! (Up+ → Biólogo)`);
   }
   // Partes de Boss (Biólogo+): só o chefe ligado a cada parte a deixa cair.
   if (isBoss) {
@@ -15238,7 +15249,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v166</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v167</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16308,9 +16319,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 166;
+const NX_ICON_VER = 167;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
