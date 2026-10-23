@@ -1736,3 +1736,27 @@ div.nx-confirm-msg{text-align:left;}
 .cmp-hero-row em.up{color:#8ee06a;} .cmp-hero-row em.down{color:#e07a6a;} .cmp-hero-row em.eq{color:var(--muted);}
 .cmp-actions{display:flex; gap:8px; margin-top:12px;} .cmp-actions .btn{flex:1;}
 .cmp-extras .pill{white-space:normal; display:inline-block; max-width:100%; line-height:1.25; text-align:left;}
+
+/* v171: Boss Soberano */
+.sob-card{border-color:rgba(255,90,60,.55) !important; box-shadow:0 0 18px rgba(255,60,30,.12);}
+.sob-head{display:flex; gap:12px; align-items:center;}
+.sob-ic{width:78px; height:78px; flex:none; display:grid; place-items:center; font-size:48px; border-radius:14px; background:radial-gradient(circle,#3a120c,#140806); border:1px solid rgba(255,90,60,.45);}
+.sob-ic .nx-ic{width:70px; height:70px;}
+.sob-name{font-family:var(--font-display); font-weight:700; font-size:17px; color:#ffb08a; line-height:1.2; margin-bottom:4px;}
+.sob-stats{display:flex; gap:8px; margin-top:10px;} .sob-stats span{flex:1; text-align:center; font-weight:700; font-size:13px; padding:6px 4px; border-radius:8px; background:#120c08; border:1px solid var(--line);}
+.sob-stage{margin-top:10px; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:#100b07;}
+.sob-stage.fury{border-color:rgba(255,60,40,.5); background:linear-gradient(180deg,rgba(120,20,10,.25),#100b07);}
+.sob-st-h{font-weight:800; font-size:12px; letter-spacing:.04em; color:var(--gold-bright); margin-bottom:4px; display:flex; align-items:center; gap:6px;}
+.sob-stage.fury .sob-st-h{color:#ff8a7a;} .sob-mini .nx-ic{width:22px; height:22px;}
+.enemy-glyph.soberano{box-shadow:0 0 0 2px #e4bf4a, 0 0 18px rgba(228,191,74,.45) !important;}
+.enemy-glyph.soberano.phase2{box-shadow:0 0 0 2px #ff3b2a, 0 0 26px rgba(255,59,42,.75), inset 0 0 18px rgba(255,59,42,.35) !important;}
+
+/* v173: Ascensão (Coração do Soberano) */
+.asc-badge{font-size:10px; font-weight:800; letter-spacing:.03em; padding:1px 6px; border-radius:6px; color:#ffe9a8; background:linear-gradient(90deg,#7a1d10,#b8501a); border:1px solid #ffb35a; box-shadow:0 0 8px rgba(255,140,60,.55); text-shadow:0 0 4px rgba(255,200,120,.8); white-space:nowrap; vertical-align:middle;}
+.asc-txt{color:#ffb070 !important;}
+.asc-pill{border-color:#ffb35a !important; color:#ffd59a !important; background:linear-gradient(90deg,rgba(122,29,16,.55),rgba(184,80,26,.45)); box-shadow:0 0 10px rgba(255,140,60,.35);}
+.asc-box{margin-top:10px; padding:10px; border-radius:10px; border:1px solid rgba(255,140,60,.55); background:linear-gradient(180deg,rgba(110,25,12,.35),var(--bg-void)); box-shadow:inset 0 0 18px rgba(255,90,30,.12);}
+.asc-h{font-family:var(--font-display); font-weight:700; color:#ffb070; margin-bottom:6px; display:flex; align-items:center; gap:6px;}
+.asc-h .nx-ic{width:22px; height:22px;}
+.btn.asc-btn{background:linear-gradient(180deg,#d8642a,#8a2412); color:#fff3dc; border:1px solid #ffb35a; box-shadow:0 0 12px rgba(255,120,50,.45);}
+.sheet-head.asc{box-shadow:0 0 0 1px #ffb35a, 0 0 18px rgba(255,120,50,.35) !important;}

@@ -1024,7 +1024,10 @@ const TALISMAN_DEFS = {
     source: 'Imperatriz do Eclipse, chefe final do Santuário do Eclipse — 20% de hipótese por conclusão.' },
   // Exclusivo da Temporada 1: nunca expira.
   protetor: { name: '[Talismã Protetor ⭐]', icon: '🛡️', hp: 50, def: 10, dropLuck: 0, permanent: true, season: 1,
-    source: 'Recompensa da missão 7 da Temporada 1 (Cidade → Temporada).' }
+    source: 'Recompensa da missão 7 da Temporada 1 (Cidade → Temporada).' },
+  // v173: drop do Boss Soberano (Moloch). Feito para lutar contra chefes.
+  soberano: { name: '[Talismã do Soberano 👑]', icon: '👑', hp: 300, def: 0, bossPct: 0.08, bossRed: 0.05, dropLuck: 0, duration: 100, noTrade: true,
+    source: 'Moloch, o Rei Devorador (Mapa → Desafios → Boss Soberano) — 12% de hipótese por vitória. Não se pode vender.' }
 };
 function talismanIsActive(t) {
   const d = t && TALISMAN_DEFS[t.key];
@@ -1042,6 +1045,8 @@ function talismanStatsLabel(d) {
   if (d.xpPct) parts.push(`+${Math.round(d.xpPct * 100)}% XP ganho nas batalhas`);
   if (d.crit) parts.push(`+${Math.round(d.crit * 100)}% Crítico`);
   if (d.dmgPct) parts.push(`+${Math.round(d.dmgPct * 100)}% Dano`);
+  if (d.bossPct) parts.push(`+${Math.round(d.bossPct * 100)}% Dano contra Chefes`);
+  if (d.bossRed) parts.push(`−${Math.round(d.bossRed * 100)}% dano recebido de Chefes`);
   return parts.join(' · ');
 }
 
@@ -3196,7 +3201,7 @@ function effectiveStats(player) {
     if (!item) return;
     if (slot === 'offhand' && offWeapon && !offWeaponOn) return; // 2.ª arma sem Lâminas Gémeas: não conta
     hp += item.stats.hp || 0;
-    const up = item.upgrade || 0;
+    const up = itemUpLv(item);
     let itemDmg = (item.stats.dmg || 0) + Math.round((item.baseStats.dmg || 0) * 0.10 * up);
     let itemDmgMin, itemDmgMax;
     if (item.stats.dmgMin !== undefined && item.stats.dmgMax !== undefined) {
@@ -3250,7 +3255,7 @@ function effectiveStats(player) {
     // Defesa/Crítico): rolam na geração do item consoante o slot, e também sobem com o
     // Reforço (+10% do valor base por nível, até +9).
     if (slot === 'offhand' && offWeapon && !offWeaponOn) return;
-    const up = item.upgrade || 0;
+    const up = itemUpLv(item);
     if (item.stats.regenPct) itemRegenPct += item.stats.regenPct + Math.round((item.baseStats.regenPct || 0) * 0.10 * up);
     if (item.stats.dmgReducedFromBossPct) itemDmgReducedFromBossPct += item.stats.dmgReducedFromBossPct + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up;
     if (item.plusBonus) {
@@ -3315,6 +3320,7 @@ function effectiveStats(player) {
   let professionRegenPct = 0, dropLuckBonus = itemCraftLuck;
   if (talisman) dropLuckBonus += TALISMAN_DEFS[talisman.key].dropLuck || 0;
   if (talisman) dmgPctTotal += TALISMAN_DEFS[talisman.key].dmgPct || 0;
+  if (talisman) { itemDmgVsBossPct += TALISMAN_DEFS[talisman.key].bossPct || 0; itemDmgReducedFromBossPct += TALISMAN_DEFS[talisman.key].bossRed || 0; }
   setBonuses.forEach(b => {
     if (b.dmgPct) dmgPctTotal += b.dmgPct;
     if (b.hpPct) hpPctTotal += b.hpPct;
@@ -3388,9 +3394,14 @@ const BONUS_SCORE_WEIGHTS = {
   dano_pct: 15, vs_animais: 8, vs_humanos: 8, vs_demonios: 6, vs_mortos: 6, dano_habilidade: 10, atordoamento: 10,
   esquiva: 30, regeneracao: 30, envenenamento: 6
 };
+// v173: Ascensão — um item +9 pode ser "Ascendido" com um Coração do Soberano. Continua a +9,
+// mas conta como mais ASCEND_EXTRA_LEVELS níveis de melhoria (+20% dos stats base) e mostra "✦ Ascendido".
+const ASCEND_EXTRA_LEVELS = 2;
+function itemUpLv(item) { return item ? (item.upgrade || 0) + (item.ascended ? ASCEND_EXTRA_LEVELS : 0) : 0; }
+function upBadge(item) { return item && item.ascended ? ' <span class="asc-badge">✦ Ascendido</span>' : item && item.upgrade ? ` <span class="upgrade-badge">+${Number(item.upgrade) || 0}</span>` : ''; }
 function itemBonusScore(item) {
   let score = 0;
-  const up = item.upgrade || 0;
+  const up = itemUpLv(item);
   const dmgNow = (item.stats.dmg || 0) + Math.round((item.baseStats.dmg || 0) * 0.10 * up);
   if (itemInnateMedio(item)) score += dmgNow * (itemInnateMedio(item) / 100) * 3;
   (item.bonuses || []).forEach(b => {
@@ -3431,7 +3442,7 @@ function itemBonusScore(item) {
 }
 function itemPowerScore(item) {
   if (!item) return 0;
-  const up = item.upgrade || 0;
+  const up = itemUpLv(item);
   const hp = (item.stats.hp || 0) + Math.round((item.baseStats.hp || 0) * 0.10 * up);
   const dmg = (item.stats.dmg || 0) + Math.round((item.baseStats.dmg || 0) * 0.10 * up);
   const def = (item.stats.def || 0) + Math.round((item.baseStats.def || 0) * 0.10 * up);
@@ -3536,6 +3547,142 @@ function generateCryptWeapon(lv, quality, skinKey, divinoChance) {
   item.skin = k;
   item.innateMedio = CRYPT_MEDIO_MIN + Math.floor(Math.random() * (CRYPT_MEDIO_MAX - CRYPT_MEDIO_MIN + 1));
   return item;
+}
+
+
+// ============================================================
+// 👑 BOSS SOBERANO (v171) — desafio em Mapa → Desafios. Um combate só, contra um chefe
+// muito mais forte que os normais do mesmo nível, com habilidades próprias e 2 fases:
+// aos 50% de HP enfurece (imagem nova, mais dano/defesa, regenera, limpa efeitos e ganha
+// habilidades novas). 3 tentativas por dia; perder não tira ouro, só gasta a tentativa.
+// ============================================================
+const SOBERANO_DAILY_TRIES = 3;
+const SOBERANOS = [
+  { key: 'moloch', name: 'Moloch, o Rei Devorador', icon: '👹', lv: 200, minLv: 180, category: 'demonio',
+    // v172: afinado com simulação (Divino +9 + gemas T3 + buffs): combates de ~6–20 rondas.
+    mult: { hp: 14, dmg: 1.2, def: 1.6 },
+    stage2: { atPct: 0.5, name: 'Moloch Enfurecido', icon: '👺', mult: { dmg: 1.35, def: 1.2 }, regenPct: 0.02 },
+    skillChance: 0.30,
+    skills1: [
+      { type: 'heavy', icon: '🪨', label: 'Punho Sísmico', desc: 'golpe esmagador (×1,7 de dano)' },
+      { type: 'defbreak', icon: '👁️', label: 'Olho Soberano', desc: 'quebra a tua defesa' },
+      { type: 'burn', icon: '🔥', label: 'Chamas Infernais', desc: 'deixa-te a arder' }
+    ],
+    skills2: [
+      { type: 'multi', icon: '💢', label: 'Fúria Soberana', desc: 'dois golpes seguidos' },
+      { type: 'lifesteal', icon: '🩸', label: 'Devorar Almas', desc: 'rouba-te vida' },
+      { type: 'crit_guaranteed', icon: '⚔️', label: 'Golpe Implacável', desc: 'crítico garantido' },
+      { type: 'heavy', icon: '🪨', label: 'Punho Sísmico', desc: 'golpe esmagador (×1,7 de dano)' }
+    ],
+    rewards: { xpMult: 5, goldMult: 5, rolls: 4, divino: 0.06, nephalem: 0.25, core: 0.10, plus: 0.15, heart: 0.20, talisman: 0.12 } }
+];
+function soberanoDay() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+function soberanoState(p) {
+  p.soberano = p.soberano && typeof p.soberano === 'object' ? p.soberano : {};
+  const st = p.soberano;
+  if (st.day !== soberanoDay()) { st.day = soberanoDay(); st.tries = 0; }
+  st.tries = clamp(Math.floor(Number(st.tries) || 0), 0, SOBERANO_DAILY_TRIES);
+  st.kills = st.kills && typeof st.kills === 'object' ? st.kills : {};
+  return st;
+}
+function soberanoTriesLeft(p) { return SOBERANO_DAILY_TRIES - soberanoState(p).tries; }
+function soberanoStats(B) {
+  const e = enemyStatsFor(B.lv, true), m = B.mult || {};
+  e.hp = Math.round(e.hp * (m.hp || 1)); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * (m.dmg || 1)); e.def = Math.round(e.def * (m.def || 1));
+  return e;
+}
+function soberanoRewardsText(B) {
+  const r = B.rewards, pc = v => `${String(Math.round(v * 1000) / 10).replace('.', ',')}%`;
+  return [`${nxEnt('coracao-soberano', '❤️‍🔥')} <b>Coração do Soberano</b> (${pc(r.heart)}; garantido na 1.ª vitória)`, `${nxEnt('talisma-soberano', '👑')} <b>Talismã do Soberano</b> (${pc(r.talisman)})`, `${r.xpMult}× o XP e o ouro de um chefe normal`, `${CHEST_DEFS.equip.icon} item Nv. ${B.lv} garantido (${r.rolls} rolos de raridade)`, `💠 item Divino (${pc(r.divino)})`,
+    `💎 Pedra Nephalen (${pc(r.nephalem)})`, `✨ Pedra do Núcleo (${pc(r.core)})`, `📜➕ Pergaminho ➕ (${pc(r.plus)})`].join(' · ');
+}
+function soberanoCardHtml(B, p, withButton) {
+  const e = soberanoStats(B), locked = (p.level || 1) < B.minLv, kills = soberanoState(p).kills[B.key] || 0, left = soberanoTriesLeft(p);
+  return `<div class="card raised sob-card">
+      <div class="sob-head">
+        <div class="sob-ic">${nxCreature(B.name, B.icon)}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="sob-name">${B.name}</div>
+          <div class="tiny"><span class="pill">Nv. ${B.lv}</span> ${CATEGORY_INFO[B.category].icon} ${CATEGORY_INFO[B.category].name}${kills ? ` · <span style="color:var(--gold-bright);">👑 Derrotado ${kills}×</span>` : ''}</div>
+        </div>
+      </div>
+      <div class="sob-stats"><span>❤️ ${nxNum(e.hp)}</span><span>⚔️ ${nxNum(e.dmg)}</span><span>🛡️ ${nxNum(e.def)}</span></div>
+      <div class="sob-stage"><div class="sob-st-h">Fase 1 · 100% → ${Math.round(B.stage2.atPct * 100)}% de HP</div>
+        ${B.skills1.map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('')}</div>
+      <div class="sob-stage fury"><div class="sob-st-h"><span class="sob-mini">${nxCreature(B.stage2.name, B.stage2.icon)}</span> Fase 2 · Enfurecido (abaixo de ${Math.round(B.stage2.atPct * 100)}%)</div>
+        <p class="tiny">💢 +${Math.round((B.stage2.mult.dmg - 1) * 100)}% dano, +${Math.round((B.stage2.mult.def - 1) * 100)}% defesa, regenera ${Math.round(B.stage2.regenPct * 100)}% do HP por ronda e livra-se de todos os efeitos.</p>
+        ${B.skills2.filter(k => !B.skills1.some(x => x.label === k.label)).map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('')}</div>
+      <p class="tiny" style="margin-top:8px;">🎁 ${soberanoRewardsText(B)}</p>
+      <p class="tiny muted" style="margin-top:4px;">A partir do nível ${B.minLv}. Perder não te tira ouro — só gasta a tentativa.</p>
+      ${withButton ? `<button class="btn danger block" data-sob-fight="${B.key}" style="margin-top:10px;"${locked || left <= 0 ? ' disabled' : ''}>${locked ? `🔒 Precisas de nível ${B.minLv}` : left <= 0 ? '⏳ Sem tentativas hoje' : `👑 Desafiar (${left}/${SOBERANO_DAILY_TRIES})`}</button>` : ''}
+    </div>`;
+}
+function renderSoberanoBody(body) {
+  const p = App.player, left = soberanoTriesLeft(p);
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Desafia um Soberano: um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e 2 fases de combate. Tens <b>${left}/${SOBERANO_DAILY_TRIES}</b> tentativas hoje.</p>
+    ${SOBERANOS.map(B => soberanoCardHtml(B, p, true)).join('')}`;
+  els('[data-sob-fight]').forEach(b => b.addEventListener('click', () => startSoberano(b.dataset.sobFight)));
+}
+function startSoberano(key) {
+  if (!guardAllowsFight(() => startSoberano(key))) return;
+  const p = App.player, B = SOBERANOS.find(x => x.key === key);
+  if (!B || (p.level || 1) < B.minLv) return;
+  if (soberanoTriesLeft(p) <= 0) { sfx.error(); toast('Já usaste as tentativas de hoje. Volta amanhã!'); return; }
+  sfx.click();
+  soberanoState(p).tries++;
+  saveGame();
+  App.combat = {
+    kind: 'soberano', isSoberano: true, soberanoDef: B, name: B.name, icon: B.icon, level: B.lv, isBoss: true, isDungeon: false,
+    enemy: Object.assign(soberanoStats(B), { element: null, critImmune: false, category: B.category }),
+    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0 },
+    cooldowns: {}, log: [], eventApplied: null, ended: false
+  };
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `👑 ${B.name} (Nv. ${B.lv}) aceita o teu desafio! Muito mais forte do que um chefe normal.`, cls: 'hit' });
+  renderCombat();
+}
+// Fase 2 do Soberano (chamado no início da vez do inimigo).
+function soberanoStageCheck(c) {
+  const B = c && c.isSoberano ? c.soberanoDef : null;
+  if (!B || c.soberanoStage2 || c.enemy.hp <= 0 || c.enemy.hp > c.enemy.maxHp * B.stage2.atPct) return;
+  c.soberanoStage2 = true;
+  const m = B.stage2.mult;
+  c.enemy.dmg = Math.round(c.enemy.dmg * m.dmg); c.enemy.def = Math.round(c.enemy.def * m.def);
+  const old = c.name; c.name = B.stage2.name; c.icon = B.stage2.icon;
+  if (c.battleState) { c.battleState.enemyStatus = []; c.battleState.enemyDefDebuff = null; c.battleState.enemyStunned = false; }
+  addCombatLog({ text: `💢 ${old} ENFURECE! Torna-se ${B.stage2.name}: mais dano e defesa, regenera vida e livra-se de todos os efeitos.`, cls: 'crit' });
+  try { sfx.evolve(); } catch (e) {}
+  const g = document.getElementById('cb-enemy-glyph');
+  if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
+}
+function finishSoberano() {
+  const c = App.combat, p = App.player, B = c.soberanoDef, r = B.rewards;
+  const xpGain = Math.round((35 + B.lv * 4.5) * r.xpMult * (1 + battleXpBonus(c)));
+  const goldGain = Math.round((30 + B.lv * 4) * r.goldMult * (1 + (effectiveStats(p).goldPct || 0)));
+  p.gold += goldGain; grantXp(xpGain);
+  p.stats.wins++; p.stats.bossesKilled = (p.stats.bossesKilled || 0) + 1;
+  const st = soberanoState(p); const first = !st.kills[B.key]; st.kills[B.key] = (st.kills[B.key] || 0) + 1;
+  const drops = [`${xpGain} XP`, `${goldGain} 🪙 Ouro`];
+  if (first || Math.random() < r.heart) { p.soberanoHearts = (p.soberanoHearts || 0) + 1; drops.push(`${nxEnt('coracao-soberano', '❤️‍🔥')} Coração do Soberano!${first ? ' (1.ª vitória)' : ''} — Ascende um item +9 no Ferreiro`); }
+  if (Math.random() < r.talisman) { const t = grantTalisman(p, 'soberano'); if (t) drops.push(`${nxEnt('talisma-soberano', '👑')} ${TALISMAN_DEFS.soberano.name}!`); }
+  const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+  const divino = Math.random() < r.divino;
+  const item = generateItem(slot, B.lv, null, r.rolls, divino ? DIVINO_RARITY : null);
+  p.inventory.push(item);
+  drops.push(`${divino ? '💠✨ ITEM DIVINO! ' : ''}${rarIc(item.rarity, item.rarityIcon)} ${item.name} · ${item.rarityName}`);
+  if (Math.random() < r.nephalem) { p.nephalemStones = (p.nephalemStones || 0) + 1; drops.push('💎 Pedra Nephalen!'); }
+  { const cs = rollCoreStoneDrop(p, B.lv, r.core); if (cs) drops.push(cs); }
+  if (Math.random() < r.plus) {
+    const isF = Math.random() < 0.5;
+    if (isF) p.scrolls.feiticoPlus = (p.scrolls.feiticoPlus || 0) + 1; else p.scrolls.reforcoPlus = (p.scrolls.reforcoPlus || 0) + 1;
+    drops.push(isF ? '📜➕ Pergaminho de Feitiço ➕' : '🔧➕ Pergaminho de Reforço ➕');
+  }
+  tickProfessionCooldowns(p);
+  consumeTalismanBattle();
+  saveGame();
+  sfx.evolve();
+  showCombatEnd(true, { xpGain, goldGain, drops, isBoss: true });
 }
 
 function blacksmithCost(playerLevel, item) {
@@ -5301,6 +5448,7 @@ const WIKI_GROUPS = [
     { key: 'dungeons', label: 'Dungeons', icon: '🏰' },
     { key: 'catacumbas', label: 'Catacumbas', icon: '💀' },
     { key: 'torres', label: 'Torres', icon: '🗼' },
+    { key: 'soberano', label: 'Boss Soberano', icon: '👑' },
     { key: 'eventos', label: 'Eventos', icon: '🌩️' },
     { key: 'baus', label: 'Baús', icon: '🎁' },
     { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' },
@@ -5500,6 +5648,11 @@ function renderWikiBody() {
     };
     ['wcalc-slot', 'wcalc-rar', 'wcalc-lv'].forEach(id => $(id).addEventListener(id === 'wcalc-lv' ? 'input' : 'change', calc));
     calc();
+  } else if (t === 'soberano') {
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Mapa → Desafios → Boss Soberano. Um combate só, contra um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e 2 fases. Tens ${SOBERANO_DAILY_TRIES} tentativas por dia (renovam à meia-noite); perder não tira ouro.</p>
+      <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
+        <p class="tiny" style="margin-top:6px;">Na Fase 1 o Soberano usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao descer da metade do HP, enfurece: muda de forma, fica mais forte, regenera vida em cada ronda, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
+      ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
   } else if (t === 'torres') {
     body.innerHTML = TOWERS.map(T => T.maze ? mazeWikiHtml(T) : `
       <p class="muted" style="margin-bottom:10px;">Mapa → Torres. Na ${T.icon} ${T.name} sobes andar a andar e escolhes a porta em cada um. O mapa é gerado ao acaso em cada subida.</p>
@@ -5557,6 +5710,10 @@ function renderWikiBody() {
   } else if (t === 'melhorias') {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">O Ferreiro (aba Cidade) melhora equipamento de +0 até +9.</p>
+      <div class="card raised asc-box" style="margin-top:0;">
+        <span class="asc-h">${nxEnt('coracao-soberano', '❤️‍🔥')} Ascensão</span>
+        <p class="tiny">Um item a +9 pode ser <b>Ascendido</b> no Ferreiro com um Coração do Soberano (100% de sucesso). Continua a +9, mas os stats contam como mais ${ASCEND_EXTRA_LEVELS} níveis (+${ASCEND_EXTRA_LEVELS * 10}% dos stats base) e passa a mostrar <span class="asc-badge">✦ Ascendido</span>. O Coração cai do Boss Soberano (garantido na 1.ª vitória).</p>
+      </div>
       <div class="card raised">
         <span style="font-weight:700;">⚒️ O que cada nível dá</span>
         <p class="tiny" style="margin-top:6px;">Cada nível soma +10% dos atributos base do item, incluindo o Crítico (cumulativo — a +9 já é quase o dobro do item original).</p>
@@ -5992,7 +6149,7 @@ function tradeItemStats(item) {
   }
   migrateItemCrit({ stats, baseStats, itemLevel: Number(item.itemLevel) || 1, rarity: item.rarity, slot: item.slot, name: item.name, season: item.season });
   const upgrade = Number.isFinite(Number(item.upgrade)) ? Math.max(0, Math.min(9, Number(item.upgrade))) : 0;
-  return itemStatsAtUpgrade({ stats, baseStats }, upgrade);
+  return itemStatsAtUpgrade({ stats, baseStats }, upgrade + (item.ascended === true && upgrade >= 9 ? ASCEND_EXTRA_LEVELS : 0));
 }
 
 // Diferença (+/−) entre um item e o que o jogador tem equipado nesse espaço.
@@ -6280,7 +6437,7 @@ function tradeOwnedGoods(p) {
   const eqTal = (p.equipment || {}).talisman;
   (p.talismans || []).forEach(t => {
     const d = TALISMAN_DEFS[t.key];
-    if (!d || d.permanent || t.id === eqTal || !(Number(t.battlesRemaining) >= 1)) return;
+    if (!d || d.permanent || d.noTrade || t.id === eqTal || !(Number(t.battlesRemaining) >= 1)) return;
     add('talisma', t.key, 0, 1, { talId: t.id, battles: t.battlesRemaining });
   });
   return out.map(g => Object.assign(g, tradeGoodInfo(g)));
@@ -7633,7 +7790,7 @@ function renderHoDesmanche(p, h) {
     <button class="btn small ghost" data-ho-dis-all="${g.key}" style="border-color:${g.r.color}; width:100%; margin-bottom:8px;"${full ? ' disabled' : ''}>${nxIconSvg('hammer', 'nx-inline') || '🔨'} Desmanchar todos os ${g.r.name} (${g.items.length})</button>
     ${list.map(it => `<div class="ho-row" style="${rarityBoxStyle(it)}">
       <div class="item-ic">${itemIconHtml(it)}</div>
-      <div class="ho-row-mid"><div class="item-name" style="color:${it.rarityColor}">${it.name}${it.upgrade ? ` <span class="upgrade-badge">+${it.upgrade}</span>` : ''}</div><div class="tiny">${SLOT_NAMES[it.slot]} · Nv.${it.itemLevel || 1}</div></div>
+      <div class="ho-row-mid"><div class="item-name" style="color:${it.rarityColor}">${it.name}${upBadge(it)}</div><div class="tiny">${SLOT_NAMES[it.slot]} · Nv.${it.itemLevel || 1}</div></div>
       <button class="btn small" data-ho-dis="${it.id}"${full ? ' disabled' : ''}>${hoPartIc(g.key)} +${hoDismantleBase(it)}</button></div>`).join('')}
     ${g.items.length > list.length ? `<p class="tiny muted">A mostrar ${list.length} de ${g.items.length}. "Desmanchar todos" leva todos (até o Baú encher).</p>` : ''}`
     : `<p class="tiny muted">Não tens itens para desmanchar na Mochila.</p>`}`;
@@ -7864,7 +8021,7 @@ function renderHoCraftForjar(p, h) {
     ${st.cands.length > 1 ? `<div class="inv-label" style="margin-top:12px;">Item de sacrifício (${st.cands.length} possíveis)</div>
       ${st.cands.slice().sort((a, b) => itemPowerScore(a) - itemPowerScore(b)).slice(0, 30).map(it => `<div class="ho-row${it.id === App.hoForgeSac ? ' pick' : ''}" style="${rarityBoxStyle(it)}">
         <div class="item-ic">${itemIconHtml(it)}</div>
-        <div class="ho-row-mid"><div class="item-name" style="color:${it.rarityColor}">${esc(it.name)}${it.upgrade ? ` <span class="upgrade-badge">+${it.upgrade}</span>` : ''}</div><div class="tiny">Nv.${it.itemLevel || 1} · ${itemStatsLine(it)}</div></div>
+        <div class="ho-row-mid"><div class="item-name" style="color:${it.rarityColor}">${esc(it.name)}${upBadge(it)}</div><div class="tiny">Nv.${it.itemLevel || 1} · ${itemStatsLine(it)}</div></div>
         ${it.id === App.hoForgeSac ? '<span class="ho-tag">No quadrado 2</span>' : `<button class="btn small" data-ho-sac="${it.id}">Usar</button>`}</div>`).join('')}` : ''}`;
 }
 function renderHoCraft(p, h) {
@@ -8373,7 +8530,7 @@ async function renderAmigosBody() {
 // ---------- conversa + trocas com um amigo ----------
 function friendTradeItemsHtml(items, gold) {
   const parts = (items || []).map(it => `<div class="fr-item" style="${rarityBoxStyle(it)}"><span class="fr-item-ic">${itemIconHtml(it)}</span>
-    <span class="fr-item-mid"><span class="fr-item-name" style="color:${it.rarityColor}">${esc(agreeItemName(it.name || 'Item'))}${it.upgrade ? ` <span class="upgrade-badge">+${Number(it.upgrade)}</span>` : ''}</span>
+    <span class="fr-item-mid"><span class="fr-item-name" style="color:${it.rarityColor}">${esc(agreeItemName(it.name || 'Item'))}${upBadge(it)}</span>
     <span class="tiny">${rarIc(it.rarity, it.rarityIcon || '')} ${it.rarityName || ''} · ${SLOT_NAMES[it.slot] || ''} · Nv. ${it.itemLevel || 1}</span>
     <span class="tiny item-stats">${itemStatsLine(it)}</span></span></div>`);
   if (gold > 0) parts.push(`<div class="fr-gold">🪙 ${tradeNum(gold)} de ouro</div>`);
@@ -8574,7 +8731,7 @@ function friendPickRows(items, picked, attr, search) {
     const on = picked.includes(it.id);
     return `<button type="button" class="fr-item pick${on ? ' on' : ''}" ${attr}="${esc(it.id)}" style="${rarityBoxStyle(it)}">
       <span class="fr-check">${on ? '✔' : ''}</span><span class="fr-item-ic">${itemIconHtml(it)}</span>
-      <span class="fr-item-mid"><span class="fr-item-name" style="color:${it.rarityColor}">${esc(agreeItemName(it.name || 'Item'))}${it.upgrade ? ` <span class="upgrade-badge">+${Number(it.upgrade)}</span>` : ''}</span>
+      <span class="fr-item-mid"><span class="fr-item-name" style="color:${it.rarityColor}">${esc(agreeItemName(it.name || 'Item'))}${upBadge(it)}</span>
       <span class="tiny">${rarIc(it.rarity, it.rarityIcon || '')} ${it.rarityName || ''} · ${SLOT_NAMES[it.slot] || ''} · Nv. ${it.itemLevel || 1}</span>
       <span class="tiny item-stats">${itemStatsLine(it)}</span></span></button>`;
   }).join('') || '<p class="tiny muted">Sem itens.</p>') + (list.length > shown.length ? `<p class="tiny muted" style="margin-top:4px;">+${list.length - shown.length} itens — usa a pesquisa.</p>` : '');
@@ -9770,7 +9927,7 @@ function grantXp(amount) {
 function itemStatsLine(item) {
   // Usa os stats já com o bónus de melhoria (+N) incluído — um item +5 tem de
   // mostrar os valores atuais, não os de fábrica (+0).
-  const s = itemStatsAtUpgrade(item, item.upgrade || 0);
+  const s = itemStatsAtUpgrade(item, itemUpLv(item));
   let line = formatStatTotals(s, true);
   if (itemInnateMedio(item)) line += ` <span class="crypt-txt">· 📈 +${itemInnateMedio(item)}% Dano Médio</span>`;
   if (item.corruption && item.corruption.hpDebuff) {
@@ -9785,7 +9942,7 @@ function itemStatsLine(item) {
 
 // Stats totais que o item contribui (base + bónus de melhoria) num nível de +N hipotético.
 function itemStatsAtUpgrade(item, upgradeLevel) {
-  const up = Math.max(0, Math.min(9, upgradeLevel));
+  const up = Math.max(0, Math.min(9 + ASCEND_EXTRA_LEVELS, upgradeLevel));
   return {
     hp: (item.stats.hp || 0) + Math.round((item.baseStats.hp || 0) * 0.10 * up),
     dmg: (item.stats.dmg || 0) + Math.round((item.baseStats.dmg || 0) * 0.10 * up),
@@ -9841,7 +9998,7 @@ function renderTabMochila() {
     { key: 'alquimia', label: 'Alquimia', icon: '⚗️', badge: `${alchemyFilled}/${ALCHEMY_SLOT_COUNT}` },
     { key: 'feiticos', label: 'Feitiços', icon: '📜', badge: scrollTotal },
     { key: 'consumiveis', label: 'Consumíveis', icon: '🧪', badge: consumablesTotal(p) },
-    { key: 'livros', label: 'Livros', icon: '📙', badge: (p.amnesiaBooks || 0) + (p.smithBooks || 0) || 0 }
+    { key: 'livros', label: 'Livros', icon: '📙', badge: (p.amnesiaBooks || 0) + (p.smithBooks || 0) + (p.soberanoHearts || 0) || 0 }
   ];
   const current = sections.find(s => s.key === App.invTab);
   if (!current) {
@@ -10032,7 +10189,7 @@ function renderMochilaBody() {
         <button type="button" class="item-ic item-ic-btn" data-cmp-item="${item.id}" aria-label="Ver e comparar">${itemIconHtml(item)}<span class="item-ic-zoom">🔍</span></button>
         <div class="item-mid">
           <div class="row between" style="align-items:flex-start; gap:6px;">
-            <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.locked ? '🔒 ' : ''}${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
+            <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.locked ? '🔒 ' : ''}${item.name}${upBadge(item)}</div>
             ${badge(cmp)}
           </div>
           <div class="item-sub tiny" style="color:${item.rarityColor}">${SLOT_NAMES[item.slot]} · Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ` · <span style="color:var(--gold-bright);">${setIc(item.setKey)} ${SET_DEFS[item.setKey].name}</span>` : ''}</div>
@@ -10990,6 +11147,7 @@ function sanitizeItem(item) {
   const lv = Math.floor(Number(item.itemLevel));
   item.itemLevel = lv > 0 ? Math.min(lv, 999) : 0;
   item.upgrade = clamp(Math.floor(Number(item.upgrade) || 0), 0, 9);
+  if (item.ascended !== undefined) { if (item.ascended === true && item.upgrade >= 9) item.ascended = true; else delete item.ascended; } // v173
   item.socketSlots = clamp(Math.floor(Number(item.socketSlots) || 1), 1, 3);
   const sockets = Array.isArray(item.sockets) ? item.sockets : [];
   item.sockets = Array.from({ length: item.socketSlots }, (_, i) => {
@@ -11340,8 +11498,8 @@ function attemptAltarBonus() {
 
 // v92: ficha completa do item (Equipamento → tocar numa peça).
 function itemSheetHtml(item, slot, p, ro) {
-  const up = item.upgrade || 0;
-  const base = itemStatsAtUpgrade(item, 0), tot = itemStatsAtUpgrade(item, up);
+  const up = item.upgrade || 0, upLv = itemUpLv(item);
+  const base = itemStatsAtUpgrade(item, 0), tot = itemStatsAtUpgrade(item, upLv);
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`;
   const rows = [];
   const add = (icon, label, b, t, fmt, cls) => { if (t || b) rows.push(`<tr><td>${icon} ${label}</td><td>${fmt(b)}</td><td class="sheet-up">${t - b > 0.00001 ? '+' + fmt(t - b) : '—'}</td><td class="sheet-tot${cls ? ' ' + cls : ''}">${fmt(t)}</td></tr>`); };
@@ -11368,18 +11526,20 @@ function itemSheetHtml(item, slot, p, ro) {
   // Ferreiro
   const next = up + 1;
   const mat = up < 9 ? upgradeMaterial(item, next) : null;
-  const smithHtml = up >= 9
-    ? '<p class="tiny">Melhoria máxima (+9). ✨</p>'
+  const smithHtml = item.ascended
+    ? '<p class="tiny asc-txt">✦ Item Ascendido — os stats contam como +11 (+20% dos stats base acima do +9).</p>'
+    : up >= 9
+    ? `<p class="tiny">Melhoria máxima (+9). ✨</p><p class="tiny" style="margin-top:4px;">✦ Pode ser <b>Ascendido</b> com um ${nxEnt('coracao-soberano', '❤️‍🔥')} Coração do Soberano (tens ${p.soberanoHearts || 0}) — Cidade → Ferreiro.</p>`
     : `<p class="tiny">Próxima: <b>+${next}</b> · ${Math.round(blacksmithSuccessChance(item) * 100)}% de sucesso · ${blacksmithCost(p.level || 1, item).toLocaleString('pt-PT')} 🪙${mat ? ` · 1 ${mat.icon} ${mat.name}` : ''}</p>`;
   const bonuses = item.bonuses || [];
   const nb = item.nephalemBonus && NEPHALEM_BONUS_POOL.find(x => x.key === item.nephalemBonus.key);
   const ab = item.altarBonus && ALTAR_BONUS_POOL.find(x => x.key === item.altarBonus.key);
   const ue = item.uniqueEffect && UNIQUE_ITEM_EFFECTS[item.uniqueEffect];
   return `
-    <div class="sheet-head" style="${rarityBoxStyle(item)} border-color:${item.rarityColor};">
+    <div class="sheet-head${item.ascended ? ' asc' : ''}" style="${rarityBoxStyle(item)} border-color:${item.rarityColor};">
       <div class="sheet-ic">${itemIconHtml(item)}</div>
       <div style="flex:1; min-width:0;">
-        <div class="sheet-name" style="color:${item.rarityColor};">${item.locked ? '🔒 ' : ''}${esc(item.name)}${up ? ` <span class="upgrade-badge">+${up}</span>` : ''}</div>
+        <div class="sheet-name" style="color:${item.rarityColor};">${item.locked ? '🔒 ' : ''}${esc(item.name)}${upBadge(item)}</div>
         <div class="tiny">${rarIc(item.rarity, item.rarityIcon)} ${item.rarityName} · ${SLOT_NAMES[item.slot]} · Nível ${item.itemLevel || 1}</div>
         ${ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : ''}
         ${itemInnateMedio(item) ? '<span class="ak-tag crypt-tag">🌀 Arma da Cripta</span>' : ''}
@@ -11461,7 +11621,7 @@ function heroStatsIfEquipped(p, item) {
   return effectiveStats(Object.assign({}, p, { equipment: eq }));
 }
 function itemCompareHtml(item, eq, p) {
-  const a = itemStatsAtUpgrade(item, item.upgrade || 0), b = eq ? itemStatsAtUpgrade(eq, eq.upgrade || 0) : {};
+  const a = itemStatsAtUpgrade(item, itemUpLv(item)), b = eq ? itemStatsAtUpgrade(eq, itemUpLv(eq)) : {};
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`, int = v => Math.round(v).toLocaleString('pt-PT');
   const diffCell = (d, fmt) => Math.abs(d) < 1e-6 ? '<td class="cmp-d eq">=</td>' : `<td class="cmp-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(d))}</td>`;
   const rows = [];
@@ -11500,7 +11660,7 @@ function itemCompareHtml(item, eq, p) {
   const cmp = compareToEquipped(item, p);
   const card = (it, tag) => it ? `<div class="cmp-card" style="${rarityBoxStyle(it)} border-color:${it.rarityColor};">
       <span class="cmp-tag">${tag}</span><div class="cmp-ic">${itemIconHtml(it)}</div>
-      <div class="cmp-nm" style="color:${it.rarityColor};">${esc(it.name)}${it.upgrade ? ` <span class="upgrade-badge">+${it.upgrade}</span>` : ''}</div>
+      <div class="cmp-nm" style="color:${it.rarityColor};">${esc(it.name)}${upBadge(it)}</div>
       <div class="tiny muted">${rarIc(it.rarity, it.rarityIcon)} ${it.rarityName} · Nv.${it.itemLevel || 1}</div></div>`
     : `<div class="cmp-card empty"><span class="cmp-tag">${tag}</span><div class="cmp-ic">${slotIconHtml(item.slot)}</div><div class="cmp-nm muted">Nada equipado</div></div>`;
   return `<div class="cmp-cards">${card(item, 'Mochila')}<span class="cmp-vs">VS</span>${card(eq, 'Equipado')}</div>
@@ -11806,17 +11966,31 @@ function renderLojaBody() {
       const cost = blacksmithCost(p.level, item);
       const chance = smithChanceWithBook(item, p);
       const maxed = item.upgrade >= 9;
-      const cur = itemStatsAtUpgrade(item, item.upgrade);
+      const cur = itemStatsAtUpgrade(item, itemUpLv(item));
       const accent = item.rarityColor || 'var(--blood-bright)';
       const dotsHtml = `<div class="upgrade-dots" style="margin-top:12px;">${Array.from({ length: 9 }, (_, i) => `<div class="upgrade-dot${i < item.upgrade ? ' filled' : ''}"></div>`).join('')}</div>`;
       let bodyHtml, pillHtml;
-      if (maxed) {
-        pillHtml = `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">✦ Máximo</span>`;
+      if (maxed && item.ascended) {
+        pillHtml = `<span class="pill asc-pill">✦ Ascendido</span>`;
         bodyHtml = `
-          <p class="tiny" style="margin-top:10px; color:var(--gold-bright); font-weight:700;">Este item já está no máximo (+9/9).</p>
+          <p class="tiny asc-txt" style="margin-top:10px; font-weight:700;">Este item foi Ascendido com o Coração do Soberano.</p>
           <div style="margin-top:8px; padding:8px 10px; background:var(--bg-void); border:1px solid var(--line-soft); border-radius:8px;">
             <div class="tiny muted">Stats atuais</div>
             <div class="tiny">${formatStatTotals(cur)}</div>
+          </div>`;
+      } else if (maxed) {
+        const hearts = p.soberanoHearts || 0, asc = itemStatsAtUpgrade(item, 9 + ASCEND_EXTRA_LEVELS);
+        pillHtml = `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">✦ Máximo</span>`;
+        bodyHtml = `
+          <p class="tiny" style="margin-top:10px; color:var(--gold-bright); font-weight:700;">Este item já está no máximo (+9/9).</p>
+          <div class="asc-box">
+            <div class="asc-h">${nxEnt('coracao-soberano', '❤️‍🔥')} Ascensão</div>
+            <div class="tiny muted">Agora</div>
+            <div class="tiny">${formatStatTotals(cur)}</div>
+            <div class="tiny muted" style="margin-top:6px;">Depois de Ascender</div>
+            <div class="tiny asc-txt" style="font-weight:700;">${formatStatDeltas(cur, asc)} a mais</div>
+            <p class="tiny muted" style="margin-top:6px;">Gasta 1 Coração do Soberano (tens ${hearts}). 100% de sucesso. O item passa a mostrar "✦ Ascendido".</p>
+            <button class="btn small ${hearts > 0 ? 'asc-btn' : 'ghost'} block" style="margin-top:8px;" data-ascend-item="${slot}"${hearts > 0 ? '' : ' disabled'}>✦ Ascender${hearts > 0 ? '' : ' (precisas de um Coração do Soberano)'}</button>
           </div>`;
       } else {
         const next = itemStatsAtUpgrade(item, item.upgrade + 1);
@@ -11879,6 +12053,7 @@ function renderLojaBody() {
     const smithToggle = $('smith-book-use');
     if (smithToggle) smithToggle.addEventListener('change', () => { App.useSmithBook = smithToggle.checked; sfx.tab(); renderHubTab(); });
     els('[data-upgrade-item]').forEach(b => b.addEventListener('click', () => upgradeItem(b.dataset.upgradeItem)));
+    els('[data-ascend-item]').forEach(b => b.addEventListener('click', () => ascendItemAction(b.dataset.ascendItem)));
   }
 }
 
@@ -11900,6 +12075,20 @@ function buyPotion(key) {
 function smithChanceWithBook(item, p) {
   const base = blacksmithSuccessChance(item);
   return App.useSmithBook && (p.smithBooks || 0) > 0 ? Math.min(0.95, base + SMITH_BOOK_BONUS) : base;
+}
+// v173: Ascender um item +9 equipado com um Coração do Soberano.
+async function ascendItemAction(slot) {
+  const p = App.player, item = p.equipment[slot];
+  if (!item || (item.upgrade || 0) < 9 || item.ascended || (p.soberanoHearts || 0) <= 0) { sfx.error(); return; }
+  const ok = await nxConfirm('', { title: 'Ascender item?', icon: nxEnt('coracao-soberano', '❤️‍🔥'), confirmLabel: '✦ Ascender', cancelLabel: 'Cancelar',
+    html: `<p class="dc-lead">Vais gastar 1 Coração do Soberano para Ascender <b style="color:${item.rarityColor}">${esc(item.name)}</b>.</p><p class="tiny">100% de sucesso. Os stats sobem +20% dos stats base e o item passa a mostrar "✦ Ascendido".</p>` });
+  if (!ok) return;
+  p.soberanoHearts--;
+  item.ascended = true;
+  p.hp = Math.min(p.hp, effectiveStats(p).hp);
+  saveGame(); sfx.evolve(); fxVibrate([20, 40, 20]);
+  toast(`✦ ${item.name} foi Ascendido!`);
+  renderStatusBar(); renderLojaBody();
 }
 function upgradeItem(slot) {
   const p = App.player;
@@ -12628,6 +12817,8 @@ function mapaGroups(p) {
     { title: 'Dungeons · Tier 1', tiles: tier1 },
     { title: 'Dungeons · Tier 2', tiles: tier2 },
     { title: 'Catacumbas', tiles: catTiles },
+    { title: 'Desafios', tiles: [{ key: 'soberano', kind: 'soberano', icon: nxCreature(SOBERANOS[0].name, '👑'), label: 'Boss Soberano', sub: `Nv. ${SOBERANOS[0].minLv}+`, scene: 'montanhas',
+      locked: (p.level || 1) < SOBERANOS[0].minLv, badge: `${soberanoTriesLeft(p)}/${SOBERANO_DAILY_TRIES}` }] },
     { title: 'Torres', tiles: TOWERS.map(T => {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
@@ -12646,6 +12837,7 @@ function renderMapaBody(tile) {
   if (!tile) return;
 
   if (tile.kind === 'tower') { renderTowerBody(body, tile.ref); return; }
+  if (tile.kind === 'soberano') { renderSoberanoBody(body); return; }
   if (tile.kind === 'region') {
     const r = tile.ref, i = tile.idx;
     const unlocked = !tile.locked;
@@ -13847,6 +14039,7 @@ async function buyAmnesiaBook() {
 function booksSectionHtml(p) {
   const n = p.amnesiaBooks || 0;
   return `
+    <div class="item-row"><div class="item-ic">${nxEnt('coracao-soberano', '❤️‍🔥')}</div><div class="item-mid"><div class="item-name">Coração do Soberano ×${p.soberanoHearts || 0}</div><div class="tiny">Ascende um item +9 (Cidade → Ferreiro). Cai do Boss Soberano.</div></div></div>
     <div class="item-row">
       <div class="item-ic">${nxEnt('livro-amnesia', '📙')}</div>
       <div class="item-mid">
@@ -14165,15 +14358,22 @@ function resolveEnemyTurn(opts) {
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) return;
   }
   bossPhaseCheck(c);
+  soberanoStageCheck(c);
   const cName = hordeLabel(c);
 
   const isBossFight = c.isBoss || c.isMiniBoss;
-  const enemySkill = isBossFight ? BOSS_SKILLS[c.name] : (c.monsterName ? MOB_SKILLS[c.monsterName] : c.dungeonWaveSkill);
+  const sobSkills = c.isSoberano ? (c.soberanoStage2 ? c.soberanoDef.skills2 : c.soberanoDef.skills1) : null;
+  if (c.isSoberano && c.soberanoStage2 && c.soberanoDef.stage2.regenPct && c.enemy.hp > 0 && c.enemy.hp < c.enemy.maxHp) {
+    const heal = Math.round(c.enemy.maxHp * c.soberanoDef.stage2.regenPct);
+    c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + heal);
+    addCombatLog({ text: `💢 ${cName} regenera ${nxNum(heal)} HP.`, cls: 'hit' });
+  }
+  const enemySkill = sobSkills ? Object.assign({ chance: c.soberanoDef.skillChance }, sobSkills[Math.floor(Math.random() * sobSkills.length)]) : isBossFight ? BOSS_SKILLS[c.name] : (c.monsterName ? MOB_SKILLS[c.monsterName] : c.dungeonWaveSkill);
   const enemySkillTriggered = !!(enemySkill && Math.random() < enemySkill.chance);
 
   // Fúria: ao cair abaixo de 30% de HP, o boss entra em fúria pela primeira vez
   // e o dano dele sobe permanentemente — combates deixam de "acalmar" no fim.
-  if (isBossFight && !c.battleState.bossEnraged && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.3) {
+  if (isBossFight && !c.isSoberano && !c.battleState.bossEnraged && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.3) {
     c.battleState.bossEnraged = true;
     c.enemy.dmg = Math.round(c.enemy.dmg * 1.35);
     addCombatLog({ text: `😡 ${cName} entra em fúria! O dano dele aumenta drasticamente.`, cls: 'hit' });
@@ -14269,6 +14469,7 @@ function handleEnemyDefeated() {
   sfx.enemyDown();
   seasonOnEnemyDefeated(c);
   if (c.isTower) { finishTowerFight(); return; }
+  if (c.isSoberano) { finishSoberano(); return; }
   if (c.isDungeon) {
     if (c.waveIndex < c.totalWaves - 1) {
       // O Talismã só gasta 1 batalha no fim da dungeon/catacumba (finishDungeon,
@@ -14328,7 +14529,7 @@ function consumeTalismanBattle() {
     p.talismans = p.talismans.filter(owned => owned.id !== talisman.id);
     p.equipment.talisman = null;
     p.hp = Math.min(p.hp, effectiveStats(p).hp);
-    toast(`${TALISMAN_DEFS[talisman.key].name} desapareceu após 50 batalhas.`);
+    toast(`${TALISMAN_DEFS[talisman.key].name} desapareceu após ${TALISMAN_DEFS[talisman.key].duration} batalhas.`);
   }
 }
 
@@ -14658,7 +14859,7 @@ function handlePlayerDefeated() {
     showCombatEnd(false, {});
     return;
   }
-  const goldLost = p.gold - Math.round(p.gold * 0.9);
+  const goldLost = c.isSoberano ? 0 : p.gold - Math.round(p.gold * 0.9);
   p.gold -= goldLost;
   c.goldLost = goldLost;
   if (c.isDungeon && !c.isCatacumba) dgBagCashOutHalf(c); // v140: fica metade do saco
@@ -15083,6 +15284,7 @@ function sceneFxHtml(fx) {
 function combatSceneKey(c) {
   if (c.isRift) return 'rift';
   if (c.isTower) return 'torre';
+  if (c.isSoberano) return 'montanhas';
   if (c.isDungeon && c.dungeonDef && c.dungeonDef.scene && SCENES[c.dungeonDef.scene]) return c.dungeonDef.scene;
   if (c.isCatacumba && c.catacumbaDef && c.catacumbaDef.scene && SCENES[c.catacumbaDef.scene]) return c.catacumbaDef.scene;
   if (c.isDungeon || c.isCatacumba) return 'cripta';
@@ -15133,13 +15335,13 @@ function renderCombat() {
 
   const glyphEl = $('cb-enemy-glyph');
   { const gk = nxCreature(c.monsterName || c.name, c.icon); if (glyphEl.dataset.ent !== gk) { glyphEl.dataset.ent = gk; glyphEl.innerHTML = gk; } }
-  glyphEl.className = 'enemy-glyph' + (c.isBoss ? ' boss' : c.isMiniBoss ? ' mini' : c.isRift ? ' mini' : '') + (c.bossPhase2 ? ' phase2' : '');
+  glyphEl.className = 'enemy-glyph' + (c.isBoss ? ' boss' : c.isMiniBoss ? ' mini' : c.isRift ? ' mini' : '') + (c.bossPhase2 || c.soberanoStage2 ? ' phase2' : '') + (c.isSoberano ? ' soberano' : '');
   const flashFx = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
   if (c._lastEnemyHp !== undefined && c.enemy.hp < c._lastEnemyHp) flashFx(glyphEl, 'fx-hit');
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : c.isRift ? ' · Rift ⭕️' : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : c.isRift ? ' · Rift ⭕️' : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -15332,7 +15534,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v170</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v173</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16402,9 +16604,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 168;
+const NX_ICON_VER = 173;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
