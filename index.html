@@ -10029,7 +10029,7 @@ function renderMochilaBody() {
       const bonusChips = (item.bonuses || []).map(b => `<span class="pill" style="border-color:var(--arcane-bright); color:var(--arcane-bright);">${(BONUS_PLUS_POOL.find(x => x.key === b.key) || {}).icon || '✦'} ${bonusPlusLabel(b)}</span>`).join('') + (item.plusBonus ? plus2Chip(item.plusBonus) : '') + craftBonusChip(item);
       return `
       <div class="item-row" data-item-id="${item.id}" style="${rarityBoxStyle(item)} border-left:3px solid ${item.rarityColor};">
-        <div class="item-ic">${itemIconHtml(item)}</div>
+        <button type="button" class="item-ic item-ic-btn" data-cmp-item="${item.id}" aria-label="Ver e comparar">${itemIconHtml(item)}<span class="item-ic-zoom">🔍</span></button>
         <div class="item-mid">
           <div class="row between" style="align-items:flex-start; gap:6px;">
             <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.locked ? '🔒 ' : ''}${item.name}${item.upgrade ? ` <span class="upgrade-badge">+${item.upgrade}</span>` : ''}</div>
@@ -10053,6 +10053,7 @@ function renderMochilaBody() {
     body.innerHTML = summary + sortBar + slotBar + rarBar + sellBar + `<div style="margin-top:12px;">${cardsHtml}</div>`;
 
     els('[data-equip-item]').forEach(b => b.addEventListener('click', () => equipItem(b.dataset.equipItem)));
+    els('[data-cmp-item]').forEach(b => b.addEventListener('click', () => { sfx.click(); openItemCompareModal(b.dataset.cmpItem); }));
     els('[data-equip-off]').forEach(b => b.addEventListener('click', () => equipItemOffhand(b.dataset.equipOff)));
     els('[data-sell-item]').forEach(b => b.addEventListener('click', () => sellItem(b.dataset.sellItem)));
     els('[data-lock-item]').forEach(b => b.addEventListener('click', () => toggleItemLock(b.dataset.lockItem)));
@@ -11338,7 +11339,7 @@ function attemptAltarBonus() {
 
 
 // v92: ficha completa do item (Equipamento → tocar numa peça).
-function itemSheetHtml(item, slot, p) {
+function itemSheetHtml(item, slot, p, ro) {
   const up = item.upgrade || 0;
   const base = itemStatsAtUpgrade(item, 0), tot = itemStatsAtUpgrade(item, up);
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`;
@@ -11411,10 +11412,12 @@ function itemSheetHtml(item, slot, p) {
     <div class="sheet-sec">
       <div class="sheet-h">🔷 Encaixes de gemas <span class="muted">(${socks.filter(Boolean).length}/${socks.length})</span></div>
       <div class="sheet-socks">
-        ${socks.map((g, i) => g
+        ${ro ? socks.map(g => g
+          ? `<span class="sheet-sock on"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier, craftGemMult(item))}</small></span>`
+          : `<span class="sheet-sock"><span>◇</span><b>Vazio</b><small>&nbsp;</small></span>`).join('') : socks.map((g, i) => g
           ? `<button class="sheet-sock on" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier, craftGemMult(item))}</small><em>🗑️</em></button>`
           : `<button class="sheet-sock" data-open-socket="${i}"><span>◇</span><b>Vazio</b><small>+ Encaixar</small></button>`).join('')}
-        ${(item.socketSlots || 1) < 3 ? `<button class="sheet-sock add" id="btn-add-socket"><span>＋</span><b>Abrir encaixe</b><small>${socketSlotCost(item)} 🪙</small></button>` : ''}
+        ${!ro && (item.socketSlots || 1) < 3 ? `<button class="sheet-sock add" id="btn-add-socket"><span>＋</span><b>Abrir encaixe</b><small>${socketSlotCost(item)} 🪙</small></button>` : ''}
       </div>
     </div>
     ${setHtml}
@@ -11450,6 +11453,86 @@ function openEquipSlotModal(slot) {
     els('[data-open-socket]').forEach(b => b.addEventListener('click', () => openGemPicker(slot, parseInt(b.dataset.openSocket))));
     els('[data-remove-gem]').forEach(b => b.addEventListener('click', () => removeGem(slot, parseInt(b.dataset.removeGem))));
   }
+}
+
+// v170: ver um item da Mochila e compará-lo com o que está equipado no mesmo espaço.
+function heroStatsIfEquipped(p, item) {
+  const eq = Object.assign({}, p.equipment); eq[item.slot] = item;
+  return effectiveStats(Object.assign({}, p, { equipment: eq }));
+}
+function itemCompareHtml(item, eq, p) {
+  const a = itemStatsAtUpgrade(item, item.upgrade || 0), b = eq ? itemStatsAtUpgrade(eq, eq.upgrade || 0) : {};
+  const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`, int = v => Math.round(v).toLocaleString('pt-PT');
+  const diffCell = (d, fmt) => Math.abs(d) < 1e-6 ? '<td class="cmp-d eq">=</td>' : `<td class="cmp-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(d))}</td>`;
+  const rows = [];
+  const row = (label, va, vb, fmt, show) => { if (!(va || vb || show)) return; rows.push(`<tr><td>${label}</td><td>${fmt(va || 0)}</td><td>${eq ? fmt(vb || 0) : '—'}</td>${diffCell((va || 0) - (vb || 0), fmt)}</tr>`); };
+  if (item.slot === 'weapon') {
+    const ma = 1 + itemInnateMedio(item) / 100 + ((item.bonuses || []).find(x => x.key === 'dano_medio_pct') || { value: 0 }).value / 100;
+    const mb = eq ? 1 + itemInnateMedio(eq) / 100 + ((eq.bonuses || []).find(x => x.key === 'dano_medio_pct') || { value: 0 }).value / 100 : 1;
+    rows.push(`<tr><td>⚔️ Dano</td><td>${int((a.dmgMin || a.dmg || 0) * ma)}–${int((a.dmgMax || a.dmg || 0) * ma)}</td><td>${eq ? `${int((b.dmgMin || b.dmg || 0) * mb)}–${int((b.dmgMax || b.dmg || 0) * mb)}` : '—'}</td>${diffCell((a.dmg || 0) * ma - (b.dmg || 0) * mb, int)}</tr>`);
+  } else row('⚔️ Dano', a.dmg, b.dmg, int);
+  row('🛡️ <span class="st-def">Defesa</span>', a.def, b.def, int);
+  row(`${esIconHtml()} <span class="st-es">Escudo</span>`, a.es, b.es, int);
+  row('❤️ HP', (a.hp || 0) - ((item.corruption && item.corruption.hpDebuff) || 0), (b.hp || 0) - ((eq && eq.corruption && eq.corruption.hpDebuff) || 0), int);
+  row('💥 Crítico', a.crit, b.crit, pc1);
+  row('💚 Regeneração', a.regenPct, b.regenPct, v => `${Math.round(v)}%`);
+  row('👑 Red. chefes', a.dmgReducedFromBossPct, b.dmgReducedFromBossPct, pc1);
+  // Extras de cada item (bónus, gemas, set, craft…)
+  const extras = it => {
+    if (!it) return ['<span class="muted">—</span>'];
+    const out = [];
+    (it.bonuses || []).forEach(x => out.push(`${(BONUS_PLUS_POOL.find(y => y.key === x.key) || {}).icon || '✦'} ${bonusPlusLabel(x)}`));
+    if (it.plusBonus) out.push(plus2Chip(it.plusBonus));
+    const nb = it.nephalemBonus && NEPHALEM_BONUS_POOL.find(y => y.key === it.nephalemBonus.key); if (nb) out.push(`${nb.icon} ${nb.label(it.nephalemBonus.value)}`);
+    if (craftBonusDef(it)) out.push(craftBonusChip(it));
+    const ab = it.altarBonus && ALTAR_BONUS_POOL.find(y => y.key === it.altarBonus.key); if (ab) out.push(`${ab.icon} ${ab.name}`);
+    if (itemInnateMedio(it)) out.push(`📈 +${itemInnateMedio(it)}% Dano Médio`);
+    (it.sockets || []).filter(Boolean).forEach(g => out.push(`${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)} ${gemStatText(g.type, g.tier, craftGemMult(it))}`));
+    if (it.setKey && SET_DEFS[it.setKey]) out.push(`${setIc(it.setKey)} ${SET_DEFS[it.setKey].name}`);
+    const ue = it.uniqueEffect && UNIQUE_ITEM_EFFECTS[it.uniqueEffect]; if (ue) out.push(`${ue.icon} ${ue.label}`);
+    if (it.corruption && it.corruption.hpDebuff) out.push(`<span class="cmp-bad">🔴 −${it.corruption.hpDebuff} HP</span>`);
+    return out.length ? out : ['<span class="muted">Sem extras</span>'];
+  };
+  // O que muda no herói se trocares
+  const s0 = effectiveStats(p), s1 = heroStatsIfEquipped(p, item);
+  const hero = [['⚔️', 'Dano', s0.dmg, s1.dmg, int], ['🛡️', 'Defesa', s0.def, s1.def, int], [esIconHtml(), 'Escudo Mágico', s0.es || 0, s1.es || 0, int], ['❤️', 'HP', s0.hp, s1.hp, int], ['💥', 'Crítico', s0.crit, s1.crit, pc1], ['🏆', 'Dano vs. Chefes', s0.dmgVsBossPct || 0, s1.dmgVsBossPct || 0, pc1]]
+    .filter(r => r[2] || r[3]).map(([ic, l, x, y, f]) => { const d = y - x; return `<div class="cmp-hero-row"><span>${ic} ${l}</span><b>${f(x)} → ${f(y)}</b><em class="${Math.abs(d) < 1e-6 ? 'eq' : d > 0 ? 'up' : 'down'}">${Math.abs(d) < 1e-6 ? '=' : (d > 0 ? '+' : '−') + f(Math.abs(d))}</em></div>`; }).join('');
+  const cmp = compareToEquipped(item, p);
+  const card = (it, tag) => it ? `<div class="cmp-card" style="${rarityBoxStyle(it)} border-color:${it.rarityColor};">
+      <span class="cmp-tag">${tag}</span><div class="cmp-ic">${itemIconHtml(it)}</div>
+      <div class="cmp-nm" style="color:${it.rarityColor};">${esc(it.name)}${it.upgrade ? ` <span class="upgrade-badge">+${it.upgrade}</span>` : ''}</div>
+      <div class="tiny muted">${rarIc(it.rarity, it.rarityIcon)} ${it.rarityName} · Nv.${it.itemLevel || 1}</div></div>`
+    : `<div class="cmp-card empty"><span class="cmp-tag">${tag}</span><div class="cmp-ic">${slotIconHtml(item.slot)}</div><div class="cmp-nm muted">Nada equipado</div></div>`;
+  return `<div class="cmp-cards">${card(item, 'Mochila')}<span class="cmp-vs">VS</span>${card(eq, 'Equipado')}</div>
+    <div class="cmp-verdict ${cmp.cls}">${cmp.label}</div>
+    <div class="sheet-sec"><div class="sheet-h">📊 Atributos</div>
+      <table class="wiki-table cmp-table"><tr><th>Stat</th><th>Este</th><th>Equipado</th><th>Dif.</th></tr>${rows.join('')}</table></div>
+    <div class="sheet-sec"><div class="sheet-h">✨ Extras</div>
+      <div class="cmp-extras"><div>${extras(item).map(x => `<p class="tiny">${x}</p>`).join('')}</div><div>${extras(eq).map(x => `<p class="tiny">${x}</p>`).join('')}</div></div></div>
+    <div class="sheet-sec"><div class="sheet-h">🧍 O teu herói se equipares</div>${hero}</div>`;
+}
+function openItemCompareModal(itemId, tab) {
+  const p = App.player, item = (p.inventory || []).find(i => i.id === itemId);
+  if (!item) return;
+  const eq = p.equipment[item.slot] || null;
+  tab = tab || 'cmp';
+  const tabs = [['cmp', '⚖️ Comparar'], ['item', '🎒 Este item']].concat(eq ? [['eq', '🧍 Equipado']] : []);
+  const body = tab === 'item' ? itemSheetHtml(item, item.slot, p, true) : tab === 'eq' && eq ? itemSheetHtml(eq, item.slot, p, true) : itemCompareHtml(item, eq, p);
+  const dualOk = hasDualWield(p) && dualWieldEligible(item);
+  openModal(`<h3 style="margin-bottom:10px;">${SLOT_ICONS[item.slot]} ${SLOT_NAMES[item.slot]}</h3>
+    <div class="tab-strip cmp-tabs" style="padding-bottom:10px;">${tabs.map(([k, l]) => `<button class="tab-chip${k === tab ? ' active' : ''}" data-cmp-tab="${k}">${l}</button>`).join('')}</div>
+    ${body}
+    <div class="cmp-actions">
+      <button class="btn primary" id="btn-cmp-equip">Equipar</button>
+      ${dualOk ? `<button class="btn" id="btn-cmp-off">⚔️ 2.ª arma</button>` : ''}
+      <button class="btn ghost" id="btn-cmp-sell"${item.locked ? ' disabled' : ''}>${item.locked ? '🔒 Bloqueado' : `🪙 ${itemSellValue(item)}`}</button>
+    </div>
+    <button class="btn ghost block" id="btn-close-modal" style="margin-top:8px;">Fechar</button>`);
+  els('[data-cmp-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); openItemCompareModal(itemId, b.dataset.cmpTab); }));
+  $('btn-close-modal').addEventListener('click', closeModal);
+  $('btn-cmp-equip').addEventListener('click', () => { closeModal(); equipItem(itemId); });
+  if ($('btn-cmp-off')) $('btn-cmp-off').addEventListener('click', () => { closeModal(); equipItemOffhand(itemId); });
+  if (!item.locked) $('btn-cmp-sell').addEventListener('click', () => { closeModal(); sellItem(itemId); });
 }
 
 function unequipItem(slot) {
@@ -15249,7 +15332,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v169</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v170</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
