@@ -6,13 +6,13 @@
 <title>Nemesy RPG</title>
 <meta name="theme-color" content="#100D0A">
 <meta name="description" content="Nemesy RPG: aventura de fantasia com combates por turnos, classes e progressão.">
-<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="icon" href="./favicon-64.png" type="image/png">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Nemesy RPG">
-<link rel="apple-touch-icon" href="./icon-192.png">
+<link rel="apple-touch-icon" href="./app-icon-180.png">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -363,7 +363,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- BOOT -->
   <div class="screen active" id="screen-boot">
-    <div class="glyph">⚔️</div>
+    <div class="glyph"><img class="app-logo" src="icons/logo-nemesy.webp" alt="" draggable="false"></div>
     <h1 style="font-size:24px;color:var(--gold-bright);">Nemesy RPG</h1>
     <p class="muted" style="margin-top:6px;">A carregar a tua lenda…</p>
   </div>
@@ -376,7 +376,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
       <button type="button" data-login-lang="en" aria-label="English"><span class="al-flag">🇬🇧</span>EN</button>
     </div>
     <div class="account-panel">
-      <div class="account-mark">⚔</div>
+      <div class="account-mark account-mark-logo"><img class="app-logo" src="icons/logo-nemesy.webp" alt="" draggable="false"></div>
       <h1>Nemesy RPG</h1>
       <p class="account-subtitle">Entra na tua conta para continuar a aventura.</p>
       <div class="account-mode-switch" id="account-mode-switch" role="tablist" aria-label="Acesso à conta">
@@ -411,7 +411,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
   <div class="screen" id="screen-create">
     <div class="scroll">
       <div class="create-hero">
-        <div class="glyph">⚔️</div>
+        <div class="glyph"><img class="app-logo" src="icons/logo-nemesy.webp" alt="" draggable="false"></div>
         <h1>Nemesy RPG</h1>
         <p class="sub">Cria o teu herói e parte rumo a Nemesis.</p>
         <input class="name-input" id="hero-name" maxlength="16" placeholder="Nome do teu herói">
@@ -15249,7 +15249,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v168</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v169</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

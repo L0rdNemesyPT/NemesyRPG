@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nemesy-rpg-v168';
+const CACHE_NAME = 'nemesy-rpg-v169';
 const APP_SHELL = [
   './',
   './index.html',
@@ -8,9 +8,12 @@ const APP_SHELL = [
   './nemesy-theme.css',
   './Nemesy-RPG.html',
   './manifest.webmanifest',
-  './icon-192.png',
-  './icon-512.png',
-  './icon-512-maskable.png',
+  './app-icon-192.png',
+  './app-icon-512.png',
+  './app-icon-512-maskable.png',
+  './app-icon-180.png',
+  './favicon-64.png',
+  './icons/logo-nemesy.webp',
   './avatars/avatar-guerreiro.webp',
   './avatars/avatar-arqueiro.webp',
   './avatars/avatar-mago.webp',

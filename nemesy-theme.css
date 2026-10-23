@@ -1703,3 +1703,10 @@ div.nx-confirm-msg{text-align:left;}
 .enemy-glyph.phase2{box-shadow:0 0 0 2px #ff3b2a, 0 0 22px rgba(255,59,42,.65), inset 0 0 18px rgba(255,59,42,.35) !important;}
 .enemy-glyph.fx-phase2{animation:nxPhase2 .9s ease-out;}
 @keyframes nxPhase2{0%{transform:scale(1); filter:brightness(1);} 25%{transform:scale(1.18) rotate(-4deg); filter:brightness(2.2) saturate(1.6);} 55%{transform:scale(.94) rotate(3deg); filter:brightness(1.4);} 100%{transform:scale(1); filter:none;}}
+
+/* v169: logótipo da app (escudo) nos ecrãs de entrada */
+.app-logo{display:block; width:1em; height:1em; object-fit:contain; margin:0 auto; filter:drop-shadow(0 4px 10px rgba(0,0,0,.55)) drop-shadow(0 0 14px rgba(228,191,74,.18));}
+#screen-boot .glyph .app-logo{width:96px; height:96px;}
+.create-hero .glyph .app-logo{width:76px; height:76px;}
+.account-mark.account-mark-logo{width:auto; height:auto; border:none; background:none; border-radius:0;}
+.account-mark-logo .app-logo{width:78px; height:78px;}
