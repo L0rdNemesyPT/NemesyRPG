@@ -1760,3 +1760,39 @@ div.nx-confirm-msg{text-align:left;}
 .asc-h .nx-ic{width:22px; height:22px;}
 .btn.asc-btn{background:linear-gradient(180deg,#d8642a,#8a2412); color:#fff3dc; border:1px solid #ffb35a; box-shadow:0 0 12px rgba(255,120,50,.45);}
 .sheet-head.asc{box-shadow:0 0 0 1px #ffb35a, 0 0 18px rgba(255,120,50,.35) !important;}
+
+/* v174: Noite das Abóboras */
+.fx-bats i{width:10px; height:5px; border-radius:50% 50% 0 0; background:#0a0510; box-shadow:5px 0 0 -1px #0a0510, -5px 0 0 -1px #0a0510; animation-name:scBat; opacity:.85;}
+.fx-bats i:nth-child(n+9){display:none;}
+@keyframes scBat{0%{transform:translate(0,0) scaleY(1);} 25%{transform:translate(40px,-12px) scaleY(.4);} 50%{transform:translate(80px,6px) scaleY(1);} 75%{transform:translate(120px,-10px) scaleY(.4);} 100%{transform:translate(160px,0) scaleY(1); opacity:0;}}
+.hw-banner{position:relative; overflow:hidden; text-align:center; padding:16px 12px; border-radius:14px; border:1px solid #c4561a; background:radial-gradient(circle at 80% 20%, rgba(255,160,60,.35), transparent 40%), linear-gradient(180deg,#2a1040,#140820); box-shadow:0 0 18px rgba(255,120,30,.25); margin-bottom:12px;}
+.hw-moon{position:absolute; right:16px; top:10px; width:42px; height:42px; border-radius:50%; background:radial-gradient(circle at 40% 40%,#ffe3a0,#ff9a3a); box-shadow:0 0 22px rgba(255,170,60,.7); opacity:.9;}
+.hw-title{font-family:var(--font-display); font-weight:700; font-size:21px; color:#ffb04a; text-shadow:0 0 10px rgba(255,140,40,.6);}
+.hw-count{display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:5px 14px; border-radius:20px; background:rgba(0,0,0,.35); border:1px solid #c4561a; font-size:15px; color:#ffd59a;}
+.hw-count .nx-ic{width:22px; height:22px;}
+.hw-mobs{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px;}
+.hw-mob{display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 6px; border-radius:10px; border:1px solid #4a2a5a; background:linear-gradient(180deg,#1d0f2a,#120818); color:var(--parchment); cursor:pointer; text-align:center;}
+.hw-mob:active{transform:scale(.97);} .hw-mob b{font-family:var(--font-display); font-size:12.5px; color:#ffcf8a;} .hw-mob small{font-size:10.5px; color:var(--muted);}
+.hw-mob-ic{font-size:34px; line-height:1;} .hw-mob-ic .nx-ic{width:44px; height:44px;}
+.hw-boss{border-color:#c4561a !important; background:linear-gradient(180deg,rgba(196,86,26,.18),transparent) !important;}
+.hw-boss-ic{width:64px; height:64px; display:grid; place-items:center; font-size:44px; border-radius:12px; background:radial-gradient(circle,#4a1a08,#140806); border:1px solid #c4561a; flex:none;}
+.hw-boss-n{font-family:var(--font-display); font-weight:700; font-size:16px; color:#ffb04a;}
+.btn.hw-btn{background:linear-gradient(180deg,#e0701a,#9a3a0a); color:#fff3dc; border:1px solid #ffb04a; box-shadow:0 0 10px rgba(255,120,30,.35);}
+.hw-item{border-color:#4a2a5a !important;}
+/* v174: Recompensa diária */
+.daily-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:6px;}
+.daily-day{position:relative; display:flex; flex-direction:column; align-items:center; gap:3px; padding:8px 4px; border-radius:10px; border:1px solid var(--line); background:#120d08; text-align:center; min-width:0;}
+.daily-day.big{grid-column:span 2; border-color:var(--gold);}
+.daily-day.today{border-color:var(--gold-bright); box-shadow:0 0 12px rgba(228,191,74,.45); background:linear-gradient(180deg,rgba(228,191,74,.15),#120d08);}
+.daily-day.done{opacity:.5;}
+.daily-n{font-size:10px; font-weight:800; letter-spacing:.05em; color:var(--gold-bright); text-transform:uppercase;}
+.daily-ic{font-size:26px; line-height:1;} .daily-ic .nx-ic{width:34px; height:34px;}
+.daily-lb{font-size:10.5px; line-height:1.2; color:var(--parchment); overflow-wrap:anywhere;}
+.daily-ok{position:absolute; top:4px; right:6px; color:#8ee06a; font-weight:800;}
+.hw-steps{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin-bottom:12px;}
+.hw-steps > div{font-size:11px; line-height:1.25; text-align:center; padding:8px 6px; border-radius:10px; border:1px solid #4a2a5a; background:#140a1c; color:var(--parchment);}
+.hw-steps b{display:block; margin:0 auto 4px; width:22px; height:22px; line-height:22px; border-radius:50%; background:#c4561a; color:#fff3dc; font-weight:800;}
+.hw-steps .nx-ic{width:16px; height:16px; vertical-align:-3px;}
+.btn.small.hw-btn{background:linear-gradient(180deg,#e0701a,#9a3a0a) !important; color:#fff3dc !important; border-color:#ffb04a !important;}
+.ak-tag.hw-tag{border-color:#e0701a !important; color:#ffb04a !important; background:rgba(224,112,26,.14) !important;}
+.hw-txt{color:#ffb04a;} .hw-line{color:#ffcf8a; border:1px solid rgba(224,112,26,.45); background:rgba(224,112,26,.08); border-radius:8px; padding:6px 8px; margin:6px 0;}
