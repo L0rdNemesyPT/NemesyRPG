@@ -3878,6 +3878,110 @@ function maybeShowDaily(tries) {
   $('btn-daily-pop').addEventListener('click', () => { claimDaily(); closeModal(); if (App.tab === 'loja') renderTabLoja(); });
 }
 
+
+// ============================================================
+// 🌍 MAPA DO MUNDO (v176) — um mapa grande que se arrasta e faz zoom, com as regiões
+// (cada uma com o seu terreno), dungeons, catacumbas, torres, Cidade e desafios. Tocar num
+// local abre a mesma página que o quadrado da lista. Os quadrados continuam em "Lista".
+// ============================================================
+const WM_W = 1000, WM_H = 1500;
+const WM_REG = {
+  planicies: { x: 500, y: 1290, r: 175, c: '#4f8a3a' }, montanhas: { x: 225, y: 1065, r: 165, c: '#8a3a22' },
+  tundra: { x: 775, y: 1050, r: 165, c: '#9fc3d9' }, planalto: { x: 500, y: 830, r: 160, c: '#4a4766' },
+  corrompidas: { x: 230, y: 590, r: 165, c: '#5a2a6a' }, florestanegra: { x: 770, y: 560, r: 165, c: '#1d4a44' },
+  pinaculo: { x: 500, y: 265, r: 180, c: '#8a7ac0' }
+};
+const WM_POS = {
+  'dg:cripta': [355, 1395], 'dg:vulcao': [95, 1170], 'dg:cidadela': [905, 930], 'dg:abismo': [330, 880], 'dg:reino_fe': [665, 815],
+  'dg:luar': [110, 470], 'dg:oasis': [90, 790], 'dg:inverno': [900, 1210], 'dg:eclipse': [255, 330],
+  'cat:demonio_t1': [425, 455], 'cat:morte_t2': [870, 670], 'cat:templo_almas': [760, 330],
+  'tower:abismo': [620, 680], 'tower:cripta': [880, 430], 'soberano': [500, 80], 'halloween': [175, 1330], 'cidade': [680, 1385]
+};
+function wmSvg(p) {
+  const regs = REGIONS.map((r, i) => Object.assign({ key: r.key, i, locked: i > p.regionIndex }, WM_REG[r.key] || { x: 500, y: 750, r: 150, c: '#555' }));
+  let road = `M${regs[0].x} ${regs[0].y}`;
+  for (let i = 1; i < regs.length; i++) {
+    const a = regs[i - 1], b = regs[i], mx = (a.x + b.x) / 2 + (i % 2 ? 60 : -60), my = (a.y + b.y) / 2;
+    road += ` Q${mx} ${my} ${b.x} ${b.y}`;
+  }
+  const trails = Object.keys(WM_POS).map(k => {
+    const [x, y] = WM_POS[k];
+    const near = regs.reduce((a, g) => Math.hypot(g.x - x, g.y - y) < Math.hypot(a.x - x, a.y - y) ? g : a, regs[0]);
+    return `<path d="M${near.x} ${near.y} Q${(near.x + x) / 2 + 30} ${(near.y + y) / 2 - 20} ${x} ${y}" stroke="#f1dfae" stroke-width="2.5" stroke-dasharray="2 8" stroke-linecap="round" fill="none" opacity=".6"/>`;
+  }).join('');
+  const fog = regs.filter(g => g.locked).map(g => `<g filter="url(#wm-cloud)" opacity=".92"><circle cx="${g.x}" cy="${g.y}" r="${g.r * 1.05}" fill="#d9dfe6"/><circle cx="${g.x - g.r * .5}" cy="${g.y + g.r * .3}" r="${g.r * .7}" fill="#c3cbd4"/><circle cx="${g.x + g.r * .55}" cy="${g.y - g.r * .25}" r="${g.r * .75}" fill="#e6eaef"/></g>`).join('');
+  return `<svg class="wm-svg" viewBox="0 0 ${WM_W} ${WM_H}" width="${WM_W}" height="${WM_H}" aria-hidden="true">
+    <defs>
+      <filter id="wm-cloud" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency=".012" numOctaves="4" seed="7"/><feDisplacementMap in="SourceGraphic" scale="90"/><feGaussianBlur stdDeviation="14"/></filter>
+    </defs>
+    <image href="icons/world-map.webp?v=${NX_ICON_VER}" x="0" y="0" width="${WM_W}" height="${WM_H}" preserveAspectRatio="none"/>
+    <path d="${road}" stroke="#2a1d10" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".45"/>
+    <path d="${road}" stroke="#ead3a0" stroke-width="4.5" fill="none" stroke-dasharray="12 9" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
+    ${trails}${fog}
+    <g opacity=".75"><circle cx="930" cy="90" r="38" fill="rgba(0,0,0,.25)" stroke="#e2c98a" stroke-width="2"/><path d="M930 46 L938 90 L930 134 L922 90 Z" fill="#e2c98a"/><text x="930" y="40" fill="#e2c98a" font-size="16" text-anchor="middle" font-family="serif">N</text></g>
+  </svg>`;
+}
+function wmPinsHtml(p) {
+  const tiles = mapaGroups(p).flatMap(g => g.tiles);
+  const here = REGIONS[App.selectedRegionIndex] || REGIONS[0];
+  const pins = [];
+  tiles.forEach(t => {
+    if (t.kind === 'region') {
+      const g = WM_REG[t.ref.key]; if (!g) return;
+      pins.push(`<button class="wm-pin wm-reg${t.locked ? ' locked' : ''}${t.ref.key === here.key ? ' here' : ''}" style="left:${g.x}px; top:${g.y - 20}px;" data-wm="${t.key}">
+        <span class="wm-ic">${t.icon}</span><span class="wm-plate"><b>${t.label}</b><small>${t.locked ? '🔒 ' : ''}${t.sub}${t.badge && !t.locked ? ` · ${t.badge}` : ''}</small></span></button>`);
+      return;
+    }
+    const pos = WM_POS[t.key]; if (!pos) return;
+    const cls = t.kind === 'catacumba' ? 'wm-cat' : t.kind === 'tower' ? 'wm-tower' : t.kind === 'soberano' ? 'wm-boss' : t.kind === 'halloween' ? 'wm-event' : 'wm-dg';
+    pins.push(`<button class="wm-pin ${cls}${t.locked ? ' locked' : ''}" style="left:${pos[0]}px; top:${pos[1]}px;" data-wm="${t.key}">
+      <span class="wm-ic">${t.icon}${t.badge ? `<span class="wm-badge">${t.badge}</span>` : ''}</span><span class="wm-lb">${t.label}</span></button>`);
+  });
+  const c = WM_POS.cidade;
+  pins.push(`<button class="wm-pin wm-city" style="left:${c[0]}px; top:${c[1]}px;" data-wm-city="1"><span class="wm-ic">${nxEnt('castle', '🏰')}</span><span class="wm-lb">Cidade</span></button>`);
+  const hg = WM_REG[here.key];
+  if (hg) pins.push(`<div class="wm-hero" style="left:${hg.x + 70}px; top:${hg.y - 70}px;">${heroAvatarHtml(p)}</div>`);
+  return pins.join('');
+}
+function wmScale() { return clamp(Number(App.wmScale) || 0.62, 0.3, 1.4); }
+function renderWorldMap(host) {
+  const p = App.player, s = wmScale();
+  host.innerHTML = `<div class="wm-wrap">
+      <div class="wm-view" id="wm-view"><div class="wm-size" id="wm-size" style="width:${WM_W * s}px; height:${WM_H * s}px;">
+        <div class="wm-stage" id="wm-stage" style="transform:scale(${s});">${wmSvg(p)}${wmPinsHtml(p)}</div></div></div>
+      <div class="wm-ctrl"><button data-wm-zoom="1.2" aria-label="Aproximar">＋</button><button data-wm-zoom="0.8" aria-label="Afastar">－</button><button data-wm-zoom="fit" aria-label="Ver tudo">⤢</button><button data-wm-zoom="here" aria-label="Onde estou">◎</button></div>
+    </div>
+    <p class="tiny muted" style="margin-top:6px; text-align:center;">Arrasta para explorar · toca num local para ver a informação.</p>`;
+  const view = $('wm-view');
+  const setScale = (ns, cx, cy) => {
+    const old = wmScale(); ns = clamp(ns, 0.3, 1.4); App.wmScale = ns;
+    const vx = (view.scrollLeft + (cx == null ? view.clientWidth / 2 : cx)) / old, vy = (view.scrollTop + (cy == null ? view.clientHeight / 2 : cy)) / old;
+    $('wm-size').style.width = WM_W * ns + 'px'; $('wm-size').style.height = WM_H * ns + 'px'; $('wm-stage').style.transform = `scale(${ns})`;
+    view.scrollLeft = vx * ns - (cx == null ? view.clientWidth / 2 : cx); view.scrollTop = vy * ns - (cy == null ? view.clientHeight / 2 : cy);
+  };
+  const centerOn = (x, y) => { const sc = wmScale(); view.scrollLeft = x * sc - view.clientWidth / 2; view.scrollTop = y * sc - view.clientHeight / 2; };
+  const here = WM_REG[(REGIONS[App.selectedRegionIndex] || REGIONS[0]).key] || { x: 500, y: 750 };
+  requestAnimationFrame(() => { if (App.wmScroll) { view.scrollLeft = App.wmScroll[0]; view.scrollTop = App.wmScroll[1]; } else centerOn(here.x, here.y); });
+  view.addEventListener('scroll', () => { App.wmScroll = [view.scrollLeft, view.scrollTop]; }, { passive: true });
+  els('[data-wm-zoom]', host).forEach(b => b.addEventListener('click', () => {
+    sfx.tab(); const z = b.dataset.wmZoom;
+    if (z === 'fit') setScale(Math.min(view.clientWidth / WM_W, view.clientHeight / WM_H));
+    else if (z === 'here') { if (wmScale() < 0.6) setScale(0.62); centerOn(here.x, here.y); }
+    else setScale(wmScale() * Number(z));
+  }));
+  // Arrastar com o rato (no telemóvel o dedo já faz scroll) e beliscar para zoom.
+  let drag = null, pinch = null;
+  view.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') { drag = { x: e.clientX, y: e.clientY, sl: view.scrollLeft, st: view.scrollTop, moved: false }; } });
+  window.addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) drag.moved = true; view.scrollLeft = drag.sl - dx; view.scrollTop = drag.st - dy; });
+  window.addEventListener('pointerup', () => { if (drag && drag.moved) { view.dataset.dragged = '1'; setTimeout(() => { delete view.dataset.dragged; }, 50); } drag = null; });
+  view.addEventListener('touchstart', e => { if (e.touches.length === 2) { const [a, b] = e.touches; pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), s: wmScale() }; } }, { passive: true });
+  view.addEventListener('touchmove', e => { if (pinch && e.touches.length === 2) { e.preventDefault(); const [a, b] = e.touches, r = view.getBoundingClientRect(); setScale(pinch.s * Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) / pinch.d, (a.clientX + b.clientX) / 2 - r.left, (a.clientY + b.clientY) / 2 - r.top); } }, { passive: false });
+  view.addEventListener('touchend', () => { pinch = null; });
+  view.addEventListener('wheel', e => { if (!e.ctrlKey) return; e.preventDefault(); const r = view.getBoundingClientRect(); setScale(wmScale() * (e.deltaY < 0 ? 1.1 : 0.9), e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  els('[data-wm]', host).forEach(b => b.addEventListener('click', () => { if (view.dataset.dragged) return; sfx.tab(); App.mapaTab = b.dataset.wm; renderTabMapa(); window.scrollTo(0, 0); }));
+  const city = host.querySelector('[data-wm-city]'); if (city) city.addEventListener('click', () => { if (view.dataset.dragged) return; setTab('loja'); });
+}
+
 function blacksmithCost(playerLevel, item) {
   const base = 15 + playerLevel * 2;
   const itemFactor = 1 + (item.itemLevel || 1) * 0.03;
@@ -12990,7 +13094,8 @@ function renderTabMapa() {
         </div>
         <button class="btn small primary" id="btn-map-fight">⚔️ Batalhar</button>
       </div>
-      <p class="muted" style="margin:10px 0 2px;">Escolhe um destino para ver a informação.</p>
+      <div class="tab-strip" style="margin:10px 0 8px;"><button class="tab-chip${App.mapaView !== 'lista' ? ' active' : ''}" data-mapa-view="mundo">🌍 Mapa do Mundo</button><button class="tab-chip${App.mapaView === 'lista' ? ' active' : ''}" data-mapa-view="lista">▦ Lista</button></div>
+      ${App.mapaView !== 'lista' ? '<div id="wm-host"></div>' : `<p class="muted" style="margin:10px 0 2px;">Escolhe um destino para ver a informação.</p>
       ${groups.map(g => `
         <div class="wiki-group-title">${g.title}</div>
         <div class="wiki-grid">
@@ -12999,9 +13104,11 @@ function renderTabMapa() {
             ${t.badge ? `<span class="wiki-tile-badge">${t.badge}</span>` : ''}
             <span class="wiki-tile-ic">${t.icon}</span><span class="wiki-tile-lb">${t.label}</span>
             ${t.sub ? `<span class="wiki-tile-sub">${t.sub}</span>` : ''}</button>`).join('')}
-        </div>`).join('')}
+        </div>`).join('')}`}
     `;
     $('btn-map-fight').addEventListener('click', () => setTab('batalha'));
+    els('[data-mapa-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.mapaView = b.dataset.mapaView; renderTabMapa(); }));
+    if ($('wm-host')) renderWorldMap($('wm-host'));
   } else {
     $('hub-content').innerHTML = `
       <div class="row between" style="margin-bottom:12px; gap:8px;">
@@ -15796,7 +15903,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v175</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v176</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16889,7 +16996,7 @@ function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
 const NX_ICON_IMG = new Set(["chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 174;
+const NX_ICON_VER = 176;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
