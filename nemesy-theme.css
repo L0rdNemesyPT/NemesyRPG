@@ -1979,7 +1979,7 @@ body.ui-pergaminho .item-sub{filter:saturate(1.3) brightness(.78);}
 
 /* v176: Mapa do Mundo */
 .wm-wrap{position:relative; border-radius:16px; overflow:hidden; border:1px solid var(--line); box-shadow:0 8px 24px rgba(0,0,0,.45);}
-.wm-view{height:min(62vh,560px); overflow:auto; -webkit-overflow-scrolling:touch; background:#0b2233; touch-action:pan-x pan-y; cursor:grab; overscroll-behavior:contain;}
+.wm-view{height:max(320px, calc(100vh - 290px)); height:max(320px, calc(100dvh - 290px)); overflow:auto; -webkit-overflow-scrolling:touch; background:#0b2233; touch-action:pan-x pan-y; cursor:grab; overscroll-behavior:contain;}
 .wm-view::-webkit-scrollbar{display:none;}
 .wm-size{position:relative;}
 .wm-stage{position:absolute; left:0; top:0; width:1000px; height:1500px; transform-origin:0 0;}

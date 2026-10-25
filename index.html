@@ -3918,7 +3918,7 @@ function wmSvg(p) {
     <path d="${road}" stroke="#2a1d10" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".45"/>
     <path d="${road}" stroke="#ead3a0" stroke-width="4.5" fill="none" stroke-dasharray="12 9" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>
     ${trails}${fog}
-    <g opacity=".75"><circle cx="930" cy="90" r="38" fill="rgba(0,0,0,.25)" stroke="#e2c98a" stroke-width="2"/><path d="M930 46 L938 90 L930 134 L922 90 Z" fill="#e2c98a"/><text x="930" y="40" fill="#e2c98a" font-size="16" text-anchor="middle" font-family="serif">N</text></g>
+    <g opacity=".75"><circle cx="75" cy="90" r="38" fill="rgba(0,0,0,.25)" stroke="#e2c98a" stroke-width="2"/><path d="M75 46 L83 90 L75 134 L67 90 Z" fill="#e2c98a"/><text x="75" y="40" fill="#e2c98a" font-size="16" text-anchor="middle" font-family="serif">N</text></g>
   </svg>`;
 }
 function wmPinsHtml(p) {
@@ -13085,7 +13085,7 @@ function renderTabMapa() {
     const here = REGIONS[App.selectedRegionIndex] || REGIONS[0];
     $('hub-content').innerHTML = `
       <div class="section-title">🗺️ Mundo</div>
-      <div class="card raised map-here">
+      ${App.mapaView === 'lista' ? `<div class="card raised map-here">
         <div class="map-here-ic">${nxEnt('banner-' + here.key, here.icon)}</div>
         <div style="flex:1; min-width:0;">
           <div class="tiny muted">A explorar agora</div>
@@ -13093,7 +13093,7 @@ function renderTabMapa() {
           <div class="tiny muted">Níveis ${here.minLv}–${here.maxLv}</div>
         </div>
         <button class="btn small primary" id="btn-map-fight">⚔️ Batalhar</button>
-      </div>
+      </div>` : ''}
       <div class="tab-strip" style="margin:10px 0 8px;"><button class="tab-chip${App.mapaView !== 'lista' ? ' active' : ''}" data-mapa-view="mundo">🌍 Mapa do Mundo</button><button class="tab-chip${App.mapaView === 'lista' ? ' active' : ''}" data-mapa-view="lista">▦ Lista</button></div>
       ${App.mapaView !== 'lista' ? '<div id="wm-host"></div>' : `<p class="muted" style="margin:10px 0 2px;">Escolhe um destino para ver a informação.</p>
       ${groups.map(g => `
@@ -13106,7 +13106,7 @@ function renderTabMapa() {
             ${t.sub ? `<span class="wiki-tile-sub">${t.sub}</span>` : ''}</button>`).join('')}
         </div>`).join('')}`}
     `;
-    $('btn-map-fight').addEventListener('click', () => setTab('batalha'));
+    if ($('btn-map-fight')) $('btn-map-fight').addEventListener('click', () => setTab('batalha'));
     els('[data-mapa-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.mapaView = b.dataset.mapaView; renderTabMapa(); }));
     if ($('wm-host')) renderWorldMap($('wm-host'));
   } else {
@@ -15903,7 +15903,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v176</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v177</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
