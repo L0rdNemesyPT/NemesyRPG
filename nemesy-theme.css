@@ -1796,3 +1796,183 @@ div.nx-confirm-msg{text-align:left;}
 .btn.small.hw-btn{background:linear-gradient(180deg,#e0701a,#9a3a0a) !important; color:#fff3dc !important; border-color:#ffb04a !important;}
 .ak-tag.hw-tag{border-color:#e0701a !important; color:#ffb04a !important; background:rgba(224,112,26,.14) !important;}
 .hw-txt{color:#ffb04a;} .hw-line{color:#ffcf8a; border:1px solid rgba(224,112,26,.45); background:rgba(224,112,26,.08); border-radius:8px; padding:6px 8px; margin:6px 0;}
+
+/* ======================================================================
+   v175: VISUAL "MODERNO" (body.ui-modern) — opcional, escolhe-se nas Definições.
+   Cartões de vidro arredondados, menos molduras, barra de baixo numa só linha.
+   ====================================================================== */
+.nav-more{display:none;}
+body.ui-modern{
+  --bg-void:#0B0D12; --bg-panel:#12151C; --bg-raised:#171B23; --bg-raised-2:#1D222C;
+  --line:rgba(255,255,255,.09); --line-soft:rgba(255,255,255,.05);
+  --parchment:#ECE6D8; --muted:#9AA0AC; --dim:#6B7280;
+  --m-card:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
+  --m-border:1px solid rgba(255,255,255,.08);
+  --m-shadow:0 6px 18px rgba(0,0,0,.35);
+  --m-radius:16px;
+  --depth:var(--m-shadow);
+}
+body.ui-modern #app{background:radial-gradient(ellipse 120% 50% at 50% -10%, rgba(var(--acc-rgb),.10), transparent 60%), radial-gradient(ellipse 80% 40% at 100% 100%, rgba(99,102,241,.08), transparent 60%), #0B0D12; box-shadow:none;}
+body.ui-modern h1,body.ui-modern h2,body.ui-modern h3,body.ui-modern h4{text-shadow:none;}
+/* cartões */
+body.ui-modern :is(.card,.region-card,.player-panel,.item-row,.class-card,.stat-box,.account-panel,.combat-log,.event-banner){background:var(--m-card), var(--bg-panel) !important; border:var(--m-border); border-radius:var(--m-radius); box-shadow:var(--m-shadow);}
+body.ui-modern :is(.card,.region-card,.player-panel,.item-row,.class-card,.account-panel)::before{display:none;}
+body.ui-modern .item-row{border-radius:14px;}
+body.ui-modern .item-ic{border-radius:12px;}
+/* títulos */
+body.ui-modern .section-title{font-family:var(--font-body); font-weight:700; font-size:12px; letter-spacing:.12em; color:#C9CED8; text-shadow:none;}
+body.ui-modern .section-title::after{background:linear-gradient(90deg, rgba(255,255,255,.12), transparent);}
+body.ui-modern .wiki-group-title{font-family:var(--font-body); font-weight:700; color:#8C93A1;}
+body.ui-modern .wiki-group-title::after{background:linear-gradient(90deg, rgba(255,255,255,.1), transparent);}
+body.ui-modern .wiki-current{font-family:var(--font-body); font-weight:800; letter-spacing:.08em; color:var(--gold-bright); text-shadow:none;}
+/* botões */
+body.ui-modern .btn{border-radius:12px; font-family:var(--font-body); font-weight:700; letter-spacing:.01em; text-shadow:none; box-shadow:0 2px 8px rgba(0,0,0,.3) !important;}
+body.ui-modern .btn.primary{background:linear-gradient(180deg,var(--gold-bright),var(--gold)); color:#1B1405; border:1px solid rgba(var(--acc-rgb),.6);}
+body.ui-modern .btn.ghost,body.ui-modern .btn:not(.primary):not(.danger):not(.hw-btn):not(.asc-btn):not(.ho-btn-green){background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:var(--parchment);}
+body.ui-modern .btn.danger{background:linear-gradient(180deg,#E0564F,#A9302B); border:1px solid rgba(255,150,140,.5);}
+body.ui-modern .tab-chip{border-radius:999px !important; font-family:var(--font-body) !important; font-weight:700; background:rgba(255,255,255,.05) !important; border:1px solid rgba(255,255,255,.09) !important; text-shadow:none !important;}
+body.ui-modern .tab-chip.active{background:linear-gradient(180deg,var(--gold-bright),var(--gold)) !important; color:#1B1405 !important; border-color:transparent !important;}
+body.ui-modern .pill{border-radius:999px;}
+/* quadradinhos */
+body.ui-modern .wiki-tile{border-radius:18px; border:1px solid rgba(255,255,255,.08); background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), #12151C; box-shadow:0 6px 16px rgba(0,0,0,.35); min-height:92px;}
+body.ui-modern .wiki-tile:hover{border-color:rgba(var(--acc-rgb),.55); box-shadow:0 6px 18px rgba(0,0,0,.4), 0 0 0 1px rgba(var(--acc-rgb),.25);}
+body.ui-modern .wiki-tile-lb{font-family:var(--font-body); font-weight:700; font-size:11.5px; letter-spacing:.02em; text-transform:none;}
+body.ui-modern .wiki-tile-badge{border-radius:999px; background:var(--gold-bright); color:#1B1405; border:none;}
+/* barra de cima */
+body.ui-modern #statusbar{margin:calc(8px + var(--safe-top)) 10px 0; padding:8px 10px; border-radius:18px; background:rgba(23,27,35,.78); border:1px solid rgba(255,255,255,.08); box-shadow:0 8px 24px rgba(0,0,0,.4); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px);}
+body.ui-modern .sb-portrait{position:relative; width:46px; height:46px; border-radius:50%; border:none; padding:3px; background:conic-gradient(#63B0A3 var(--xp,0%), rgba(255,255,255,.1) 0); box-shadow:none;}
+body.ui-modern .sb-portrait .hero-av{border-radius:50%; width:100%; height:100%; object-fit:cover;}
+body.ui-modern .sb-lv-badge{position:absolute; right:-4px; bottom:-3px; min-width:20px; height:18px; padding:0 4px; border-radius:9px; background:var(--gold-bright); color:#1B1405; font-size:10px; font-weight:800; display:grid; place-items:center; border:2px solid #171B23;}
+.sb-lv-badge{display:none;} body.ui-modern .sb-lv-badge{display:grid;}
+body.ui-modern .sb-name{font-family:var(--font-body); font-weight:800; letter-spacing:0; text-shadow:none;}
+body.ui-modern .sb-lvl{display:none;}
+body.ui-modern .bar{height:8px; border-radius:6px; border:none; background:rgba(255,255,255,.08);}
+body.ui-modern .bar-xp{display:none;}
+body.ui-modern .hp-num{font-size:10.5px;}
+body.ui-modern .sb-gold{border-radius:999px; background:rgba(var(--acc-rgb),.12) !important; border:1px solid rgba(var(--acc-rgb),.35) !important; box-shadow:none !important; padding:6px 12px;}
+body.ui-modern .sb-mute{border-radius:50% !important; background:rgba(255,255,255,.06) !important; border:1px solid rgba(255,255,255,.1) !important; box-shadow:none !important;}
+/* barra de baixo: uma linha, flutuante */
+body.ui-modern #nav{margin:0 10px calc(8px + var(--safe-bottom)); padding:6px; border-radius:22px; background:rgba(18,21,28,.88); border:1px solid rgba(255,255,255,.08); box-shadow:0 10px 30px rgba(0,0,0,.55); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px);}
+body.ui-modern .nav-row + .nav-row{display:none;}
+body.ui-modern .nav-more{display:flex;}
+body.ui-modern .nav-btn{background:none !important; border:none !important; border-radius:16px; font-family:var(--font-body); font-weight:700; font-size:10.5px; letter-spacing:0; padding:7px 2px 6px; color:#8C93A1; text-shadow:none !important;}
+body.ui-modern .nav-btn.active{background:rgba(var(--acc-rgb),.14) !important; color:var(--gold-bright);}
+body.ui-modern .nav-btn .ic{filter:grayscale(.6) brightness(.9);}
+body.ui-modern .nav-btn.active .ic{filter:none;}
+body.ui-modern .nav-more .ic{font-size:20px; line-height:28px; height:28px; filter:none; color:#C9CED8;}
+/* menu "Mais" */
+.ui-more-h{font-weight:800; font-size:16px; margin-bottom:10px; text-align:center;}
+.ui-more-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+.ui-more-tile{position:relative; display:flex; flex-direction:column; align-items:center; gap:6px; padding:16px 8px; border-radius:18px; border:1px solid rgba(255,255,255,.09); background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), #12151C; color:var(--parchment); font-weight:700; cursor:pointer;}
+.ui-more-tile.on{border-color:rgba(var(--acc-rgb),.6); box-shadow:0 0 0 1px rgba(var(--acc-rgb),.25);}
+.ui-more-tile .ic{font-size:30px; line-height:1;} .ui-more-tile .ic .nx-ic{width:40px; height:40px;}
+/* modal */
+body.ui-modern .modal-sheet{border-radius:24px 24px 0 0 !important; background:#12151C !important; border:1px solid rgba(255,255,255,.08) !important; border-bottom:none !important;}
+body.ui-modern .modal-sheet::before{display:none;}
+/* combate */
+body.ui-modern .enemy-glyph{border-radius:18px;}
+body.ui-modern .ab-btn{border-radius:16px !important; background:linear-gradient(160deg, rgba(255,255,255,.07), rgba(255,255,255,.02)), #12151C !important; border:1px solid rgba(255,255,255,.09) !important;}
+body.ui-modern .combat-log{background:rgba(12,14,19,.72) !important;}
+body.ui-modern .sb-lv-badge{min-width:28px; right:-8px; font-size:9.5px; padding:0 3px;}
+body.ui-modern :is(.item-name,.fr-item-name,.sheet-name,.cmp-nm,.sob-name,.hw-boss-n){font-family:var(--font-body); font-weight:800; letter-spacing:0;}
+body.ui-modern .hp-num{white-space:nowrap; font-size:10px;} body.ui-modern .hp-num span{white-space:nowrap;}
+body.ui-modern .sb-portrait{overflow:visible !important;}
+
+/* ======================================================================
+   v175: VISUAL "ARCANO" (body.ui-modern.ui-arcano) — vidro escuro com brilho
+   roxo/ciano, botão de Batalha grande ao centro da barra de baixo.
+   ====================================================================== */
+body.ui-arcano{
+  --bg-void:#07060F; --bg-panel:#100D1F; --bg-raised:#16122A;
+  --m-card:linear-gradient(160deg, rgba(var(--acc-rgb),.14), rgba(var(--acc2-rgb),.05) 60%, rgba(255,255,255,.02));
+  --m-border:1px solid rgba(var(--acc-rgb),.22);
+  --m-shadow:0 8px 24px rgba(10,5,30,.6), inset 0 1px 0 rgba(255,255,255,.06);
+  --m-radius:20px;
+}
+body.ui-arcano #app{background:radial-gradient(circle at 15% -5%, rgba(var(--acc-rgb),.35), transparent 45%), radial-gradient(circle at 110% 40%, rgba(var(--acc2-rgb),.18), transparent 40%), radial-gradient(circle at -10% 110%, rgba(236,72,153,.15), transparent 40%), #07060F;}
+body.ui-arcano .section-title{color:var(--gold-bright);}
+body.ui-arcano .section-title::after{background:linear-gradient(90deg, rgba(var(--acc-rgb),.6), transparent);}
+body.ui-arcano .wiki-tile{border-radius:22px; border:1px solid rgba(var(--acc-rgb),.25); background:linear-gradient(160deg, rgba(var(--acc-rgb),.20), rgba(var(--acc2-rgb),.06)), #100D1F; box-shadow:0 8px 22px rgba(10,5,30,.55), inset 0 1px 0 rgba(255,255,255,.07);}
+body.ui-arcano .wiki-tile:hover{border-color:var(--gold); box-shadow:0 0 0 1px rgba(var(--acc-rgb),.5), 0 0 22px rgba(var(--acc-rgb),.35);}
+body.ui-arcano .wiki-tile-badge{background:linear-gradient(90deg,var(--gold),var(--acc2)); color:#fff;}
+body.ui-arcano .btn.primary{background:linear-gradient(90deg,var(--gold),var(--acc2)); color:#fff; border:none; text-shadow:0 1px 2px rgba(0,0,0,.35);}
+body.ui-arcano .tab-chip.active{background:linear-gradient(90deg,var(--gold),var(--acc2)) !important; color:#fff !important;}
+body.ui-arcano #statusbar{background:rgba(22,18,42,.72); border:1px solid rgba(var(--acc-rgb),.25); box-shadow:0 10px 30px rgba(10,5,30,.6), 0 0 20px rgba(var(--acc-rgb),.15);}
+body.ui-arcano .sb-portrait{background:conic-gradient(var(--acc2) 0, var(--gold) var(--xp,0%), rgba(255,255,255,.1) 0);}
+body.ui-arcano .sb-lv-badge{background:linear-gradient(90deg,var(--gold),var(--acc2)); color:#fff; border-color:#16122A;}
+body.ui-arcano .sb-gold{background:rgba(250,204,21,.10) !important; border-color:rgba(250,204,21,.35) !important; color:#FACC15;}
+body.ui-arcano .bar-hp .bar-fill{background:linear-gradient(90deg,#EC4899,#F43F5E);}
+body.ui-arcano #nav{background:rgba(16,13,31,.9); border:1px solid rgba(var(--acc-rgb),.25); overflow:visible;}
+body.ui-arcano .nav-row{align-items:flex-end;}
+body.ui-arcano .nav-btn[data-tab="batalha"]{order:3;} body.ui-arcano .nav-btn[data-tab="heroi"]{order:1;} body.ui-arcano .nav-btn[data-tab="mochila"]{order:2;} body.ui-arcano .nav-btn[data-tab="mapa"]{order:4;} body.ui-arcano .nav-more{order:5;}
+body.ui-arcano .nav-btn[data-tab="batalha"]{position:relative; margin-top:-26px; flex:0 0 76px; height:76px; border-radius:50% !important; background:linear-gradient(145deg,var(--gold),var(--acc2)) !important; color:#fff !important; box-shadow:0 8px 22px rgba(var(--acc-rgb),.55), 0 0 0 5px rgba(16,13,31,.95) !important; justify-content:center;}
+body.ui-arcano .nav-btn[data-tab="batalha"] .ic{filter:drop-shadow(0 2px 3px rgba(0,0,0,.5)) !important;}
+body.ui-arcano .nav-btn[data-tab="batalha"] .ic .nx-ic{width:32px; height:32px;}
+body.ui-arcano .nav-btn.active:not([data-tab="batalha"]){background:rgba(var(--acc-rgb),.18) !important; color:var(--gold-bright);}
+body.ui-arcano .nav-btn[data-tab="batalha"].active{box-shadow:0 8px 26px rgba(var(--acc2-rgb),.6), 0 0 0 5px rgba(16,13,31,.95), 0 0 0 7px rgba(var(--acc-rgb),.6) !important;}
+body.ui-arcano .modal-sheet{background:#100D1F !important; border-color:rgba(var(--acc-rgb),.3) !important;}
+body.ui-arcano .ui-more-tile{border-color:rgba(var(--acc-rgb),.25); background:linear-gradient(160deg, rgba(var(--acc-rgb),.2), rgba(var(--acc2-rgb),.06)), #100D1F;}
+
+/* ======================================================================
+   v175: VISUAL "PERGAMINHO" (body.ui-modern.ui-pergaminho) — claro, papel
+   envelhecido e tinta castanha, como um livro de aventuras.
+   ====================================================================== */
+body.ui-pergaminho{
+  --bg-void:#EADBB8; --bg-panel:#F4E8CC; --bg-raised:#F8EFD9; --bg-raised-2:#EFE1BF;
+  --line:rgba(90,60,25,.25); --line-soft:rgba(90,60,25,.14);
+  --parchment:#3A2814; --muted:#7A6447; --dim:#9A8566;
+  --gold:var(--ink); --gold-bright:var(--ink);
+  --m-card:linear-gradient(180deg, #FBF4E2, #F2E4C4);
+  --m-border:1px solid rgba(110,75,30,.28);
+  --m-shadow:0 3px 10px rgba(80,50,15,.18), inset 0 1px 0 rgba(255,255,255,.6);
+  --m-radius:14px;
+  color-scheme:light;
+}
+body.ui-pergaminho #app{background:radial-gradient(ellipse at 50% 0%, #F6EAD0, transparent 70%), repeating-linear-gradient(0deg, rgba(120,85,40,.035) 0 2px, transparent 2px 4px), #E8D7B0; color:var(--parchment);}
+body.ui-pergaminho :is(.card,.region-card,.player-panel,.item-row,.class-card,.stat-box,.account-panel,.event-banner){color:var(--parchment);}
+body.ui-pergaminho h1,body.ui-pergaminho h2,body.ui-pergaminho h3,body.ui-pergaminho h4{color:#3A2814;}
+body.ui-pergaminho .section-title{font-family:var(--font-display); color:var(--ink); letter-spacing:.08em;}
+body.ui-pergaminho .section-title::after{background:linear-gradient(90deg, rgba(var(--ink-rgb),.45), transparent);}
+body.ui-pergaminho .wiki-current{font-family:var(--font-display); color:var(--ink);}
+body.ui-pergaminho .wiki-tile{background:linear-gradient(180deg,#FBF4E2,#EEDFBC); border:1px solid rgba(110,75,30,.32); box-shadow:0 3px 8px rgba(80,50,15,.18), inset 0 1px 0 #fff; color:#3A2814;}
+body.ui-pergaminho .wiki-tile-lb{font-family:var(--font-display); font-weight:700; text-transform:uppercase; letter-spacing:.05em; font-size:10.5px;}
+body.ui-pergaminho .wiki-tile:hover{border-color:#9A6A12;}
+body.ui-pergaminho .wiki-tile-badge{background:var(--ink); color:#FFF3DC;}
+body.ui-pergaminho .btn.primary{background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(0,0,0,.22)), var(--ink); color:#FFF3DC; border:1px solid rgba(0,0,0,.35);}
+body.ui-pergaminho .btn.ghost,body.ui-pergaminho .btn:not(.primary):not(.danger):not(.hw-btn):not(.asc-btn):not(.ho-btn-green){background:rgba(255,255,255,.55); border:1px solid rgba(110,75,30,.35); color:#3A2814;}
+body.ui-pergaminho .tab-chip{background:rgba(255,255,255,.5) !important; border-color:rgba(110,75,30,.3) !important; color:#5A4022 !important;}
+body.ui-pergaminho .tab-chip.active{background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(0,0,0,.22)), var(--ink) !important; color:#FFF3DC !important;}
+body.ui-pergaminho .muted,body.ui-pergaminho .tiny.muted{color:var(--muted) !important;}
+body.ui-pergaminho #statusbar{background:rgba(250,242,222,.92); border:1px solid rgba(110,75,30,.3); box-shadow:0 6px 18px rgba(80,50,15,.22);}
+body.ui-pergaminho .sb-portrait{background:conic-gradient(#3F7F5C var(--xp,0%), rgba(90,60,25,.15) 0);}
+body.ui-pergaminho .sb-lv-badge{background:var(--ink); color:#FFF3DC; border-color:#FAF2DE;}
+body.ui-pergaminho .sb-name{color:#3A2814;}
+body.ui-pergaminho .sb-gold{background:rgba(154,106,18,.12) !important; border-color:rgba(154,106,18,.45) !important; color:#7A4E08;}
+body.ui-pergaminho .sb-mute{background:rgba(255,255,255,.6) !important; border-color:rgba(110,75,30,.3) !important;}
+body.ui-pergaminho .bar{background:rgba(90,60,25,.15);}
+body.ui-pergaminho .hp-num{color:#6A5435;}
+body.ui-pergaminho #nav{background:rgba(250,242,222,.95); border:1px solid rgba(110,75,30,.3); box-shadow:0 8px 24px rgba(80,50,15,.25);}
+body.ui-pergaminho .nav-btn{color:#8A7556; font-family:var(--font-display);}
+body.ui-pergaminho .nav-btn.active{background:rgba(var(--ink-rgb),.12) !important; color:var(--ink);}
+body.ui-pergaminho .nav-btn .ic{filter:sepia(.4) saturate(.8);}
+body.ui-pergaminho .nav-more .ic{color:#5A4022;}
+body.ui-pergaminho .modal-sheet{background:#F6EBD0 !important; border-color:rgba(110,75,30,.35) !important; color:#3A2814;}
+body.ui-pergaminho .ui-more-tile{background:linear-gradient(180deg,#FBF4E2,#EEDFBC); border-color:rgba(110,75,30,.32); color:#3A2814;}
+body.ui-pergaminho .item-name{color:#3A2814;}
+body.ui-pergaminho .item-stats,body.ui-pergaminho .tiny{color:#5A4530;}
+body.ui-pergaminho .item-row{border-left-width:4px !important;}
+body.ui-pergaminho .cmp-pill.better{color:#2F6B2A; border-color:#2F6B2A;}
+/* Pergaminho: o ecrã de combate continua escuro (cenários), e cores de stats legíveis em papel. */
+body.ui-pergaminho #screen-combat{--bg-void:#0B0D12; --bg-panel:#12151C; --bg-raised:#171B23; --bg-raised-2:#1D222C; --line:rgba(255,255,255,.09); --line-soft:rgba(255,255,255,.05); --parchment:#ECE6D8; --muted:#9AA0AC; --dim:#6B7280; --gold:#C9A227; --gold-bright:#E4BF4A;
+  --m-card:linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.025)); --m-border:1px solid rgba(255,255,255,.08); --m-shadow:0 6px 18px rgba(0,0,0,.35); color:#ECE6D8; background:#0B0D12;}
+body.ui-pergaminho #screen-combat :is(.tiny,.item-name,.player-panel){color:#ECE6D8;}
+body.ui-pergaminho #screen-combat .btn:not(.primary):not(.danger){background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:#ECE6D8;}
+body.ui-pergaminho #screen-combat .btn.primary{background:linear-gradient(180deg,#F2CF5B,#D3A62C); color:#1B1405; border:1px solid rgba(255,230,150,.6);}
+body.ui-pergaminho .st-def{color:#3A2814 !important;} body.ui-pergaminho .st-es{color:#1F6FA8 !important;}
+body.ui-pergaminho #screen-combat .st-def{color:#ECE6D8 !important;} body.ui-pergaminho #screen-combat .st-es{color:#7CC7F2 !important;}
+body.ui-pergaminho .item-stats b{color:#3A2814;}
+body.ui-pergaminho .modal-sheet :is(.sheet-tot,.wiki-table td){color:#3A2814;}
+body.ui-pergaminho .crypt-txt{color:#5B2A86 !important;} body.ui-pergaminho .hw-txt{color:#9A3A0A !important;}
+body.ui-pergaminho .pill-plus2{color:#6B5200 !important; border-color:#B08D3E !important; background:rgba(176,141,62,.14) !important;}
+body.ui-pergaminho .pill-plus2 *{color:#6B5200 !important;}
+body.ui-pergaminho .item-sub{filter:saturate(1.3) brightness(.78);}

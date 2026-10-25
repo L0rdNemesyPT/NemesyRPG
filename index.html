@@ -434,6 +434,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
         <button class="nav-btn" data-tab="heroi"><span class="ic">🧝</span>Herói</button>
         <button class="nav-btn" data-tab="mochila"><span class="ic">🎒</span>Mochila</button>
         <button class="nav-btn" data-tab="mapa"><span class="ic">🗺️</span>Mapa</button>
+        <button class="nav-btn nav-more" data-nav-more="1"><span class="ic">☰</span>Mais</button>
       </div>
       <div class="nav-row">
         <button class="nav-btn" data-tab="loja"><span class="ic">🏙️</span>Cidade</button>
@@ -4883,24 +4884,33 @@ function showBuffInfoModal(icon, name, descLine, duration) {
 // TEMA DE CORES DO MENU — troca a cor de destaque usada em toda a UI
 // (bordas, títulos, abas ativas, botões primários, etc.)
 // ============================================================
+// v175: cada cor tem também uma 2.ª cor (degradês do Arcano) e uma "tinta" (visual Pergaminho).
+// A cor escolhida fica guardada por visual (cada visual tem a sua cor por defeito).
 const THEME_PRESETS = [
-  { key: 'dourado', name: 'Dourado', icon: '🟡', gold: '#C9A227', goldBright: '#E4BF4A' },
-  { key: 'prateado', name: 'Prateado', icon: '⚪', gold: '#8C97A6', goldBright: '#C3CEDB' },
-  { key: 'esmeralda', name: 'Esmeralda', icon: '🟢', gold: '#3F8F5D', goldBright: '#5FBE82' },
-  { key: 'carmesim', name: 'Carmesim', icon: '🔴', gold: '#A34141', goldBright: '#C65C5C' },
-  { key: 'ametista', name: 'Ametista', icon: '🟣', gold: '#7A4FA3', goldBright: '#9B72C9' },
-  { key: 'azul', name: 'Azul', icon: '🔵', gold: '#2E6DA4', goldBright: '#4F9BD8' }
+  { key: 'dourado', name: 'Dourado', icon: '🟡', gold: '#C9A227', goldBright: '#E4BF4A', acc2: '#F59E0B', ink: '#7A4E08' },
+  { key: 'prateado', name: 'Prateado', icon: '⚪', gold: '#8C97A6', goldBright: '#C3CEDB', acc2: '#94A3B8', ink: '#3F4A5A' },
+  { key: 'esmeralda', name: 'Esmeralda', icon: '🟢', gold: '#3F8F5D', goldBright: '#5FBE82', acc2: '#2DD4BF', ink: '#2F6B3F' },
+  { key: 'carmesim', name: 'Carmesim', icon: '🔴', gold: '#A34141', goldBright: '#C65C5C', acc2: '#F472B6', ink: '#8A1C1C' },
+  { key: 'ametista', name: 'Ametista', icon: '🟣', gold: '#8B6CFF', goldBright: '#B89CFF', acc2: '#38BDF8', ink: '#5B2A86' },
+  { key: 'azul', name: 'Azul', icon: '🔵', gold: '#2E6DA4', goldBright: '#4F9BD8', acc2: '#22D3EE', ink: '#1E4E7A' }
 ];
+const UI_DEFAULT_THEME = { classic: 'dourado', modern: 'dourado', arcano: 'ametista', pergaminho: 'carmesim' };
+function hexRgb(h) { const n = parseInt(String(h).slice(1), 16); return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`; }
 function loadThemePref() {
-  try { return localStorage.getItem('nemesy_theme') || 'dourado'; } catch (e) { return 'dourado'; }
+  const st = typeof uiStyle === 'function' ? uiStyle() : 'classic';
+  try { return localStorage.getItem('nemesy_theme_' + st) || (st === 'classic' && localStorage.getItem('nemesy_theme')) || UI_DEFAULT_THEME[st] || 'dourado'; } catch (e) { return UI_DEFAULT_THEME[st] || 'dourado'; }
 }
 function saveThemePref(key) {
-  try { localStorage.setItem('nemesy_theme', key); } catch (e) {}
+  const st = typeof uiStyle === 'function' ? uiStyle() : 'classic';
+  try { localStorage.setItem('nemesy_theme_' + st, key); } catch (e) {}
 }
 function applyTheme(key) {
-  const preset = THEME_PRESETS.find(t => t.key === key) || THEME_PRESETS[0];
-  document.documentElement.style.setProperty('--gold', preset.gold);
-  document.documentElement.style.setProperty('--gold-bright', preset.goldBright);
+  const preset = THEME_PRESETS.find(t => t.key === key) || THEME_PRESETS[0], r = document.documentElement.style;
+  r.setProperty('--gold', preset.gold);
+  r.setProperty('--gold-bright', preset.goldBright);
+  r.setProperty('--acc-rgb', hexRgb(preset.goldBright));
+  r.setProperty('--acc2', preset.acc2); r.setProperty('--acc2-rgb', hexRgb(preset.acc2));
+  r.setProperty('--ink', preset.ink); r.setProperty('--ink-rgb', hexRgb(preset.ink));
   App.theme = preset.key;
 }
 function setTheme(key) {
@@ -5252,8 +5262,9 @@ function renderStatusBar() {
   const need = xpForLevel(p.level);
   const cls = CLASSES[p.class];
   const icon = heroIcon(p);
+  $('statusbar').style.setProperty('--xp', `${clamp(p.xp / need * 100, 0, 100)}%`);
   $('statusbar').innerHTML = `
-    <div class="sb-portrait has-av">${heroAvatarHtml(p)}</div>
+    <div class="sb-portrait has-av">${heroAvatarHtml(p)}<span class="sb-lv-badge">${p.level}</span></div>
     <div class="sb-mid">
       <div class="sb-row1">
         <span class="sb-name">${esc(p.name)}</span>
@@ -5275,6 +5286,7 @@ function goHub() {
   renderStatusBar();
   renderHubTab();
   els('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === App.tab));
+  uiNavMoreSync();
 }
 
 function setTab(tab) {
@@ -5282,8 +5294,30 @@ function setTab(tab) {
   stopGuildTimers();
   App.tab = tab;
   els('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  uiNavMoreSync();
   renderHubTab();
   fxPageIn();
+}
+// v175: visual "Moderno" (opcional, por aparelho). Barra de baixo numa só linha com "Mais".
+const UI_MORE_TABS = [['loja', '🏙️', 'Cidade'], ['upplus', '🧬', 'Up+'], ['trades', '💱', 'Trades'], ['wiki', '📚', 'Wiki']];
+const UI_STYLES = ['modern', 'arcano', 'pergaminho', 'classic'];
+function uiStyle() { try { const v = localStorage.getItem('nemesy_ui'); return UI_STYLES.includes(v) ? v : 'modern'; } catch (e) { return 'modern'; } }
+function uiApply() { try { const st = uiStyle(), b = document.body;
+  b.classList.toggle('ui-modern', st !== 'classic'); b.classList.toggle('ui-arcano', st === 'arcano'); b.classList.toggle('ui-pergaminho', st === 'pergaminho'); } catch (e) {} }
+function uiNavMoreSync() {
+  const m = document.querySelector('[data-nav-more]'); if (!m) return;
+  m.classList.toggle('active', UI_MORE_TABS.some(t => t[0] === App.tab));
+}
+function openNavMore() {
+  sfx.tab();
+  openModal(`<div class="ui-more-h">Mais</div>
+    <div class="ui-more-grid">${UI_MORE_TABS.map(([k, e, l]) => {
+      const src = document.querySelector(`#nav .nav-btn[data-tab="${k}"]`);
+      const badge = src && src.querySelector('.nav-badge, .badge') ? src.querySelector('.nav-badge, .badge').outerHTML : '';
+      return `<button class="ui-more-tile${App.tab === k ? ' on' : ''}" data-more-tab="${k}"><span class="ic">${src ? src.querySelector('.ic').innerHTML : e}</span><span>${l}</span>${badge}</button>`; }).join('')}</div>
+    <button class="btn ghost block" id="btn-close-modal" style="margin-top:12px;">Fechar</button>`);
+  $('btn-close-modal').addEventListener('click', closeModal);
+  els('[data-more-tab]').forEach(b => b.addEventListener('click', () => { closeModal(); setTab(b.dataset.moreTab); }));
 }
 // v95: transição suave ao mudar de menu / sub-menu.
 function fxPageIn() {
@@ -15753,7 +15787,7 @@ async function renameHero() {
 function openSettingsModal() {
   const p = App.player;
   const themeSwatches = THEME_PRESETS.map(t => `
-    <button class="theme-swatch${App.theme === t.key ? ' active' : ''}" data-theme-key="${t.key}" style="--sw-color:${t.gold};">
+    <button class="theme-swatch${App.theme === t.key ? ' active' : ''}" data-theme-key="${t.key}" style="--sw-color:${uiStyle() === 'pergaminho' ? t.ink : uiStyle() === 'arcano' ? `linear-gradient(135deg, ${t.gold}, ${t.acc2})` : t.gold};">
       <span class="theme-swatch-dot"></span><span class="tiny">${t.icon} ${t.name}</span>
     </button>
   `).join('');
@@ -15762,7 +15796,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v174</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v175</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -15804,6 +15838,14 @@ function openSettingsModal() {
     </div>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row between" style="align-items:center;">
+        <span style="font-weight:700;">📱 Visual do jogo</span>
+        <div class="row" style="gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+          ${[['modern', 'Moderno'], ['arcano', 'Arcano'], ['pergaminho', 'Pergaminho'], ['classic', 'Clássico']].map(([k, l]) => `<button class="btn small ${uiStyle() === k ? 'primary' : 'ghost'}" data-ui-style="${k}">${l}</button>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="card raised" style="margin-bottom:12px;">
+      <div class="row between" style="align-items:center;">
         <span style="font-weight:700;">🖼️ Estilo dos ícones</span>
         <div class="row" style="gap:6px;">
           <button class="btn small ${nxIconsEnabled() ? 'primary' : 'ghost'}" data-icon-style="nemesy">Nemesy</button>
@@ -15812,7 +15854,7 @@ function openSettingsModal() {
       </div>
     </div>
     <div class="card raised" style="margin-bottom:12px;">
-      <span style="font-weight:700;">🎨 Cor do menu</span>
+      <span style="font-weight:700;">🎨 Cor do menu</span> <span class="tiny muted">(para o visual ${({ modern: 'Moderno', arcano: 'Arcano', pergaminho: 'Pergaminho', classic: 'Clássico' })[uiStyle()]})</span>
       <div class="theme-swatch-grid" style="margin-top:10px;">${themeSwatches}</div>
     </div>
     <div class="card raised" style="margin-bottom:12px;">
@@ -15857,6 +15899,10 @@ function openSettingsModal() {
     saveGame();
     nxSetLang(b.dataset.lang);
   }));
+  els('[data-ui-style]').forEach(b => b.addEventListener('click', () => {
+    try { localStorage.setItem('nemesy_ui', b.dataset.uiStyle); } catch (e) {}
+    uiApply(); applyTheme(loadThemePref()); sfx.tab(); openSettingsModal();
+  }));
   els('[data-icon-style]').forEach(b => b.addEventListener('click', () => {
     try { localStorage.setItem('nemesy_icon_style', b.dataset.iconStyle); } catch (e) {}
     if (b.dataset.iconStyle === 'emoji') nxRestoreEmojiIcons(); else nxUpgradeIcons(document);
@@ -15888,7 +15934,9 @@ function wireStaticEvents() {
   });
   wireAccountScreenEvents();
   $('btn-start-game').addEventListener('click', () => { sfx.click(); startNewGame(); });
-  els('.nav-btn').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  els('.nav-btn[data-tab]').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
+  els('[data-nav-more]').forEach(b => b.addEventListener('click', openNavMore));
+  uiApply();
   $('cb-btn-potion').addEventListener('click', () => { sfx.click(); openPotionModal(); });
   $('cb-btn-attack').addEventListener('click', useNormalAttackAction);
   $('cb-btn-flee').addEventListener('click', async () => {
@@ -17172,6 +17220,7 @@ function init() {
 }
 
 if (typeof document !== 'undefined') {
+  uiApply();
   applyTheme(loadThemePref());
   document.addEventListener('DOMContentLoaded', () => {
     init();
