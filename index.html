@@ -370,7 +370,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- ACCOUNT ENTRY -->
   <div class="screen" id="screen-account">
-    <span class="app-version-badge" id="app-version-badge">V 1.8.8</span>
+    <span class="app-version-badge" id="app-version-badge">V 1.9.1</span>
     <div class="account-lang" role="group" aria-label="Língua">
       <button type="button" data-login-lang="pt" aria-label="Português"><span class="al-flag">🇵🇹</span>PT</button>
       <button type="button" data-login-lang="en" aria-label="English"><span class="al-flag">🇬🇧</span>EN</button>
@@ -2587,7 +2587,12 @@ const BONUS_PLUS_POOL = [
   // v80: só em armas.
   { key: 'vs_demonios', name: 'Contra Demónios', icon: '😈', min: 8, max: 20, cap: 40, roll: () => 8 + Math.floor(Math.random() * 13), label: v => `+${v}% Dano vs. Demónios`, slots: ['weapon'] },
   { key: 'vs_mortos', name: 'Contra Mortos-Vivos', icon: '💀', min: 8, max: 20, cap: 40, roll: () => 8 + Math.floor(Math.random() * 13), label: v => `+${v}% Dano vs. Mortos-Vivos`, slots: ['weapon'] },
-  { key: 'dano_habilidade', name: 'Dano de Habilidade', icon: '🌟', min: 1, max: 10, cap: 20, roll: () => 1 + Math.floor(Math.random() * 10), label: v => `+${v}% Dano das Habilidades`, slots: ['weapon'] }
+  { key: 'dano_habilidade', name: 'Dano de Habilidade', icon: '🌟', min: 1, max: 10, cap: 20, roll: () => 1 + Math.floor(Math.random() * 10), label: v => `+${v}% Dano das Habilidades`, slots: ['weapon'] },
+  // v181: resistências elementais — só em peças de Nv. 100+ (não armas).
+  { key: 'res_fogo', name: 'Resistência ao Fogo', icon: '🔥', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência ao Fogo`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
+  { key: 'res_gelo', name: 'Resistência ao Gelo', icon: '🧊', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência ao Gelo`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
+  { key: 'res_eletricidade', name: 'Resistência à Eletricidade', icon: '⚡', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência à Eletricidade`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
+  { key: 'res_terra', name: 'Resistência à Terra', icon: '🪨', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência à Terra`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 }
 ];
 
 // v86: Bónus ➕ (amarelo-claro). Um só por item, à parte dos Bónus+ normais: só os
@@ -2647,10 +2652,15 @@ function bonusPlusLabel(b) {
 }
 function rollNewBonusForItem(item) {
   const existingKeys = (item.bonuses || []).map(b => b.key);
-  const bySlot = BONUS_PLUS_POOL.filter(b => !b.slots || b.slots.includes(item.slot));
+  const bySlot = BONUS_PLUS_POOL.filter(b => (!b.slots || b.slots.includes(item.slot)) && (!b.minLv || (item.itemLevel || 0) >= b.minLv));
   const pool = bySlot.filter(b => !existingKeys.includes(b.key));
   const finalPool = pool.length ? pool : (bySlot.length ? bySlot : BONUS_PLUS_POOL);
-  const chosen = finalPool[Math.floor(Math.random() * finalPool.length)];
+  // v181: as 4 Resistências contam como UMA opção (o elemento sai ao acaso), para não
+  // tornarem mais raros os outros bónus das armaduras.
+  const resOpts = finalPool.filter(b => RES_BONUS_EL[b.key]);
+  const others = finalPool.filter(b => !RES_BONUS_EL[b.key]);
+  const pickIdx = Math.floor(Math.random() * (others.length + (resOpts.length ? 1 : 0)));
+  const chosen = pickIdx < others.length ? others[pickIdx] : resOpts[Math.floor(Math.random() * resOpts.length)];
   return { key: chosen.key, value: chosen.roll() };
 }
 function applyFeitico(item) {
@@ -3383,9 +3393,26 @@ function effectiveStats(player) {
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100, goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold'), undying: !!pv.undying
+    critDmgBonus: (pv.critdmg || 0) / 100, goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold'), undying: !!pv.undying,
+    res: playerResTotals(player)
   };
 }
+
+// v181: Resistências do herói (em %, sem limite — o limite RES_CAP aplica-se em resFor()).
+function playerResTotals(player) {
+  const out = { fogo: 0, gelo: 0, eletricidade: 0, terra: 0 };
+  const offWeapon = !!(player.equipment.offhand && player.equipment.offhand.slot === 'weapon');
+  EQUIP_SLOTS.forEach(slot => {
+    const item = player.equipment[slot]; if (!item) return;
+    if (slot === 'offhand' && offWeapon && !dualWieldActive(player)) return;
+    const r = itemRes(item);
+    if (r) ELEMENT_KEYS.forEach(el => { out[el] += r[el] || 0; });
+    (item.bonuses || []).forEach(b => { const el = RES_BONUS_EL[b.key]; if (el) out[el] += Number(b.value) || 0; });
+  });
+  if ((player.elemPotionBattles || 0) > 0) ELEMENT_KEYS.forEach(el => { out[el] += ELEMENT_POTION_RES; });
+  return out;
+}
+const RES_BONUS_EL = { res_fogo: 'fogo', res_gelo: 'gelo', res_eletricidade: 'eletricidade', res_terra: 'terra' };
 
 // Compara o "poder" aproximado de um item, incluindo o bónus de melhoria (+0..+9).
 // Pesos usados para converter cada bónus de Feitiço/Pedra Nephalem/Altar num valor
@@ -3395,7 +3422,8 @@ function effectiveStats(player) {
 // como "pior" só por ter 1-2 pontos a menos de stats de base.
 const BONUS_SCORE_WEIGHTS = {
   dano_pct: 15, vs_animais: 8, vs_humanos: 8, vs_demonios: 6, vs_mortos: 6, dano_habilidade: 10, atordoamento: 10,
-  esquiva: 30, regeneracao: 30, envenenamento: 6
+  esquiva: 30, regeneracao: 30, envenenamento: 6,
+  res_fogo: 4, res_gelo: 4, res_eletricidade: 4, res_terra: 4
 };
 // v173: Ascensão — um item +9 pode ser "Ascendido" com um Coração do Soberano. Continua a +9,
 // mas conta como mais ASCEND_EXTRA_LEVELS níveis de melhoria (+20% dos stats base) e mostra "✦ Ascendido".
@@ -4088,12 +4116,127 @@ const UNIQUE_ITEM_EFFECTS = {
   bleedImmune: { icon: '🩸🚫', label: 'Imunidade a Sangramento', desc: 'Nunca sofres a condição de Sangramento, seja qual for a origem.' }
 };
 
+// ============================================================
+// 🔥🧊⚡🪨 ELEMENTOS (v181) — a partir do Nv. 100 todos os monstros e chefes têm um elemento.
+// Ciclo: Fogo vence Gelo, Gelo vence Terra, Terra vence Eletricidade, Eletricidade vence Fogo.
+// O jogador ataca com o elemento da arma (+20% contra o que vence, −10% contra o que o vence)
+// e defende-se com Resistências (máx. 75%). 30% do golpe dos monstros é elemental: nessa parte
+// contam 2/3 da defesa e depois a resistência.
+// ============================================================
 const ELEMENT_INFO = {
-  fogo: { icon: '🔥', name: 'Fogo', desc: 'Depois de te atacar, ficas a arder: sofres dano adicional durante as 2 rondas seguintes.' },
-  gelo: { icon: '🧊', name: 'Gelo', desc: 'Cada ataque do inimigo enfraquece a tua defesa em 5% (acumula até -30%) pelo resto do combate.' },
-  eletricidade: { icon: '⚡', name: 'Eletricidade', desc: '20% de chance do ataque do inimigo descarregar com +50% de dano extra.' },
-  caos: { icon: '🌀', name: 'Caos', desc: 'A cada ataque, o inimigo escolhe aleatoriamente entre Fogo, Gelo ou Eletricidade.' }
+  fogo: { icon: '🔥', name: 'Fogo', ao: 'ao Fogo', color: '#ff7a3a', effect: 'Queimadura', desc: '30% de hipótese, em cada golpe, de te deixar a arder durante 2 rondas. A Resistência ao Fogo reduz a hipótese e o dano da queimadura.' },
+  gelo: { icon: '🧊', name: 'Gelo', ao: 'ao Gelo', color: '#7fd3ff', effect: 'Congelar', desc: '35% de hipótese, em cada golpe, de te tirar 5% de defesa (até −30%) pelo resto do combate. A Resistência ao Gelo reduz essa hipótese.' },
+  eletricidade: { icon: '⚡', name: 'Eletricidade', ao: 'à Eletricidade', color: '#ffe04a', effect: 'Descarga', desc: '15% de hipótese de um golpe com +50% de dano. A Resistência à Eletricidade reduz essa hipótese.' },
+  terra: { icon: '🪨', name: 'Terra', ao: 'à Terra', color: '#c49a5a', effect: 'Pele de Pedra', desc: 'O monstro tem +15% de defesa e 12% de hipótese de um Tremor (+50% de dano). A Resistência à Terra reduz a hipótese de Tremor.' }
 };
+const ELEMENT_KEYS = ['fogo', 'gelo', 'eletricidade', 'terra'];
+function elIc(el) { const I = ELEMENT_INFO[el]; return I ? nxEnt('elemento-' + el, I.icon) : ''; }
+const ELEMENT_MIN_LV = 100;
+const ELEMENT_BEATS = { fogo: 'gelo', gelo: 'terra', terra: 'eletricidade', eletricidade: 'fogo' };
+const ELEMENT_ADV = 0.20, ELEMENT_DISADV = 0.10;
+const ELEMENT_HIT_SHARE = 0.30;
+const ELEMENT_DEF_SHARE = 2 / 3; // parte da defesa que conta contra a parte elemental
+const RES_CAP = 75;            // % máximo de resistência que conta
+const ELEMENT_POTION_RES = 20; // Poção Elemental: +20% a todas
+const ELEMENT_ABILITY = { boladefogo: 'fogo', relampago: 'eletricidade', terramoto: 'terra' };
+function normTxt(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
+const ELEMENT_NAME_HINTS = [
+  ['fogo', ['fogo', 'chama', 'flamej', 'magma', 'lava', 'fenix', 'brasa', 'cinza', 'inferno', 'moloch', 'abobora']],
+  ['gelo', ['gelo', 'neve', 'nevasca', 'inverno', 'glacial', 'gelid', 'kraken', 'jarl', 'fenrir', 'lua', 'lunar']],
+  ['eletricidade', ['tempest', 'trovao', 'raio', 'relamp', 'eletric', 'tita', 'serafin', 'astral', 'estelar', 'vazio']],
+  ['terra', ['terra', 'pedra', 'golem', 'cristal', 'colosso', 'raiz', 'driade', 'arvore', 'rocha', 'urso', 'hydra', 'escorpi']]
+];
+const ELEMENT_REGION_HINT = { montanhas: 'fogo', tundra: 'gelo', planalto: 'eletricidade', florestanegra: 'terra' };
+function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+// Elemento fixo de um chefe/mini-chefe (sempre o mesmo, para o jogador se preparar).
+function fixedElementFor(name) {
+  const n = normTxt(name);
+  for (const [el, keys] of ELEMENT_NAME_HINTS) if (keys.some(k => n.includes(k))) return el;
+  const r = REGIONS.find(rg => (rg.bosses || []).some(b => b.name === name));
+  if (r && ELEMENT_REGION_HINT[r.key]) return ELEMENT_REGION_HINT[r.key];
+  return ELEMENT_KEYS[hashStr(n) % 4];
+}
+// Atribui o elemento a cada inimigo novo (chamado ao desenhar o combate e no turno do inimigo).
+function elementInitEnemy(c, enemy, name, named) {
+  if (!enemy || enemy._elInit) return;
+  enemy._elInit = true;
+  const lv = Number(c.level) || 0;
+  if (lv < ELEMENT_MIN_LV) { enemy.element = null; return; }
+  enemy.element = named ? fixedElementFor(name) : ELEMENT_KEYS[Math.floor(Math.random() * 4)];
+  if (enemy.element === 'terra') enemy.def = Math.round((enemy.def || 0) * 1.15);
+}
+function elementInit(c) {
+  if (!c || !c.enemy) return;
+  const named = !!(c.isBoss || c.isMiniBoss || c.isSoberano);
+  if (c.horde) c.horde.forEach(m => elementInitEnemy(c, m.enemy, c.name, named));
+  else elementInitEnemy(c, c.enemy, c.monsterName || c.name, named);
+  const e = c.enemy;
+  if (e.element && !e._elLogged) {
+    e._elLogged = true;
+    const info = ELEMENT_INFO[e.element], p = App.player, st = effectiveStats(p);
+    const we = playerAttackElement(p);
+    addCombatLog({ text: `${info.icon} ${hordeLabel(c)} é de ${info.name}: ${info.effect}. A tua resistência: ${resFor(st, e.element)}%.`, cls: 'hit' });
+    const m = elementMatchup(we, e.element);
+    if (we && m !== 1) addCombatLog({ text: m > 1 ? `${ELEMENT_INFO[we].icon} A tua arma de ${ELEMENT_INFO[we].name} vence ${info.name === 'Terra' || info.name === 'Eletricidade' ? 'a' : 'o'} ${info.name}: +${Math.round(ELEMENT_ADV * 100)}% de dano.` : `${ELEMENT_INFO[we].icon} A tua arma de ${ELEMENT_INFO[we].name} é fraca contra ${info.name === 'Terra' || info.name === 'Eletricidade' ? 'a' : 'o'} ${info.name}: −${Math.round(ELEMENT_DISADV * 100)}% de dano.`, cls: m > 1 ? 'good' : 'hit' });
+  }
+}
+function elementMatchup(atk, def) {
+  if (!atk || !def) return 1;
+  if (ELEMENT_BEATS[atk] === def) return 1 + ELEMENT_ADV;
+  if (ELEMENT_BEATS[def] === atk) return 1 - ELEMENT_DISADV;
+  return 1;
+}
+function playerAttackElement(p, abilityKey) {
+  if (abilityKey && ELEMENT_ABILITY[abilityKey]) return ELEMENT_ABILITY[abilityKey];
+  const w = p && p.equipment && p.equipment.weapon;
+  return w ? itemElement(w) : null;
+}
+function elementAttackMult(p, enemy, abilityKey) { return enemy && enemy.element ? elementMatchup(playerAttackElement(p, abilityKey), enemy.element) : 1; }
+function resFor(pStats, el) { return Math.min(RES_CAP, Math.max(0, Math.round((pStats && pStats.res && pStats.res[el]) || 0))); }
+// Golpe de um inimigo: 70% físico (defesa normal) + 30% elemental (2/3 da defesa, depois resistência).
+function enemyHitDamage(c, p, pStats, raw, defEff) {
+  const el = c.enemy && c.enemy.element;
+  if (!el || !ELEMENT_INFO[el]) return { dmg: applyDamage(raw, defEff, p.level), el: 0 };
+  const res = resFor(pStats, el) / 100;
+  const phys = applyDamage(raw * (1 - ELEMENT_HIT_SHARE), defEff, p.level);
+  const elem = Math.round(applyDamage(raw * ELEMENT_HIT_SHARE, defEff * ELEMENT_DEF_SHARE, p.level) * (1 - res));
+  return { dmg: Math.max(1, phys + elem), el: elem };
+}
+// ---------- Resistências e elemento nos itens (derivados do id do item: não se guardam no save) ----------
+const RES_RARITY_MULT = { comum: 1, incomum: 1, raro: 1.1, lendario: 1.2, unico: 1.3, demoniaco: 1.3, set: 1.3, temporada: 1.3, divino: 1.4 };
+const RES_TWO_ROLLS = ['lendario', 'unico', 'demoniaco', 'set', 'temporada', 'divino'];
+const _itemResCache = new Map();
+function itemResRange(lv) { return lv >= 170 ? [5, 9] : lv >= 130 ? [4, 7] : [3, 5]; }
+// Devolve { fogo, gelo, eletricidade, terra } (só os que o item tem) ou null.
+function itemRes(item) {
+  if (!item || (item.itemLevel || 0) < ELEMENT_MIN_LV || !EQUIP_SLOTS.includes(item.slot)) return null;
+  const key = `${item.id}|${item.itemLevel}|${item.rarity}|${item.slot}`;
+  if (_itemResCache.has(key)) return _itemResCache.get(key);
+  const R = sceneRng('res|' + key);
+  const [lo, hi] = itemResRange(item.itemLevel);
+  const mult = RES_RARITY_MULT[item.rarity] || 1;
+  const roll = (a, b) => Math.max(1, Math.round((a + Math.floor(R() * (b - a + 1))) * mult));
+  const out = {};
+  if (item.slot === 'amulet' && R() < 0.35) {
+    const v = roll(2, 4); ELEMENT_KEYS.forEach(el => { out[el] = v; }); out.all = true;
+  } else {
+    const pool = ELEMENT_KEYS.slice();
+    const n = RES_TWO_ROLLS.includes(item.rarity) ? 2 : 1;
+    for (let i = 0; i < n; i++) { const el = pool.splice(Math.floor(R() * pool.length), 1)[0]; out[el] = i === 0 ? roll(lo, hi) : Math.max(1, Math.round(roll(lo, hi) * 0.5)); } // a 2.ª resistência vale metade
+  }
+  _itemResCache.set(key, out);
+  return out;
+}
+function itemElement(item) {
+  if (!item || item.slot !== 'weapon' || (item.itemLevel || 0) < ELEMENT_MIN_LV) return null;
+  return ELEMENT_KEYS[hashStr('el|' + item.id) % 4];
+}
+function itemResLines(item) {
+  const r = itemRes(item); if (!r) return [];
+  if (r.all) return [`+${r.fogo}% a todas as Resistências`];
+  return ELEMENT_KEYS.filter(el => r[el]).map(el => `+${r[el]}% Resistência ${ELEMENT_INFO[el].ao}`);
+}
+
 
 const STATUS_INFO = {
   sangramento: { icon: '🩸', name: 'Sangramento', desc: 'Causa dano ao longo do tempo a cada ronda, ignorando a defesa do alvo.' },
@@ -4956,7 +5099,12 @@ function showPetInfoModal(pet, isActive) {
 function showElementInfoModal(elementKey) {
   const info = ELEMENT_INFO[elementKey];
   if (!info) return;
-  showInfoModal(info.icon, `Afinidade: ${info.name}`, `<p class="tiny">${info.desc}</p>`);
+  const p = App.player, st = effectiveStats(p), we = playerAttackElement(p), m = elementMatchup(we, elementKey);
+  showInfoModal(elIc(elementKey), `Elemento: ${info.name}`, `<p class="tiny"><b>${info.effect}</b> — ${info.desc}</p>
+    <div class="divider"></div>
+    <p class="tiny">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe deste monstro é de ${info.name}. A tua Resistência ${info.ao}: <b>${resFor(st, elementKey)}%</b> (máx. ${RES_CAP}%).</p>
+    <p class="tiny" style="margin-top:4px;">${we ? `A tua arma é de ${elIc(we)} ${ELEMENT_INFO[we].name}: ${m > 1 ? `<b style="color:var(--success);">+${Math.round(ELEMENT_ADV * 100)}% de dano</b> contra este monstro.` : m < 1 ? `<b style="color:var(--blood-bright);">−${Math.round(ELEMENT_DISADV * 100)}% de dano</b> contra este monstro.` : 'dano normal contra este monstro.'}` : 'A tua arma não tem elemento.'}</p>
+    <p class="tiny muted" style="margin-top:4px;">Ciclo: 🔥 Fogo vence 🧊 Gelo · 🧊 Gelo vence 🪨 Terra · 🪨 Terra vence ⚡ Eletricidade · ⚡ Eletricidade vence 🔥 Fogo.</p>`);
 }
 
 function showStatusInfoModal(statusType, dmg, duration, target) {
@@ -5781,6 +5929,7 @@ const WIKI_GROUPS = [
     { key: 'torres', label: 'Torres', icon: '🗼' },
     { key: 'soberano', label: 'Boss Soberano', icon: '👑' },
     { key: 'contratos', label: 'Contratos de Caça', icon: '📜' },
+    { key: 'elementos', label: 'Elementos', icon: '🔥', nxKey: 'elemento-fogo' },
     { key: 'eventos', label: 'Eventos', icon: '🌩️' },
     { key: 'baus', label: 'Baús', icon: '🎁' },
     { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' },
@@ -5985,6 +6134,19 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
         <p class="tiny" style="margin-top:6px;">Na Fase 1 o Soberano usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao descer da metade do HP, enfurece: muda de forma, fica mais forte, regenera vida em cada ronda, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
+  } else if (t === 'elementos') {
+    const st = effectiveStats(App.player), we = playerAttackElement(App.player);
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">A partir do Nv. ${ELEMENT_MIN_LV}, todos os monstros e chefes têm um elemento (abaixo disso não há elementos).</p>
+      <div class="card raised"><span style="font-weight:700;">🔄 O ciclo</span>
+        <p class="tiny" style="margin-top:6px;">🔥 Fogo vence 🧊 Gelo · 🧊 Gelo vence 🪨 Terra · 🪨 Terra vence ⚡ Eletricidade · ⚡ Eletricidade vence 🔥 Fogo.</p>
+        <p class="tiny" style="margin-top:4px;">O teu elemento vem da arma (todas as armas de Nv. ${ELEMENT_MIN_LV}+ têm um). Fazes <b>+${Math.round(ELEMENT_ADV * 100)}%</b> de dano contra o elemento que vences e <b>−${Math.round(ELEMENT_DISADV * 100)}%</b> contra o que te vence. A Bola de Fogo, o Relâmpago e o Terramoto usam sempre o seu próprio elemento.</p>
+        <p class="tiny" style="margin-top:4px;">Os monstros normais mudam de elemento em cada combate; cada chefe e mini-chefe tem sempre o mesmo.</p></div>
+      <div class="card raised"><span style="font-weight:700;">⚔️ Efeitos de cada elemento</span>${ELEMENT_KEYS.map(el => `<p class="tiny" style="margin-top:6px;">${elIc(el)} <b>${ELEMENT_INFO[el].name} — ${ELEMENT_INFO[el].effect}</b>: ${ELEMENT_INFO[el].desc}</p>`).join('')}</div>
+      <div class="card raised"><span style="font-weight:700;">🛡️ Resistências</span>
+        <p class="tiny" style="margin-top:6px;">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe dos monstros é do seu elemento. Nessa parte contam 2/3 da tua defesa e depois a resistência a esse elemento. Máximo: <b>${RES_CAP}%</b> (o que passar não conta).</p>
+        <p class="tiny" style="margin-top:4px;">Cada peça de equipamento de Nv. ${ELEMENT_MIN_LV}+ tem 1 resistência (2 nas Lendárias, Únicas, Demoníacas, Set, Temporada e Divinas). Valor por peça: Nv. 100–129: 3–5% · Nv. 130–169: 4–7% · Nv. 170+: 5–9%, vezes a raridade (Raro ×1,1 · Lendário ×1,2 · Único/Demoníaco/Set/Temporada ×1,3 · Divino ×1,4); a 2.ª resistência vale metade. Os amuletos podem ter "todas as Resistências" (2–4%).</p>
+        <p class="tiny" style="margin-top:4px;">📜 Feitiço/Reforço: novos Bónus+ de Resistência (+6% a +12%) em peças de Nv. ${ELEMENT_MIN_LV}+ (não armas). 🔮 Poção Elemental (Loja): +${ELEMENT_POTION_RES}% a todas durante 3 batalhas.</p>
+        <p class="tiny" style="margin-top:4px;">As tuas agora: ${ELEMENT_KEYS.map(el => `${elIc(el)} ${resFor(st, el)}%`).join(' · ')}${we ? ` · Arma: ${elIc(we)} ${ELEMENT_INFO[we].name}` : ''}.</p></div>`;
   } else if (t === 'contratos') {
     const pc = HUNT_RANKS.map(r => `<tr><td>${r.name}</td><td>${r.need}</td><td>I–${HUNT_ROM[r.max]}</td></tr>`).join('');
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Cidade → Contratos de Caça (Nv. ${HUNT_MIN_LV}+). Voltas a caçar chefes que já conheces, reforçados ao nível do contrato, com melhor espólio.</p>
@@ -10420,6 +10582,17 @@ function equipDollHtml(p, talisman) {
   </div>`;
 }
 
+// v181: cartão das Resistências e do elemento da arma (Mochila → Equipamento).
+function resistCardHtml(p) {
+  const st = effectiveStats(p), we = playerAttackElement(p);
+  const rows = ELEMENT_KEYS.map(el => { const raw = Math.round(st.res[el] || 0), v = Math.min(RES_CAP, raw), I = ELEMENT_INFO[el];
+    return `<div class="res-row"><span>${elIc(el)} ${I.name}</span><span class="res-bar"><i style="width:${Math.min(100, raw)}%; background:${I.color};"></i></span><b>${v}%${raw > RES_CAP ? `<small>(${raw}%)</small>` : ''}</b></div>`; }).join('');
+  return `<div class="card raised res-card"><div class="row between" style="align-items:center; gap:8px;"><span style="font-weight:700;">${nxEnt('resistencias', '🛡️')} Resistências <span class="tiny muted">(máx. ${RES_CAP}%)</span></span>
+      <span class="pill">${we ? `${elIc(we)} Arma: ${ELEMENT_INFO[we].name}` : 'Arma sem elemento'}</span></div>
+    ${rows}
+    <p class="tiny muted" style="margin-top:6px;">Os monstros de Nv. ${ELEMENT_MIN_LV}+ têm um elemento e ${Math.round(ELEMENT_HIT_SHARE * 100)}% do seu golpe é desse elemento. ${we ? `A tua arma vence ${ELEMENT_INFO[ELEMENT_BEATS[we]].icon} ${ELEMENT_INFO[ELEMENT_BEATS[we]].name} (+${Math.round(ELEMENT_ADV * 100)}%).` : 'As armas de Nv. 100+ têm um elemento.'}${(p.elemPotionBattles || 0) > 0 ? ` 🔮 Poção Elemental ativa: ${p.elemPotionBattles} batalha${p.elemPotionBattles > 1 ? 's' : ''}.` : ''}</p></div>`;
+}
+
 function renderMochilaBody() {
   const p = App.player;
   const body = $('mochila-body');
@@ -10446,6 +10619,7 @@ function renderMochilaBody() {
 
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Toca numa peça para veres a ficha completa, encaixares gemas ou desequipares.</p>`
       + equipDollHtml(p, equippedTalisman)
+      + resistCardHtml(p)
       + summaryCard;
     els('[data-equip-slot]').forEach(s => { s.style.position = 'relative'; s.addEventListener('click', () => openEquipSlotModal(s.dataset.equipSlot)); });
     document.querySelector('[data-manage-talisman]').addEventListener('click', () => { App.invTab = 'talismas'; renderTabMochila(); });
@@ -11892,6 +12066,7 @@ function itemSheetHtml(item, slot, p, ro) {
   addP('crit', v => `+${v} Crítico`, pc1);
   addP('regenPct', v => `+${v} Regeneração`, v => `${Math.round(v)}%`);
   addP('dmgReducedFromBossPct', v => `${v} menos dano de chefes`, pc1);
+  itemResLines(item).forEach(t => prim.push(`<div class="tt-af tt-res">${t}</div>`)); // v181
   // Bónus+ (azul)
   const bonuses = item.bonuses || [];
   const bon = bonuses.map(b => `<div class="tt-af">${bonusPlusLabel(b)}</div>`);
@@ -11943,7 +12118,8 @@ function itemSheetHtml(item, slot, p, ro) {
   const tags = [
     ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : '',
     itemInnateMedio(item) ? '<span class="ak-tag crypt-tag">🌀 Arma da Cripta</span>' : '',
-    hwAmuletLuck(item) ? '<span class="ak-tag hw-tag">🎃 Halloween</span>' : ''
+    hwAmuletLuck(item) ? '<span class="ak-tag hw-tag">🎃 Halloween</span>' : '',
+    itemElement(item) ? `<span class="ak-tag el-tag" style="--ec:${ELEMENT_INFO[itemElement(item)].color};">${elIc(itemElement(item))} ${ELEMENT_INFO[itemElement(item)].name} · vence ${ELEMENT_INFO[ELEMENT_BEATS[itemElement(item)]].icon}</span>` : ''
   ].join('');
   const bonusSlots = `${bonuses.length}/${ITEM_BONUS_MAX_SLOTS}`;
   return `<div class="tt${item.ascended ? ' asc' : ''}" style="--c:${item.rarityColor || '#B9B4A8'};">
@@ -12004,6 +12180,7 @@ function itemCompareHtml(item, eq, p) {
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`, int = v => Math.round(v).toLocaleString('pt-PT');
   const s0 = effectiveStats(p), s1 = heroStatsIfEquipped(p, item);
   const list = [['⚔️', 'Dano', s0.dmg, s1.dmg, int], ['🛡️', 'Defesa', s0.def, s1.def, int], [esIconHtml(), 'Escudo Mágico', s0.es || 0, s1.es || 0, int], ['❤️', 'HP', s0.hp, s1.hp, int], ['💥', 'Crítico', s0.crit, s1.crit, pc1], ['🏆', 'Dano vs. Chefes', s0.dmgVsBossPct || 0, s1.dmgVsBossPct || 0, pc1]]
+    .concat(ELEMENT_KEYS.map(el => [elIc(el), `Resist. ${ELEMENT_INFO[el].name}`, resFor(s0, el), resFor(s1, el), v => `${v}%`]))
     .filter(r => r[2] || r[3]);
   const chips = list.filter(r => Math.abs(r[3] - r[2]) > 1e-6).map(([ic, l, x, y, f]) => { const d = y - x; return `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${f(Math.abs(d))} ${l}</span>`; }).join('');
   const hero = list.map(([ic, l, x, y, f]) => { const d = y - x; return `<div class="cmp-hero-row"><span>${ic} ${l}</span><b>${f(x)} → ${f(y)}</b><em class="${Math.abs(d) < 1e-6 ? 'eq' : d > 0 ? 'up' : 'down'}">${Math.abs(d) < 1e-6 ? '=' : (d > 0 ? '+' : '−') + f(Math.abs(d))}</em></div>`; }).join('');
@@ -12123,7 +12300,8 @@ const POTION_DEFS = {
   hp2: { name: 'Poção de HP Maior', icon: '⚗️', desc: 'Cura 50% do HP máximo', cost: 22, heal: 0.50 },
   def: { name: 'Poção da Defesa', icon: '🔵', desc: '+5% defesa por 3 rondas', cost: 15 },
   atk: { name: 'Poção do Ataque', icon: '🔴', desc: '+5% dano por 3 rondas', cost: 15 },
-  fortune: { name: 'Poção da Fortuna', icon: '🍀', desc: 'Dobra chances de drop (5 batalhas)', cost: 40 }
+  fortune: { name: 'Poção da Fortuna', icon: '🍀', desc: 'Dobra chances de drop (5 batalhas)', cost: 40 },
+  elem: { name: 'Poção Elemental', icon: '🔮', desc: `+${ELEMENT_POTION_RES}% a todas as Resistências (3 batalhas)`, cost: 35 }
 };
 
 const POTION_QTY_OPTIONS = [1, 5, 10];
@@ -13704,7 +13882,7 @@ function hordeAoe(key, p, pStats) {
     if (m.dead || m.enemy.hp <= 0) return;
     hordeSwitch(c, i);
     const before = m.enemy.hp;
-    const ms = useAbility(key, p, pStats, c.enemy, c.battleState, false, HORDE_AOE_MULT);
+    const ms = useAbility(key, p, pStats, c.enemy, c.battleState, false, HORDE_AOE_MULT * elementAttackMult(p, c.enemy, key));
     parts.push(`${m.letter} ${Math.max(0, before - m.enemy.hp)}`);
     if (ms.some(x => x.cls === 'crit')) anyCrit = true;
     if (!extra) extra = ms.filter(x => x.cls === 'good');
@@ -13772,7 +13950,7 @@ function startCombat(opts) {
     if (eventApplied.bleedChance) enemy.bleedChance = eventApplied.bleedChance;
   }
 
-  const rollElement = () => opts.level >= 50 && Math.random() < 0.30 ? ['fogo', 'gelo', 'eletricidade', 'caos'][Math.floor(Math.random() * 4)] : null;
+  const rollElement = () => null; // v181: os elementos (Nv. 100+) são dados em elementInit()
   const element = rollElement();
   // Os restantes monstros da horda: mesmos multiplicadores (dificuldade + evento) que o primeiro.
   const hordeExtra = [];
@@ -13809,7 +13987,6 @@ function startCombat(opts) {
   if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (eventApplied) addCombatLog({ text: `${eventApplied.icon} Evento ${eventApplied.name}: os monstros estão alterados neste combate!`, cls: 'hit' });
-  if (element) addCombatLog({ text: `O inimigo tem afinidade elemental: ${element}.`, cls: 'hit' });
   renderCombat();
 }
 
@@ -14627,7 +14804,7 @@ function useAbilityAction(key) {
   pStats = applyTempBuffsToStats(pStats, c.battleState, c.enemy.category);
   const hpBefore = c.enemy.hp;
   fxAbility(key);
-  const msgs = c.horde && HORDE_AOE.includes(key) ? hordeAoe(key, p, pStats) : useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss);
+  const msgs = c.horde && HORDE_AOE.includes(key) ? hordeAoe(key, p, pStats) : useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss, elementAttackMult(p, c.enemy, key));
   msgs.forEach(m => addCombatLog(m));
   const hasCrit = msgs.some(m => m.cls === 'crit');
   const allGood = msgs.length && msgs.every(m => m.cls === 'good');
@@ -14646,7 +14823,7 @@ function useNormalAttackAction() {
   pStats = applyTempBuffsToStats(pStats, c.battleState, c.enemy.category);
   const critChance = pStats.crit + (c.battleState.critBuffActive ? 1.0 : 0);
   const crit = Math.random() < critChance;
-  let dmg = pStats.dmg;
+  let dmg = pStats.dmg * elementAttackMult(p, c.enemy); // v181: vantagem/desvantagem elemental
   if (crit && !c.enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
   if ((c.isBoss || c.isMiniBoss) && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
   const defMult = c.battleState.enemyDefDebuff ? (1 - c.battleState.enemyDefDebuff.pct) : 1;
@@ -14670,6 +14847,13 @@ function usePotionAction(key) {
   const p = App.player;
   if (!POTION_DEFS[key] || !(p.potions[key] > 0)) { sfx.error(); toast('Não tens esta poção.'); return; }
   if (!c || c.ended) {
+    if (key === 'elem') { // v181: a Poção Elemental pode ser bebida antes do combate
+      if ((p.elemPotionBattles || 0) >= 3) { sfx.error(); toast('A Poção Elemental já está ativa.'); return; }
+      p.potions.elem--; p.elemPotionBattles = 3; saveGame(); sfx.potion();
+      if (App.tab === 'loja') renderLojaBody();
+      toast(`🔮 Poção Elemental: +${ELEMENT_POTION_RES}% a todas as Resistências nas próximas 3 batalhas.`);
+      return;
+    }
     if (!isHpPotion(key)) { sfx.error(); toast('Esta poção só pode ser usada em combate.'); return; }
     const pStats = effectiveStats(p);
     if (p.hp >= pStats.hp) { sfx.error(); toast('Já tens o HP cheio.'); return; }
@@ -14706,6 +14890,9 @@ function usePotionAction(key) {
   } else if (key === 'fortune') {
     p.fortuneBattlesLeft = 5;
     addCombatLog({ text: '🍀 Poção da Fortuna: chances de drop em dobro nas próximas 5 batalhas.', cls: 'good' });
+  } else if (key === 'elem') {
+    p.elemPotionBattles = 3;
+    addCombatLog({ text: `🔮 Poção Elemental: +${ELEMENT_POTION_RES}% a todas as Resistências durante 3 batalhas (esta incluída).`, cls: 'good' });
   }
   closeModal();
   postPlayerAction();
@@ -15083,10 +15270,13 @@ function resolveEnemyTurn(opts) {
   c.battleState.enemyTurnCount = (c.battleState.enemyTurnCount || 0) + 1;
   const heavyAttack = isBossFight && c.battleState.enemyTurnCount % 3 === 0 && !enemySkillTriggered;
 
-  let elementEffect = c.enemy.element;
-  if (elementEffect === 'caos') elementEffect = ['fogo', 'gelo', 'eletricidade'][Math.floor(Math.random() * 3)];
+  elementInit(c); // v181
+  const elementEffect = c.enemy.element || null;
+  const elRes = elementEffect ? resFor(pStats, elementEffect) / 100 : 0;
+  const elName = elementEffect ? ELEMENT_INFO[elementEffect].name : '';
   let dmgMult = 1;
-  if (elementEffect === 'eletricidade' && Math.random() < 0.20) { dmgMult = 1.5; addCombatLog({ text: '⚡ Descarga elétrica surpreendente!', cls: 'hit' }); }
+  if (elementEffect === 'eletricidade' && Math.random() < 0.15 * (1 - elRes)) { dmgMult = 1.5; addCombatLog({ text: '⚡ Descarga elétrica: +50% de dano!', cls: 'hit' }); }
+  if (elementEffect === 'terra' && Math.random() < 0.12 * (1 - elRes)) { dmgMult *= 1.5; addCombatLog({ text: '🪨 Tremor: +50% de dano!', cls: 'hit' }); }
   if (heavyAttack) { dmgMult *= 1.8; addCombatLog({ text: `💥 ${cName} desfere um ataque especial devastador!`, cls: 'hit' }); }
   if (enemySkillTriggered && enemySkill.type === 'heavy') dmgMult *= 1.7;
   if (enemySkillTriggered && enemySkill.type === 'defbreak') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 2; }
@@ -15099,18 +15289,20 @@ function resolveEnemyTurn(opts) {
   let dmg;
   if (enemySkillTriggered && enemySkill.type === 'multi') {
     if (isBossFight && pStats.dmgReducedFromBossPct) dmgMult *= (1 - pStats.dmgReducedFromBossPct);
-    const d1 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
-    const d2 = applyDamage(c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult, p.level);
+    const h1 = enemyHitDamage(c, p, pStats, c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult);
+    const h2 = enemyHitDamage(c, p, pStats, c.enemy.dmg * 0.65 * dmgMult, pStats.def * defMult);
+    const d1 = h1.dmg, d2 = h2.dmg;
     dmg = absorbPlayerShield(c, allyGuard(d1 + d2));
     var esHp = absorbEs(c, dmg, true); p.hp -= esHp;
-    addCombatLog({ text: `${enemySkill.icon} ${cName} usa ${enemySkill.label}: dois golpes, ${d1} + ${d2} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
+    addCombatLog({ text: `${enemySkill.icon} ${cName} usa ${enemySkill.label}: dois golpes, ${d1} + ${d2} de dano${h1.el + h2.el ? ` (${h1.el + h2.el} de ${elName})` : ''}.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   } else {
     let incomingDmg = c.enemy.dmg * dmgMult;
     if (isBossFight && pStats.dmgReducedFromBossPct) incomingDmg *= (1 - pStats.dmgReducedFromBossPct);
-    dmg = absorbPlayerShield(c, allyGuard(applyDamage(incomingDmg, pStats.def * defMult, p.level)));
+    const hd = enemyHitDamage(c, p, pStats, incomingDmg, pStats.def * defMult);
+    dmg = absorbPlayerShield(c, allyGuard(hd.dmg));
     var esHp = absorbEs(c, dmg, true); p.hp -= esHp;
     const verb = enemySkillTriggered ? `usa ${enemySkill.label}` : 'ataca';
-    addCombatLog({ text: `${enemySkillTriggered ? enemySkill.icon : c.icon} ${cName} ${verb}: ${dmg} de dano.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
+    addCombatLog({ text: `${enemySkillTriggered ? enemySkill.icon : c.icon} ${cName} ${verb}: ${dmg} de dano${hd.el ? ` (${hd.el} de ${elName}${elRes ? `, resististe ${Math.round(elRes * 100)}%` : ''})` : ''}.${enemyCrit ? ' Crítico!' : ''}`, cls: enemyCrit ? 'crit' : 'hit' });
   }
   if (dmg > esHp) esAbsorbLog(c, dmg - esHp, esHp);
   sfx.pain(enemyCrit);
@@ -15141,8 +15333,8 @@ function resolveEnemyTurn(opts) {
     addCombatLog({ text: `${enemySkill.icon} ${cName} recupera ${healAmt} HP!`, cls: 'hit' });
   }
 
-  if (elementEffect === 'fogo') { c.battleState.playerBurn = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.2)) }; addCombatLog({ text: '🔥 Ficaste a arder!', cls: 'hit' }); }
-  if (elementEffect === 'gelo') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 1; addCombatLog({ text: '🧊 A tua defesa está a enfraquecer.', cls: 'hit' }); }
+  if (elementEffect === 'fogo' && !c.battleState.playerBurn && Math.random() < 0.30 * (1 - elRes)) { const bd = Math.round(c.enemy.dmg * 0.15 * (1 - elRes)); if (bd > 0) { c.battleState.playerBurn = { duration: 2, dmg: bd }; addCombatLog({ text: `🔥 Ficaste a arder: ${bd} por ronda durante 2 rondas.`, cls: 'hit' }); } }
+  if (elementEffect === 'gelo' && Math.random() < 0.35 * (1 - elRes)) { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 1; addCombatLog({ text: '🧊 Congelar: a tua defesa está a enfraquecer.', cls: 'hit' }); }
 
   // Criaturas do tipo "animal" (escorpiões, dragões, hidras…) têm hipótese de te envenenar.
   // O Set Luar (5 peças) dá imunidade a isto.
@@ -15613,6 +15805,7 @@ function showCombatEnd(won, info) {
       <button class="btn primary block" id="btn-combat-continue">Voltar ao Mapa</button>`;
   }
   endEl.innerHTML = html;
+  if ((App.player.elemPotionBattles || 0) > 0) App.player.elemPotionBattles--; // v181: Poção Elemental gasta 1 batalha
   fxCombatEndClasses(won);
   if (won) fxVictoryScreen(info);
   const wasRift = !!c.isRift;
@@ -16230,6 +16423,7 @@ function renderHordeRow(c) {
 function renderCombat() {
   const c = App.combat;
   if (!c) return;
+  elementInit(c); // v181
   const p = App.player;
   const pStats = effectiveStats(p);
 
@@ -16256,7 +16450,7 @@ function renderCombat() {
   const bs = c.battleState || {};
   const statusHtml = (bs.enemyStatus || []).map((s, i) => { const f = statusFlavor(s.type); return `<span class="status-chip" data-info-status="${i}">${f.icon} ${f.name} (${s.duration})</span>`; }).join('')
     + (bs.enemyDefDebuff ? `<span class="status-chip" data-info-enemydebuff="1">🔻 Defesa -${Math.round(bs.enemyDefDebuff.pct * 100)}%</span>` : '')
-    + (c.enemy.element ? `<span class="status-chip" data-info-element="${c.enemy.element}">${ELEMENT_INFO[c.enemy.element] ? ELEMENT_INFO[c.enemy.element].icon + ' ' + ELEMENT_INFO[c.enemy.element].name : c.enemy.element}</span>` : '');
+    + (c.enemy.element ? `<span class="status-chip" data-info-element="${c.enemy.element}">${ELEMENT_INFO[c.enemy.element] ? elIc(c.enemy.element) + ' ' + ELEMENT_INFO[c.enemy.element].name : c.enemy.element}</span>` : '');
   $('cb-enemy-status').innerHTML = statusHtml;
   els('[data-info-status]', $('cb-enemy-status')).forEach(el2 => el2.addEventListener('click', () => {
     const s = bs.enemyStatus[parseInt(el2.dataset.infoStatus)];
@@ -16434,7 +16628,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v180</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v181</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16686,6 +16880,8 @@ function applyPlayerMigrations(player) {
   if (!Number.isFinite(player.woodUses)) player.woodUses = 0;
   if (!player.potions) player.potions = { hp: 0, hp2: 0, def: 0, atk: 0, fortune: 0 };
   if (!Number.isFinite(player.potions.hp2)) player.potions.hp2 = 0;
+  if (!Number.isFinite(player.potions.elem)) player.potions.elem = 0; // v181
+  player.elemPotionBattles = clamp(Math.floor(Number(player.elemPotionBattles) || 0), 0, 3);
   if (!player.pearls) player.pearls = newPearlsBag();
   if (!player.lunar) player.lunar = newLunarBag();
   ensureFoodBuffs(player);
@@ -16750,9 +16946,15 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 1.8.8';
+const APP_VERSION_LABEL = 'V 1.9.1';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v181', title: 'V 1.9.1 · Elementos! 🔥🧊⚡🪨', items: [
+    ['🔥', 'A partir do nível 100, todos os monstros e chefes têm um elemento: Fogo, Gelo, Eletricidade ou Terra, cada um com o seu efeito.'],
+    ['🛡️', 'Novas Resistências elementais (máx. 75%): todo o equipamento de nível 100+ tem resistências, incluindo os itens que já tens. Vê-as em Mochila → Equipamento.'],
+    ['⚔️', 'As armas de nível 100+ têm um elemento. Fogo vence Gelo, Gelo vence Terra, Terra vence Eletricidade e Eletricidade vence Fogo: +20% de dano contra o elemento que vences.'],
+    ['🔮', 'Nova Poção Elemental na Loja e novos Bónus+ de Resistência no Feitiço. Tudo explicado na Wiki → Elementos.']
+  ] },
   { id: 'v180', title: 'V 1.8.8 · Contratos de Caça! 📜', items: [
     ['📜', 'Novo na Cidade: Contratos de Caça, para heróis de nível 60+. Volta a caçar chefes que já conheces, reforçados ao nível do contrato e com muito melhor espólio.'],
     ['🐾', 'Cada caçada tem 4 rastos (monstros da região do chefe) e no fim a presa. Entre rastos recuperas 25% de HP. Se perderes ou desistires, o contrato perde-se, mas não perdes ouro.'],
@@ -17540,9 +17742,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 176;
+const NX_ICON_VER = 181;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;

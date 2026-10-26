@@ -2289,3 +2289,17 @@ body:not(.fx-off):not(.fx-lite) .tt-sock.t3 i{animation:ifxGem 2.6s ease-in-out 
 .hunt-act .btn{flex:1 1 150px;}
 .hunt-act .btn:not(.primary){background:#2b1d0e; color:#f3e3c0; border-color:#5a4126; opacity:1;}
 .hunt-detail .hunt-act .btn:not(.primary):disabled{opacity:1 !important; background:#7a6850 !important; color:#f3e8d0 !important; border-color:#7a6850 !important; filter:none !important; -webkit-text-fill-color:#f3e8d0;}
+
+/* ============================================================
+   v181 — Elementos e Resistências
+   ============================================================ */
+.res-card{display:flex; flex-direction:column; gap:7px; margin-bottom:14px;}
+.res-row{display:grid; grid-template-columns:118px 1fr 58px; gap:10px; align-items:center; font-size:13px;}
+.res-bar{position:relative; height:10px; border-radius:6px; background:rgba(0,0,0,.45); border:1px solid var(--line); overflow:hidden;}
+.res-bar i{position:absolute; left:0; top:0; bottom:0; border-radius:6px;}
+.res-bar::after{content:""; position:absolute; left:75%; top:-1px; bottom:-1px; width:2px; background:rgba(255,255,255,.55);}
+.res-row b{text-align:right; font-variant-numeric:tabular-nums; line-height:1.15;}
+.res-row b small{display:block; font-size:10px; color:var(--gold-bright); font-weight:600;}
+.ak-tag.el-tag{color:var(--ec); border-color:color-mix(in srgb, var(--ec) 60%, #000); background:color-mix(in srgb, var(--ec) 12%, #0c0a08);}
+.tt-af.tt-res{color:#9fa6ff;}
+.res-row .nx-ic,.res-row .nx-k{width:18px; height:18px; font-size:16px; vertical-align:-3px;}
