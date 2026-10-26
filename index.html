@@ -6026,6 +6026,11 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:4px; color:var(--muted);">Nomes: ${Object.keys(ARMOR_KIND_NAMES).map(sl => `${SLOT_NAMES[sl]}: ${ARMOR_KIND_NAMES[sl].hybrid.join('/')} (misto), ${ARMOR_KIND_NAMES[sl].es.join('/')} (escudo)`).join(' · ')}. Os itens antigos não mudam.</p>
       </div>
 
+      <div class="card raised">
+        <span style="font-weight:700;">${elIc('fogo')} Elementos e Resistências (Nv. ${ELEMENT_MIN_LV}+)</span>
+        <p class="tiny" style="margin-top:6px;">Todas as peças de Nv. ${ELEMENT_MIN_LV}+ têm resistências elementais (1 ou 2, conforme a raridade) e todas as armas de Nv. ${ELEMENT_MIN_LV}+ têm um elemento (${ELEMENT_KEYS.map(el => elIc(el)).join(' ')}). Os itens que já tinhas também as recebem. Vê os valores em Wiki → Elementos.</p>
+      </div>
+
       <div class="wiki-group-title">Como é gerado</div>
       <div class="card raised">
         <span style="font-weight:700;">⚙️ Poder do item</span>
@@ -6136,17 +6141,34 @@ function renderWikiBody() {
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
   } else if (t === 'elementos') {
     const st = effectiveStats(App.player), we = playerAttackElement(App.player);
-    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">A partir do Nv. ${ELEMENT_MIN_LV}, todos os monstros e chefes têm um elemento (abaixo disso não há elementos).</p>
-      <div class="card raised"><span style="font-weight:700;">🔄 O ciclo</span>
-        <p class="tiny" style="margin-top:6px;">🔥 Fogo vence 🧊 Gelo · 🧊 Gelo vence 🪨 Terra · 🪨 Terra vence ⚡ Eletricidade · ⚡ Eletricidade vence 🔥 Fogo.</p>
-        <p class="tiny" style="margin-top:4px;">O teu elemento vem da arma (todas as armas de Nv. ${ELEMENT_MIN_LV}+ têm um). Fazes <b>+${Math.round(ELEMENT_ADV * 100)}%</b> de dano contra o elemento que vences e <b>−${Math.round(ELEMENT_DISADV * 100)}%</b> contra o que te vence. A Bola de Fogo, o Relâmpago e o Terramoto usam sempre o seu próprio elemento.</p>
-        <p class="tiny" style="margin-top:4px;">Os monstros normais mudam de elemento em cada combate; cada chefe e mini-chefe tem sempre o mesmo.</p></div>
+    const rm = k => String(RES_RARITY_MULT[k]).replace('.', ',');
+    const bossEx = ['Dragão de Magma', 'Kraken do Gelo', 'Titã da Tempestade', 'Golem Ancestral', 'Moloch, o Rei Devorador', 'Leviatã Astral', 'Dríade Ancestral', 'Fenrir'];
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">A partir do Nv. ${ELEMENT_MIN_LV}, todos os monstros e chefes têm um elemento — incluindo dungeons, catacumbas, torres, Soberano, eventos e Contratos de Caça. Abaixo do Nv. ${ELEMENT_MIN_LV} não há elementos.</p>
+      <div class="card raised"><span style="font-weight:700;">🔄 O ciclo dos elementos</span>
+        <p class="tiny" style="margin-top:6px;">${elIc('fogo')} Fogo vence ${elIc('gelo')} Gelo · ${elIc('gelo')} Gelo vence ${elIc('terra')} Terra · ${elIc('terra')} Terra vence ${elIc('eletricidade')} Eletricidade · ${elIc('eletricidade')} Eletricidade vence ${elIc('fogo')} Fogo.</p>
+        <p class="tiny" style="margin-top:4px;">O teu elemento vem da <b>arma</b>: todas as armas de Nv. ${ELEMENT_MIN_LV}+ têm um (vê-se na ficha da arma). Fazes <b>+${Math.round(ELEMENT_ADV * 100)}%</b> de dano contra o elemento que vences, <b>−${Math.round(ELEMENT_DISADV * 100)}%</b> contra o que te vence e dano normal contra os outros dois.</p>
+        <p class="tiny" style="margin-top:4px;">A 🔥 Bola de Fogo, o ⚡ Relâmpago e o 🪨 Terramoto usam sempre o seu próprio elemento, seja qual for a arma. A 2.ª arma (Lâminas Gémeas) não muda o elemento.</p></div>
+      <div class="card raised"><span style="font-weight:700;">👹 Monstros e chefes</span>
+        <p class="tiny" style="margin-top:6px;">Os monstros normais mudam de elemento em cada combate (ao acaso). Os <b>chefes e mini-chefes têm sempre o mesmo</b>, para te poderes preparar com a arma certa e as resistências certas.</p>
+        <p class="tiny" style="margin-top:4px; color:var(--muted);">Exemplos: ${bossEx.map(n => `${n} ${elIc(fixedElementFor(n))}`).join(' · ')}.</p>
+        <p class="tiny" style="margin-top:4px;">Em combate, o elemento aparece por baixo do nome do monstro. Toca nele para veres o efeito, a tua resistência e se a tua arma tem vantagem.</p></div>
       <div class="card raised"><span style="font-weight:700;">⚔️ Efeitos de cada elemento</span>${ELEMENT_KEYS.map(el => `<p class="tiny" style="margin-top:6px;">${elIc(el)} <b>${ELEMENT_INFO[el].name} — ${ELEMENT_INFO[el].effect}</b>: ${ELEMENT_INFO[el].desc}</p>`).join('')}</div>
-      <div class="card raised"><span style="font-weight:700;">🛡️ Resistências</span>
-        <p class="tiny" style="margin-top:6px;">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe dos monstros é do seu elemento. Nessa parte contam 2/3 da tua defesa e depois a resistência a esse elemento. Máximo: <b>${RES_CAP}%</b> (o que passar não conta).</p>
-        <p class="tiny" style="margin-top:4px;">Cada peça de equipamento de Nv. ${ELEMENT_MIN_LV}+ tem 1 resistência (2 nas Lendárias, Únicas, Demoníacas, Set, Temporada e Divinas). Valor por peça: Nv. 100–129: 3–5% · Nv. 130–169: 4–7% · Nv. 170+: 5–9%, vezes a raridade (Raro ×1,1 · Lendário ×1,2 · Único/Demoníaco/Set/Temporada ×1,3 · Divino ×1,4); a 2.ª resistência vale metade. Os amuletos podem ter "todas as Resistências" (2–4%).</p>
-        <p class="tiny" style="margin-top:4px;">📜 Feitiço/Reforço: novos Bónus+ de Resistência (+6% a +12%) em peças de Nv. ${ELEMENT_MIN_LV}+ (não armas). 🔮 Poção Elemental (Loja): +${ELEMENT_POTION_RES}% a todas durante 3 batalhas.</p>
-        <p class="tiny" style="margin-top:4px;">As tuas agora: ${ELEMENT_KEYS.map(el => `${elIc(el)} ${resFor(st, el)}%`).join(' · ')}${we ? ` · Arma: ${elIc(we)} ${ELEMENT_INFO[we].name}` : ''}.</p></div>`;
+      <div class="card raised"><span style="font-weight:700;">💥 Como funciona o dano</span>
+        <p class="tiny" style="margin-top:6px;">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe de um monstro com elemento é desse elemento; os outros ${100 - Math.round(ELEMENT_HIT_SHARE * 100)}% são físicos e a tua Defesa trava-os como sempre.</p>
+        <p class="tiny" style="margin-top:4px;">Na parte elemental contam 2/3 da tua Defesa e depois a <b>Resistência</b> a esse elemento. Sem resistências levas um pouco mais de dano do que antes; com ${RES_CAP}% levas bastante menos.</p></div>
+      <div class="card raised"><span style="font-weight:700;">${nxEnt('resistencias', '🛡️')} Resistências</span>
+        <p class="tiny" style="margin-top:6px;">Máximo: <b>${RES_CAP}% em cada elemento</b> (o que passar não conta, mas aparece entre parênteses). Vê as tuas em Mochila → Equipamento.</p>
+        <p class="tiny" style="margin-top:4px;">As tuas agora: ${ELEMENT_KEYS.map(el => `${elIc(el)} ${resFor(st, el)}%`).join(' · ')}${we ? ` · Arma: ${elIc(we)} ${ELEMENT_INFO[we].name}` : ' · Arma sem elemento'}.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🎒 Resistências nos itens</span>
+        <p class="tiny" style="margin-top:6px;">Todas as peças de Nv. ${ELEMENT_MIN_LV}+ (incluindo armas e os itens que já tinhas antes deste update) têm resistências próprias, que nunca mudam:</p>
+        <p class="tiny" style="margin-top:4px;">• <b>Comum, Incomum e Raro:</b> 1 resistência.<br>• <b>Lendário, Único, Demoníaco, Set, Temporada e Divino:</b> 2 resistências de elementos diferentes (a 2.ª vale metade).<br>• <b>Amuletos:</b> 35% de hipótese de terem "+X% a todas as Resistências" (2–4%, vezes a raridade) em vez disso.</p>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Nível do item</th><th>1.ª resistência</th></tr><tr><td>Nv. 100–129</td><td>3–5%</td></tr><tr><td>Nv. 130–169</td><td>4–7%</td></tr><tr><td>Nv. 170–200</td><td>5–9%</td></tr></table>
+        <p class="tiny" style="margin-top:6px;">Vezes a raridade: Comum/Incomum ×${rm('comum')} · Raro ×${rm('raro')} · Lendário ×${rm('lendario')} · Único/Demoníaco/Set/Temporada ×${rm('unico')} · Divino ×${rm('divino')}.</p>
+        <p class="tiny" style="margin-top:4px;">O Ferreiro (+1 a +9) não muda as resistências.</p></div>
+      <div class="card raised"><span style="font-weight:700;">📜 Mais resistência</span>
+        <p class="tiny" style="margin-top:6px;"><b>Bónus+ de Resistência</b> (Feitiço/Reforço): +6% a +12% num elemento, só em peças de Nv. ${ELEMENT_MIN_LV}+ e nunca em armas. As 4 Resistências contam como <b>uma só opção</b> no Feitiço (o elemento sai ao acaso).</p>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Peça</th><th>Próprias</th><th>Bónus+</th><th>Máx.</th></tr><tr><td>Armadura/capa/secundária/artefacto Lendário+</td><td>2</td><td>2</td><td>4</td></tr><tr><td>Mesmas peças Comum a Raro</td><td>1</td><td>2</td><td>3</td></tr><tr><td>Amuleto "todas"</td><td>4 elementos</td><td>2</td><td>4 + 2</td></tr><tr><td>Arma</td><td>1–2</td><td>0</td><td>2</td></tr></table>
+        <p class="tiny" style="margin-top:6px;">${nxEnt('pocao-elem', '🔮')} <b>Poção Elemental</b> (Loja, ${POTION_DEFS.elem.cost} de ouro): +${ELEMENT_POTION_RES}% a todas as Resistências durante 3 batalhas. Pode ser bebida antes do combate ou durante.</p></div>`;
   } else if (t === 'contratos') {
     const pc = HUNT_RANKS.map(r => `<tr><td>${r.name}</td><td>${r.need}</td><td>I–${HUNT_ROM[r.max]}</td></tr>`).join('');
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Cidade → Contratos de Caça (Nv. ${HUNT_MIN_LV}+). Voltas a caçar chefes que já conheces, reforçados ao nível do contrato, com melhor espólio.</p>
@@ -6211,7 +6233,7 @@ function renderWikiBody() {
             <span style="font-weight:700;">${rarIc(r.key, r.icon)} ${r.name}</span>
             <span class="pill">${r.event ? 'extra · 0,5%' : r.special ? r.sourceLabel : pct(r.chance)}</span>
           </div>
-          <p class="tiny" style="margin-top:6px;">Multiplicador de poder: ×${r.mult}${r.event ? ' · não entra na tabela normal, é uma hipótese extra e independente' : ''}${r.special ? ` · nunca cai ao acaso — ${r.sourceLabel}` : ''}${r.corrupted ? ' · corrompido: vem sempre com um debuff de HP' : ''}</p>
+          <p class="tiny" style="margin-top:6px;">Multiplicador de poder: ×${r.mult}${RES_RARITY_MULT[r.key] ? ` · Resistências (itens Nv. ${ELEMENT_MIN_LV}+): ${RES_TWO_ROLLS.includes(r.key) ? 2 : 1}, ×${String(RES_RARITY_MULT[r.key]).replace('.', ',')}` : ''}${r.event ? ' · não entra na tabela normal, é uma hipótese extra e independente' : ''}${r.special ? ` · nunca cai ao acaso — ${r.sourceLabel}` : ''}${r.corrupted ? ' · corrompido: vem sempre com um debuff de HP' : ''}</p>
         </div>
       `).join('')}
     `;
@@ -6278,7 +6300,7 @@ function renderWikiBody() {
   } else if (t === 'bonus') {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">Bónus especiais aplicados diretamente a um item (máx. ${ITEM_BONUS_MAX_SLOTS} por item), na Mochila → Feitiços.</p>
-      ${BONUS_PLUS_POOL.map(b => `<div class="card raised"><span style="font-weight:700;">${b.icon} ${b.name}</span><p class="tiny" style="margin-top:6px;">${b.label(`${b.min}–${b.max}`)}${b.slots ? ` · só em ${b.slots.length === 1 && b.slots[0] === 'weapon' ? 'Armas' : 'certos slots'}` : ''}</p></div>`).join('')}
+      ${BONUS_PLUS_POOL.map(b => `<div class="card raised"><span style="font-weight:700;">${b.icon} ${b.name}</span><p class="tiny" style="margin-top:6px;">${b.label(`${b.min}–${b.max}`)}${b.minLv ? ` · só em peças de Nv. ${b.minLv}+ (não armas) · as 4 Resistências contam como uma só opção no Feitiço` : b.slots ? ` · só em ${b.slots.length === 1 && b.slots[0] === 'weapon' ? 'Armas' : 'certos slots'}` : ''}</p></div>`).join('')}
       <div class="card raised plus2-card">
         <span style="font-weight:700; color:#FFF1A8;">➕ Bónus ➕ (amarelo)</span>
         <p class="tiny" style="margin-top:6px;">Um bónus extra, à parte dos Bónus+ normais (máx. 1 por item). Só se mexe com os pergaminhos ➕, que são drops muito raros das 🗼 Torres (Torre do Abismo e Labirinto da Cripta): 📜 <b>Feitiço ➕</b> adiciona o bónus ➕ e 🔧 <b>Reforço ➕</b> troca-o por outro à sorte. Os Feitiços e Reforços normais não lhe tocam, e os pergaminhos ➕ não tocam nos bónus normais.</p>
@@ -6290,6 +6312,7 @@ function renderWikiBody() {
         <span style="font-weight:700;">🧬 Raças dos inimigos</span>
         <p class="tiny" style="margin-top:6px;">Cada inimigo tem uma só raça: 🐺 Animal, 🗡️ Humano, 😈 Demónio, 💀 Morto-Vivo ou ❔ Outro. Em combate aparece por baixo do nome. Os bónus Contra Animais, Contra Humanos, Contra Demónios e Contra Mortos-Vivos só contam contra a raça certa. A raça Outro (golems, elementais, espíritos…) não tem bónus próprio.</p>
         ${['demonio', 'morto_vivo'].map(k => `<p class="tiny" style="margin-top:6px;">${CATEGORY_INFO[k].icon} ${enemyNamesByCategory(k).join(', ')}.</p>`).join('')}
+        <p class="tiny" style="margin-top:6px;">A partir do Nv. ${ELEMENT_MIN_LV}, além da raça, cada inimigo tem também um elemento (${ELEMENT_KEYS.map(el => elIc(el)).join(' ')}) — vê Wiki → Elementos.</p>
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🛡️ Limites de segurança</span>
@@ -6332,6 +6355,8 @@ function renderWikiBody() {
   } else if (t === 'regioes') {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">O nível máximo do herói é <b>${MAX_LEVEL}</b>; ao chegar lá, a XP para de subir no máximo do nível (a barra mostra MÁX) — podes depois doá-la à Guild. Os monstros têm sempre o teu nível; os chefes têm um nível fixo. Derrota o chefe 🔓 de cada região para abrires a seguinte.</p>
+      <div class="card raised"><span style="font-weight:700;">${elIc('fogo')} Elementos</span>
+        <p class="tiny" style="margin-top:6px;">A partir do Nv. ${ELEMENT_MIN_LV} os monstros têm um elemento (${ELEMENT_KEYS.map(el => `${elIc(el)} ${ELEMENT_INFO[el].name}`).join(' · ')}); os chefes têm sempre o mesmo. Resistências e vantagens em Wiki → Elementos.</p></div>
       <div class="card raised"><span style="font-weight:700;">👥 Hordas</span>
         <p class="tiny" style="margin-top:6px;">Ao escolher um monstro (no mapa ou na lista) decides quantos enfrentas de uma vez: 1 a ${HORDE_MAX}. Atacas um alvo de cada vez (toca na fila da horda para mudar) e, na vez dos inimigos, todos os vivos atacam. Rotativa, Chuva e Terramoto atingem todos com ${Math.round(HORDE_AOE_MULT * 100)}% do dano.</p>
         <p class="tiny" style="margin-top:4px;">Cada monstro derrotado dá logo o seu XP, ouro e drops, e conta para a Tarefa. Vencer a horda toda dá um bónus de XP e ouro: ${[2, 3, 4, 5].map(n => `${n} → +${Math.round(HORDE_BONUS[n] * 100)}%`).join(' · ')}. Se perderes a meio, ficas com o que já ganhaste mas sem o bónus. O Evento gasta só 1 batalha por horda. Os chefes são sempre 1 contra 1.</p></div>
@@ -6361,13 +6386,14 @@ function renderWikiBody() {
     const abCard = key => {
       const ab = ABILITIES[key];
       return `<div class="card raised" style="margin-bottom:10px;">
-        <div class="row between" style="margin-bottom:6px;"><span style="font-weight:700;">${nxEnt('habilidade-' + key, ab.icon)} ${ab.name}</span><span class="pill tiny">recarga ${ab.cooldown}</span></div>
+        <div class="row between" style="margin-bottom:6px;"><span style="font-weight:700;">${nxEnt('habilidade-' + key, ab.icon)} ${ab.name}${ELEMENT_ABILITY[key] ? ` <span class="ak-tag el-tag" style="--ec:${ELEMENT_INFO[ELEMENT_ABILITY[key]].color};">${elIc(ELEMENT_ABILITY[key])} ${ELEMENT_INFO[ELEMENT_ABILITY[key]].name}</span>` : ''}</span><span class="pill tiny">recarga ${ab.cooldown}</span></div>
         <table class="wiki-table wiki-ab-table"><tr><th>Nv.</th><th>Efeito</th><th>Custo</th></tr>
           ${ab.levels.map((_, i) => `<tr class="${i === ABILITY_MASTER_LEVEL ? 'master' : ''}"><td>${i === ABILITY_MASTER_LEVEL ? '👑 ' : ''}${ROMAN[i]}</td><td>${abilityLevelText(key, i)}</td><td>${cost(i)}</td></tr>`).join('')}
         </table></div>`;
     };
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">Cada classe tem 4 habilidades, e cada evolução junta mais uma. Sobem com 📖 Livros de Habilidades (caem de chefes, dungeons e tesouros).</p>
+      <p class="tiny muted" style="margin:-4px 0 10px;">Contra monstros de Nv. ${ELEMENT_MIN_LV}+, as habilidades usam o elemento da tua arma, exceto as que têm elemento próprio (${Object.keys(ELEMENT_ABILITY).map(k => `${ABILITIES[k].name} ${elIc(ELEMENT_ABILITY[k])}`).join(' · ')}). Vê Wiki → Elementos.</p>
       <div class="card raised" style="margin-bottom:12px;">
         <p class="tiny">▸ <b>I → II</b>: 1 livro · <b>II → III</b>: 3 livros · <b>III → IV</b>: 20 livros — <b>todas</b> as habilidades podem chegar ao IV.</p>
         <p class="tiny" style="margin-top:4px;">▸ <b>👑 Mestra (nível V)</b>: só <b>UMA</b> habilidade, a partir do <b>nível ${ABILITY_MASTER_MIN_HERO_LV}</b> do herói, por <b>35 livros</b>.</p>
@@ -16628,7 +16654,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v181</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v182</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
