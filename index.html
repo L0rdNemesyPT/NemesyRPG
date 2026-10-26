@@ -370,7 +370,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- ACCOUNT ENTRY -->
   <div class="screen" id="screen-account">
-    <span class="app-version-badge" id="app-version-badge">V 1.8.2</span>
+    <span class="app-version-badge" id="app-version-badge">V 1.8.8</span>
     <div class="account-lang" role="group" aria-label="Língua">
       <button type="button" data-login-lang="pt" aria-label="Português"><span class="al-flag">🇵🇹</span>PT</button>
       <button type="button" data-login-lang="en" aria-label="English"><span class="al-flag">🇬🇧</span>EN</button>
@@ -5780,6 +5780,7 @@ const WIKI_GROUPS = [
     { key: 'catacumbas', label: 'Catacumbas', icon: '💀' },
     { key: 'torres', label: 'Torres', icon: '🗼' },
     { key: 'soberano', label: 'Boss Soberano', icon: '👑' },
+    { key: 'contratos', label: 'Contratos de Caça', icon: '📜' },
     { key: 'eventos', label: 'Eventos', icon: '🌩️' },
     { key: 'baus', label: 'Baús', icon: '🎁' },
     { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' },
@@ -5984,6 +5985,20 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
         <p class="tiny" style="margin-top:6px;">Na Fase 1 o Soberano usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao descer da metade do HP, enfurece: muda de forma, fica mais forte, regenera vida em cada ronda, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
+  } else if (t === 'contratos') {
+    const pc = HUNT_RANKS.map(r => `<tr><td>${r.name}</td><td>${r.need}</td><td>I–${HUNT_ROM[r.max]}</td></tr>`).join('');
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Cidade → Contratos de Caça (Nv. ${HUNT_MIN_LV}+). Voltas a caçar chefes que já conheces, reforçados ao nível do contrato, com melhor espólio.</p>
+      <div class="card raised"><span style="font-weight:700;">📜 Como funciona</span>
+        <p class="tiny" style="margin-top:6px;">O quadro tem 3 contratos e podes aceitar 1 grátis por dia. Os chefes de Nv. ${HUNT_MIN_LV}+ têm ${Math.round(HUNT_DROP_CHANCE * 100)}% de deixar cair um contrato (guardas até ${HUNT_BAG_MAX}).</p>
+        <p class="tiny" style="margin-top:4px;">Cada caçada tem ${HUNT_RASTOS} rastos (monstros da região do chefe) e no fim a presa: o chefe com Nv. do Grau + 5 e HP ×${HUNT_PREY_MULT.hp.toLocaleString('pt-PT')}. Entre rastos recuperas 25% de HP. Se perderes ou desistires, o contrato perde-se (sem perder ouro).</p>
+        <p class="tiny" style="margin-top:4px;">Graus: o Grau I pede Nv. ${HUNT_GRAU_LV[1]} e cada Grau acima pede mais 15 níveis (Grau X: Nv. ${HUNT_GRAU_LV[10]}). Cada Grau dá +4% Quantidade e +3% Raridade.</p>
+        <p class="tiny" style="margin-top:4px;"><b>Quantidade</b>: 2 baús de equipamento + 1 por cada 50%. <b>Raridade</b>: cada 20% dá mais uma tentativa de raridade nos baús (até +5).</p></div>
+      <div class="card raised"><span style="font-weight:700;">🔏 Selos</span>
+        ${Object.values(HUNT_SEALS).map(x => `<p class="tiny" style="margin-top:6px;">${x.icon} <b>${x.name}</b> — ${x.desc} ${x.q ? `+${x.q}% Quantidade` : ''}${x.q && x.r ? ' · ' : ''}${x.r ? `+${x.r}% Raridade` : ''}</p>`).join('')}
+        <p class="tiny muted" style="margin-top:6px;">🕯️ Juramento: com 1 Lacre de Cera juntas mais um selo ao acaso a um contrato.</p></div>
+      <div class="card raised"><span style="font-weight:700;">⭐ Renome e patentes</span><p class="tiny" style="margin-top:6px;">+1 Renome por contrato cumprido.</p>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Patente</th><th>Renome</th><th>Graus</th></tr>${pc}</table></div>
+      <div class="card raised"><span style="font-weight:700;">🏅 Loja do Caçador</span>${HUNT_SHOP.map(x => `<p class="tiny" style="margin-top:6px;">${x.icon} <b>${x.name}</b> (${x.cost} Insígnias) — ${x.desc}</p>`).join('')}</div>`;
   } else if (t === 'torres') {
     body.innerHTML = TOWERS.map(T => T.maze ? mazeWikiHtml(T) : `
       <p class="muted" style="margin-bottom:10px;">Mapa → Torres. Na ${T.icon} ${T.name} sobes andar a andar e escolhes a porta em cada um. O mapa é gerado ao acaso em cada subida.</p>
@@ -12203,6 +12218,7 @@ function renderTabLoja() {
     { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️', badge: blackMarketAvailableCount(p) },
     { key: 'temporada', label: 'Temporada', icon: '🎮', badge: seasonReadyCount(p) ? `🎁${seasonReadyCount(p)}` : null },
     { key: 'cambio', label: 'Câmbio', icon: '⚖️' },
+    { key: 'contratos', label: 'Contratos de Caça', icon: '📜', badge: (p.level || 1) >= HUNT_MIN_LV && !huntState(p).freeUsed ? '🎁' : null },
     { key: 'bar', label: 'Bar', icon: nxEnt('bar', '🍺'), badge: hideoutLevel(p) >= ALLY_HIDEOUT_LV && !p.ally ? 'Novo' : null }
   ];
   const current = sections.find(x => x.key === App.lojaTab);
@@ -12244,6 +12260,7 @@ function renderLojaBody() {
   if (!body) return;
 
   if (App.lojaTab === 'temporada') { renderSeasonBody(body, p); return; }
+  if (App.lojaTab === 'contratos') { renderHuntBody(body, p); return; }
   if (App.lojaTab === 'diaria') { renderDailyBody(body, p); return; }
   if (App.lojaTab === 'bar') { renderBarBody(body, p); return; }
   if (App.lojaTab === 'cozinha') { renderCozinhaBody(body, p); return; }
@@ -13797,6 +13814,336 @@ function startCombat(opts) {
 }
 
 // ============================================================
+// 📜 CONTRATOS DE CAÇA (v180) — Cidade → Contratos de Caça. A partir do Nv. 60.
+// Cada contrato pede para caçar um chefe que já existe, reforçado ao nível do Grau (I–X),
+// com 4 rastos (monstros da região do chefe) antes da presa. Os Selos são maldições que
+// dificultam a caçada e aumentam a Quantidade (nº de baús) e a Raridade (qualidade) do espólio.
+// Insígnias → Loja do Caçador. Renome → patentes que desbloqueiam Graus.
+// ============================================================
+const HUNT_MIN_LV = 60;
+const HUNT_GRAU_LV = [0, 60, 75, 90, 105, 120, 135, 150, 165, 180, 195];
+const HUNT_ROM = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+const HUNT_RASTOS = 4;
+const HUNT_BAG_MAX = 10;
+const HUNT_DROP_CHANCE = 0.05;      // hipótese de um chefe (Nv. 60+) deixar cair um contrato
+const HUNT_NEXT_CHANCE = 0.25;      // hipótese de a presa deixar cair um contrato de Grau acima
+const HUNT_PREY_MULT = { hp: 1.6, dmg: 1.15, def: 1.1 };
+const HUNT_RANKS = [
+  { name: 'Aprendiz', need: 0, max: 2 }, { name: 'Batedor', need: 5, max: 4 }, { name: 'Rastreador', need: 12, max: 6 },
+  { name: 'Caçador', need: 22, max: 8 }, { name: 'Mestre Caçador', need: 35, max: 9 }, { name: 'Lenda', need: 50, max: 10 }
+];
+const HUNT_SEALS = {
+  sangue:   { icon: '🩸', name: 'Selo do Sangue',   desc: 'Os monstros têm +40% de vida.', q: 15, r: 0, mult: { hp: 1.4 } },
+  furia:    { icon: '😡', name: 'Selo da Fúria',    desc: 'Os monstros dão +25% de dano.', q: 12, r: 8, mult: { dmg: 1.25 } },
+  pedra:    { icon: '🪨', name: 'Selo da Pedra',    desc: 'Os monstros têm +30% de defesa.', q: 10, r: 0, mult: { def: 1.3 } },
+  matilha:  { icon: '🐺', name: 'Selo da Matilha',  desc: 'Há mais 1 rasto até à presa (5 em vez de 4).', q: 20, r: 0 },
+  seca:     { icon: '🏜️', name: 'Selo da Seca',     desc: 'Não recuperas vida entre rastos.', q: 0, r: 10 },
+  eclipse:  { icon: '🌑', name: 'Selo do Eclipse',  desc: 'As poções de HP curam metade.', q: 0, r: 15 },
+  espinho:  { icon: '🌵', name: 'Selo do Espinho',  desc: 'Os monstros devolvem-te 5% do dano que lhes fazes.', q: 0, r: 12 },
+  lamina:   { icon: '🗡️', name: 'Selo da Lâmina',   desc: 'Os monstros acertam críticos mais vezes (+20%).', q: 6, r: 8 },
+  ferida:   { icon: '💉', name: 'Selo da Ferida',   desc: 'Os golpes dos monstros podem fazer-te sangrar (25%).', q: 8, r: 6 },
+  ganancia: { icon: '💰', name: 'Selo da Ganância', desc: 'Ganhas +30% de ouro. Este selo só ajuda.', q: 0, r: 0, gold: 0.30, good: true }
+};
+const HUNT_BAD_SEALS = Object.keys(HUNT_SEALS).filter(k => !HUNT_SEALS[k].good);
+// Artigos certos para cada região ("monstros da Tundra", "do Pináculo", "das Montanhas"…).
+const HUNT_REG_DE = { planicies: 'das', montanhas: 'das', tundra: 'da', planalto: 'do', corrompidas: 'das', florestanegra: 'da', pinaculo: 'do' };
+const HUNT_REG_PELA = { planicies: 'pelas', montanhas: 'pelas', tundra: 'pela', planalto: 'pelo', corrompidas: 'pelas', florestanegra: 'pela', pinaculo: 'pelo' };
+function huntDe(r) { return `${HUNT_REG_DE[r.key] || 'de'} ${r.name}`; }
+const HUNT_SHOP = [
+  { key: 'lacre', icon: '🕯️', name: 'Lacre de Cera', desc: 'Para fazer um Juramento: junta mais um selo ao acaso a um contrato.', cost: 8 },
+  { key: 'contrato', icon: '📜', name: 'Contrato de Caça', desc: 'Um contrato novo do teu Grau mais alto, para guardares.', cost: 25 },
+  { key: 'renovar', icon: '🔁', name: 'Renovar o quadro', desc: 'Troca os 3 contratos do quadro por novos (o grátis de hoje mantém-se).', cost: 10 },
+  { key: 'feitico', icon: '📜', name: 'Pergaminho de Feitiço', desc: 'O mesmo de Mochila → Feitiços.', cost: 30 },
+  { key: 'nephalem', icon: '💎', name: 'Pedra Nephalen', desc: 'Bónus extra numa arma +9.', cost: 120 }
+];
+function huntState(p) {
+  p.hunt = p.hunt && typeof p.hunt === 'object' ? p.hunt : {};
+  const h = p.hunt;
+  h.renome = Math.max(0, Math.floor(Number(h.renome) || 0));
+  h.ins = Math.max(0, Math.floor(Number(h.ins) || 0));
+  h.lacres = Math.max(0, Math.floor(Number(h.lacres) || 0));
+  h.bag = Array.isArray(h.bag) ? h.bag.filter(huntValidContract).slice(0, HUNT_BAG_MAX) : [];
+  h.board = Array.isArray(h.board) ? h.board.filter(huntValidContract).slice(0, 3) : [];
+  if (h.day !== soberanoDay()) { h.day = soberanoDay(); h.freeUsed = false; h.board = []; }
+  h.freeUsed = !!h.freeUsed;
+  if (h.board.length < 3 && (p.level || 1) >= HUNT_MIN_LV) huntFillBoard(p, h);
+  return h;
+}
+function huntValidContract(c) {
+  return c && typeof c === 'object' && c.grau >= 1 && c.grau <= 10 && huntBossDef(c.boss) && Array.isArray(c.seals) && c.seals.every(k => HUNT_SEALS[k]) && (!c.oath || HUNT_SEALS[c.oath]);
+}
+function huntBossDef(name) {
+  for (const r of REGIONS) { const b = (r.bosses || []).find(x => x.name === name); if (b) return { boss: b, region: r }; }
+  return null;
+}
+function huntRank(h) { let r = HUNT_RANKS[0]; HUNT_RANKS.forEach(x => { if (h.renome >= x.need) r = x; }); return r; }
+function huntNextRank(h) { return HUNT_RANKS.find(x => x.need > h.renome) || null; }
+function huntLevelMaxGrau(p) { let g = 0; for (let i = 1; i <= 10; i++) if ((p.level || 1) >= HUNT_GRAU_LV[i]) g = i; return g; }
+function huntMaxGrau(p, h) { return Math.min(huntRank(h || huntState(p)).max, huntLevelMaxGrau(p)); }
+function huntNewContract(grau) {
+  const all = [];
+  REGIONS.forEach(r => (r.bosses || []).forEach(b => all.push(b.name)));
+  const boss = all[Math.floor(Math.random() * all.length)];
+  const n = clamp(1 + Math.floor(Math.random() * 3) + (grau >= 5 ? 1 : 0), 1, 4);
+  const pool = HUNT_BAD_SEALS.slice(), seals = [];
+  while (seals.length < n && pool.length) seals.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+  if (Math.random() < 0.12) seals.push('ganancia');
+  return { id: 'ct_' + Math.random().toString(36).slice(2, 9), grau: clamp(grau, 1, 10), boss, seals, oath: null };
+}
+function huntFillBoard(p, h) {
+  const max = Math.max(1, huntMaxGrau(p, h));
+  const want = [max, Math.max(1, max - 1), 1 + Math.floor(Math.random() * max)];
+  while (h.board.length < 3) h.board.push(huntNewContract(want[h.board.length]));
+}
+function huntSealsOf(c) { return c.seals.concat(c.oath ? [c.oath] : []); }
+function huntTotals(c) {
+  let q = c.grau * 4, r = c.grau * 3, gold = 0;
+  huntSealsOf(c).forEach(k => { const s = HUNT_SEALS[k]; q += s.q; r += s.r; gold += s.gold || 0; });
+  return { q, r, gold, ins: 6 + c.grau * 2 + huntSealsOf(c).length * 2 };
+}
+function huntHas(c, key) { return !!(c && c.isHunt && c.huntDef && huntSealsOf(c.huntDef).includes(key)); }
+function huntWax(k, extra) { const s = HUNT_SEALS[k]; return `<span class="hunt-wax${s.good ? ' gold' : ''}${extra ? ' ' + extra : ''}" title="${s.name}">${s.icon}</span>`; }
+function huntBlockReason(p, h, c) {
+  const lv = HUNT_GRAU_LV[c.grau];
+  if ((p.level || 1) < lv) return `Precisas de Nv. ${lv} para o Grau ${HUNT_ROM[c.grau]}.`;
+  if (c.grau > huntRank(h).max) { const rk = HUNT_RANKS.find(x => x.max >= c.grau); return `Precisas da patente ${rk ? rk.name : '—'} para o Grau ${HUNT_ROM[c.grau]}.`; }
+  return null;
+}
+// Drop de contrato nos chefes (Nv. 60+). Devolve o texto do drop ou null.
+function huntRollBossDrop(p, bossLv, luck) {
+  if ((p.level || 1) < HUNT_MIN_LV || Math.random() >= HUNT_DROP_CHANCE + (luck || 0)) return null;
+  const h = huntState(p);
+  if (h.bag.length >= HUNT_BAG_MAX) return null;
+  const g = clamp(Math.floor((Math.max(HUNT_MIN_LV, bossLv) - HUNT_MIN_LV) / 15) + 1, 1, Math.max(1, huntMaxGrau(p, h)));
+  h.bag.push(huntNewContract(g));
+  return `📜 Contrato de Caça (Grau ${HUNT_ROM[g]})! (Cidade → Contratos de Caça)`;
+}
+// ---------- Caçada (combate) ----------
+function startHunt(src, idx) {
+  if (!guardAllowsFight(() => startHunt(src, idx))) return;
+  const p = App.player, h = huntState(p);
+  const list = src === 'bag' ? h.bag : h.board;
+  const ct = list[idx];
+  if (!ct) return;
+  const why = huntBlockReason(p, h, ct);
+  if (why) { sfx.error(); toast(why); return; }
+  if (src === 'board' && h.freeUsed) { sfx.error(); toast('Já usaste o contrato grátis de hoje. Volta amanhã, ou usa um dos teus contratos.'); return; }
+  sfx.click();
+  list.splice(idx, 1);
+  if (src === 'board') h.freeUsed = true;
+  App.huntSel = null;
+  saveGame();
+  const bd = huntBossDef(ct.boss);
+  App.combat = {
+    kind: 'hunt', isHunt: true, huntDef: ct, huntRegion: bd.region.key, waveIndex: 0,
+    totalWaves: HUNT_RASTOS + (huntSealsOf(ct).includes('matilha') ? 1 : 0) + 1,
+    battleState: {}, cooldowns: {}, log: [], eventApplied: null, ended: false
+  };
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `📜 Contrato de Caça (Grau ${HUNT_ROM[ct.grau]}): segue ${App.combat.totalWaves - 1} rastos ${HUNT_REG_PELA[bd.region.key] || 'por'} ${bd.region.name} até ${ct.boss}.`, cls: 'good' });
+  huntSealsOf(ct).forEach(k => addCombatLog({ text: `${HUNT_SEALS[k].icon} ${HUNT_SEALS[k].name}: ${HUNT_SEALS[k].desc}`, cls: HUNT_SEALS[k].good ? 'good' : 'hit' }));
+  spawnHuntWave();
+  renderCombat();
+}
+function spawnHuntWave() {
+  const c = App.combat, ct = c.huntDef, bd = huntBossDef(ct.boss);
+  const isLast = c.waveIndex === c.totalWaves - 1;
+  const base = HUNT_GRAU_LV[ct.grau];
+  let enemy, lvl, name, icon, monsterName = null, category = 'outro';
+  if (isLast) {
+    lvl = base + 5;
+    enemy = enemyStatsFor(lvl, true);
+    enemy.hp = Math.round(enemy.hp * HUNT_PREY_MULT.hp); enemy.dmg = Math.round(enemy.dmg * HUNT_PREY_MULT.dmg); enemy.def = Math.round(enemy.def * HUNT_PREY_MULT.def);
+    name = bd.boss.name; icon = bd.boss.icon; category = bd.boss.category || 'outro';
+  } else {
+    lvl = base + Math.min(4, c.waveIndex);
+    enemy = enemyStatsFor(lvl, false);
+    const mons = bd.region.monsters || [];
+    const m = mons[Math.floor(Math.random() * mons.length)] || { name: 'Monstro', icon: '👾' };
+    name = `${m.name} · Rasto ${c.waveIndex + 1}/${c.totalWaves - 1}`; icon = m.icon; monsterName = m.name; category = m.category || 'outro';
+  }
+  huntSealsOf(ct).forEach(k => {
+    const m = HUNT_SEALS[k].mult; if (!m) return;
+    enemy.hp = Math.round(enemy.hp * (m.hp || 1)); enemy.dmg = Math.round(enemy.dmg * (m.dmg || 1)); enemy.def = Math.round(enemy.def * (m.def || 1));
+  });
+  enemy.maxHp = enemy.hp;
+  if (huntSealsOf(ct).includes('lamina')) enemy.critChance = (enemy.critChance || 0.05) + 0.20;
+  if (huntSealsOf(ct).includes('ferida')) enemy.bleedChance = 0.25;
+  c.enemy = Object.assign(enemy, { element: null, critImmune: false, category, _rfMark: enemy.hp });
+  c.level = lvl; c.isBoss = isLast; c.isMiniBoss = false;
+  c.name = name; c.icon = icon; c.monsterName = monsterName;
+  c.battleState = { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false };
+  c.cooldowns = {};
+  if (isLast) addCombatLog({ text: `🎯 Encontraste a presa: ${name} (Nv. ${lvl}), reforçada pelo contrato!`, cls: 'crit' });
+}
+// Espinho: devolve 5% do dano feito ao inimigo (chamado em postPlayerAction).
+function huntReflect(c, p) {
+  if (!huntHas(c, 'espinho') || !c.enemy) return;
+  const mark = c.enemy._rfMark != null ? c.enemy._rfMark : c.enemy.maxHp;
+  const dealt = mark - Math.max(0, c.enemy.hp);
+  c.enemy._rfMark = Math.max(0, c.enemy.hp);
+  if (dealt <= 0) return;
+  const r = Math.max(1, Math.round(dealt * 0.05));
+  p.hp = Math.max(1, p.hp - r);
+  addCombatLog({ text: `🌵 Espinhos: os monstros devolvem-te ${r} de dano.`, cls: 'hit' });
+}
+function huntOnEnemyDefeated() {
+  const c = App.combat, p = App.player;
+  if (c.waveIndex < c.totalWaves - 1) {
+    c.waveIndex++;
+    if (!huntHas(c, 'seca')) { const st = effectiveStats(p); p.hp = Math.min(st.hp, p.hp + Math.round(st.hp * 0.25)); }
+    saveGame();
+    spawnHuntWave();
+    const left = c.totalWaves - 1 - c.waveIndex;
+    addCombatLog({ text: left > 0 ? `🐾 Segues o rasto… Rasto ${c.waveIndex + 1} de ${c.totalWaves - 1}.${huntHas(c, 'seca') ? ' (Selo da Seca: sem recuperar vida)' : ' Recuperaste 25% de HP.'}` : `🐾 O rasto acaba aqui…${huntHas(c, 'seca') ? '' : ' Recuperaste 25% de HP.'}`, cls: 'good' });
+    sfx.questdone();
+    renderCombat();
+    return;
+  }
+  finishHunt();
+}
+function finishHunt() {
+  const c = App.combat, p = App.player, ct = c.huntDef, h = huntState(p), t = huntTotals(ct);
+  const lv = HUNT_GRAU_LV[ct.grau] + 5, pStats = effectiveStats(p);
+  const xpGain = Math.round((35 + lv * 4.5) * 2 * (1 + battleXpBonus(c)));
+  const goldGain = Math.round((30 + lv * 4) * 2 * (1 + (pStats.goldPct || 0) + t.gold));
+  p.gold += goldGain; grantXp(xpGain);
+  p.stats.wins++; p.stats.bossesKilled = (p.stats.bossesKilled || 0) + 1;
+  const drops = [`${xpGain} XP`, `${goldGain} 🪙 Ouro${t.gold ? ' (Ganância +30%)' : ''}`];
+  const n = 2 + Math.floor(t.q / 50) + (Math.random() < (t.q % 50) / 50 ? 1 : 0);
+  const qb = clamp(1 + Math.round(t.r / 20), 1, 5);
+  for (let i = 0; i < n; i++) p.chests.push(newChest('equip', lv, qb));
+  drops.push(`${CHEST_DEFS.equip.icon} ${n}× ${CHEST_DEFS.equip.name} Nv. ${lv} — qualidade +${qb} (abre na Mochila)`);
+  h.ins += t.ins; h.renome++;
+  drops.push(`🏅 ${t.ins} Insígnias (tens ${h.ins})`);
+  const before = huntRank(Object.assign({}, h, { renome: h.renome - 1 }));
+  const now = huntRank(h);
+  drops.push(now !== before ? `⭐ Nova patente: ${now.name}! Graus até ${HUNT_ROM[now.max]} desbloqueados.` : `⭐ +1 Renome (${h.renome})`);
+  if (Math.random() < HUNT_NEXT_CHANCE && h.bag.length < HUNT_BAG_MAX) {
+    const g = Math.min(10, ct.grau + 1); h.bag.push(huntNewContract(g));
+    drops.push(`📜 Contrato de Caça (Grau ${HUNT_ROM[g]})!`);
+  }
+  tickProfessionCooldowns(p);
+  consumeTalismanBattle();
+  saveGame();
+  sfx.evolve();
+  showCombatEnd(true, { xpGain, goldGain, drops, isBoss: true });
+}
+// ---------- Loja do Caçador ----------
+function huntBuy(key) {
+  const p = App.player, h = huntState(p), it = HUNT_SHOP.find(x => x.key === key);
+  if (!it) return;
+  if (h.ins < it.cost) { sfx.error(); toast(`Precisas de ${it.cost} Insígnias (tens ${h.ins}).`); return; }
+  if (key === 'contrato' && h.bag.length >= HUNT_BAG_MAX) { sfx.error(); toast(`Já tens ${HUNT_BAG_MAX} contratos guardados.`); return; }
+  h.ins -= it.cost;
+  if (key === 'lacre') h.lacres++;
+  else if (key === 'contrato') h.bag.push(huntNewContract(Math.max(1, huntMaxGrau(p, h))));
+  else if (key === 'renovar') { h.board = []; huntFillBoard(p, h); App.huntSel = null; }
+  else if (key === 'feitico') p.scrolls.feitico = (p.scrolls.feitico || 0) + 1;
+  else if (key === 'nephalem') p.nephalemStones = (p.nephalemStones || 0) + 1;
+  saveGame(); sfx.gold(); toast(`${it.icon} ${it.name} comprado.`);
+  renderLojaBody();
+}
+function huntOath(src, idx) {
+  const p = App.player, h = huntState(p), list = src === 'bag' ? h.bag : h.board, ct = list[idx];
+  if (!ct || ct.oath) return;
+  if (h.lacres <= 0) { sfx.error(); toast('Precisas de um Lacre de Cera (Loja do Caçador).'); return; }
+  const pool = HUNT_BAD_SEALS.filter(k => !ct.seals.includes(k));
+  if (!pool.length) return;
+  h.lacres--; ct.oath = pool[Math.floor(Math.random() * pool.length)];
+  App.huntOathAnim = ct.id;
+  saveGame(); sfx.evolve(); renderLojaBody();
+}
+// ---------- Ecrã (Cidade → Contratos de Caça) ----------
+function huntContractCard(ct, src, idx, on) {
+  const bd = huntBossDef(ct.boss);
+  return `<button class="hunt-card${on ? ' sel' : ''}" style="--r:${((idx * 37) % 5 - 2) * 0.7}deg" data-hunt-pick="${src}:${idx}">
+    <span class="hunt-pin"></span>
+    <span class="hunt-g">Grau ${HUNT_ROM[ct.grau]} · Nv. ${HUNT_GRAU_LV[ct.grau]}</span>
+    <span class="hunt-t">Procura-se</span>
+    <span class="hunt-prey"><span class="hunt-prey-ic">${nxCreature(ct.boss, bd.boss.icon)}</span><span><b>${esc(ct.boss)}</b><small>${bd.region.name}</small></span></span>
+    <span class="hunt-seals">${huntSealsOf(ct).map(k => huntWax(k, k === ct.oath ? 'oath' : '')).join('')}</span>
+  </button>`;
+}
+function huntDetailHtml(p, h, ct, src, idx) {
+  const bd = huntBossDef(ct.boss), t = huntTotals(ct), lv = HUNT_GRAU_LV[ct.grau];
+  const why = huntBlockReason(p, h, ct);
+  const freeGone = src === 'board' && h.freeUsed;
+  const rastos = HUNT_RASTOS + (huntSealsOf(ct).includes('matilha') ? 1 : 0);
+  const anim = App.huntOathAnim === ct.id; App.huntOathAnim = null;
+  return `<div class="hunt-detail">
+    <div class="hunt-banner" style="background-image:url('icons/mapa-${bd.region.key}.webp?v=${NX_ICON_VER}')"><span>GRAU ${HUNT_ROM[ct.grau]}</span></div>
+    <div class="hunt-dbody">
+      <div><div class="hunt-dtitle">Caçar ${esc(ct.boss)}</div><div class="hunt-dsub">${bd.region.name} · monstros Nv. ${lv}–${lv + 4} · ${rastos} rastos e a presa</div></div>
+      <div class="hunt-preyrow"><span class="hunt-preyrow-ic">${nxCreature(ct.boss, bd.boss.icon)}</span><div><small>A presa</small><b>${esc(ct.boss)}</b><small>Normalmente Nv. ${bd.boss.lv}. Neste contrato aparece reforçada, com <b>Nv. ${lv + 5}</b>.</small></div></div>
+      <p class="hunt-why">Os rastos são monstros ${huntDe(bd.region)}, também ao nível do contrato. Entre rastos recuperas 25% de HP.</p>
+      <div class="hunt-lbl">Selos do contrato</div>
+      <p class="hunt-why">Cada selo torna a caçada mais difícil, mas aumenta o espólio.</p>
+      <div class="hunt-seal-list">${huntSealsOf(ct).map(k => { const s = HUNT_SEALS[k], o = k === ct.oath; return `<div class="hunt-seal${o && anim ? ' new' : ''}">${huntWax(k, o ? 'oath' : '')}<div><b>${s.name}${o ? ' <i>(o teu Juramento)</i>' : ''}</b>${s.desc}</div>
+        <div class="hunt-rw">${s.q ? `<span class="q">+${s.q}% Quant.</span>` : ''}${s.r ? `<span class="r">+${s.r}% Rarid.</span>` : ''}${s.gold ? `<span class="r">+${Math.round(s.gold * 100)}% Ouro</span>` : ''}</div></div>`; }).join('')}</div>
+      <div class="hunt-lbl">No total, este contrato dá</div>
+      <div class="hunt-totals"><div class="tq"><b>+${t.q}%</b><small>Quantidade</small></div><div class="tr"><b>+${t.r}%</b><small>Raridade</small></div><div class="ti"><b>${t.ins}</b><small>Insígnias</small></div></div>
+      <p class="hunt-why">Inclui o bónus do Grau ${HUNT_ROM[ct.grau]} (+${ct.grau * 4}% Quantidade e +${ct.grau * 3}% Raridade). Quantidade = mais baús de equipamento; Raridade = baús de melhor qualidade.</p>
+      ${why ? `<p class="hunt-warn">🔒 ${why}</p>` : freeGone ? `<p class="hunt-warn">⏳ Já usaste o contrato grátis de hoje. Volta amanhã, ou usa um dos teus contratos guardados.</p>` : ''}
+      <div class="hunt-act">
+        <button class="btn" data-hunt-oath="${src}:${idx}" ${ct.oath || h.lacres <= 0 ? 'disabled' : ''}>${ct.oath ? '🕯️ Juramento feito' : `🕯️ Juramento (${h.lacres} Lacre${h.lacres === 1 ? '' : 's'})`}</button>
+        <button class="btn primary" data-hunt-start="${src}:${idx}" ${why || freeGone ? 'disabled' : ''}>⚔️ Começar caçada</button>
+      </div>
+      <p class="hunt-why">Juramento (opcional): gastas 1 Lacre de Cera e juntas mais um selo ao acaso. Mais difícil, mais espólio. Se perderes ou desistires, o contrato perde-se (não perdes ouro).</p>
+    </div></div>`;
+}
+function renderHuntBody(body, p) {
+  if ((p.level || 1) < HUNT_MIN_LV) {
+    body.innerHTML = `<div class="card raised" style="border-left:3px solid var(--bronze);"><p>📜 A Guilda dos Caçadores só passa contratos a heróis de <b>Nv. ${HUNT_MIN_LV}+</b>.</p><p class="tiny muted" style="margin-top:6px;">Volta quando fores mais forte. Estás no Nv. ${p.level}.</p></div>`;
+    return;
+  }
+  const h = huntState(p);
+  const view = App.huntView === 'loja' ? 'loja' : 'quadro';
+  const rk = huntRank(h), nx = huntNextRank(h), maxG = huntMaxGrau(p, h);
+  let html = `<div class="tab-strip" style="margin-bottom:12px;"><button class="tab-chip${view === 'quadro' ? ' active' : ''}" data-hunt-view="quadro">📜 Quadro</button><button class="tab-chip${view === 'loja' ? ' active' : ''}" data-hunt-view="loja">🏅 Loja do Caçador</button></div>`;
+  html += `<div class="card raised hunt-fame"><div class="hunt-fame-top"><span class="rk">⭐ ${rk.name}</span><span class="tiny muted">${nx ? `${h.renome}/${nx.need} para ${nx.name}` : 'Patente máxima'}</span></div>
+    <div class="hunt-fame-bar"><i style="width:${nx ? Math.round((h.renome - rk.need) / (nx.need - rk.need) * 100) : 100}%"></i></div>
+    <div class="hunt-fame-pills"><span class="pill">Graus I–${HUNT_ROM[maxG] || 'I'}</span><span class="pill">🏅 ${h.ins} Insígnias</span><span class="pill">🕯️ ${h.lacres} Lacres</span></div></div>`;
+  if (view === 'loja') {
+    html += `<div class="section-title">🏅 Loja do Caçador</div><p class="tiny muted" style="margin-bottom:10px;">As Insígnias ganham-se em cada contrato cumprido. Mais Grau e mais selos dão mais Insígnias.</p>
+      ${HUNT_SHOP.map(it => `<div class="item-row"><div class="item-ic">${it.icon}</div><div class="item-mid"><div class="item-name">${it.name}</div><div class="tiny">${it.desc}</div></div>
+        <button class="btn small ${h.ins >= it.cost ? 'primary' : 'ghost'}" data-hunt-buy="${it.key}">🏅 ${it.cost}</button></div>`).join('')}`;
+  } else {
+    const helpOpen = App.huntHelp !== undefined ? App.huntHelp : h.renome < 3;
+    html += `<details class="hunt-help card raised"${helpOpen ? ' open' : ''}><summary>❓ Como funciona</summary>
+      <ol class="hunt-how">
+        <li><b>Escolhe um contrato.</b> Cada contrato pede para caçares um chefe que já conheces, reforçado ao nível do Grau. O quadro dá <b>1 contrato grátis por dia</b>; os chefes também deixam cair contratos.</li>
+        <li><b>Lê os selos.</b> São maldições: tornam a caçada mais difícil, mas aumentam a <b class="q">Quantidade</b> (mais baús) e a <b class="r">Raridade</b> (baús melhores) do espólio.</li>
+        <li><b>Segue o rasto.</b> ${HUNT_RASTOS} combates seguidos contra monstros da região e, no fim, a presa. Entre rastos recuperas 25% de HP. Se perderes ou desistires, o contrato perde-se.</li>
+        <li><b>Recebe o espólio.</b> Baús de equipamento, Insígnias para a Loja do Caçador, Renome para subires de patente e, às vezes, um contrato de Grau acima.</li>
+      </ol>
+      <p class="tiny muted">Patentes: ${HUNT_RANKS.map(r => `${r.name} (Graus até ${HUNT_ROM[r.max]})`).join(' · ')}. O Grau I pede Nv. 60 e cada Grau acima pede mais 15 níveis.</p></details>`;
+    const sel = App.huntSel;
+    html += `<div class="section-title">📜 Quadro de Contratos</div>
+      <p class="tiny ${h.freeUsed ? 'muted' : ''}" style="margin-bottom:8px;">${h.freeUsed ? '⏳ Já usaste o contrato grátis de hoje. O quadro renova amanhã.' : '🎁 Podes aceitar <b>1 contrato grátis</b> do quadro hoje.'}</p>
+      <div class="hunt-board"><div class="hunt-board-grid">${h.board.map((ct, i) => huntContractCard(ct, 'board', i, sel === 'board:' + i)).join('')}</div></div>`;
+    html += `<div class="section-title">🎒 Os teus contratos <span class="muted" style="font-size:12px;">(${h.bag.length}/${HUNT_BAG_MAX})</span></div>`;
+    html += h.bag.length ? `<div class="hunt-board mine"><div class="hunt-board-grid">${h.bag.map((ct, i) => huntContractCard(ct, 'bag', i, sel === 'bag:' + i)).join('')}</div></div>`
+      : `<p class="tiny muted">Ainda não tens contratos guardados. Os chefes de Nv. 60+ deixam cair contratos e podes comprá-los na Loja do Caçador.</p>`;
+    if (sel) {
+      const [src, i] = sel.split(':'); const list = src === 'bag' ? h.bag : h.board; const ct = list[+i];
+      if (ct) html += `<div class="section-title" id="hunt-detail-title">📖 Contrato escolhido</div>${huntDetailHtml(p, h, ct, src, +i)}`;
+    } else html += `<p class="tiny muted" style="margin-top:10px;">Toca num contrato para o leres.</p>`;
+  }
+  body.innerHTML = html;
+  body.querySelectorAll('[data-hunt-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.huntView = b.dataset.huntView; renderLojaBody(); }));
+  body.querySelectorAll('[data-hunt-pick]').forEach(b => b.addEventListener('click', () => {
+    sfx.tab(); App.huntSel = App.huntSel === b.dataset.huntPick ? null : b.dataset.huntPick; renderLojaBody();
+    const t = document.getElementById('hunt-detail-title'); if (t && App.huntSel) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
+  body.querySelectorAll('[data-hunt-start]').forEach(b => b.addEventListener('click', () => { const [s, i] = b.dataset.huntStart.split(':'); startHunt(s, +i); }));
+  body.querySelectorAll('[data-hunt-oath]').forEach(b => b.addEventListener('click', () => { const [s, i] = b.dataset.huntOath.split(':'); huntOath(s, +i); }));
+  body.querySelectorAll('[data-hunt-buy]').forEach(b => b.addEventListener('click', () => huntBuy(b.dataset.huntBuy)));
+  const det = body.querySelector('details.hunt-help'); if (det) det.addEventListener('toggle', () => { App.huntHelp = det.open; });
+}
+
+// ============================================================
 // RIFTS ⭕️ — ao fim de cada combate (vitória ou derrota), o jogador pode ser
 // interceptado por um Rift: um monstro do mesmo mapa onde está, ao seu nível,
 // mas com Defesa/Dano/HP ×3. Recompensa em troca: drops muito melhores.
@@ -14347,9 +14694,9 @@ function usePotionAction(key) {
   const pStats = effectiveStats(p);
   if (isHpPotion(key)) {
     c.battleState.hpPotionsUsed = (c.battleState.hpPotionsUsed || 0) + 1;
-    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal);
+    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal * (huntHas(c, 'eclipse') ? 0.5 : 1));
     p.hp = Math.min(pStats.hp, p.hp + heal);
-    addCombatLog({ text: `${POTION_DEFS[key].icon} Bebeste uma ${POTION_DEFS[key].name} (${c.battleState.hpPotionsUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha): +${heal} HP.`, cls: 'good' });
+    addCombatLog({ text: `${huntHas(c, 'eclipse') ? '🌑 ' : ''}${POTION_DEFS[key].icon} Bebeste uma ${POTION_DEFS[key].name} (${c.battleState.hpPotionsUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha): +${heal} HP.`, cls: 'good' });
   } else if (key === 'def') {
     c.battleState.potionDefBuff = { pct: 0.05, duration: 3 };
     addCombatLog({ text: '🔵 Poção da Defesa: +5% defesa por 3 rondas.', cls: 'good' });
@@ -14611,6 +14958,7 @@ function postPlayerAction() {
     });
     c.battleState.enemyStatus = c.battleState.enemyStatus.filter(s => s.duration > 0);
   }
+  huntReflect(c, p);
   if (c.enemy.hp <= 0) { handleEnemyDefeated(); return; }
   if (c.battleState.enemyStunned) {
     addCombatLog({ text: 'O inimigo está atordoado e perde a ronda.', cls: 'good' });
@@ -14813,6 +15161,7 @@ function handleEnemyDefeated() {
   seasonOnEnemyDefeated(c);
   if (c.isTower) { finishTowerFight(); return; }
   if (c.isSoberano) { finishSoberano(); return; }
+  if (c.isHunt) { huntOnEnemyDefeated(); return; }
   if (c.isDungeon) {
     if (c.waveIndex < c.totalWaves - 1) {
       // O Talismã só gasta 1 batalha no fim da dungeon/catacumba (finishDungeon,
@@ -14920,6 +15269,7 @@ function wildRewardRoll(c) {
     if (diff.statMult > 1) drops.push(`${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name} — qualidade deste item bem superior!`);
   }
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
+  if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
   // Livro das Profissões: só chefes de nível 20+.
   if (isBoss && c.level >= PROFESSION_BOOK_MIN_BOSS_LV && Math.random() < PROFESSION_BOOK_DROP_CHANCE + luck) {
     p.professionBooks = (p.professionBooks || 0) + 1;
@@ -15203,6 +15553,16 @@ function handlePlayerDefeated() {
     showCombatEnd(false, {});
     return;
   }
+  if (c.isHunt) {
+    p.hp = Math.max(1, Math.round(effectiveStats(p).hp * 0.5));
+    p.stats.losses++;
+    tickProfessionCooldowns(p);
+    consumeTalismanBattle();
+    saveGame();
+    sfx.defeat();
+    showCombatEnd(false, {});
+    return;
+  }
   const goldLost = c.isSoberano ? 0 : p.gold - Math.round(p.gold * 0.9);
   p.gold -= goldLost;
   c.goldLost = goldLost;
@@ -15245,6 +15605,9 @@ function showCombatEnd(won, info) {
     html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">Derrota</h2>
       <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">Perdeste 10% do teu ouro${c.goldLost ? ` (🪙 ${c.goldLost})` : ''} e voltaste à cidade com metade do teu HP máximo. Não desistas, herói.</p>${c.horde && c.hordeLoot && c.hordeLoot.kills ? `<p class="tiny" style="margin-top:6px;">👥 Derrotaste ${c.hordeLoot.kills} de ${c.horde.length} da horda e ficaste com <b>+${c.hordeLoot.xp} XP</b> e <b>+${c.hordeLoot.gold} 🪙</b>${c.hordeLoot.drops.length ? ` e ${c.hordeLoot.drops.length} drop${c.hordeLoot.drops.length > 1 ? 's' : ''}` : ''}. O bónus da horda perdeu-se.</p>` : ''}${c.bagKept ? `<p class="tiny" style="margin-top:6px;">🎒 Ficaste com metade do saco da dungeon: <b>+${nxNum(c.bagKept.xp)} XP</b> e <b>+${nxNum(c.bagKept.gold)} 🪙</b>.</p>` : ''}</div>
       <button class="btn primary block" id="btn-combat-continue">Voltar à cidade</button>`;
+    if (c.isHunt) html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">A presa escapou</h2>
+      <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">O contrato de caça perdeu-se. Não perdeste ouro e voltaste com metade do teu HP máximo. Escolhe outro contrato quando estiveres pronto.</p></div>
+      <button class="btn primary block" id="btn-combat-continue">Voltar aos Contratos</button>`;
     if (c.isTower) html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">Derrota</h2>
       <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">A subida terminou no andar ${c.towerFloorLost || '?'}. Ficas com tudo o que já apanhaste e não perdes ouro. Voltaste com metade do teu HP máximo.</p></div>
       <button class="btn primary block" id="btn-combat-continue">Voltar ao Mapa</button>`;
@@ -15254,11 +15617,14 @@ function showCombatEnd(won, info) {
   if (won) fxVictoryScreen(info);
   const wasRift = !!c.isRift;
   const wasTower = !!c.isTower;
+  const wasHunt = !!c.isHunt;
+  if (wasHunt && won) $('btn-combat-continue').textContent = 'Voltar aos Contratos';
   const towerBackKey = c.towerKey || (App.player.tower && App.player.tower.key) || TOWERS[0].key;
   if (wasTower && won) $('btn-combat-continue').textContent = App.player.tower ? (App.player.tower.maze ? 'Continuar no labirinto' : 'Continuar a subir ↑') : 'Voltar ao Mapa';
   $('btn-combat-continue').addEventListener('click', () => {
     App.combat = null;
     if (wasTower) { App.tab = 'mapa'; App.mapaTab = 'tower:' + towerBackKey; goHub(); return; }
+    if (wasHunt) { App.tab = 'loja'; App.lojaTab = 'contratos'; goHub(); return; }
     if (!wasRift && Math.random() < RIFT_CHANCE) showRiftInterception(); else goHub();
   });
 }
@@ -15818,6 +16184,7 @@ function combatSceneKey(c) {
   if (c.isTower) return 'torre';
   if (c.isSoberano) return 'montanhas';
   if (c.isHalloween) return 'halloween';
+  if (c.isHunt && c.huntRegion && SCENES[c.huntRegion]) return c.huntRegion;
   if (c.isDungeon && c.dungeonDef && c.dungeonDef.scene && SCENES[c.dungeonDef.scene]) return c.dungeonDef.scene;
   if (c.isCatacumba && c.catacumbaDef && c.catacumbaDef.scene && SCENES[c.catacumbaDef.scene]) return c.catacumbaDef.scene;
   if (c.isDungeon || c.isCatacumba) return 'cripta';
@@ -16067,7 +16434,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v179</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v180</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16218,6 +16585,13 @@ function wireStaticEvents() {
       const floor = endTowerRunByDefeat();
       saveGame(); sfx.flee(); App.combat = null; App.tab = 'mapa'; App.mapaTab = 'tower:' + backKey; goHub();
       toast(`Fugiste da torre no andar ${floor}.`);
+      return;
+    }
+    if (c && c.isHunt) {
+      if (!await nxConfirm('Desistir termina a caçada e o contrato perde-se. Não perdes ouro.', { title: 'Desistir da caçada', icon: '🏃', confirmLabel: 'Desistir', danger: true })) return;
+      if (App.combat !== c || c.ended) return;
+      saveGame(); sfx.flee(); App.combat = null; App.tab = 'loja'; App.lojaTab = 'contratos'; goHub();
+      toast('Desististe da caçada. O contrato perdeu-se.');
       return;
     }
     if (c && c.isDungeon && !c.isCatacumba && c.bag && c.bag.rooms) {
@@ -16376,9 +16750,17 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 1.8.2';
+const APP_VERSION_LABEL = 'V 1.8.8';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v180', title: 'V 1.8.8 · Contratos de Caça! 📜', items: [
+    ['📜', 'Novo na Cidade: Contratos de Caça, para heróis de nível 60+. Volta a caçar chefes que já conheces, reforçados ao nível do contrato e com muito melhor espólio.'],
+    ['🐾', 'Cada caçada tem 4 rastos (monstros da região do chefe) e no fim a presa. Entre rastos recuperas 25% de HP. Se perderes ou desistires, o contrato perde-se, mas não perdes ouro.'],
+    ['🔏', 'Os Selos são maldições: deixam a caçada mais difícil, mas aumentam a Quantidade (mais baús) e a Raridade (baús melhores) do espólio. Com um Lacre de Cera podes fazer um Juramento e juntar mais um selo.'],
+    ['🎁', 'O quadro dá 1 contrato grátis por dia, e os chefes de nível 60+ também podem deixar cair contratos.'],
+    ['⭐', 'Cada contrato cumprido dá Renome: sobe de patente (Aprendiz até Lenda) para desbloqueares Graus mais altos, do I ao X.'],
+    ['🏅', 'Ganha Insígnias e troca-as na nova Loja do Caçador: Lacres de Cera, contratos, Pergaminhos de Feitiço e Pedras Nephalen. Tudo explicado na Wiki → Contratos de Caça.']
+  ] },
   { id: 'v174', title: 'Noite das Abóboras! 🎃', items: [
     ['🎃', 'Evento de Halloween até 8 de novembro: vai a Mapa → Evento → Noite das Abóboras.'],
     ['👻', 'Derrota as criaturas da noite (Espantalho Maldito, Morcego Vampiro, Abóbora Demoníaca e Bruxa da Abóbora) para juntares Abóboras. Os monstros normais também podem deixar cair algumas.'],
