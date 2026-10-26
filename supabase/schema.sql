@@ -277,7 +277,7 @@ begin
   if p_stats is null or jsonb_typeof(p_stats) = 'null' then return v_out; end if;
   if jsonb_typeof(p_stats) <> 'object' then raise exception 'Este item tem atributos inválidos e não pode ser vendido.'; end if;
   for v_key, v_val in select key, value from jsonb_each(p_stats) loop
-    if v_key not in ('hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'crit', 'regenPct', 'dmgReducedFromBossPct') then
+    if v_key not in ('hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'es', 'crit', 'regenPct', 'dmgReducedFromBossPct') then
       raise exception 'Este item tem atributos inválidos e não pode ser vendido.';
     end if;
     if jsonb_typeof(v_val) <> 'number' then raise exception 'Este item tem atributos inválidos e não pode ser vendido.'; end if;
@@ -324,6 +324,9 @@ declare
   v_set text := null;
   v_unique text := null;
   v_craft text := null;
+  v_armor text := null;
+  v_skin text := null;
+  v_medio integer := null;
   v_i integer;
   v_g jsonb;
   v_out jsonb;
@@ -372,7 +375,8 @@ begin
         when 'dano_pct' then 20 when 'vs_animais' then 40 when 'vs_humanos' then 40
         when 'atordoamento' then 30 when 'esquiva' then 20 when 'regeneracao' then 6
         when 'envenenamento' then 40 when 'dano_medio_pct' then 10
-        when 'vs_demonios' then 40 when 'vs_mortos' then 40 when 'dano_habilidade' then 10 else null end;
+        when 'vs_demonios' then 40 when 'vs_mortos' then 40 when 'dano_habilidade' then 10
+        when 'res_fogo' then 12 when 'res_gelo' then 12 when 'res_eletricidade' then 12 when 'res_terra' then 12 else null end;
       if v_bmax is null or jsonb_typeof(v_b->'value') <> 'number'
         or (v_b->>'value')::numeric < 0 or (v_b->>'value')::numeric > v_bmax then
         raise exception 'Este item tem bónus inválidos e não pode ser vendido.';
@@ -433,10 +437,31 @@ begin
 
   -- v123: bónus de Craft (Esconderijo), só em Peitorais.
   if jsonb_typeof(p_item->'craftBonus') = 'object' then
-    if p_item->'craftBonus'->>'key' not in ('hp', 'regen', 'bossred', 'sorte') or v_slot <> 'chest' then
+    -- v164: Armas também têm bónus de Craft (lista própria).
+    if not ((v_slot = 'chest' and p_item->'craftBonus'->>'key' in ('hp', 'regen', 'bossred', 'sorte', 'terramoto'))
+         or (v_slot = 'weapon' and p_item->'craftBonus'->>'key' in ('w_boss', 'w_demon', 'w_undead', 'w_gems'))) then
       raise exception 'Este item tem um bónus de Craft inválido e não pode ser vendido.';
     end if;
     v_craft := p_item->'craftBonus'->>'key';
+  end if;
+
+  -- v147: tipo de armadura (Escudo Mágico) — só em Capacetes, Peitorais, Luvas e Botas.
+  if p_item->>'armorKind' is not null then
+    if p_item->>'armorKind' not in ('hybrid', 'es') or v_slot not in ('head', 'chest', 'gloves', 'boots') then
+      raise exception 'Este item tem um tipo de armadura inválido e não pode ser vendido.';
+    end if;
+    v_armor := p_item->>'armorKind';
+  end if;
+
+  -- v163: Armas da Cripta (Labirinto da Cripta) — skin própria + 5% a 20% de Dano Médio inato.
+  if p_item->>'skin' is not null then
+    if p_item->>'skin' not in ('cripta-espada', 'cripta-cajado', 'cripta-arco') or v_slot <> 'weapon'
+      or coalesce(p_item->>'innateMedio', '') !~ '^[0-9]{1,2}$'
+      or (p_item->>'innateMedio')::integer not between 5 and 20 then
+      raise exception 'Esta Arma da Cripta não é válida e não pode ser vendida.';
+    end if;
+    v_skin := p_item->>'skin';
+    v_medio := (p_item->>'innateMedio')::integer;
   end if;
 
   if coalesce(p_item->>'socketSlots', '1') ~ '^[1-3]$' then v_socket_slots := (coalesce(p_item->>'socketSlots', '1'))::integer;
@@ -444,7 +469,7 @@ begin
   for v_i in 0 .. v_socket_slots - 1 loop
     v_g := case when jsonb_typeof(p_item->'sockets') = 'array' then p_item->'sockets'->v_i else null end;
     if v_g is not null and jsonb_typeof(v_g) = 'object'
-      and v_g->>'type' in ('defesa', 'dano', 'vida', 'critico', 'chefes')
+      and v_g->>'type' in ('defesa', 'dano', 'vida', 'critico', 'chefes', 'escudo')
       and coalesce(v_g->>'tier', '') ~ '^[0-2]$' then
       v_sockets := v_sockets || jsonb_build_array(jsonb_build_object('type', v_g->>'type', 'tier', (v_g->>'tier')::integer));
     else
@@ -465,6 +490,12 @@ begin
   );
   if v_unique is not null then v_out := v_out || jsonb_build_object('uniqueEffect', v_unique); end if;
   if v_craft is not null then v_out := v_out || jsonb_build_object('craftBonus', jsonb_build_object('key', v_craft)); end if;
+  if v_armor is not null then v_out := v_out || jsonb_build_object('armorKind', v_armor); end if;
+  if v_skin is not null then v_out := v_out || jsonb_build_object('skin', v_skin, 'innateMedio', v_medio); end if;
+  -- v174: Amuleto da Abóbora (evento de Halloween) — só em amuletos.
+  if p_item->>'hwSkin' = 'abobora' and v_slot = 'amulet' then v_out := v_out || jsonb_build_object('hwSkin', 'abobora'); end if;
+  -- v173: Ascensão (Coração do Soberano) — só em itens +9.
+  if jsonb_typeof(p_item->'ascended') = 'boolean' and (p_item->>'ascended')::boolean and v_upgrade = 9 then v_out := v_out || jsonb_build_object('ascended', true); end if;
   if p_item->>'season' = '1' then v_out := v_out || jsonb_build_object('season', 1); end if;
   return v_out;
 end;
@@ -497,7 +528,8 @@ begin
     if p_sub is null or p_sub not between 0 and 2 then return null; end if;
     return (case p_key when 'defesa' then 'Pedra da Defesa' when 'dano' then 'Pedra do Dano'
       when 'vida' then 'Pedra da Vida' when 'critico' then 'Pedra do Crítico'
-      when 'chefes' then 'Pedra do Caça-Chefes' end) || ' (T' || (p_sub + 1) || ')';
+      when 'chefes' then 'Pedra do Caça-Chefes'
+      when 'escudo' then 'Pedra do Escudo Mágico' end) || ' (T' || (p_sub + 1) || ')';
   elsif p_kind = 'pedra' then
     if p_sub is null or p_sub not between 0 and 9 then return null; end if;
     if p_sub = 9 then
