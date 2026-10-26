@@ -11833,97 +11833,122 @@ function attemptAltarBonus() {
 }
 
 
-// v92: ficha completa do item (Equipamento → tocar numa peça).
+// v179: ficha do item em estilo "tooltip" de ARPG — faixa do nome com a cor da raridade,
+// número grande em destaque, atributos em azul, poderes especiais em laranja, encaixes redondos e Set a verde.
+const RAR_FORMS = {
+  comum: ['Comum', 'Comum', 'Comuns', 'Comuns'], incomum: ['Incomum', 'Incomum', 'Incomuns', 'Incomuns'],
+  raro: ['Raro', 'Rara', 'Raros', 'Raras'], lendario: ['Lendário', 'Lendária', 'Lendários', 'Lendárias'],
+  unico: ['Único', 'Única', 'Únicos', 'Únicas'], demoniaco: ['Demoníaco', 'Demoníaca', 'Demoníacos', 'Demoníacas'],
+  divino: ['Divino', 'Divina', 'Divinos', 'Divinas'], set: ['de Set', 'de Set', 'de Set', 'de Set'], temporada: ['de Temporada', 'de Temporada', 'de Temporada', 'de Temporada']
+};
+function itemTypeLine(item) {
+  const name = (item && item.name) || '';
+  const base = Object.keys(ITEM_BASE_GENDER).sort((a, b) => b.length - a.length).find(b => name === b || name.startsWith(b + ' '));
+  const g = base ? ITEM_BASE_GENDER[base] : 'm';
+  const forms = RAR_FORMS[item.rarity];
+  const adj = forms ? forms[{ m: 0, f: 1, mp: 2, fp: 3 }[g] || 0] : (item.rarityName || '');
+  return `${base || 'Item'} ${adj}`.trim();
+}
 function itemSheetHtml(item, slot, p, ro) {
   const up = item.upgrade || 0, upLv = itemUpLv(item);
   const base = itemStatsAtUpgrade(item, 0), tot = itemStatsAtUpgrade(item, upLv);
-  const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`;
-  const rows = [];
-  const add = (icon, label, b, t, fmt, cls) => { if (t || b) rows.push(`<tr><td>${icon} ${label}</td><td>${fmt(b)}</td><td class="sheet-up">${t - b > 0.00001 ? '+' + fmt(t - b) : '—'}</td><td class="sheet-tot${cls ? ' ' + cls : ''}">${fmt(t)}</td></tr>`); };
-  if (tot.dmgMin !== undefined && tot.dmgMax !== undefined) {
-    rows.push(`<tr><td>⚔️ Dano</td><td>${base.dmgMin}–${base.dmgMax}</td><td class="sheet-up">${up ? `+${tot.dmgMin - base.dmgMin}–${tot.dmgMax - base.dmgMax}` : '—'}</td><td class="sheet-tot">${tot.dmgMin}–${tot.dmgMax}</td></tr>`);
-  } else add('⚔️', 'Dano', base.dmg || 0, tot.dmg || 0, v => Math.round(v));
-  add('🛡️', '<span class="st-def">Defesa</span>', base.def || 0, tot.def || 0, v => Math.round(v), 'st-def');
-  add(esIconHtml(), '<span class="st-es">Escudo Mágico</span>', base.es || 0, tot.es || 0, v => Math.round(v), 'st-es');
-  add('❤️', 'HP', base.hp || 0, tot.hp || 0, v => Math.round(v));
-  add('💥', 'Crítico', base.crit || 0, tot.crit || 0, pc1);
-  add('💚', 'Regeneração', base.regenPct || 0, tot.regenPct || 0, v => `${Math.round(v)}%`);
-  add('👑', 'Red. dano de chefes', base.dmgReducedFromBossPct || 0, tot.dmgReducedFromBossPct || 0, pc1);
-  // Gemas encaixadas
+  const int = v => Math.round(v).toLocaleString('pt-PT');
+  const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+  const smithPart = (t, b, fmt) => t - b > 0.00001 ? ` <span class="tt-upn">(+${fmt(t - b)} Ferreiro)</span>` : '';
+  const isW = tot.dmgMin !== undefined && tot.dmgMax !== undefined;
+  // Número grande: Dano médio nas armas, senão Defesa, Escudo Mágico ou HP.
+  let bigKey = null, big = '';
+  if (isW) {
+    const avgT = (tot.dmgMin + tot.dmgMax) / 2, avgB = (base.dmgMin + base.dmgMax) / 2;
+    big = `<div class="tt-big">${int(avgT)}<small>Dano médio</small></div><div class="tt-sub">${int(tot.dmgMin)}–${int(tot.dmgMax)} Dano${smithPart(avgT, avgB, int)}</div>`;
+  } else {
+    bigKey = tot.def ? 'def' : tot.es ? 'es' : tot.hp ? 'hp' : tot.dmg ? 'dmg' : null;
+    const lbl = { def: 'Defesa', es: 'Escudo Mágico', hp: 'HP', dmg: 'Dano' }[bigKey];
+    big = bigKey ? `<div class="tt-big${bigKey === 'es' ? ' es' : ''}">${int(tot[bigKey])}<small>${lbl}</small></div>${smithPart(tot[bigKey], base[bigKey] || 0, int) ? `<div class="tt-sub">${smithPart(tot[bigKey], base[bigKey] || 0, int).trim()}</div>` : ''}`
+      : `<div class="tt-big">${item.itemLevel || 1}<small>Nível do item</small></div>`;
+  }
+  // Primários (azul)
+  const prim = [];
+  const addP = (key, fmtTxt, fmt) => { if (key === bigKey) return; const t = tot[key] || 0, b = base[key] || 0; if (!t && !b) return; prim.push(`<div class="tt-af">${fmtTxt(fmt(t))}${smithPart(t, b, fmt)}</div>`); };
+  if (!isW) addP('dmg', v => `+${v} Dano`, int);
+  addP('def', v => `+${v} <span class="st-def">Defesa</span>`, int);
+  addP('es', v => `+${v} <span class="st-es">Escudo Mágico</span>`, int);
+  addP('hp', v => `+${v} HP`, int);
+  addP('crit', v => `+${v} Crítico`, pc1);
+  addP('regenPct', v => `+${v} Regeneração`, v => `${Math.round(v)}%`);
+  addP('dmgReducedFromBossPct', v => `${v} menos dano de chefes`, pc1);
+  // Bónus+ (azul)
+  const bonuses = item.bonuses || [];
+  const bon = bonuses.map(b => `<div class="tt-af">${bonusPlusLabel(b)}</div>`);
+  // Especiais (laranja) e avisos (vermelho)
+  const nb = item.nephalemBonus && NEPHALEM_BONUS_POOL.find(x => x.key === item.nephalemBonus.key);
+  const ab = item.altarBonus && ALTAR_BONUS_POOL.find(x => x.key === item.altarBonus.key);
+  const ue = item.uniqueEffect && UNIQUE_ITEM_EFFECTS[item.uniqueEffect];
+  const cd = craftBonusDef(item);
+  const leg = [];
+  if (ue) leg.push(`${ue.icon} ${ue.label} — ${ue.desc}`);
+  if (item.plusBonus) leg.push(`${plus2Label(item.plusBonus)} <span class="tt-src">Bónus ➕</span>`);
+  if (cd) leg.push(`${cd.icon} ${cd.label} <span class="tt-src">Craft</span>`);
+  if (nb) leg.push(`${nb.icon} ${nb.label(item.nephalemBonus.value)} <span class="tt-src">Nephalen</span>`);
+  if (ab) leg.push(`${ab.icon} ${ab.name} — ${ab.desc} <span class="tt-src">Altar</span>`);
+  if (itemInnateMedio(item)) leg.push(`📈 +${itemInnateMedio(item)}% Dano Médio <span class="tt-src">Arma da Cripta</span>`);
+  if (hwAmuletLuck(item)) leg.push(`🍀 +${Math.round(hwAmuletLuck(item) * 100)}% Sorte de drop <span class="tt-src">Halloween</span>`);
+  const bad = [];
+  if (item.corruption && item.corruption.hpDebuff) bad.push(`Corrompido: −${item.corruption.hpDebuff} HP`);
+  // Encaixes
   const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
-  const gemLines = socks.filter(Boolean).map(g => `${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)} ${gemStatText(g.type, g.tier, craftGemMult(item))}${craftGemMult(item) > 1 ? ' <span class="craft-x2">×2</span>' : ''}`);
+  const gm = craftGemMult(item);
+  const gemTxt = g => `${gemStatText(g.type, g.tier, gm)}${gm > 1 ? ' <span class="craft-x2">×2</span>' : ''} <small>· ${GEM_DEFS[g.type].name} T${g.tier + 1}</small>`;
+  const sockHtml = socks.map((g, i) => {
+    const t3 = g && g.tier === 2 ? ' t3' : '';
+    if (ro) return g ? `<div class="tt-sock on${t3}"><i>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</i><span>${gemTxt(g)}</span></div>` : `<div class="tt-sock"><i></i><span>Encaixe vazio</span></div>`;
+    return g ? `<button class="tt-sock on${t3}" data-remove-gem="${i}" title="Remover (a gema é destruída)"><i>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</i><span>${gemTxt(g)}</span><em>Remover</em></button>`
+      : `<button class="tt-sock" data-open-socket="${i}"><i></i><span>Encaixe vazio</span><em>+ Encaixar</em></button>`;
+  }).join('') + (!ro && (item.socketSlots || 1) < 3 ? `<button class="tt-sock add" id="btn-add-socket"><i>＋</i><span>Abrir encaixe</span><em>${socketSlotCost(item).toLocaleString('pt-PT')} 🪙</em></button>` : '');
   // Set
   let setHtml = '';
   if (item.setKey && SET_DEFS[item.setKey]) {
     const sd = SET_DEFS[item.setKey];
     const have = EQUIP_SLOTS.filter(s => p.equipment[s] && p.equipment[s].setKey === item.setKey).length;
-    setHtml = `<div class="sheet-sec"><div class="sheet-h">${setIc(item.setKey)} ${sd.name} <span class="muted">(${have} peças)</span></div>
-      ${sd.bonuses.map(b => `<p class="tiny sheet-set${have >= b.count ? ' on' : ''}">${have >= b.count ? '✅' : '▫️'} ${b.count} peças: ${b.desc}</p>`).join('')}</div>`;
+    const maxN = Math.max(...sd.bonuses.map(b => b.count));
+    setHtml = `<div class="tt-sep"></div><div class="tt-lines"><div class="tt-setn">${setIc(item.setKey)} ${sd.name} (${have}/${maxN})</div>
+      ${sd.bonuses.map(b => `<div class="tt-setl${have >= b.count ? ' on' : ''}">(${b.count}) ${b.desc}</div>`).join('')}</div>`;
   }
   // Ferreiro
   const next = up + 1;
   const mat = up < 9 ? upgradeMaterial(item, next) : null;
   const smithHtml = item.ascended
-    ? '<p class="tiny asc-txt">✦ Item Ascendido — os stats contam como +11 (+20% dos stats base acima do +9).</p>'
+    ? '<div class="tt-note asc-txt">✦ Item Ascendido — os stats contam como +11 (+20% dos stats base acima do +9).</div>'
     : up >= 9
-    ? `<p class="tiny">Melhoria máxima (+9). ✨</p><p class="tiny" style="margin-top:4px;">✦ Pode ser <b>Ascendido</b> com um ${nxEnt('coracao-soberano', '❤️‍🔥')} Coração do Soberano (tens ${p.soberanoHearts || 0}) — Cidade → Ferreiro.</p>`
-    : `<p class="tiny">Próxima: <b>+${next}</b> · ${Math.round(blacksmithSuccessChance(item) * 100)}% de sucesso · ${blacksmithCost(p.level || 1, item).toLocaleString('pt-PT')} 🪙${mat ? ` · 1 ${mat.icon} ${mat.name}` : ''}</p>`;
-  const bonuses = item.bonuses || [];
-  const nb = item.nephalemBonus && NEPHALEM_BONUS_POOL.find(x => x.key === item.nephalemBonus.key);
-  const ab = item.altarBonus && ALTAR_BONUS_POOL.find(x => x.key === item.altarBonus.key);
-  const ue = item.uniqueEffect && UNIQUE_ITEM_EFFECTS[item.uniqueEffect];
-  return `
-    <div class="sheet-head${item.ascended ? ' asc' : ''}" style="${rarityBoxStyle(item)} border-color:${item.rarityColor};">
-      <div class="sheet-ic">${itemIconHtml(item)}</div>
-      <div style="flex:1; min-width:0;">
-        <div class="sheet-name" style="color:${item.rarityColor};">${item.locked ? '🔒 ' : ''}${esc(item.name)}${upBadge(item)}</div>
-        <div class="tiny">${rarIc(item.rarity, item.rarityIcon)} ${item.rarityName} · ${SLOT_NAMES[item.slot]} · Nível ${item.itemLevel || 1}</div>
-        ${ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : ''}
-        ${itemInnateMedio(item) ? '<span class="ak-tag crypt-tag">🌀 Arma da Cripta</span>' : ''}
-        ${hwAmuletLuck(item) ? '<span class="ak-tag hw-tag">🎃 Halloween</span>' : ''}
-        <div class="sheet-bar" title="Melhoria ${up}/9"><i style="width:${up / 9 * 100}%;"></i></div>
-        <div class="tiny muted">Ferreiro ${up}/9 · Venda ${itemSellValue(item).toLocaleString('pt-PT')} 🪙</div>
-      </div>
-    </div>
-    ${slot === 'offhand' && item.slot === 'weapon' ? (dualWieldActive(p)
-      ? `<p class="tiny sheet-good">⚔️ 2.ª arma (Lâminas Gémeas): conta ${Math.round(DUAL_WIELD_DMG * 100)}% do Dano, mais Bónus, gemas e Crítico.</p>`
-      : `<p class="tiny sheet-warn">⚠️ Esta 2.ª arma não está a contar: precisa da passiva Lâminas Gémeas e de a arma principal ser Espada, Machado ou Varinha.</p>`) : ''}
-    ${item.corruption && item.corruption.hpDebuff ? `<p class="tiny sheet-warn">🔴 Corrompido: −${item.corruption.hpDebuff} HP</p>` : ''}
-    ${ue ? `<p class="tiny sheet-good">${ue.icon} ${ue.label} — ${ue.desc}</p>` : ''}
-    ${hwAmuletLuck(item) ? `<p class="tiny hw-line">🍀 <b>+${Math.round(hwAmuletLuck(item) * 100)}% Sorte de drop</b> — stat especial do Amuleto da Abóbora (evento de Halloween)</p>` : ''}
-    ${itemInnateMedio(item) ? `<p class="tiny crypt-line">📈 <b>+${itemInnateMedio(item)}% Dano Médio</b> da arma (próprio das Armas da Cripta; soma com o Bónus+ Dano Médio)</p>` : ''}
-
-    <div class="sheet-sec">
-      <div class="sheet-h">📊 Atributos</div>
-      <table class="wiki-table sheet-table"><tr><th>Stat</th><th>Base</th><th>Melhoria</th><th>Total</th></tr>${rows.join('')}</table>
-    </div>
-
-    <div class="sheet-sec">
-      <div class="sheet-h">✨ Bónus+ <span class="muted">(${bonuses.length}/${ITEM_BONUS_MAX_SLOTS})</span></div>
-      ${bonuses.length ? bonuses.map(b => `<p class="tiny sheet-bonus">${(BONUS_PLUS_POOL.find(x => x.key === b.key) || {}).icon || '✦'} ${bonusPlusLabel(b)}</p>`).join('') : '<p class="tiny muted">Nenhum — usa um 📜 Feitiço em Mochila → Feitiços.</p>'}
-      <div class="sheet-h" style="margin-top:8px;">➕ Bónus ➕ <span class="muted">(${item.plusBonus ? 1 : 0}/1)</span></div>
-      ${item.plusBonus ? `<div>${plus2Chip(item.plusBonus)}</div>` : '<p class="tiny muted">Nenhum — usa um 📜 Feitiço ➕ (drop da Torre).</p>'}
-      ${slot === 'weapon' ? `<div class="sheet-h" style="margin-top:8px;">💎 Nephalen</div><p class="tiny ${nb ? 'sheet-bonus' : 'muted'}">${nb ? `${nb.icon} ${nb.label(item.nephalemBonus.value)}` : up >= 9 ? 'Ainda sem bónus — podes usar uma Pedra Nephalen (abaixo).' : 'Disponível quando a arma estiver em +9.'}</p>` : ''}
-      ${CRAFT_FORGE_SLOTS.includes(item.slot) ? `<div class="sheet-h" style="margin-top:8px;">⚒️ Craft <span class="muted">(${craftBonusDef(item) ? 1 : 0}/1)</span></div>${craftBonusDef(item) ? `<div>${craftBonusChip(item)}</div>` : `<p class="tiny muted">Nenhum — Herói → Esconderijo → Bancada de Craft (${craftForgeSlotName(item.slot)} a +9).</p>`}` : ''}
-      ${slot === 'artifact' ? `<div class="sheet-h" style="margin-top:8px;">🔥 Altar</div><p class="tiny ${ab ? 'sheet-bonus' : 'muted'}">${ab ? `${ab.icon} ${ab.name} — ${ab.desc}` : 'Sem bónus de Altar (Mapa → Altar).'}</p>` : ''}
-    </div>
-
-    <div class="sheet-sec">
-      <div class="sheet-h">🔷 Encaixes de gemas <span class="muted">(${socks.filter(Boolean).length}/${socks.length})</span></div>
-      <div class="sheet-socks">
-        ${ro ? socks.map(g => g
-          ? `<span class="sheet-sock on${g.tier === 2 ? ' t3' : ''}"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier, craftGemMult(item))}</small></span>`
-          : `<span class="sheet-sock"><span>◇</span><b>Vazio</b><small>&nbsp;</small></span>`).join('') : socks.map((g, i) => g
-          ? `<button class="sheet-sock on${g.tier === 2 ? ' t3' : ''}" data-remove-gem="${i}" title="Remover (a gema é destruída)"><span>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</span><b>T${g.tier + 1}</b><small>${gemStatText(g.type, g.tier, craftGemMult(item))}</small><em>🗑️</em></button>`
-          : `<button class="sheet-sock" data-open-socket="${i}"><span>◇</span><b>Vazio</b><small>+ Encaixar</small></button>`).join('')}
-        ${!ro && (item.socketSlots || 1) < 3 ? `<button class="sheet-sock add" id="btn-add-socket"><span>＋</span><b>Abrir encaixe</b><small>${socketSlotCost(item)} 🪙</small></button>` : ''}
-      </div>
-    </div>
-    ${setHtml}
-    <div class="sheet-sec">
-      <div class="sheet-h">⚒️ Ferreiro</div>
+    ? `<div class="tt-note">Melhoria máxima. Pode ser <b>Ascendido</b> com um ${nxEnt('coracao-soberano', '❤️‍🔥')} Coração do Soberano (tens ${p.soberanoHearts || 0}) — Cidade → Ferreiro.</div>`
+    : `<div class="tt-note">Próxima melhoria: <b>+${next}</b> · ${Math.round(blacksmithSuccessChance(item) * 100)}% · ${blacksmithCost(p.level || 1, item).toLocaleString('pt-PT')} 🪙${mat ? ` · 1 ${mat.icon} ${mat.name}` : ''}</div>`;
+  const dual = slot === 'offhand' && item.slot === 'weapon' ? (dualWieldActive(p)
+    ? `<div class="tt-note good">⚔️ 2.ª arma (Lâminas Gémeas): conta ${Math.round(DUAL_WIELD_DMG * 100)}% do Dano, mais Bónus, gemas e Crítico.</div>`
+    : `<div class="tt-note warn">⚠️ Esta 2.ª arma não está a contar: precisa da passiva Lâminas Gémeas e de a arma principal ser Espada, Machado ou Varinha.</div>`) : '';
+  const tags = [
+    ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : '',
+    itemInnateMedio(item) ? '<span class="ak-tag crypt-tag">🌀 Arma da Cripta</span>' : '',
+    hwAmuletLuck(item) ? '<span class="ak-tag hw-tag">🎃 Halloween</span>' : ''
+  ].join('');
+  const bonusSlots = `${bonuses.length}/${ITEM_BONUS_MAX_SLOTS}`;
+  return `<div class="tt${item.ascended ? ' asc' : ''}" style="--c:${item.rarityColor || '#B9B4A8'};">
+    <div class="tt-head"><div class="tt-name">${esc(item.name)}</div></div>
+    <div class="tt-body">
+      <div class="tt-top"><div class="tt-ic">${itemIconHtml(item)}</div>
+        <div style="min-width:0;"><div class="tt-type"><b>${itemTypeLine(item)}</b><span>${SLOT_NAMES[item.slot] || ''}</span></div>${big}${tags ? `<div class="tt-tags">${tags}</div>` : ''}</div></div>
+      ${dual}
+      ${prim.length ? `<div class="tt-sep"></div><div class="tt-lines"><div class="tt-lbl">Primários</div>${prim.join('')}</div>` : ''}
+      <div class="tt-lines"><div class="tt-lbl">Bónus+ <span>${bonusSlots}</span></div>${bon.length ? bon.join('') : '<div class="tt-empty">Nenhum — usa um 📜 Feitiço em Mochila → Feitiços.</div>'}</div>
+      ${leg.length || bad.length ? `<div class="tt-lines">${leg.map(x => `<div class="tt-lg">${x}</div>`).join('')}${bad.map(x => `<div class="tt-bad">${x}</div>`).join('')}</div>` : ''}
+      <div class="tt-sep"></div>
+      <div class="tt-lines"><div class="tt-lbl">Encaixes <span>${socks.filter(Boolean).length}/${socks.length}</span></div><div class="tt-socks">${sockHtml}</div></div>
+      ${setHtml}
+      <div class="tt-sep"></div>
       ${smithHtml}
-    </div>`;
+    </div>
+    <div class="tt-foot"><div>Nível do item: <b>${item.itemLevel || 1}</b><br>Ferreiro: <b class="g">+${up}/9</b></div>
+      <div class="r">${item.ascended ? '<span class="asc-badge">✦ Ascendido</span> ' : ''}${item.locked ? '<span class="tt-lock">🔒</span>' : ''}${item.ascended || item.locked ? '<br>' : ''}Venda: ${itemSellValue(item).toLocaleString('pt-PT')} 🪙</div></div>
+  </div>`;
 }
 
 function openEquipSlotModal(slot) {
@@ -11960,54 +11985,20 @@ function heroStatsIfEquipped(p, item) {
   return effectiveStats(Object.assign({}, p, { equipment: eq }));
 }
 function itemCompareHtml(item, eq, p) {
-  const a = itemStatsAtUpgrade(item, itemUpLv(item)), b = eq ? itemStatsAtUpgrade(eq, itemUpLv(eq)) : {};
+  // v179: resumo do que muda no herói + as duas fichas (a da mochila e a equipada).
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`, int = v => Math.round(v).toLocaleString('pt-PT');
-  const diffCell = (d, fmt) => Math.abs(d) < 1e-6 ? '<td class="cmp-d eq">=</td>' : `<td class="cmp-d ${d > 0 ? 'up' : 'down'}">${d > 0 ? '▲ +' : '▼ −'}${fmt(Math.abs(d))}</td>`;
-  const rows = [];
-  const row = (label, va, vb, fmt, show) => { if (!(va || vb || show)) return; rows.push(`<tr><td>${label}</td><td>${fmt(va || 0)}</td><td>${eq ? fmt(vb || 0) : '—'}</td>${diffCell((va || 0) - (vb || 0), fmt)}</tr>`); };
-  if (item.slot === 'weapon') {
-    const ma = 1 + itemInnateMedio(item) / 100 + ((item.bonuses || []).find(x => x.key === 'dano_medio_pct') || { value: 0 }).value / 100;
-    const mb = eq ? 1 + itemInnateMedio(eq) / 100 + ((eq.bonuses || []).find(x => x.key === 'dano_medio_pct') || { value: 0 }).value / 100 : 1;
-    rows.push(`<tr><td>⚔️ Dano</td><td>${int((a.dmgMin || a.dmg || 0) * ma)}–${int((a.dmgMax || a.dmg || 0) * ma)}</td><td>${eq ? `${int((b.dmgMin || b.dmg || 0) * mb)}–${int((b.dmgMax || b.dmg || 0) * mb)}` : '—'}</td>${diffCell((a.dmg || 0) * ma - (b.dmg || 0) * mb, int)}</tr>`);
-  } else row('⚔️ Dano', a.dmg, b.dmg, int);
-  row('🛡️ <span class="st-def">Defesa</span>', a.def, b.def, int);
-  row(`${esIconHtml()} <span class="st-es">Escudo</span>`, a.es, b.es, int);
-  row('❤️ HP', (a.hp || 0) - ((item.corruption && item.corruption.hpDebuff) || 0), (b.hp || 0) - ((eq && eq.corruption && eq.corruption.hpDebuff) || 0), int);
-  row('💥 Crítico', a.crit, b.crit, pc1);
-  row('💚 Regeneração', a.regenPct, b.regenPct, v => `${Math.round(v)}%`);
-  row('👑 Red. chefes', a.dmgReducedFromBossPct, b.dmgReducedFromBossPct, pc1);
-  // Extras de cada item (bónus, gemas, set, craft…)
-  const extras = it => {
-    if (!it) return ['<span class="muted">—</span>'];
-    const out = [];
-    (it.bonuses || []).forEach(x => out.push(`${(BONUS_PLUS_POOL.find(y => y.key === x.key) || {}).icon || '✦'} ${bonusPlusLabel(x)}`));
-    if (it.plusBonus) out.push(plus2Chip(it.plusBonus));
-    const nb = it.nephalemBonus && NEPHALEM_BONUS_POOL.find(y => y.key === it.nephalemBonus.key); if (nb) out.push(`${nb.icon} ${nb.label(it.nephalemBonus.value)}`);
-    if (craftBonusDef(it)) out.push(craftBonusChip(it));
-    const ab = it.altarBonus && ALTAR_BONUS_POOL.find(y => y.key === it.altarBonus.key); if (ab) out.push(`${ab.icon} ${ab.name}`);
-    if (itemInnateMedio(it)) out.push(`📈 +${itemInnateMedio(it)}% Dano Médio`);
-    (it.sockets || []).filter(Boolean).forEach(g => out.push(`${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)} ${gemStatText(g.type, g.tier, craftGemMult(it))}`));
-    if (it.setKey && SET_DEFS[it.setKey]) out.push(`${setIc(it.setKey)} ${SET_DEFS[it.setKey].name}`);
-    const ue = it.uniqueEffect && UNIQUE_ITEM_EFFECTS[it.uniqueEffect]; if (ue) out.push(`${ue.icon} ${ue.label}`);
-    if (it.corruption && it.corruption.hpDebuff) out.push(`<span class="cmp-bad">🔴 −${it.corruption.hpDebuff} HP</span>`);
-    return out.length ? out : ['<span class="muted">Sem extras</span>'];
-  };
-  // O que muda no herói se trocares
   const s0 = effectiveStats(p), s1 = heroStatsIfEquipped(p, item);
-  const hero = [['⚔️', 'Dano', s0.dmg, s1.dmg, int], ['🛡️', 'Defesa', s0.def, s1.def, int], [esIconHtml(), 'Escudo Mágico', s0.es || 0, s1.es || 0, int], ['❤️', 'HP', s0.hp, s1.hp, int], ['💥', 'Crítico', s0.crit, s1.crit, pc1], ['🏆', 'Dano vs. Chefes', s0.dmgVsBossPct || 0, s1.dmgVsBossPct || 0, pc1]]
-    .filter(r => r[2] || r[3]).map(([ic, l, x, y, f]) => { const d = y - x; return `<div class="cmp-hero-row"><span>${ic} ${l}</span><b>${f(x)} → ${f(y)}</b><em class="${Math.abs(d) < 1e-6 ? 'eq' : d > 0 ? 'up' : 'down'}">${Math.abs(d) < 1e-6 ? '=' : (d > 0 ? '+' : '−') + f(Math.abs(d))}</em></div>`; }).join('');
+  const list = [['⚔️', 'Dano', s0.dmg, s1.dmg, int], ['🛡️', 'Defesa', s0.def, s1.def, int], [esIconHtml(), 'Escudo Mágico', s0.es || 0, s1.es || 0, int], ['❤️', 'HP', s0.hp, s1.hp, int], ['💥', 'Crítico', s0.crit, s1.crit, pc1], ['🏆', 'Dano vs. Chefes', s0.dmgVsBossPct || 0, s1.dmgVsBossPct || 0, pc1]]
+    .filter(r => r[2] || r[3]);
+  const chips = list.filter(r => Math.abs(r[3] - r[2]) > 1e-6).map(([ic, l, x, y, f]) => { const d = y - x; return `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${f(Math.abs(d))} ${l}</span>`; }).join('');
+  const hero = list.map(([ic, l, x, y, f]) => { const d = y - x; return `<div class="cmp-hero-row"><span>${ic} ${l}</span><b>${f(x)} → ${f(y)}</b><em class="${Math.abs(d) < 1e-6 ? 'eq' : d > 0 ? 'up' : 'down'}">${Math.abs(d) < 1e-6 ? '=' : (d > 0 ? '+' : '−') + f(Math.abs(d))}</em></div>`; }).join('');
   const cmp = compareToEquipped(item, p);
-  const card = (it, tag) => it ? `<div class="cmp-card" style="${rarityBoxStyle(it)} border-color:${it.rarityColor};">
-      <span class="cmp-tag">${tag}</span><div class="cmp-ic">${itemIconHtml(it)}</div>
-      <div class="cmp-nm" style="color:${it.rarityColor};">${esc(it.name)}${upBadge(it)}</div>
-      <div class="tiny muted">${rarIc(it.rarity, it.rarityIcon)} ${it.rarityName} · Nv.${it.itemLevel || 1}</div></div>`
-    : `<div class="cmp-card empty"><span class="cmp-tag">${tag}</span><div class="cmp-ic">${slotIconHtml(item.slot)}</div><div class="cmp-nm muted">Nada equipado</div></div>`;
-  return `<div class="cmp-cards">${card(item, 'Mochila')}<span class="cmp-vs">VS</span>${card(eq, 'Equipado')}</div>
-    <div class="cmp-verdict ${cmp.cls}">${cmp.label}</div>
-    <div class="sheet-sec"><div class="sheet-h">📊 Atributos</div>
-      <table class="wiki-table cmp-table"><tr><th>Stat</th><th>Este</th><th>Equipado</th><th>Dif.</th></tr>${rows.join('')}</table></div>
-    <div class="sheet-sec"><div class="sheet-h">✨ Extras</div>
-      <div class="cmp-extras"><div>${extras(item).map(x => `<p class="tiny">${x}</p>`).join('')}</div><div>${extras(eq).map(x => `<p class="tiny">${x}</p>`).join('')}</div></div></div>
+  return `<div class="cmp-verdict ${cmp.cls}">${cmp.label}</div>
+    <div class="tt-delta"><span class="lb">Se equipares:</span>${chips || '<span class="eq">Sem diferenças</span>'}</div>
+    <div class="tt-pair">
+      <div class="tt-col"><span class="tt-tag">Mochila</span>${itemSheetHtml(item, item.slot, p, true)}</div>
+      <div class="tt-col"><span class="tt-tag eq">Equipado</span>${eq ? itemSheetHtml(eq, item.slot, p, true) : `<div class="tt-none">${slotIconHtml(item.slot)} Nada equipado neste espaço.</div>`}</div>
+    </div>
     <div class="sheet-sec"><div class="sheet-h">🧍 O teu herói se equipares</div>${hero}</div>`;
 }
 function openItemCompareModal(itemId, tab) {
@@ -16076,7 +16067,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v178</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v179</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
