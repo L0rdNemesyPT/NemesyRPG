@@ -323,6 +323,7 @@ declare
   v_corruption jsonb := 'null'::jsonb;
   v_set text := null;
   v_unique text := null;
+  v_mythic text := null;
   v_craft text := null;
   v_armor text := null;
   v_skin text := null;
@@ -345,6 +346,7 @@ begin
     ('unico', '#D6822E', '🟠', 'Único', 4.0),
     ('demoniaco', '#C13B3B', '🔴', 'Demoníaco', 4.3),
     ('set', '#5FA05F', '🟢', 'Set', 3.2),
+    ('mitico', '#C4F23A', '❇️', 'Mítico', 3.0),
     ('divino', '#3FE0D0', '💠', 'Divino', 5.5),
     ('temporada', '#F2C94C', '⭐', 'Temporada', 4.0)
   ) as r(key, color, icon, name, mult)
@@ -435,6 +437,20 @@ begin
     v_unique := 'bleedImmune';
   end if;
 
+  -- v184: Míticos — chave do Mítico tem de existir e bater certo com o espaço do item.
+  if p_item->>'mythic' is not null then
+    if v_rarity <> 'mitico' or not exists (select 1 from (values
+      ('coracao_vidro', 'amulet'), ('pacto_sangue', 'amulet'), ('sede_carrasco', 'weapon'), ('mil_feridas', 'weapon'),
+      ('tempestade_presa', 'weapon'), ('arco_suspiro', 'weapon'), ('bastiao_martir', 'offhand'), ('egide_montanha', 'offhand'),
+      ('coroa_avarento', 'head'), ('olho_ciclope', 'head'), ('peitoral_eclipse', 'chest'), ('coracao_tita', 'chest'),
+      ('manto_fenix', 'cape'), ('capa_sombras', 'cape'), ('botas_vento', 'boots'), ('sandalias_peregrino', 'boots'),
+      ('luvas_sanguessuga', 'gloves'), ('garras_berserker', 'gloves'), ('prisma_errante', 'artifact'), ('ampulheta', 'artifact')
+    ) as m(k, sl) where m.k = p_item->>'mythic' and m.sl = v_slot) then
+      raise exception 'Este item Mítico não é válido e não pode ser vendido.';
+    end if;
+    v_mythic := p_item->>'mythic';
+  end if;
+
   -- v123: bónus de Craft (Esconderijo), só em Peitorais.
   if jsonb_typeof(p_item->'craftBonus') = 'object' then
     -- v164: Armas também têm bónus de Craft (lista própria).
@@ -489,6 +505,7 @@ begin
     'corruption', v_corruption, 'setKey', v_set
   );
   if v_unique is not null then v_out := v_out || jsonb_build_object('uniqueEffect', v_unique); end if;
+  if v_mythic is not null then v_out := v_out || jsonb_build_object('mythic', v_mythic); end if;
   if v_craft is not null then v_out := v_out || jsonb_build_object('craftBonus', jsonb_build_object('key', v_craft)); end if;
   if v_armor is not null then v_out := v_out || jsonb_build_object('armorKind', v_armor); end if;
   if v_skin is not null then v_out := v_out || jsonb_build_object('skin', v_skin, 'innateMedio', v_medio); end if;
