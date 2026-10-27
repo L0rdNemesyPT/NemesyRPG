@@ -2353,3 +2353,29 @@ body:not(.fx-lite) .ifx-mit::after{animation:ifxTwinkle 2.6s ease-in-out infinit
 .loot-line.loot-myth{color:#d8ff6a; font-weight:800; text-shadow:0 0 10px rgba(196,242,58,.7); background:linear-gradient(90deg,rgba(196,242,58,.14),transparent); border-radius:6px; padding:3px 6px;}
 .loot-anim .loot-line.loot-myth{animation:fxLootIn .45s ease-out both, fxLootGlow 1.6s ease-in-out 1.2s infinite;}
 .tt-myth .tt-my,.tt-myth .tt-bad{font-size:12.5px; line-height:1.4;}
+
+/* v186: gemas — 5 níveis com aspeto próprio, efeitos por peça */
+.gemv{--gc:#fff; position:relative; display:inline-grid; place-items:center; line-height:0; vertical-align:middle;}
+.gemv > *{position:relative; z-index:1;}
+.gemv.gt1 > *{filter:saturate(.45) brightness(.8); transform:scale(.82);}
+.gemv.gt2 > *{filter:saturate(.85); transform:scale(.92);}
+.gemv.gt3 > *{filter:drop-shadow(0 0 3px color-mix(in srgb, var(--gc) 75%, transparent));}
+.gemv.gt4 > *{filter:brightness(1.1) drop-shadow(0 0 5px var(--gc));}
+.gemv.gt5 > *{filter:brightness(1.2) saturate(1.2) drop-shadow(0 0 7px var(--gc));}
+.gemv.gt3::after,.gemv.gt4::after,.gemv.gt5::after{content:"✦"; position:absolute; top:-12%; right:-14%; z-index:2; font-size:max(8px,.42em); line-height:1; color:#fff; text-shadow:0 0 5px var(--gc); pointer-events:none; opacity:0;}
+body:not(.fx-lite):not(.fx-off) .gemv.gt3::after,body:not(.fx-lite):not(.fx-off) .gemv.gt4::after,body:not(.fx-lite):not(.fx-off) .gemv.gt5::after{animation:ifxTwinkle 2.6s ease-in-out infinite;}
+body.fx-lite .gemv.gt3::after,body.fx-lite .gemv.gt4::after,body.fx-lite .gemv.gt5::after,body.fx-off .gemv.gt3::after,body.fx-off .gemv.gt4::after,body.fx-off .gemv.gt5::after{opacity:.85;}
+.gemv.gt4::before{content:""; position:absolute; inset:-8%; border-radius:50%; background:radial-gradient(circle, color-mix(in srgb, var(--gc) 40%, transparent), transparent 68%);}
+.gemv.gt5::before{content:""; position:absolute; inset:-26%; border-radius:50%; background:repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--gc) 60%, transparent) 0 6deg, transparent 6deg 30deg);
+  -webkit-mask:radial-gradient(circle, transparent 26%, #000 40%, transparent 70%); mask:radial-gradient(circle, transparent 26%, #000 40%, transparent 70%);}
+body:not(.fx-lite):not(.fx-off) .gemv.gt5::before{animation:ifxSpin 9s linear infinite;}
+.gem-tiers.g5{grid-template-columns:repeat(5,1fr); gap:5px;}
+.gem-tiers.g5 .gem-tier{padding:7px 2px 5px;}
+.gem-tier-nm{font-size:9.5px; color:var(--text-muted,#9a9080); margin-top:1px; letter-spacing:.02em;}
+.gem-fx{display:flex; flex-direction:column; gap:3px; margin-top:8px;}
+.gem-fx-row{display:grid; grid-template-columns:70px 1fr; gap:0 8px; align-items:baseline; font-size:12px;}
+.gem-fx-row span{color:var(--text-muted,#9a9080); font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+.gem-fx-row b{color:#b9c0ff; font-weight:600;}
+.gem-fx-row em{grid-column:2; font-style:normal; font-size:10.5px; color:var(--text-muted,#9a9080);}
+.gem-fx-txt{color:#b9c0ff; font-weight:600;}
+.tt-sock .gemv{width:100%; height:100%;}

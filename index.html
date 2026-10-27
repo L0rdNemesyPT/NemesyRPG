@@ -2456,16 +2456,81 @@ const PROFESSION_BOOK_DROP_CHANCE = 0.08;
 const PET_DROP_CHANCE = 0.08;
 
 const GEM_DEFS = {
-  defesa: { name: 'Pedra da Defesa', icon: '🛡️', stat: 'def', base: 2 },
-  dano: { name: 'Pedra do Dano', icon: '⚔️', stat: 'dmg', base: 2 },
-  vida: { name: 'Pedra da Vida', icon: '❤️', stat: 'hp', base: 5 },
-  critico: { name: 'Pedra do Crítico', icon: '💥', stat: 'crit', base: 0.02 }, // 2/4/6% (T1/T2/T3); antes 5/10/15%
+  defesa: { name: 'Pedra da Defesa', icon: '🛡️', stat: 'def', base: 2, color: '#6fb6ff' },
+  dano: { name: 'Pedra do Dano', icon: '⚔️', stat: 'dmg', base: 2, color: '#ff5a5a' },
+  vida: { name: 'Pedra da Vida', icon: '❤️', stat: 'hp', base: 5, color: '#ff8a4a' },
+  critico: { name: 'Pedra do Crítico', icon: '💥', stat: 'crit', base: 0.02, color: '#e8e8f0' }, // 2/4/6% (T1/T2/T3); antes 5/10/15%
   // v104: +1/2/3% de dano contra chefes e mini-chefes (soma ao Dano vs. Chefes dos itens).
-  chefes: { name: 'Pedra do Caça-Chefes', icon: '👑', stat: 'bossPct', base: 0.01 },
+  chefes: { name: 'Pedra do Caça-Chefes', icon: '👑', stat: 'bossPct', base: 0.01, color: '#c88bff' },
   // v150: +1/2/3% do Escudo Mágico total do herói.
-  escudo: { name: 'Pedra do Escudo Mágico', icon: '🔷', stat: 'esPct', base: 0.01 }
+  escudo: { name: 'Pedra do Escudo Mágico', icon: '🔷', stat: 'esPct', base: 0.01, color: '#59a8ff' }
 };
-function newGemsBag() { const b = {}; Object.keys(GEM_DEFS).forEach(k => { b[k] = [0, 0, 0]; }); return b; }
+// v186: REWORK DAS GEMAS — 5 níveis (Lascada → Radiante) e efeitos em % que mudam conforme a peça:
+// Arma (mão principal; a 2.ª arma só com as Lâminas Gémeas), Armadura (Secundária, Cabeça, Peitoral,
+// Capa, Botas, Luvas) e Joia (Amuleto e Artefacto). Valor = base × nível × (×2 do Craft da arma).
+// Cada efeito tem um limite total vindo de gemas (GEM_CAPS); Dano/Vida/Defesa somam aos limites gerais.
+const GEM_TIERS = 5;
+const PO_ESTELAR_MIN_LV = 150, PO_ESTELAR_BOSS = 0.04, PO_ESTELAR_HUNT = 0.20, PO_ESTELAR_CULT = 0.25;
+const GEM_TIER_NAMES = ['Lascada', 'Polida', 'Brilhante', 'Perfeita', 'Radiante'];
+const GEM_COMBINE_COST = [100, 300, 1500, 6000];
+const GEM_T5_DUST = 1; // Pó Estelar para T4 → T5
+const GEM_ZONE_NAMES = { arma: 'Arma', armadura: 'Armadura', joia: 'Joia' };
+const GEM_FX = {
+  dano:    { arma: ['dmgPct', 0.02], armadura: ['dmgPct', 0.01], joia: ['skillPct', 0.02] },
+  vida:    { arma: ['lifesteal', 0.003], armadura: ['hpPct', 0.01], joia: ['regen', 0.2] },
+  defesa:  { arma: ['defPen', 0.03], armadura: ['defPct', 0.01], joia: ['dmgTaken', 0.005] },
+  critico: { arma: ['crit', 0.015], armadura: ['crit', 0.01], joia: ['critDmg', 0.04] },
+  chefes:  { arma: ['bossPct', 0.02], armadura: ['bossRed', 0.01], joia: ['goldPct', 0.02] },
+  escudo:  { arma: ['esLeech', 0.01], armadura: ['esPct', 0.01], joia: ['esRegen', 0.005] }
+};
+const GEM_CAPS = { dmgPct: 0.40, skillPct: 0.30, lifesteal: 0.05, hpPct: 0.40, regen: 3, defPen: 0.30, defPct: 0.40, dmgTaken: 0.10,
+  crit: 0.25, critDmg: 0.40, bossPct: 0.30, bossRed: 0.15, goldPct: 0.30, esLeech: 0.10, esPct: 0.40, esRegen: 0.06 };
+function gemPctTxt(v) { return `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`; }
+const GEM_FX_LABEL = {
+  dmgPct: v => `+${gemPctTxt(v)} Dano`, skillPct: v => `+${gemPctTxt(v)} Dano das Habilidades`, lifesteal: v => `+${gemPctTxt(v)} Roubo de vida`,
+  hpPct: v => `+${gemPctTxt(v)} Vida máxima`, regen: v => `+${(Math.round(v * 10) / 10).toLocaleString('pt-PT')}% Regeneração por ronda`,
+  defPen: v => `Ignora ${gemPctTxt(v)} da Defesa inimiga`, defPct: v => `+${gemPctTxt(v)} Defesa`, dmgTaken: v => `−${gemPctTxt(v)} de dano recebido`,
+  crit: v => `+${gemPctTxt(v)} Crítico`, critDmg: v => `+${gemPctTxt(v)} Dano Crítico`, bossPct: v => `+${gemPctTxt(v)} Dano vs. Chefes`,
+  bossRed: v => `−${gemPctTxt(v)} dano de Chefes`, goldPct: v => `+${gemPctTxt(v)} Ouro`,
+  esLeech: v => `Escudo Mágico: +${gemPctTxt(v)} do dano feito`, esPct: v => `+${gemPctTxt(v)} Escudo Mágico`,
+  esRegen: v => `Escudo Mágico: +${gemPctTxt(v)} por ronda`
+};
+function gemCapTxt(k) { const c = GEM_CAPS[k]; return k === 'regen' ? `${c}%` : gemPctTxt(c); }
+function gemZoneOf(item, slot) {
+  if (!item) return 'armadura';
+  if (item.slot === 'weapon') return 'arma';
+  if (item.slot === 'amulet' || item.slot === 'artifact' || slot === 'amulet' || slot === 'artifact') return 'joia';
+  return 'armadura';
+}
+function gemFxValue(type, tier, zone, mult) { const f = GEM_FX[type] && GEM_FX[type][zone]; return f ? f[1] * ((tier || 0) + 1) * (mult || 1) : 0; }
+function gemTierName(tier) { return GEM_TIER_NAMES[clamp(tier || 0, 0, GEM_TIERS - 1)]; }
+function gemFullName(type, tier) { const d = GEM_DEFS[type]; return `${d ? d.name : 'Gema'} ${gemTierName(tier)} (T${(tier || 0) + 1})`; }
+// Ícone da gema com o aspeto do nível (baça → radiante).
+function gemIc(type, tier, cls) {
+  const d = GEM_DEFS[type] || {};
+  return `<span class="gemv gt${clamp((tier || 0) + 1, 1, GEM_TIERS)}${cls ? ' ' + cls : ''}" style="--gc:${d.color || '#fff'};">${nxEnt('gema-' + type, d.icon || '💎')}</span>`;
+}
+// Totais das gemas equipadas (já com os limites).
+function gemTotals(player) {
+  const out = {}; Object.keys(GEM_CAPS).forEach(k => { out[k] = 0; });
+  const eq = player && player.equipment;
+  if (!eq) return out;
+  const offW = !!(eq.offhand && eq.offhand.slot === 'weapon');
+  EQUIP_SLOTS.forEach(slot => {
+    const item = eq[slot];
+    if (!item || item.mythic === 'coracao_tita') return;
+    if (slot === 'offhand' && offW && !dualWieldActive(player)) return;
+    const zone = gemZoneOf(item, slot), gm = craftGemMult(item);
+    (item.sockets || []).forEach(g => {
+      if (!g || !GEM_FX[g.type]) return;
+      const f = GEM_FX[g.type][zone];
+      out[f[0]] += f[1] * (g.tier + 1) * gm;
+    });
+  });
+  Object.keys(GEM_CAPS).forEach(k => { out[k] = Math.min(out[k], GEM_CAPS[k]); });
+  return out;
+}
+function newGemsBag() { const b = {}; Object.keys(GEM_DEFS).forEach(k => { b[k] = Array(GEM_TIERS).fill(0); }); return b; }
 
 // Pedras de Alquimia — 6 slots ligados ao herói (não ao equipamento).
 // Distintas das Gemas acima, que se encaixam em itens.
@@ -3199,8 +3264,9 @@ function effectiveStats(player) {
   let def = base.def + evoBonus.def;
   if (talisman) def += TALISMAN_DEFS[talisman.key].def || 0;
   let crit = 0.05;
-  let gemBossPct = 0; // v104: Pedra do Caça-Chefes
-  let gemEsPct = 0; // v150: Pedra do Escudo Mágico
+  const gt = gemTotals(player); // v186: gemas
+  let gemBossPct = gt.bossPct; // v104: Pedra do Caça-Chefes
+  let gemEsPct = gt.esPct; // v150: Pedra do Escudo Mágico
   if (talisman) crit += TALISMAN_DEFS[talisman.key].crit || 0;
   let dodge = 0;
   let lifesteal = 0;
@@ -3248,16 +3314,7 @@ function effectiveStats(player) {
     def += Math.round((item.baseStats.def || 0) * 0.10 * up);
     es += (item.stats.es || 0) + Math.round((item.baseStats.es || 0) * 0.10 * up);
     crit += (item.baseStats.crit || 0) * 0.10 * up;
-    (item.mythic === 'coracao_tita' ? [] : (item.sockets || [])).forEach(s => {
-      if (!s) return;
-      const gdef = GEM_DEFS[s.type];
-      if (!gdef) return;
-      const val = gdef.base * (s.tier + 1) * craftGemMult(item);
-      if (gdef.stat === 'hp') hp += val; else if (gdef.stat === 'dmg') { dmg += val; dmgMin += val; dmgMax += val; }
-      else if (gdef.stat === 'def') def += val; else if (gdef.stat === 'crit') crit += val;
-      else if (gdef.stat === 'bossPct') gemBossPct += val;
-      else if (gdef.stat === 'esPct') gemEsPct += val;
-    });
+    // v186: as gemas deixaram de dar valores fixos — ver gemTotals().
   });
 
   let itemDmgPct = 0, itemDmgVsAnimais = 0, itemDmgVsHumanos = 0, itemDmgVsDemonios = 0, itemDmgVsMortos = 0, itemSkillDmg = 0, itemStunChance = 0, itemRegenPct = 0, itemPoisonChance = 0;
@@ -3331,7 +3388,8 @@ function effectiveStats(player) {
   const alch = alchemyTotals(player);
 
   const setBonuses = activeSetBonuses(player);
-  let dmgPctTotal = itemDmgPct / 100, hpPctTotal = 0, defPctTotal = itemPlus2DefPct, setRegenPct = 0, poisonImmune = false;
+  let dmgPctTotal = itemDmgPct / 100 + gt.dmgPct, hpPctTotal = gt.hpPct, defPctTotal = itemPlus2DefPct + gt.defPct, setRegenPct = 0, poisonImmune = false;
+  crit += gt.crit; lifesteal += gt.lifesteal; itemRegenPct += gt.regen; itemDmgReducedFromBossPct += gt.bossRed; // v186
   let professionRegenPct = 0, dropLuckBonus = itemCraftLuck;
   if (talisman) dropLuckBonus += TALISMAN_DEFS[talisman.key].dropLuck || 0;
   if (talisman) dmgPctTotal += TALISMAN_DEFS[talisman.key].dmgPct || 0;
@@ -3410,10 +3468,11 @@ function effectiveStats(player) {
   return {
     hp, dmg, dmgMin, dmgMax, def, es: Math.max(0, Math.round(es * (1 + gemEsPct + coreT.esPct))), crit, dodge, lifesteal, critImmune, bonusDmgFlat, setBonuses, poisonImmune, bleedImmune,
     dmgVsAnimaisPct: Math.min(itemDmgVsAnimais, DMG_PCT_CAP * 100), dmgVsHumanosPct: Math.min(itemDmgVsHumanos, DMG_PCT_CAP * 100),
-    dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20),
+    dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20) + Math.round(gt.skillPct * 100),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0), undying: !!pv.undying,
+    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg, goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct, undying: !!pv.undying,
+    defPen: gt.defPen, dmgTakenRed: gt.dmgTaken, esLeech: gt.esLeech, esRegen: gt.esRegen,
     res: playerResTotals(player), myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
 }
@@ -4138,6 +4197,7 @@ function cultOnVictory(c, p, drops) {
     drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} do Culto — qualidade +${CULT_BOSS.chestQuality} (abre na Mochila)`);
     if (Math.random() < CULT_BOSS.nephalem) { p.nephalemStones = (p.nephalemStones || 0) + 1; drops.push('💎 Pedra Nephalen! (Sumo-Sacerdote)'); }
     mythicRollDrop(p, 'peitoral_eclipse', MYTHIC_CULT_CHANCE, drops); // v184
+    if (Math.random() < PO_ESTELAR_CULT) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); } // v186
     drops.push('🌅 O Sumo-Sacerdote caiu. O Culto do Eclipse dispersa-se.');
     p.activeEvent = null;
     return true;
@@ -4305,6 +4365,13 @@ function mythAfterAttack(c, p, pStats, crit) {
   }
 }
 // Sede do Carrasco: monstros (não chefes) abaixo de 15% de vida são executados.
+// v186: Pedra do Escudo Mágico na arma — parte do dano feito recarrega o Escudo Mágico.
+function gemEsLeech(c, pStats, dealt) {
+  if (!pStats || !(pStats.esLeech > 0) || !(dealt > 0)) return;
+  const bs = esEnsure(c);
+  if (!bs || !(bs.esMax > 0) || bs.es >= bs.esMax) return;
+  bs.es = Math.min(bs.esMax, bs.es + Math.max(1, Math.round(dealt * pStats.esLeech)));
+}
 function mythExecute(c, p) {
   if (!c || !c.enemy || c.enemy.hp <= 0 || c.isBoss || c.isMiniBoss || c.isSoberano) return;
   if (c.enemy.hp >= c.enemy.maxHp * 0.15 || !hasMyth(p, 'sede_carrasco')) return;
@@ -4488,7 +4555,7 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
     const crit = forceCrit || Math.random() < critChance;
     if (crit && !enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
     if (isBossTarget && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
-    const defMult = battleState.enemyDefDebuff ? (1 - battleState.enemyDefDebuff.pct) : 1;
+    const defMult = (battleState.enemyDefDebuff ? (1 - battleState.enemyDefDebuff.pct) : 1) * (1 - (pStats.defPen || 0)); // v186
     let final = applyDamage(dmg, enemy.def * defMult, player.level);
     if (pStats.bonusDmgFlat) final += pStats.bonusDmgFlat;
     enemy.hp -= final;
@@ -5824,7 +5891,7 @@ const ADMIN_ADD_KEYS = [
   ['potion_hp', '🧪 Poção de HP'], ['potion_hp2', '⚗️ Poção de HP Maior'], ['potion_def', '🔵 Poção da Defesa'],
   ['potion_atk', '🔴 Poção do Ataque'], ['potion_fortune', '🍀 Poção da Fortuna'],
   ['key_demonio_t1', '🗝️ Chave da Catacumba do Demônio'], ['key_morte_t2', '🗝️ Chave das Catacumbas da Morte'], ['key_templo_almas', '🗝️ Chave do Templo das Almas'],
-  ['pearl_branca', '⚪ Pérola Branca'], ['pearl_azul', '🔵 Pérola Azul'], ['pearl_vermelha', '🔴 Pérola Vermelha'], ['pearl_verde', '🟢 Pérola Verde']
+  ['po_estelar', '✨ Pó Estelar'], ['pearl_branca', '⚪ Pérola Branca'], ['pearl_azul', '🔵 Pérola Azul'], ['pearl_vermelha', '🔴 Pérola Vermelha'], ['pearl_verde', '🟢 Pérola Verde']
 ];
 function adminOpLabel(op) {
   if (!op) return '';
@@ -5957,7 +6024,7 @@ async function renderTabCriador() {
     <div class="card raised admin-card">
       <span style="font-weight:700;">🎒 Recursos</span>
       <div class="admin-row"><select class="name-input" id="adm-res">${opt(ADMIN_ADD_KEYS, ADMIN_ADD_KEYS[0][0])}</select><input class="name-input" id="adm-res-qty" type="number" min="1" value="1" style="max-width:80px;"><button class="btn small" data-adm-add="add">Adicionar</button></div>
-      <div class="admin-row"><select class="name-input" id="adm-gem">${opt(Object.keys(GEM_DEFS).map(k => [k, GEM_DEFS[k].icon + ' ' + GEM_DEFS[k].name]), 'dano')}</select><select class="name-input" id="adm-gem-tier" style="max-width:70px;">${opt([[0, 'T1'], [1, 'T2'], [2, 'T3']], 2)}</select><input class="name-input" id="adm-gem-qty" type="number" min="1" value="1" style="max-width:70px;"><button class="btn small" data-adm-add="gem">Gema</button></div>
+      <div class="admin-row"><select class="name-input" id="adm-gem">${opt(Object.keys(GEM_DEFS).map(k => [k, GEM_DEFS[k].icon + ' ' + GEM_DEFS[k].name]), 'dano')}</select><select class="name-input" id="adm-gem-tier" style="max-width:70px;">${opt([[0, 'T1'], [1, 'T2'], [2, 'T3'], [3, 'T4'], [4, 'T5']], 2)}</select><input class="name-input" id="adm-gem-qty" type="number" min="1" value="1" style="max-width:70px;"><button class="btn small" data-adm-add="gem">Gema</button></div>
     </div>
 
     <div class="card raised admin-card">
@@ -6496,19 +6563,26 @@ function renderWikiBody() {
       </div>
     `;
   } else if (t === 'gemas') {
+    const zrow = k => ['arma', 'armadura', 'joia'].map(z => { const f = GEM_FX[k][z]; return `<tr><td>${GEM_ZONE_NAMES[z]}</td><td>${GEM_FX_LABEL[f[0]](f[1])}</td><td>${f[0] === 'regen' ? (Math.round(f[1] * GEM_TIERS * 10) / 10).toLocaleString('pt-PT') + '%' : gemPctTxt(f[1] * GEM_TIERS)}</td><td>${gemCapTxt(f[0])}</td></tr>`; }).join('');
     body.innerHTML = `
-      <p class="muted" style="margin-bottom:10px;">Encaixam-se em <b>itens de equipamento</b> (até 3 sockets por item). Diferentes das Pedras de Alquimia, que pertencem ao herói.</p>
-      ${Object.keys(GEM_DEFS).map(k => {
-        const g = GEM_DEFS[k];
-        return `<div class="card raised"><span style="font-weight:700;">${g.icon} ${g.name}</span><p class="tiny" style="margin-top:6px;">T1 / T2 / T3: ${[0, 1, 2].map(t => gemStatText(k, t)).join(' · ')}${g.stat === 'bossPct' ? ' (conta contra chefes e mini-chefes, incluindo a Torre e as dungeons)' : g.stat === 'esPct' ? ' (do Escudo Mágico total do herói; só ajuda se tiveres peças com Escudo)' : ''}.</p></div>`;
-      }).join('')}
+      <p class="muted" style="margin-bottom:10px;">Encaixam-se em <b>itens de equipamento</b> (até 3 encaixes por item). Cada gema dá um efeito diferente conforme a peça: <b>Arma</b> (mão principal; a 2.ª arma só com as Lâminas Gémeas), <b>Armadura</b> (Secundária, Cabeça, Peitoral, Capa, Botas e Luvas) e <b>Joia</b> (Amuleto e Artefacto). Diferentes das Pedras de Alquimia, que pertencem ao herói.</p>
+      <div class="card raised"><span style="font-weight:700;">💎 Níveis</span>
+        <div class="gem-tiers g5" style="margin-top:8px;">${GEM_TIER_NAMES.map((n, i) => `<div class="gem-tier has"><div class="gem-tier-ic">${gemIc('dano', i)}</div><div class="gem-tier-lv">T${i + 1}</div><div class="gem-tier-nm">${n}</div></div>`).join('')}</div>
+        <p class="tiny" style="margin-top:8px;">O efeito sobe com o nível: T2 dá o dobro da T1, T3 o triplo… até ×5 na Radiante. Combinar 3 iguais: T1→T2 ${GEM_COMBINE_COST[0]}🪙 · T2→T3 ${GEM_COMBINE_COST[1]}🪙 · T3→T4 ${GEM_COMBINE_COST[2].toLocaleString('pt-PT')}🪙 · T4→T5 ${GEM_COMBINE_COST[3].toLocaleString('pt-PT')}🪙 + 1 ${nxEnt('po-estelar', '✨')} Pó Estelar.</p></div>
+      ${Object.keys(GEM_DEFS).map(k => { const g = GEM_DEFS[k];
+        return `<div class="card raised"><span style="font-weight:700;">${gemIc(k, 2)} ${g.name}</span>
+          <table class="wiki-table" style="margin-top:6px;"><tr><th>Peça</th><th>T1</th><th>T5</th><th>Máx.</th></tr>${zrow(k)}</table></div>`; }).join('')}
       <div class="card raised">
-        <span style="font-weight:700;">Como conseguir</span>
-        <p class="tiny" style="margin-top:6px;">Minerar (Cidade → Trabalhos) tem cerca de 12% de chance de encontrar uma gema T1. Também caem de monstros (4%) e chefes (20%). Combina 3 gemas do mesmo tipo e nível (na Mochila → Gemas) para subir de tier, até T3 (o nível máximo).</p>
+        <span style="font-weight:700;">Limites</span>
+        <p class="tiny" style="margin-top:6px;">Cada efeito tem um limite total vindo de gemas (coluna Máx.). O Dano e o Crítico da Arma e da Armadura contam para o mesmo limite. O Dano, a Vida e a Defesa somam aos limites gerais do herói (ex.: Dano até +150% no total). Os bónus de Craft que dão ×2 às gemas da arma também dobram estes efeitos.</p>
       </div>
       <div class="card raised">
-        <span style="font-weight:700;">Remover uma gema</span>
-        <p class="tiny" style="margin-top:6px;">Podes remover uma gema encaixada a partir do item equipado. A gema é <b>destruída</b> no processo — não volta para a mochila, por isso pensa bem antes de remover.</p>
+        <span style="font-weight:700;">Como conseguir</span>
+        <p class="tiny" style="margin-top:6px;">Minerar (Cidade → Trabalhos) tem cerca de 12% de chance de encontrar uma gema T1. Também caem de monstros (4%) e chefes (20%), de baús e do Mercado Negro. ${nxEnt('po-estelar', '✨')} <b>Pó Estelar</b>: chefes Nv. ${PO_ESTELAR_MIN_LV}+ (${Math.round(PO_ESTELAR_BOSS * 100)}%), presa dos Contratos de Caça (${Math.round(PO_ESTELAR_HUNT * 100)}%) e Sumo-Sacerdote do Eclipse (${Math.round(PO_ESTELAR_CULT * 100)}%).</p>
+      </div>
+      <div class="card raised">
+        <span style="font-weight:700;">Tirar uma gema</span>
+        <p class="tiny" style="margin-top:6px;">Toca na gema encaixada no item equipado. Custa 20 🪙 por nível do item (mínimo 100 🪙) e a gema <b>volta para a bolsa</b>.</p>
       </div>
     `;
   } else if (t === 'alquimia') {
@@ -7169,7 +7243,7 @@ function tradeGoodInfo(g) {
   }
   if (kind === 'gema') {
     const d = GEM_DEFS[key] || {};
-    return { cat, name: `${d.name || 'Gema'} (T${sub + 1})`, icon: 'gema-' + key, emoji: d.icon, desc: `Gema para encaixar no equipamento: ${GEM_DEFS[key] ? gemStatText(key, sub) : ''}.` };
+    return { cat, name: `${d.name || 'Gema'} (T${sub + 1})`, icon: 'gema-' + key, emoji: d.icon, desc: `Gema ${gemTierName(sub)} para encaixar no equipamento — ${GEM_DEFS[key] ? gemStatText(key, sub) : ''}.` };
   }
   if (kind === 'pedra') {
     const d = ALCHEMY_STONE_DEFS[key] || {}, lv = sub + 1;
@@ -7197,7 +7271,7 @@ function tradeOwnedGoods(p) {
   const pearls = p.pearls || {};
   ['branca', 'azul', 'vermelha', 'verde'].forEach(k => add('perola', k, 0, Math.floor(Number(pearls[k]) || 0)));
   Object.keys(ALCHEMY_STONE_DEFS).forEach(k => { const a = (p.alchemyStones || {})[k] || []; for (let i = ALCHEMY_MAX_LEVEL - 1; i >= 0; i--) add('pedra', k, i, Math.floor(Number(a[i]) || 0)); });
-  Object.keys(GEM_DEFS).forEach(k => { const a = (p.gems || {})[k] || []; for (let t = 2; t >= 0; t--) add('gema', k, t, Math.floor(Number(a[t]) || 0)); });
+  Object.keys(GEM_DEFS).forEach(k => { const a = (p.gems || {})[k] || []; for (let t = GEM_TIERS - 1; t >= 0; t--) add('gema', k, t, Math.floor(Number(a[t]) || 0)); });
   Object.keys(TRADE_BOOKS).forEach(k => add('livro', k, 0, Math.floor(Number(TRADE_BOOKS[k].get(p)) || 0)));
   const eqTal = (p.equipment || {}).talisman;
   (p.talismans || []).forEach(t => {
@@ -8272,7 +8346,7 @@ function collectExpeditionAction(idx) {
   if (!p.pearls) p.pearls = newPearlsBag();
   Object.keys(r.pearls || {}).forEach(k => { p.pearls[k] = (p.pearls[k] || 0) + r.pearls[k]; });
   if (r.chest) { if (!p.chests) p.chests = []; for (let i = 0; i < r.chest; i++) p.chests.push(newChest('equip', p.level, r.chestBoost || 0)); }
-  if (r.gem && GEM_DEFS[r.gem]) { if (!p.gems) p.gems = newGemsBag(); if (!Array.isArray(p.gems[r.gem])) p.gems[r.gem] = [0, 0, 0]; p.gems[r.gem][0]++; }
+  if (r.gem && GEM_DEFS[r.gem]) { if (!p.gems) p.gems = newGemsBag(); if (!Array.isArray(p.gems[r.gem])) p.gems[r.gem] = Array(GEM_TIERS).fill(0); p.gems[r.gem][0]++; }
   if (r.alch && ALCHEMY_STONE_DEFS[r.alch.type]) grantAlchemyStone(p, r.alch.type, r.alch.lvl);
   h.exp.splice(idx, 1);
   sfx.gold(); saveGame(); renderStatusBar();
@@ -11939,7 +12013,7 @@ function sanitizeItem(item) {
   item.sockets = Array.from({ length: item.socketSlots }, (_, i) => {
     const g = sockets[i];
     const tier = g ? Math.floor(Number(g.tier)) : -1;
-    return g && GEM_DEFS[g.type] && tier >= 0 && tier <= 2 ? { type: g.type, tier } : null;
+    return g && GEM_DEFS[g.type] && tier >= 0 && tier < GEM_TIERS ? { type: g.type, tier } : null;
   });
   item.bonuses = (Array.isArray(item.bonuses) ? item.bonuses : [])
     .filter(b => b && BONUS_PLUS_POOL.some(x => x.key === b.key) && Number.isFinite(Number(b.value)))
@@ -12069,14 +12143,14 @@ async function sellAllByRarity(rarityKey) {
 }
 
 // v91: menu das Gemas no mesmo estilo da Alquimia/Feitiços.
-const GEM_COMBINE_COST = [100, 300];
-function gemStatText(type, tier, mult) {
-  const d = GEM_DEFS[type], v = +(d.base * (tier + 1) * (mult || 1)).toFixed(4);
-  if (d.stat === 'crit') return `+${Math.round(v * 100)}% Crítico`;
-  if (d.stat === 'bossPct') return `+${Math.round(v * 100)}% Dano vs. Chefes`;
-  if (d.stat === 'esPct') return `+${Math.round(v * 100)}% Escudo Mágico`;
-  return `+${v} ${d.stat === 'hp' ? 'HP' : d.stat === 'dmg' ? 'Dano' : 'Defesa'}`;
+// Texto do efeito de uma gema. Com zona: o efeito naquela peça; sem zona: os 3 efeitos.
+function gemStatText(type, tier, mult, zone) {
+  const fx = GEM_FX[type];
+  if (!fx) return '';
+  if (zone) { const f = fx[zone]; return GEM_FX_LABEL[f[0]](gemFxValue(type, tier, zone, mult)); }
+  return ['arma', 'armadura', 'joia'].map(z => `${GEM_ZONE_NAMES[z]}: ${GEM_FX_LABEL[fx[z][0]](gemFxValue(type, tier, z, mult))}`).join(' · ');
 }
+function gemRemoveCost(item) { return Math.max(100, Math.round(20 * ((item && item.itemLevel) || 1))); }
 function renderGemsBody(body, p) {
   const types = Object.keys(GEM_DEFS);
   const total = types.reduce((sum, t) => sum + p.gems[t].reduce((a, b) => a + b, 0), 0);
@@ -12084,46 +12158,50 @@ function renderGemsBody(body, p) {
   const equipped = EQUIP_SLOTS.map(s => p.equipment[s]).filter(Boolean);
   const socketsTotal = equipped.reduce((n, it) => n + (it.socketSlots || 1), 0);
   const socketsFull = equipped.reduce((n, it) => n + (it.sockets || []).filter(Boolean).length, 0);
-  const canCombineAny = types.some(t => [0, 1].some(i => p.gems[t][i] >= 3));
+  const canCombineAny = types.some(t => [0, 1, 2].some(i => p.gems[t][i] >= 3));
   const socketTiles = EQUIP_SLOTS.filter(s => p.equipment[s]).map(slot => {
     const it = p.equipment[slot];
     const socks = Array.from({ length: it.socketSlots || 1 }, (_, i) => (it.sockets || [])[i] || null);
     return `<button class="gem-sock-item" data-gem-slot="${slot}" title="${esc(SLOT_NAMES[slot])}">
       <span class="gem-sock-ic">${slotIconHtml(slot)}</span>
-      <span class="gem-sock-row">${socks.map(g => g ? `<span class="gem-dot on" title="${esc(GEM_DEFS[g.type].name)} T${g.tier + 1}">${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}<sup>${g.tier + 1}</sup></span>` : '<span class="gem-dot">◇</span>').join('')}</span>
+      <span class="gem-sock-row">${socks.map(g => g ? `<span class="gem-dot on" title="${esc(gemFullName(g.type, g.tier))}">${gemIc(g.type, g.tier)}<sup>${g.tier + 1}</sup></span>` : '<span class="gem-dot">◇</span>').join('')}</span>
       <span class="gem-sock-lb">${esc(SLOT_NAMES[slot])}</span>
     </button>`;
   }).join('');
   const rows = types.map(type => {
     const d = GEM_DEFS[type], tiers = p.gems[type];
-    const tierTiles = [0, 1, 2].map(t => `<div class="gem-tier${tiers[t] > 0 ? ' has' : ''}">
-        <div class="gem-tier-ic">${nxEnt('gema-' + type, d.icon)}</div>
+    const tierTiles = Array.from({ length: GEM_TIERS }, (_, t) => `<div class="gem-tier${tiers[t] > 0 ? ' has' : ''}">
+        <div class="gem-tier-ic">${gemIc(type, t)}</div>
         <div class="gem-tier-lv">T${t + 1}</div>
-        <div class="gem-tier-n">${tiers[t]}</div>
-        <div class="gem-tier-fx">${gemStatText(type, t)}</div>
+        <div class="gem-tier-nm">${GEM_TIER_NAMES[t]}</div>
+        <div class="gem-tier-n">${tiers[t] || 0}</div>
       </div>`).join('');
+    const fxRows = ['arma', 'armadura', 'joia'].map(z => { const f = GEM_FX[type][z], t5 = f[1] * GEM_TIERS; return `<div class="gem-fx-row"><span>${GEM_ZONE_NAMES[z]}</span><b>${GEM_FX_LABEL[f[0]](f[1])}</b><em>T5 ${f[0] === 'regen' ? (Math.round(t5 * 10) / 10).toLocaleString('pt-PT') + '%' : gemPctTxt(t5)} · máx. ${gemCapTxt(f[0])}</em></div>`; }).join('');
     const btn = t => {
-      const ok = tiers[t] >= 3 && p.gold >= GEM_COMBINE_COST[t];
-      return `<button class="btn small ${ok ? 'primary' : 'ghost'}" data-combine-gem="${type}" data-tier="${t}"${ok ? '' : ' disabled'}>T${t + 1}→T${t + 2} · ${GEM_COMBINE_COST[t]}🪙</button>`;
+      const dust = t === GEM_TIERS - 2;
+      const ok = (tiers[t] || 0) >= 3 && p.gold >= GEM_COMBINE_COST[t] && (!dust || (p.poEstelar || 0) >= GEM_T5_DUST);
+      return `<button class="btn small ${ok ? 'primary' : 'ghost'}" data-combine-gem="${type}" data-tier="${t}"${ok ? '' : ' disabled'}>T${t + 1}→T${t + 2} · ${GEM_COMBINE_COST[t].toLocaleString('pt-PT')}🪙${dust ? ` + ${nxEnt('po-estelar', '✨')}` : ''}</button>`;
     };
-    const canAll = tiers[0] >= 3 || tiers[1] >= 3;
+    const canAll = [0, 1, 2].some(i => (tiers[i] || 0) >= 3);
     return `<div class="card raised gem-card">
       <div class="row between" style="align-items:center;">
         <span style="font-weight:700;">${d.icon} ${d.name}</span>
         <span class="tiny muted">${tiers.reduce((a, b) => a + b, 0)} na bolsa</span>
       </div>
-      <div class="gem-tiers">${tierTiles}</div>
+      <div class="gem-fx">${fxRows}</div>
+      <div class="gem-tiers g5">${tierTiles}</div>
       <div class="row" style="gap:6px; margin-top:8px; flex-wrap:wrap;">
         ${canAll ? `<button class="btn small primary" data-combine-gem-all="${type}">⚡ Combinar tudo</button>` : ''}
-        ${btn(0)}${btn(1)}
+        ${btn(0)}${btn(1)}${btn(2)}${btn(3)}
       </div>
     </div>`;
   }).join('');
   body.innerHTML = `
-    <p class="muted" style="margin-bottom:10px;">Encaixa gemas nos itens equipados para ganhares stats. Junta 3 gemas iguais do mesmo nível numa gema do nível seguinte.</p>
+    <p class="muted" style="margin-bottom:10px;">Cada gema dá um efeito diferente conforme a peça: <b>Arma</b>, <b>Armadura</b> (Secundária, Cabeça, Peitoral, Capa, Botas, Luvas) ou <b>Joia</b> (Amuleto e Artefacto). Junta 3 gemas iguais do mesmo nível numa do nível seguinte, até à Radiante (T5).</p>
     <div class="stat-grid" style="margin-bottom:12px;">
       <div class="stat-box"><div class="v">💎 ${total}</div><div class="k">Gemas na bolsa</div></div>
       <div class="stat-box"><div class="v">🔷 ${socketsFull}/${socketsTotal}</div><div class="k">Encaixes ocupados</div></div>
+      <div class="stat-box"><div class="v">${nxEnt('po-estelar', '✨')} ${p.poEstelar || 0}</div><div class="k">Pó Estelar</div></div>
     </div>
     <div class="section-title" style="margin-top:2px;">🛡️ Encaixes no equipamento</div>
     ${equipped.length ? `<div class="gem-sock-grid">${socketTiles}</div><p class="tiny muted" style="margin:6px 0 10px;">Toca numa peça para encaixar, trocar ou abrir mais encaixes.</p>` : '<p class="tiny muted" style="margin-bottom:10px;">Equipa itens para lhes encaixares gemas.</p>'}
@@ -12131,9 +12209,9 @@ function renderGemsBody(body, p) {
       <div class="section-title" style="margin:0;">🎒 Gemas na bolsa</div>
       ${canCombineAny ? '<button class="btn small primary" id="btn-gem-all">⚡ Combinar todas</button>' : ''}
     </div>
-    <p class="tiny muted" style="margin:4px 0 8px;">⚡ Combinar faz T1→T2 e depois T2→T3 até não dar mais (100🪙 e 300🪙 por combinação).</p>
+    <p class="tiny muted" style="margin:4px 0 8px;">⚡ Combinar faz T1→T2, T2→T3 e T3→T4 até não dar mais (100🪙, 300🪙 e 1 500🪙 por combinação). A Radiante (T4→T5) faz-se à mão: 6 000🪙 + 1 Pó Estelar.</p>
     ${rows}
-    <p class="tiny muted" style="margin-top:8px;">Encontras gemas a minerar (Cidade → Trabalhos) e em baús.</p>
+    <p class="tiny muted" style="margin-top:8px;">Encontras gemas a minerar (Cidade → Trabalhos), em monstros, chefes e baús. O Pó Estelar cai dos chefes Nv. 150+ (4%), da presa dos Contratos de Caça (20%) e do Sumo-Sacerdote do Eclipse (25%).</p>
   `;
   els('[data-combine-gem]').forEach(b => b.addEventListener('click', () => combineGem(b.dataset.combineGem, parseInt(b.dataset.tier))));
   els('[data-combine-gem-all]').forEach(b => b.addEventListener('click', () => combineGemsAll([b.dataset.combineGemAll])));
@@ -12148,14 +12226,14 @@ async function combineGemsAll(types) {
   types.forEach(t => { sim[t] = p.gems[t].slice(); });
   let gold = p.gold;
   types.forEach(t => {
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       while (sim[t][i] >= 3 && gold >= GEM_COMBINE_COST[i]) { sim[t][i] -= 3; sim[t][i + 1]++; gold -= GEM_COMBINE_COST[i]; cost += GEM_COMBINE_COST[i]; n++; }
     }
   });
   if (!n) { sfx.error(); toast(p.gold < GEM_COMBINE_COST[0] ? 'Não tens ouro suficiente.' : 'Não há gemas para combinar.'); return; }
   if (!await nxConfirm(`Fazer ${n} combinaç${n === 1 ? 'ão' : 'ões'} por ${cost.toLocaleString('pt-PT')} ouro?`, { title: 'Combinar gemas', icon: '💎', confirmLabel: 'Combinar' })) return;
   const gained = [];
-  types.forEach(t => { [1, 2].forEach(i => { const g = sim[t][i] - p.gems[t][i]; if (g > 0) gained.push(`${GEM_DEFS[t].icon} ${GEM_DEFS[t].name} T${i + 1} ×${g}`); }); p.gems[t] = sim[t]; });
+  types.forEach(t => { [1, 2, 3].forEach(i => { const g = sim[t][i] - p.gems[t][i]; if (g > 0) gained.push(`${GEM_DEFS[t].icon} ${gemFullName(t, i)} ×${g}`); }); p.gems[t] = sim[t]; });
   p.gold -= cost;
   saveGame();
   sfx.buff();
@@ -12173,8 +12251,12 @@ async function combineGemsAll(types) {
 function combineGem(type, tierIdx) {
   const p = App.player;
   const cost = GEM_COMBINE_COST[tierIdx];
+  if (!(tierIdx >= 0 && tierIdx < GEM_TIERS - 1)) return;
   if (p.gems[type][tierIdx] < 3) { sfx.error(); toast('Precisas de 3 gemas desse nível.'); return; }
   if (p.gold < cost) { sfx.error(); toast(`Precisas de ${cost} ouro.`); return; }
+  const dust = tierIdx === GEM_TIERS - 2;
+  if (dust && (p.poEstelar || 0) < GEM_T5_DUST) { sfx.error(); toast('Precisas de 1 Pó Estelar para fazer uma gema Radiante.'); return; }
+  if (dust) p.poEstelar -= GEM_T5_DUST;
   p.gold -= cost;
   p.gems[type][tierIdx] -= 3;
   p.gems[type][tierIdx + 1] += 1;
@@ -12182,7 +12264,7 @@ function combineGem(type, tierIdx) {
   sfx.equip();
   renderMochilaBody();
   renderStatusBar();
-  toast('Gemas combinadas com sucesso!');
+  toast(`${GEM_DEFS[type].icon} ${gemFullName(type, tierIdx + 1)}!`);
 }
 
 // Secção da Pedra Nephalen: só aparece para armas já em +9 (máximo), e só antes
@@ -12361,11 +12443,12 @@ function itemSheetHtml(item, slot, p, ro) {
   // Encaixes
   const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
   const gm = craftGemMult(item);
-  const gemTxt = g => `${gemStatText(g.type, g.tier, gm)}${gm > 1 ? ' <span class="craft-x2">×2</span>' : ''} <small>· ${GEM_DEFS[g.type].name} T${g.tier + 1}</small>`;
+  const gz = gemZoneOf(item, slot);
+  const gemTxt = g => `${gemStatText(g.type, g.tier, gm, gz)}${gm > 1 ? ' <span class="craft-x2">×2</span>' : ''} <small>· ${GEM_DEFS[g.type].name} ${gemTierName(g.tier)} · em ${GEM_ZONE_NAMES[gz]}</small>`;
   const sockHtml = socks.map((g, i) => {
-    const t3 = g && g.tier === 2 ? ' t3' : '';
-    if (ro) return g ? `<div class="tt-sock on${t3}"><i>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</i><span>${gemTxt(g)}</span></div>` : `<div class="tt-sock"><i></i><span>Encaixe vazio</span></div>`;
-    return g ? `<button class="tt-sock on${t3}" data-remove-gem="${i}" title="Remover (a gema é destruída)"><i>${nxEnt('gema-' + g.type, GEM_DEFS[g.type].icon)}</i><span>${gemTxt(g)}</span><em>Remover</em></button>`
+    const t3 = g && g.tier >= 2 ? ' t3' : '';
+    if (ro) return g ? `<div class="tt-sock on${t3}"><i>${gemIc(g.type, g.tier)}</i><span>${gemTxt(g)}</span></div>` : `<div class="tt-sock"><i></i><span>Encaixe vazio</span></div>`;
+    return g ? `<button class="tt-sock on${t3}" data-remove-gem="${i}" title="Tirar (volta para a bolsa)"><i>${gemIc(g.type, g.tier)}</i><span>${gemTxt(g)}</span><em>Tirar · ${gemRemoveCost(item).toLocaleString('pt-PT')} 🪙</em></button>`
       : `<button class="tt-sock" data-open-socket="${i}"><i></i><span>Encaixe vazio</span><em>+ Encaixar</em></button>`;
   }).join('') + (!ro && (item.socketSlots || 1) < 3 ? `<button class="tt-sock add" id="btn-add-socket"><i>＋</i><span>Abrir encaixe</span><em>${socketSlotCost(item).toLocaleString('pt-PT')} 🪙</em></button>` : '');
   // Set
@@ -12516,21 +12599,26 @@ function addSocketSlot(slot) {
   openEquipSlotModal(slot);
 }
 
-// Remove uma gema encaixada no item. A gema é destruída — não volta para a mochila.
+// v186: tirar uma gema devolve-a à bolsa (custa ouro conforme o nível do item).
 async function removeGem(slot, socketIdx) {
   const p = App.player;
   const item = p.equipment[slot];
   if (!item || !item.sockets[socketIdx]) return;
   const s = item.sockets[socketIdx];
   const gdef = GEM_DEFS[s.type];
-  if (!await nxConfirm(`Remover a ${gdef.name} T${s.tier + 1}? A gema é destruída no processo — não volta para a mochila.`, { title: 'Remover gema', icon: (nxIconsEnabled() && nxIconSvg('gema-' + s.type)) || gdef.icon, confirmLabel: 'Remover', danger: true })) return;
-  if (item.sockets[socketIdx] !== s) return;
+  const cost = gemRemoveCost(item);
+  if (p.gold < cost) { sfx.error(); toast(`Precisas de ${cost.toLocaleString('pt-PT')} ouro para tirar esta gema.`); return; }
+  if (!await nxConfirm(`Tirar a ${gemFullName(s.type, s.tier)} por ${cost.toLocaleString('pt-PT')} ouro? A gema volta para a bolsa.`, { title: 'Tirar gema', icon: (nxIconsEnabled() && nxIconSvg('gema-' + s.type)) || gdef.icon, confirmLabel: 'Tirar' })) return;
+  if (item.sockets[socketIdx] !== s || p.gold < cost) return;
+  p.gold -= cost;
   item.sockets[socketIdx] = null;
+  if (!Array.isArray(p.gems[s.type])) p.gems[s.type] = Array(GEM_TIERS).fill(0);
+  p.gems[s.type][s.tier] = (p.gems[s.type][s.tier] || 0) + 1;
   saveGame();
   sfx.click();
   renderStatusBar();
   openEquipSlotModal(slot);
-  toast('Gema removida e destruída.');
+  toast(`${gdef.icon} ${gemFullName(s.type, s.tier)} voltou para a bolsa.`);
 }
 
 function openGemPicker(slot, socketIdx) {
@@ -12538,19 +12626,18 @@ function openGemPicker(slot, socketIdx) {
   const p = App.player;
   const item = p.equipment[slot];
   const options = [];
+  const zone = gemZoneOf(item, slot), gm = craftGemMult(item);
   Object.keys(GEM_DEFS).forEach(type => {
-    [0,1,2].forEach(tier => {
-      if (p.gems[type][tier] > 0) options.push({ type, tier });
-    });
+    for (let tier = GEM_TIERS - 1; tier >= 0; tier--) if ((p.gems[type][tier] || 0) > 0) options.push({ type, tier });
   });
-  let html = `<h3 style="margin-bottom:12px;">Escolher gema</h3>`;
+  let html = `<h3 style="margin-bottom:6px;">Escolher gema</h3><p class="tiny muted" style="margin-bottom:10px;">${SLOT_NAMES[slot]} — as gemas dão o efeito de <b>${GEM_ZONE_NAMES[zone]}</b>.</p>`;
   if (!options.length) {
     html += `<p class="muted">Não tens gemas disponíveis. Mina minério na Cidade → Trabalhos para encontrar gemas.</p>`;
   } else {
     html += options.map(o => `
       <div class="item-row" data-pick-gem="${o.type}" data-pick-tier="${o.tier}">
-        <div class="item-ic">${nxEnt('gema-' + o.type, GEM_DEFS[o.type].icon)}</div>
-        <div class="item-mid"><div class="item-name">${GEM_DEFS[o.type].name} T${o.tier+1}</div><div class="tiny">Tens ${p.gems[o.type][o.tier]}</div></div>
+        <div class="item-ic">${gemIc(o.type, o.tier)}</div>
+        <div class="item-mid"><div class="item-name">${gemFullName(o.type, o.tier)}</div><div class="tiny"><b class="gem-fx-txt">${gemStatText(o.type, o.tier, gm, zone)}</b> em ${GEM_ZONE_NAMES[zone]} · tens ${p.gems[o.type][o.tier]}</div></div>
         <button class="btn small primary">Encaixar</button>
       </div>`).join('');
   }
@@ -13403,7 +13490,7 @@ function formatCountdown(ms) {
 
 function giveBlackMarketOffer(p, offer) {
   if (offer.cat === 'pearl') { if (!p.pearls) p.pearls = newPearlsBag(); p.pearls[offer.key] = (p.pearls[offer.key] || 0) + 1; }
-  else if (offer.cat === 'gem') { if (!Array.isArray(p.gems[offer.key])) p.gems[offer.key] = [0, 0, 0]; p.gems[offer.key][0] = (p.gems[offer.key][0] || 0) + 1; }
+  else if (offer.cat === 'gem') { if (!Array.isArray(p.gems[offer.key])) p.gems[offer.key] = Array(GEM_TIERS).fill(0); p.gems[offer.key][0] = (p.gems[offer.key][0] || 0) + 1; }
   else if (offer.cat === 'oyster') p.chests.push(newChest('ostra', p.level));
   else if (offer.kind === 'seed') ensureFarm(p).seeds[offer.key]++;
   else if (offer.kind === 'crop') ensureFarm(p).crops[offer.key]++;
@@ -14486,6 +14573,7 @@ function finishHunt() {
   const now = huntRank(h);
   drops.push(now !== before ? `⭐ Nova patente: ${now.name}! Graus até ${HUNT_ROM[now.max]} desbloqueados.` : `⭐ +1 Renome (${h.renome})`);
   mythicRollDrop(p, MYTHIC_BY_BOSS[ct.boss], MYTHIC_HUNT_CHANCE, drops); // v184: Míticos
+  if (Math.random() < PO_ESTELAR_HUNT) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); } // v186
   if (Math.random() < HUNT_NEXT_CHANCE && h.bag.length < HUNT_BAG_MAX) {
     const g = Math.min(10, ct.grau + 1); h.bag.push(huntNewContract(g));
     drops.push(`📜 Contrato de Caça (Grau ${HUNT_ROM[g]})!`);
@@ -15048,7 +15136,7 @@ function useAbilityAction(key) {
   const hasCrit = msgs.some(m => m.cls === 'crit');
   const allGood = msgs.length && msgs.every(m => m.cls === 'good');
   sfx.ability(key, hasCrit);
-  if (c.enemy.hp < hpBefore) { rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); }
+  if (c.enemy.hp < hpBefore) { rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); gemEsLeech(c, pStats, hpBefore - Math.max(0, c.enemy.hp)); }
   else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
   c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0));
   postPlayerAction();
@@ -15067,10 +15155,11 @@ function useNormalAttackAction() {
   let dmg = pStats.dmg * elementAttackMult(p, c.enemy) * mythHitMult(c, p, pStats) * (myth.tempestade_presa ? 0.85 : 1); // v181: elemento · v184: Míticos
   if (crit && !c.enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
   if ((c.isBoss || c.isMiniBoss) && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
-  const defMult = c.battleState.enemyDefDebuff ? (1 - c.battleState.enemyDefDebuff.pct) : 1;
+  const defMult = (c.battleState.enemyDefDebuff ? (1 - c.battleState.enemyDefDebuff.pct) : 1) * (1 - (pStats.defPen || 0)); // v186: Pedra da Defesa na arma
   let final = applyDamage(dmg, c.enemy.def * defMult, p.level);
   if (pStats.bonusDmgFlat) final += pStats.bonusDmgFlat;
   c.enemy.hp -= final;
+  gemEsLeech(c, pStats, final);
   if (pStats.lifesteal > 0) {
     const healLs = Math.min(pStats.hp - p.hp, Math.max(1, Math.round(final * pStats.lifesteal)));
     if (healLs > 0) { p.hp += healLs; addCombatLog({ text: `🩸 Roubo de vida: +${healLs} HP.`, cls: 'good' }); }
@@ -15420,6 +15509,7 @@ function combatRoundTail(c, p, tickEnemy) {
   if (tickEnemy && c.battleState.enemyRegenBlocked > 0) { c.battleState.enemyRegenBlocked--; }
   if (p.hp > 0) {
     const pStats = effectiveStats(p);
+    if (pStats.esRegen > 0) { const bs = esEnsure(c); if (bs && bs.esMax > 0 && bs.es < bs.esMax) bs.es = Math.min(bs.esMax, bs.es + Math.max(1, Math.round(bs.esMax * pStats.esRegen))); } // v186
     const poisoned = c.battleState.playerPoison && c.battleState.playerPoison.duration > 0;
     const foodRegen = Math.round(foodBonus('regen') * 100);
     const regenPct = pStats.myth && pStats.myth.garras_berserker ? 0 : Math.min(REGEN_CAP, (pStats.regenPct || 0) + foodRegen); // v184: Garras do Berserker
@@ -15557,6 +15647,7 @@ function resolveEnemyTurn(opts) {
   if (enemyCrit) dmgMult *= 1.8;
   if (myth.egide_montanha && isBossFight && (heavyAttack || enemySkillTriggered)) dmgMult *= 0.7; // v184: Égide da Montanha
   if (c.battleState.enemyCurse) dmgMult *= (1 - c.battleState.enemyCurse.pct); // v184: Peitoral do Eclipse
+  if (pStats.dmgTakenRed) dmgMult *= (1 - pStats.dmgTakenRed); // v186: Pedra da Defesa na joia
 
   const defMult = getPlayerDefMultiplier(c.battleState);
   let dmg;
@@ -15743,6 +15834,7 @@ function wildRewardRoll(c) {
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
   if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
   if (isBoss && !c.isCultBoss) mythicRollDrop(p, MYTHIC_BY_BOSS[c.name], MYTHIC_CHANCE, drops); // v184: Míticos
+  if (isBoss && !c.isCultBoss && c.level >= PO_ESTELAR_MIN_LV && Math.random() < PO_ESTELAR_BOSS) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); } // v186
   // Livro das Profissões: só chefes de nível 20+.
   if (isBoss && c.level >= PROFESSION_BOOK_MIN_BOSS_LV && Math.random() < PROFESSION_BOOK_DROP_CHANCE + luck) {
     p.professionBooks = (p.professionBooks || 0) + 1;
@@ -16260,7 +16352,7 @@ function fxCountUp(el, to, ms) {
 function lootLineClass(txt) {
   if (/ITEM DIVINO/.test(txt)) return 'loot-divine';
   if (/\(Mítico ·/.test(txt)) return 'loot-myth';
-  if (/Único|🟠|[Ll]endário|🟡|Nephalen|Item raro|🗝️|Temporada|⭐/.test(txt)) return 'loot-epic';
+  if (/Único|🟠|[Ll]endário|🟡|Nephalen|Item raro|🗝️|Temporada|⭐|Pó Estelar/.test(txt)) return 'loot-epic';
   if (/drop raro|Livro|📖|📗|🐾|Nova região|vela|Sacerdote/.test(txt)) return 'loot-rare';
   return '';
 }
@@ -16464,8 +16556,8 @@ function fxSmith(slot, ok, lvl) {
 // Gema encaixada: a gema voa para o item.
 function fxGemSocket(item, type, tier) {
   if (!fxOn() || !GEM_DEFS[type]) return;
-  fxOverlay('gem', `<div class="fx-ov-box"><div class="fx-sock"><span class="fx-sock-item">${itemIconHtml(item)}</span><span class="fx-sock-gem">${nxEnt('gema-' + type, GEM_DEFS[type].icon)}</span><i class="fx-sock-ring"></i></div>
-    <div class="fx-ov-kicker">Gema encaixada</div><div class="fx-ov-sub">${esc(GEM_DEFS[type].name)} T${tier + 1}</div></div>`, 1700, 0);
+  fxOverlay('gem', `<div class="fx-ov-box"><div class="fx-sock"><span class="fx-sock-item">${itemIconHtml(item)}</span><span class="fx-sock-gem">${gemIc(type, tier)}</span><i class="fx-sock-ring"></i></div>
+    <div class="fx-ov-kicker">Gema encaixada</div><div class="fx-ov-sub">${esc(gemFullName(type, tier))}<br>${gemStatText(type, tier, craftGemMult(item), gemZoneOf(item))}</div></div>`, 1700, 0);
 }
 // Ouro: moedas voam do sítio onde tocaste até ao contador, que sobe a rolar.
 function fxGoldGain(from, to) {
@@ -16916,7 +17008,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v185</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v186</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -17133,7 +17225,11 @@ function applyPlayerMigrations(player) {
   ensurePassives(player);
   if (!player.talismans.some(talisman => talisman.id === player.equipment.talisman)) player.equipment.talisman = null;
   if (!player.gems) player.gems = newGemsBag();
-  Object.keys(GEM_DEFS).forEach(k => { if (!Array.isArray(player.gems[k])) player.gems[k] = [0, 0, 0]; });
+  Object.keys(GEM_DEFS).forEach(k => { // v186: 5 níveis
+    const a = Array.isArray(player.gems[k]) ? player.gems[k] : [];
+    player.gems[k] = Array.from({ length: GEM_TIERS }, (_, i) => Math.max(0, Math.floor(Number(a[i]) || 0)));
+  });
+  player.poEstelar = Math.max(0, Math.floor(Number(player.poEstelar) || 0));
   if (!player.pets) player.pets = [];
   if (!player.clearedDungeons) player.clearedDungeons = [];
   if (player.professionBooks === undefined) player.professionBooks = 0;
@@ -18031,9 +18127,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 185;
+const NX_ICON_VER = 186;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
