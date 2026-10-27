@@ -2318,3 +2318,38 @@ body:not(.fx-off):not(.fx-lite) .tt-sock.t3 i{animation:ifxGem 2.6s ease-in-out 
 @keyframes cultFlame{0%{transform:scale(1,1) rotate(-2deg)}100%{transform:scale(.88,1.08) rotate(3deg)}}
 .bt-pill.ev.cult-ready{border-color:#b06bff;color:#f0e2ff;box-shadow:0 0 12px rgba(176,107,255,.55);}
 body.fx-off .cult-candles i.on::after{animation:none}
+
+/* v184: ❇️ Míticos — ficha, brilho do ícone e Coleção Mítica (Wiki) */
+.tt-myth{position:relative;border:1px solid color-mix(in srgb,#C4F23A 45%,#1a1612);border-radius:6px;padding:9px 10px 8px;background:linear-gradient(180deg,rgba(40,52,10,.55),rgba(12,14,6,.6));box-shadow:inset 0 0 14px rgba(196,242,58,.08);}
+.tt-myth::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;border-radius:6px 6px 0 0;background:linear-gradient(90deg,#8fc21a,#f4ffcc 50%,#8fc21a);}
+.tt-myth .tt-lbl{color:#e4ff9a;margin-bottom:4px;}
+.tt-my{color:#d8ff6a;font-weight:600;font-size:12.5px;padding-left:15px;position:relative;line-height:1.4;margin-top:2px;}
+.tt-my::before{content:"✦";position:absolute;left:0;font-size:10px;}
+.tt-myth .tt-mydn{margin-top:3px;}
+.tt-flav{color:#a9b78a;font-style:italic;font-size:12px;}
+.ifx-mit{filter:drop-shadow(0 0 3px rgba(196,242,58,.85));}
+.ifx-mit::before{inset:-22%;background:conic-gradient(from 0deg,rgba(196,242,58,0),rgba(216,255,106,.95),rgba(244,255,204,.25),rgba(196,242,58,.9),rgba(196,242,58,0));opacity:.7;-webkit-mask:radial-gradient(circle,transparent 52%,#000 56%,#000 64%,transparent 68%);mask:radial-gradient(circle,transparent 52%,#000 56%,#000 64%,transparent 68%);}
+body:not(.fx-lite) .ifx-mit::before{animation:ifxSpin 4s linear infinite;}
+.ifx-mit::after{content:"✦";position:absolute;top:-12%;right:-14%;z-index:2;font-size:max(9px,.34em);line-height:1;color:#f4ffcc;text-shadow:0 0 5px #C4F23A;pointer-events:none;opacity:0;}
+body:not(.fx-lite) .ifx-mit::after{animation:ifxTwinkle 2.6s ease-in-out infinite;}
+.myth-prog{display:flex;justify-content:space-between;align-items:baseline;margin:14px 0 6px;font-weight:700;}
+.myth-prog b{color:#d8ff6a;font-family:var(--font-display);font-size:16px;}
+.myth-bar{height:6px;border-radius:4px;background:rgba(0,0,0,.4);border:1px solid var(--border,#2a231a);overflow:hidden;margin-bottom:12px;}
+.myth-bar i{display:block;height:100%;background:linear-gradient(90deg,#8fc21a,#d8ff6a);box-shadow:0 0 8px #C4F23A;}
+.myth-codex{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;}
+.myth-cx{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:10px;background:rgba(0,0,0,.25);border:1px solid var(--border,#2a231a);min-width:0;}
+.myth-cx.on{border-color:rgba(196,242,58,.55);box-shadow:inset 0 0 14px rgba(196,242,58,.08);}
+.myth-ic{width:44px;height:44px;flex:none;border-radius:8px;display:grid;place-items:center;font-size:24px;background:radial-gradient(circle,rgba(196,242,58,.25),rgba(10,12,4,.8));box-shadow:inset 0 0 0 1px rgba(196,242,58,.5);}
+.myth-ic .nx-ic,.myth-ic img,.myth-ic svg{width:34px;height:34px;}
+.myth-cx:not(.on) .myth-ic{background:#141210;box-shadow:inset 0 0 0 1px #2e2820;}
+.myth-cx:not(.on) .myth-ic > *{filter:brightness(0) opacity(.5);}
+.myth-tx{min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12px;line-height:1.35;}
+.myth-tx b{color:#e4ff9a;font-size:13.5px;}
+.myth-cx:not(.on) .myth-tx b{color:var(--text-muted,#9a9080);}
+.myth-ty{color:var(--text-muted,#9a9080);font-size:11px;}
+.myth-up{color:#d8ff6a;}
+.myth-dn{color:#e2574c;}
+.myth-src{color:var(--text-muted,#9a9080);font-size:11px;margin-top:2px;}
+.loot-line.loot-myth{color:#d8ff6a; font-weight:800; text-shadow:0 0 10px rgba(196,242,58,.7); background:linear-gradient(90deg,rgba(196,242,58,.14),transparent); border-radius:6px; padding:3px 6px;}
+.loot-anim .loot-line.loot-myth{animation:fxLootIn .45s ease-out both, fxLootGlow 1.6s ease-in-out 1.2s infinite;}
+.tt-myth .tt-my,.tt-myth .tt-bad{font-size:12.5px; line-height:1.4;}

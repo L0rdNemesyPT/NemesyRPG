@@ -936,6 +936,7 @@ const RARITIES = [
   { key: 'unico', name: 'Único', icon: '🟠', chance: 0.01, mult: 4.0, color: '#D6822E' },
   { key: 'demoniaco', name: 'Demoníaco', icon: '🔴', chance: 0.005, mult: 4.3, color: '#C13B3B', event: true, corrupted: true },
   { key: 'set', name: 'Set', icon: '🟢', mult: 3.2, color: '#5FA05F', special: true, sourceLabel: 'exclusivo de dungeons' },
+  { key: 'mitico', name: 'Mítico', icon: '❇️', mult: 3.0, color: '#C4F23A', special: true, sourceLabel: 'cada Mítico cai de um chefe certo (Wiki → Míticos)' },
   { key: 'divino', name: 'Divino', icon: '💠', mult: 5.5, color: '#3FE0D0', special: true, sourceLabel: 'Catacumbas, chefes no Divino, Picos do Inverno Eterno, Santuário do Eclipse, Torre do Abismo, Labirinto da Cripta e Armas da Cripta' },
   { key: 'temporada', name: 'Temporada', icon: '⭐', mult: 4.0, color: '#F2C94C', special: true, sourceLabel: 'exclusivo das Temporadas' }
 ];
@@ -1156,7 +1157,7 @@ function rollCritInRange(mid, variance) {
 // Crítico dos itens: NÃO escala com o "poder" do item como o Dano/Defesa (isso dava
 // 60%+ de Crítico num só item de nível 100). Vai de 1% (nível 1) a 4% (nível 150) e
 // 5% (nível 200, v66), multiplicado por um fator de raridade — máximo ~14% num Divino de nível 200.
-const CRIT_RARITY_MULT = { comum: 1, incomum: 1.2, raro: 1.5, lendario: 1.9, unico: 2.3, demoniaco: 2.4, set: 2.0, divino: 2.8, temporada: 2.3 };
+const CRIT_RARITY_MULT = { comum: 1, incomum: 1.2, raro: 1.5, lendario: 1.9, unico: 2.3, demoniaco: 2.4, set: 2.0, divino: 2.8, temporada: 2.3, mitico: 2.0 };
 function itemCritMid(level, rarityKey) {
   const lv = Math.min(Math.max(Number(level) || 1, 1), MAX_LEVEL);
   return (0.01 + lv / 150 * 0.03) * (CRIT_RARITY_MULT[rarityKey] || 1);
@@ -3174,6 +3175,7 @@ const DUAL_WIELD_TYPES = ['Espada', 'Machado', 'Varinha'];
 const DUAL_WIELD_DMG = 0.5;
 function weaponBaseType(item) {
   if (!item || item.slot !== 'weapon') return null;
+  if (item.mythic && MYTHIC_DEFS[item.mythic]) return MYTHIC_DEFS[item.mythic].base;
   const n = String(item.name || '');
   return ITEM_NAME_PARTS.weapon.find(b => n === b || n.startsWith(b + ' ')) || null;
 }
@@ -3246,7 +3248,7 @@ function effectiveStats(player) {
     def += Math.round((item.baseStats.def || 0) * 0.10 * up);
     es += (item.stats.es || 0) + Math.round((item.baseStats.es || 0) * 0.10 * up);
     crit += (item.baseStats.crit || 0) * 0.10 * up;
-    (item.sockets || []).forEach(s => {
+    (item.mythic === 'coracao_tita' ? [] : (item.sockets || [])).forEach(s => {
       if (!s) return;
       const gdef = GEM_DEFS[s.type];
       if (!gdef) return;
@@ -3379,6 +3381,24 @@ function effectiveStats(player) {
   if (alch.dmg) { const k = 1 + alch.dmg; dmg = Math.round(dmg * k); dmgMin = Math.round(dmgMin * k); dmgMax = Math.round(dmgMax * k); }
   if (dmgMax < dmgMin) dmgMax = dmgMin;
   def = Math.round(def * (1 + defPctTotal));
+  // v184: Míticos equipados
+  const myth = mythicSet(player);
+  { let dk = 1, hk = 1;
+    if (myth.coracao_vidro) { dk *= 1.35; hk *= 0.75; }
+    if (myth.pacto_sangue) dk *= 1.40;
+    if (myth.mil_feridas) dk *= 0.80;
+    if (myth.bastiao_martir) dk *= 0.85;
+    if (myth.coracao_tita) hk *= 1.40;
+    if (myth.capa_sombras) hk *= 0.90;
+    if (myth.ampulheta) hk *= 0.85;
+    if (dk !== 1) { dmg = Math.round(dmg * dk); dmgMin = Math.max(1, Math.round(dmgMin * dk)); dmgMax = Math.max(dmgMin, Math.round(dmgMax * dk)); }
+    if (hk !== 1) hp = Math.round(hp * hk);
+    if (myth.coroa_avarento) def = Math.round(def * 0.8);
+    if (myth.olho_ciclope) crit *= 0.5;
+    if (myth.botas_vento) dodge += 0.08;
+    if (myth.sandalias_peregrino) dodge = Math.max(0, dodge - 0.10);
+    if (myth.egide_montanha) dodge = 0;
+    if (myth.luvas_sanguessuga) lifesteal = (lifesteal + 0.05) * 2; }
   // Limites de segurança: nenhuma combinação de itens/sets pode tornar o jogador
   // intocável ou o inimigo incapaz de agir.
   dodge = Math.min(dodge, DODGE_CAP);
@@ -3393,8 +3413,8 @@ function effectiveStats(player) {
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100, goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold'), undying: !!pv.undying,
-    res: playerResTotals(player)
+    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0), undying: !!pv.undying,
+    res: playerResTotals(player), myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
 }
 
@@ -3410,6 +3430,7 @@ function playerResTotals(player) {
     (item.bonuses || []).forEach(b => { const el = RES_BONUS_EL[b.key]; if (el) out[el] += Number(b.value) || 0; });
   });
   if ((player.elemPotionBattles || 0) > 0) ELEMENT_KEYS.forEach(el => { out[el] += ELEMENT_POTION_RES; });
+  if (mythicSet(player).prisma_errante) ELEMENT_KEYS.forEach(el => { out[el] -= 10; }); // v184: Prisma Errante
   return out;
 }
 const RES_BONUS_EL = { res_fogo: 'fogo', res_gelo: 'gelo', res_eletricidade: 'eletricidade', res_terra: 'terra' };
@@ -3516,10 +3537,10 @@ function rollRarity(extraRolls) {
   return best;
 }
 
-function generateItem(slot, playerLevel, forcedSetKey, boosted, forcedRarity) {
+function generateItem(slot, playerLevel, forcedSetKey, boosted, forcedRarity, gopts) {
   const rarity = forcedRarity || (forcedSetKey ? SET_RARITY : rollRarity(boosted));
   const isDivino = rarity.key === 'divino';
-  const armorKind = ES_SLOTS.includes(slot) ? rollArmorKind() : null;
+  const armorKind = ES_SLOTS.includes(slot) && !(gopts && gopts.noArmorKind) ? rollArmorKind() : null;
   const nameParts = armorKind ? ARMOR_KIND_NAMES[slot][armorKind] : ITEM_NAME_PARTS[slot];
   const base = nameParts[Math.floor(Math.random() * nameParts.length)];
   const adj = forcedSetKey ? '' : (' ' + ITEM_ADJ[Math.floor(Math.random() * ITEM_ADJ.length)]);
@@ -4116,6 +4137,7 @@ function cultOnVictory(c, p, drops) {
     p.chests.push(newChest('equip', c.level, CULT_BOSS.chestQuality));
     drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} do Culto — qualidade +${CULT_BOSS.chestQuality} (abre na Mochila)`);
     if (Math.random() < CULT_BOSS.nephalem) { p.nephalemStones = (p.nephalemStones || 0) + 1; drops.push('💎 Pedra Nephalen! (Sumo-Sacerdote)'); }
+    mythicRollDrop(p, 'peitoral_eclipse', MYTHIC_CULT_CHANCE, drops); // v184
     drops.push('🌅 O Sumo-Sacerdote caiu. O Culto do Eclipse dispersa-se.');
     p.activeEvent = null;
     return true;
@@ -4148,6 +4170,145 @@ const EVENT_DROPS = {
   atormentados: '👹 1% de hipótese, por monstro derrotado enquanto os Atormentados estão ativos, de deixar cair o Amuleto dos Atormentados — imunidade permanente a Sangramento.',
   culto: '🌑 Sumo-Sacerdote do Eclipse: o espólio de chefe normal + 2 Livros de Habilidades + Baú de Equipamento (qualidade +3) + 25% de hipótese de Pedra Nephalen.'
 };
+
+// ============================================================
+// ❇️ MÍTICOS (v184) — itens com nome próprio e um Poder Mítico fixo (muitos com um preço a pagar).
+// Cada um cai de um chefe certo: 0,5% por vitória, 2% quando esse chefe é a presa de um Contrato
+// de Caça. O Peitoral do Eclipse cai do Sumo-Sacerdote do Culto do Eclipse (3%). Cai ao nível do
+// jogador. Os atributos são de Lendário (×3,0); o que conta é o poder. Os efeitos são lidos de
+// mythicSet(p) (itens equipados) em effectiveStats() e no combate.
+// ============================================================
+const MYTHIC_CHANCE = 0.005, MYTHIC_HUNT_CHANCE = 0.02, MYTHIC_CULT_CHANCE = 0.03;
+const MYTHIC_DEFS = {
+  coracao_vidro: { name: 'Coração de Vidro', slot: 'amulet', base: 'Amuleto', g: 'm', ic: 'amulet', emo: '📿', boss: 'Colosso de Cristal',
+    up: ['+35% de Dano'], dn: ['−25% de Vida máxima'], flav: 'Bate com força. Parte-se depressa.' },
+  pacto_sangue: { name: 'Pacto de Sangue', slot: 'amulet', base: 'Amuleto', g: 'm', ic: 'amulet', emo: '📿', boss: 'Demônio Maior',
+    up: ['+40% de Dano'], dn: ['Cada ataque teu gasta 3% da tua vida máxima'], flav: 'Paga-se em sangue. Recebe-se em sangue.' },
+  sede_carrasco: { name: 'Sede do Carrasco', slot: 'weapon', base: 'Machado', g: 'm', ic: 'axe', emo: '🪓', boss: 'Deus da Destruição',
+    up: ['Monstros (não chefes) que fiquem abaixo de 15% de vida são executados de imediato', 'Contra chefes: +30% de dano quando têm menos de 30% de vida'], dn: [], flav: 'Ninguém lhe escapa à segunda.' },
+  mil_feridas: { name: 'Lâmina das Mil Feridas', slot: 'weapon', base: 'Espada', g: 'f', ic: 'sword', emo: '🗡️', boss: 'Imperador do Vazio',
+    up: ['Cada golpe envenena o inimigo; o veneno acumula até 5 vezes'], dn: ['−20% de Dano direto'], flav: 'Uma ferida não mata. Mil, sim.' },
+  tempestade_presa: { name: 'Tempestade Presa', slot: 'weapon', base: 'Varinha', g: 'f', ic: 'wand', emo: '🪄', boss: 'Dragão Estelar',
+    up: ['O teu ataque normal tem 25% de hipótese de lançar um Relâmpago extra (60% do dano, de Eletricidade)'], dn: ['−15% de dano do ataque normal'], flav: 'Alguém fechou uma trovoada lá dentro.' },
+  arco_suspiro: { name: 'Arco do Último Suspiro', slot: 'weapon', base: 'Arco', g: 'm', ic: 'bow', emo: '🏹', boss: 'Rainha dos Serafins',
+    up: ['O teu primeiro ataque em cada combate é crítico e faz dano a dobrar'], dn: ['A partir da 6.ª ronda, −20% de dano'], flav: 'A primeira flecha é a que conta.' },
+  bastiao_martir: { name: 'Bastião do Mártir', slot: 'offhand', base: 'Escudo', g: 'm', ic: 'shield', emo: '🛡️', boss: 'Arcanjo Caído',
+    up: ['Devolves ao inimigo 25% do dano que recebes'], dn: ['−15% de Dano'], flav: 'Cada golpe que aguentas é um golpe que devolves.' },
+  egide_montanha: { name: 'Égide da Montanha', slot: 'offhand', base: 'Escudo', g: 'f', ic: 'shield', emo: '🛡️', boss: 'Urso Alfa',
+    up: ['Os inimigos nunca te acertam críticos', 'Os ataques especiais dos chefes fazem −30% de dano'], dn: ['A tua Esquiva fica a 0%'], flav: 'A montanha não se desvia.' },
+  coroa_avarento: { name: 'Coroa do Avarento', slot: 'head', base: 'Coroa', g: 'f', ic: 'crown', emo: '👑', boss: 'Capitão Bandido',
+    up: ['+50% de Ouro', '+20% de hipótese de drop de equipamento'], dn: ['−20% de Defesa'], flav: 'Pesa como ouro. Vale como ouro.' },
+  olho_ciclope: { name: 'Olho do Ciclope', slot: 'head', base: 'Elmo', g: 'm', ic: 'helmet', emo: '🪖', boss: 'Golem Ancestral',
+    up: ['Os teus críticos fazem ×3 de dano (em vez de ×1,8)'], dn: ['A tua hipótese de Crítico fica a metade'], flav: 'Vê pouco. Mas quando vê, acerta.' },
+  peitoral_eclipse: { name: 'Peitoral do Eclipse', slot: 'chest', base: 'Peitoral', g: 'm', ic: 'armor', emo: '👕', boss: 'Sumo-Sacerdote do Eclipse', cult: true,
+    up: ['Imune à Maldição do Culto do Eclipse', 'Os teus críticos amaldiçoam o inimigo: −15% de dano dele durante 2 rondas'], dn: [], flav: 'A luz apaga-se. Tu não.' },
+  coracao_tita: { name: 'Coração do Titã', slot: 'chest', base: 'Peitoral', g: 'm', ic: 'armor', emo: '👕', boss: 'Titã da Tempestade',
+    up: ['+40% de Vida máxima'], dn: ['Este item não pode ter gemas'], flav: 'Bate devagar. Nunca pára.' },
+  manto_fenix: { name: 'Manto da Fénix', slot: 'cape', base: 'Capa', g: 'f', ic: 'cape', emo: '🧣', boss: 'Fênix Imortal',
+    up: ['Uma vez por combate, ao chegares a 0 de vida, renasces com 35% da vida'], dn: ['As poções de HP curam −30%'], flav: 'Das cinzas, outra vez.' },
+  capa_sombras: { name: 'Capa das Mil Sombras', slot: 'cape', base: 'Capa', g: 'f', ic: 'cape', emo: '🧣', boss: 'Nemesis',
+    up: ['Os 2 primeiros ataques do inimigo em cada combate falham sempre'], dn: ['−10% de Vida máxima'], flav: 'Estavas ali. Ou eram as sombras?' },
+  botas_vento: { name: 'Botas do Vento Errante', slot: 'boots', base: 'Botas', g: 'fp', ic: 'boots', emo: '🥾', boss: 'Wyvern Alfa',
+    up: ['+8% de Esquiva', 'Depois de te esquivares, o teu golpe seguinte é crítico garantido'], dn: [], flav: 'Onde estavas? Já não estás.' },
+  sandalias_peregrino: { name: 'Sandálias do Peregrino', slot: 'boots', base: 'Sandálias', g: 'fp', ic: 'boots', emo: '🥾', boss: 'Dríade Ancestral',
+    up: ['Depois de cada vitória recuperas 30% da vida'], dn: ['−10% de Esquiva'], flav: 'Cada passo cura. Cada caminho ensina.' },
+  luvas_sanguessuga: { name: 'Luvas da Sanguessuga', slot: 'gloves', base: 'Luvas', g: 'fp', ic: 'gloves', emo: '🧤', boss: 'Senhor das Trevas',
+    up: ['+5% de Roubo de vida', 'Roubo de vida a dobrar'], dn: ['Não podes beber poções de HP em combate'], flav: 'Têm sede. Tu também.' },
+  garras_berserker: { name: 'Garras do Berserker', slot: 'gloves', base: 'Garras', g: 'fp', ic: 'gloves', emo: '🧤', boss: 'Fenrir',
+    up: ['+1% de dano por cada 2% de vida que te falta (até +50%)'], dn: ['Não regeneras vida em combate'], flav: 'Quanto mais sangra, mais morde.' },
+  prisma_errante: { name: 'Prisma Errante', slot: 'artifact', base: 'Artefacto', g: 'm', ic: 'artifact', emo: '🔯', boss: 'Avatar do Caos',
+    up: ['Os teus ataques têm sempre o elemento que vence o inimigo (+20% de dano)'], dn: ['−10% em todas as Resistências'], flav: 'Nunca tem a mesma cor duas vezes.' },
+  ampulheta: { name: 'Ampulheta Quebrada', slot: 'artifact', base: 'Artefacto', g: 'f', ic: 'artifact', emo: '⌛', boss: 'Rei Lich',
+    up: ['As tuas habilidades recarregam 1 ronda mais depressa (mínimo 2)'], dn: ['−15% de Vida máxima'], flav: 'O tempo escorre. Tu aproveitas.' }
+};
+const MYTHIC_KEYS = Object.keys(MYTHIC_DEFS);
+const MYTHIC_BY_BOSS = {};
+MYTHIC_KEYS.forEach(k => { if (!MYTHIC_DEFS[k].cult) MYTHIC_BY_BOSS[MYTHIC_DEFS[k].boss] = k; });
+const MITICO_RARITY = RARITIES.find(r => r.key === 'mitico');
+// Míticos equipados (a 2.ª arma só conta com as Lâminas Gémeas ativas, como nos stats).
+function mythicSet(player) {
+  const out = {};
+  const eq = player && player.equipment;
+  if (!eq) return out;
+  EQUIP_SLOTS.forEach(slot => {
+    const it = eq[slot];
+    if (!it || !it.mythic || !MYTHIC_DEFS[it.mythic]) return;
+    if (slot === 'offhand' && it.slot === 'weapon' && !dualWieldActive(player)) return;
+    out[it.mythic] = true;
+  });
+  return out;
+}
+function hasMyth(p, k) { return !!mythicSet(p)[k]; }
+function generateMythicItem(key, lv) {
+  const d = MYTHIC_DEFS[key];
+  const item = generateItem(d.slot, clamp(Math.floor(lv) || 1, 1, MAX_LEVEL), null, false, MITICO_RARITY, { noArmorKind: true });
+  item.name = d.name;
+  item.mythic = key;
+  return item;
+}
+function mythicFoundSync(p) {
+  if (!p) return [];
+  const have = new Set((Array.isArray(p.mythicFound) ? p.mythicFound : []).filter(k => MYTHIC_DEFS[k]));
+  (p.inventory || []).concat(EQUIP_SLOTS.map(s => p.equipment && p.equipment[s])).forEach(it => { if (it && it.mythic && MYTHIC_DEFS[it.mythic]) have.add(it.mythic); });
+  p.mythicFound = MYTHIC_KEYS.filter(k => have.has(k));
+  return p.mythicFound;
+}
+// Rola um Mítico (ao nível do jogador). Um Mítico entra sempre na mochila, mesmo cheia.
+function mythicRollDrop(p, key, chance, drops) {
+  const d = key && MYTHIC_DEFS[key];
+  if (!d || Math.random() >= chance) return null;
+  const first = !mythicFoundSync(p).includes(key);
+  const it = generateMythicItem(key, p.level || 1);
+  p.inventory.push(it);
+  mythicFoundSync(p);
+  drops.push(`❇️ ${d.name} (Mítico · ${SLOT_NAMES[d.slot]})! ${first ? 'Novo na Coleção Mítica.' : ''}`.trim());
+  return it;
+}
+function mythicLinesHtml(item) {
+  const d = item && item.mythic && MYTHIC_DEFS[item.mythic];
+  if (!d) return '';
+  return `<div class="tt-myth"><div class="tt-lbl">❇️ Poder Mítico</div>${d.up.map(x => `<div class="tt-my">${x}</div>`).join('')}${d.dn.map(x => `<div class="tt-bad tt-mydn">${x}</div>`).join('')}</div>
+    <div class="tt-flav">"${d.flav}"</div><div class="tt-note">Cai de <b>${d.boss}</b>${d.cult ? ' (evento Culto do Eclipse, 3%)' : ` (${(MYTHIC_CHANCE * 100).toLocaleString('pt-PT')}% · ${(MYTHIC_HUNT_CHANCE * 100).toLocaleString('pt-PT')}% nos Contratos de Caça)`}.</div>`;
+}
+// Multiplicador de dano dos Míticos num golpe do jogador (Arco, Carrasco contra chefes, Berserker).
+function mythHitMult(c, p, pStats) {
+  const m = (pStats && pStats.myth) || {};
+  let k = 1;
+  if (m.arco_suspiro) { if (!c.mythFirstDone) k *= 2; else if ((c.battleState.enemyTurnCount || 0) >= 5) k *= 0.8; }
+  if (m.sede_carrasco && (c.isBoss || c.isMiniBoss || c.isSoberano) && c.enemy.hp < c.enemy.maxHp * 0.3) k *= 1.3;
+  if (m.garras_berserker && pStats.hp > 0) { const miss = 1 - clamp(p.hp / pStats.hp, 0, 1); k *= 1 + Math.min(0.5, miss / 2); }
+  return k;
+}
+// Depois de um golpe do jogador que fez dano: maldição do Eclipse, Mil Feridas, Pacto de Sangue.
+function mythAfterAttack(c, p, pStats, crit) {
+  const m = (pStats && pStats.myth) || {}, bs = c.battleState;
+  c.mythFirstDone = true;
+  bs.mythCritNext = false;
+  if (m.peitoral_eclipse && crit && c.enemy.hp > 0) {
+    bs.enemyCurse = { pct: 0.15, duration: 2 };
+    addCombatLog({ text: '🌑 Peitoral do Eclipse: o inimigo fica amaldiçoado (−15% de dano durante 2 rondas).', cls: 'good' });
+  }
+  if (m.mil_feridas && c.enemy.hp > 0) {
+    bs.enemyStatus = bs.enemyStatus || [];
+    const per = Math.max(1, Math.round(pStats.dmg * 0.05));
+    let st = bs.enemyStatus.find(x => x.type === 'mil_feridas');
+    if (!st) { st = { type: 'mil_feridas', duration: 3, dmg: per, stacks: 1 }; bs.enemyStatus.push(st); }
+    else { st.stacks = Math.min(5, (st.stacks || 1) + 1); st.duration = 3; st.dmg = per * st.stacks; }
+    addCombatLog({ text: `🗡️ Mil Feridas: veneno ×${st.stacks} (${st.dmg} por ronda).`, cls: 'good' });
+  }
+  if (m.pacto_sangue && p.hp > 1) {
+    const cost = Math.max(1, Math.round(pStats.hp * 0.03));
+    p.hp = Math.max(1, p.hp - cost);
+    addCombatLog({ text: `🩸 Pacto de Sangue: pagaste ${cost} HP.`, cls: 'hit' });
+  }
+}
+// Sede do Carrasco: monstros (não chefes) abaixo de 15% de vida são executados.
+function mythExecute(c, p) {
+  if (!c || !c.enemy || c.enemy.hp <= 0 || c.isBoss || c.isMiniBoss || c.isSoberano) return;
+  if (c.enemy.hp >= c.enemy.maxHp * 0.15 || !hasMyth(p, 'sede_carrasco')) return;
+  c.enemy.hp = 0;
+  addCombatLog({ text: '🪓 Sede do Carrasco: execução!', cls: 'crit' });
+}
 
 // Efeitos únicos que só existem em itens especiais (não fazem parte do BONUS_PLUS_POOL,
 // não podem ser rolados por Feitiço/Reforço — só chegam via drops exclusivos de eventos).
@@ -4213,7 +4374,7 @@ function elementInit(c) {
   if (e.element && !e._elLogged) {
     e._elLogged = true;
     const info = ELEMENT_INFO[e.element], p = App.player, st = effectiveStats(p);
-    const we = playerAttackElement(p);
+    const we = mythicSet(p).prisma_errante ? (ELEMENT_KEYS.find(k => ELEMENT_BEATS[k] === e.element) || playerAttackElement(p)) : playerAttackElement(p);
     addCombatLog({ text: `${info.icon} ${hordeLabel(c)} é de ${info.name}: ${info.effect}. A tua resistência: ${resFor(st, e.element)}%.`, cls: 'hit' });
     const m = elementMatchup(we, e.element);
     if (we && m !== 1) addCombatLog({ text: m > 1 ? `${ELEMENT_INFO[we].icon} A tua arma de ${ELEMENT_INFO[we].name} vence ${info.name === 'Terra' || info.name === 'Eletricidade' ? 'a' : 'o'} ${info.name}: +${Math.round(ELEMENT_ADV * 100)}% de dano.` : `${ELEMENT_INFO[we].icon} A tua arma de ${ELEMENT_INFO[we].name} é fraca contra ${info.name === 'Terra' || info.name === 'Eletricidade' ? 'a' : 'o'} ${info.name}: −${Math.round(ELEMENT_DISADV * 100)}% de dano.`, cls: m > 1 ? 'good' : 'hit' });
@@ -4230,7 +4391,11 @@ function playerAttackElement(p, abilityKey) {
   const w = p && p.equipment && p.equipment.weapon;
   return w ? itemElement(w) : null;
 }
-function elementAttackMult(p, enemy, abilityKey) { return enemy && enemy.element ? elementMatchup(playerAttackElement(p, abilityKey), enemy.element) : 1; }
+function elementAttackMult(p, enemy, abilityKey) {
+  if (!(enemy && enemy.element)) return 1;
+  if (p && mythicSet(p).prisma_errante) return 1 + ELEMENT_ADV; // v184: Prisma Errante
+  return elementMatchup(playerAttackElement(p, abilityKey), enemy.element);
+}
 function resFor(pStats, el) { return Math.min(RES_CAP, Math.max(0, Math.round((pStats && pStats.res && pStats.res[el]) || 0))); }
 // Golpe de um inimigo: 70% físico (defesa normal) + 30% elemental (2/3 da defesa, depois resistência).
 function enemyHitDamage(c, p, pStats, raw, defEff) {
@@ -4242,8 +4407,8 @@ function enemyHitDamage(c, p, pStats, raw, defEff) {
   return { dmg: Math.max(1, phys + elem), el: elem };
 }
 // ---------- Resistências e elemento nos itens (derivados do id do item: não se guardam no save) ----------
-const RES_RARITY_MULT = { comum: 1, incomum: 1, raro: 1.1, lendario: 1.2, unico: 1.3, demoniaco: 1.3, set: 1.3, temporada: 1.3, divino: 1.4 };
-const RES_TWO_ROLLS = ['lendario', 'unico', 'demoniaco', 'set', 'temporada', 'divino'];
+const RES_RARITY_MULT = { comum: 1, incomum: 1, raro: 1.1, lendario: 1.2, unico: 1.3, demoniaco: 1.3, set: 1.3, temporada: 1.3, mitico: 1.3, divino: 1.4 };
+const RES_TWO_ROLLS = ['lendario', 'unico', 'demoniaco', 'set', 'temporada', 'mitico', 'divino'];
 const _itemResCache = new Map();
 function itemResRange(lv) { return lv >= 170 ? [5, 9] : lv >= 130 ? [4, 7] : [3, 5]; }
 // Devolve { fogo, gelo, eletricidade, terra } (só os que o item tem) ou null.
@@ -4281,7 +4446,8 @@ const STATUS_INFO = {
   sangramento: { icon: '🩸', name: 'Sangramento', desc: 'Causa dano ao longo do tempo a cada ronda, ignorando a defesa do alvo.' },
   veneno: { icon: '🧪', name: 'Veneno', desc: 'Causa dano ao longo do tempo a cada ronda, ignorando a defesa do alvo.' },
   veneno_arma: { icon: '🧪', name: 'Envenenado', desc: 'Causa ligeiro dano ao longo do tempo a cada ronda, ignorando a defesa, e impede o alvo de regenerar HP enquanto durar.' },
-  chamas: { icon: '🔥', name: 'Chamas', desc: 'Causa dano ao longo do tempo a cada ronda, ignorando a defesa do alvo.' }
+  chamas: { icon: '🔥', name: 'Chamas', desc: 'Causa dano ao longo do tempo a cada ronda, ignorando a defesa do alvo.' },
+  mil_feridas: { icon: '🗡️', name: 'Mil Feridas', desc: 'Veneno da Lâmina das Mil Feridas: acumula até 5 vezes e ignora a defesa.' }
 };
 
 // Defesa nunca anula o dano por completo: pelo menos 10% do dano bruto passa sempre.
@@ -4312,7 +4478,7 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
   const lvlIdx = abilityLevelOf(player, abilityKey);
   const eff = ab.levels[lvlIdx];
   const msgs = [];
-  const critChance = pStats.crit + (battleState.critBuffActive ? 1.0 : 0) + (eff.critChanceBonus || 0);
+  const critChance = pStats.crit + (battleState.critBuffActive || battleState.mythCritNext ? 1.0 : 0) + (eff.critChanceBonus || 0);
 
   const skillMult = 1 + (pStats.skillDmgPct || 0) / 100;
   function dealHit(mult, forceCrit) {
@@ -5736,7 +5902,11 @@ function adminBuildItem() {
   const ui = adminState(), c = ui.itemCfg;
   const rar = RARITIES.find(r => r.key === c.rarity) || RARITIES[0];
   const lv = clamp(parseInt(c.level, 10) || 1, 1, MAX_LEVEL);
-  const item = rar.key === 'set' ? generateItem(c.slot, lv, c.setKey, false) : generateItem(c.slot, lv, null, false, rar);
+  let item;
+  if (rar.key === 'mitico') { // v184: Míticos — escolhe-se o Mítico (o espaço vem dele)
+    const mk = MYTHIC_DEFS[c.mythic] && MYTHIC_DEFS[c.mythic].slot === c.slot ? c.mythic : MYTHIC_KEYS.find(k => MYTHIC_DEFS[k].slot === c.slot);
+    c.mythic = mk; item = generateMythicItem(mk, lv);
+  } else item = rar.key === 'set' ? generateItem(c.slot, lv, c.setKey, false) : generateItem(c.slot, lv, null, false, rar);
   if (rar.key === 'temporada') item.season = 1;
   item.upgrade = clamp(parseInt(c.upgrade, 10) || 0, 0, 9);
   item.bonuses = [];
@@ -5793,6 +5963,7 @@ async function renderTabCriador() {
       <div class="trade-filters" style="margin-top:8px;">
         <select class="name-input trade-sel" data-adm-item="slot">${opt(EQUIP_SLOTS.map(s => [s, SLOT_NAMES[s]]), c.slot)}</select>
         <select class="name-input trade-sel" data-adm-item="rarity">${opt(RARITIES.map(r => [r.key, r.icon + ' ' + r.name]), c.rarity)}</select>
+        ${c.rarity === 'mitico' ? `<select class="name-input trade-sel" data-adm-item="mythic">${opt(MYTHIC_KEYS.filter(k => MYTHIC_DEFS[k].slot === c.slot).map(k => [k, '❇️ ' + MYTHIC_DEFS[k].name]), c.mythic)}</select>` : ''}
         ${c.rarity === 'set' ? `<select class="name-input trade-sel" data-adm-item="setKey">${opt(Object.keys(SET_DEFS).map(k => [k, SET_DEFS[k].icon + ' ' + SET_DEFS[k].name]), c.setKey)}</select>` : ''}
         <label class="trade-check">Nível <input class="name-input" type="number" min="1" max="${MAX_LEVEL}" value="${c.level}" data-adm-item="level" style="width:70px; margin:0; padding:6px;"></label>
         <label class="trade-check">Melhoria + <input class="name-input" type="number" min="0" max="9" value="${c.upgrade}" data-adm-item="upgrade" style="width:56px; margin:0; padding:6px;"></label>
@@ -5959,6 +6130,7 @@ const WIKI_GROUPS = [
     { key: 'melhorias', label: 'Melhorias', icon: '⚒️' },
     { key: 'bonus', label: 'Bónus+', icon: '✨' },
     { key: 'sets', label: 'Sets', icon: '🛡️' },
+    { key: 'miticos', label: 'Míticos', icon: '❇️', nxKey: 'rar-mitico' },
     { key: 'talismas', label: 'Talismãs', icon: '🔮' },
     { key: 'gemas', label: 'Gemas', icon: '💠' },
     { key: 'alquimia', label: 'Alquimia', icon: '⚗️' }
@@ -6164,7 +6336,7 @@ function renderWikiBody() {
       if (slot === 'weapon') { const [a, b] = rng(power * 1.4); notes.push(`Cada golpe varia ±30% à volta do Dano médio (ex.: ${a} → ${Math.max(1, a - Math.max(1, Math.round(a * 0.3)))}–${a + Math.max(1, Math.round(a * 0.3))}).`); }
       if (rar.corrupted) notes.push(`Corrompido: −${Math.max(5, Math.round(lv * 0.5))} HP.`);
       if (rk === 'set') notes.push('Só cai nas dungeons Tier 1, ao nível mínimo de cada uma.');
-      if (rk === 'divino' || rk === 'temporada') notes.push(`Não cai ao acaso — ${rar.sourceLabel}.`);
+      if (rk === 'divino' || rk === 'temporada' || rk === 'mitico') notes.push(`Não cai ao acaso — ${rar.sourceLabel}.`);
       $('wcalc-out').innerHTML = `
         <table class="wiki-table" style="margin-top:6px;">
           <tr><th>Stat</th><th>+0</th><th>+9</th></tr>
@@ -6180,6 +6352,20 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
         <p class="tiny" style="margin-top:6px;">Na Fase 1 o Soberano usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao descer da metade do HP, enfurece: muda de forma, fica mais forte, regenera vida em cada ronda, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
+  } else if (t === 'miticos') {
+    const p = App.player, found = mythicFoundSync(p);
+    const bossLv = n => { const b = ALL_BOSSES.find(x => x.name === n); return b ? b.lv : null; };
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Itens com nome próprio e um <b>Poder Mítico</b> fixo, que muda a forma de jogar — muitos têm também um preço a pagar. Cada Mítico cai de <b>um chefe certo</b>: ${(MYTHIC_CHANCE * 100).toLocaleString('pt-PT')}% por vitória e ${(MYTHIC_HUNT_CHANCE * 100).toLocaleString('pt-PT')}% quando esse chefe é a presa de um Contrato de Caça. Cai sempre <b>ao teu nível</b>.</p>
+      <div class="card raised"><span style="font-weight:700;">${rarIc('mitico', '❇️')} Como funcionam</span>
+        <p class="tiny" style="margin-top:6px;">Atributos de Lendário (×3,0) para o nível do item. Ferreiro, gemas e Feitiços funcionam como nos outros itens, e o Poder Mítico nunca muda nem se perde.</p>
+        <p class="tiny" style="margin-top:4px;">Podes usar vários Míticos ao mesmo tempo (um por espaço) e combinar os poderes. Podem ser vendidos e trocados.</p></div>
+      <div class="myth-prog"><span>Coleção Mítica</span><b>${found.length}/${MYTHIC_KEYS.length}</b></div>
+      <div class="myth-bar"><i style="width:${Math.round(found.length / MYTHIC_KEYS.length * 100)}%"></i></div>
+      <div class="myth-codex">${MYTHIC_KEYS.map(k => { const d = MYTHIC_DEFS[k], got = found.includes(k), lv = bossLv(d.boss);
+        return `<div class="myth-cx${got ? ' on' : ''}"><div class="myth-ic">${nxEnt(d.ic, d.emo)}</div><div class="myth-tx"><b>${d.name}${got ? ' ✓' : ''}</b>
+          <span class="myth-ty">${d.base} ${RAR_FORMS.mitico[{ m: 0, f: 1, mp: 2, fp: 3 }[d.g] || 0]} · ${SLOT_NAMES[d.slot]}</span>
+          ${d.up.map(x => `<span class="myth-up">✦ ${x}</span>`).join('')}${d.dn.map(x => `<span class="myth-dn">▼ ${x}</span>`).join('')}
+          <span class="myth-src">Cai de ${d.boss}${d.cult ? ' — evento Culto do Eclipse (3%)' : lv ? ` (Nv. ${lv})` : ''}</span></div></div>`; }).join('')}</div>`;
   } else if (t === 'elementos') {
     const st = effectiveStats(App.player), we = playerAttackElement(App.player);
     const rm = k => String(RES_RARITY_MULT[k]).replace('.', ',');
@@ -7740,6 +7926,12 @@ function passiveTotals(p) {
 }
 // Imortal: chamado quando o HP chega a 0. Devolve true se salvou o herói.
 function passiveUndyingSave(c, p) {
+  if (c && c.battleState && !c.battleState.phoenixUsed && hasMyth(p, 'manto_fenix')) { // v184: Manto da Fénix
+    c.battleState.phoenixUsed = true;
+    p.hp = Math.max(1, Math.round(effectiveStats(p).hp * 0.35));
+    addCombatLog({ text: `🔥 Manto da Fénix: renasces das cinzas com ${p.hp} HP!`, cls: 'crit' });
+    return true;
+  }
   if (!c || !c.battleState || c.battleState.undyingUsed) return false;
   if (!passiveTotals(p).undying) return false;
   c.battleState.undyingUsed = true;
@@ -8303,7 +8495,7 @@ function hoStorageBar(p, h) {
 }
 
 // ---------- Bancada de Desmanche ----------
-function hoPartRarity(item) { return HIDEOUT_PART_RARITIES.includes(item && item.rarity) ? item.rarity : 'comum'; }
+function hoPartRarity(item) { if (item && item.rarity === 'mitico') return 'lendario'; return HIDEOUT_PART_RARITIES.includes(item && item.rarity) ? item.rarity : 'comum'; }
 function hoDismantleBase(item) { return 1 + Math.floor((item.upgrade || 0) / 3); }
 // v124: confirmação bonita para desmanchar (em vez da janela cinzenta do navegador).
 function dismantleConfirm(items) {
@@ -8835,7 +9027,7 @@ function bindHideoutStation(key) {
     els('[data-ho-dis]').forEach(b => b.addEventListener('click', async () => {
       const it = App.player.inventory.find(x => x.id === b.dataset.hoDis);
       if (!it) return;
-      const big = ['lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada'].includes(it.rarity) || (it.upgrade || 0) >= 5;
+      const big = ['lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'mitico'].includes(it.rarity) || (it.upgrade || 0) >= 5;
       if (big && !await dismantleConfirm([it])) return;
       dismantleItems([it.id]);
     }));
@@ -9300,7 +9492,7 @@ function openFriendOptions(f) {
 }
 
 // ---------- montar uma proposta ----------
-const RARITY_ORDER_FR = ['divino', 'temporada', 'demoniaco', 'unico', 'set', 'lendario', 'raro', 'incomum', 'comum'];
+const RARITY_ORDER_FR = ['divino', 'mitico', 'temporada', 'demoniaco', 'unico', 'set', 'lendario', 'raro', 'incomum', 'comum'];
 function friendPickRows(items, picked, attr, search) {
   const q = (search || '').trim().toLowerCase();
   const list = items.filter(it => !q || String(it.name || '').toLowerCase().includes(q))
@@ -10616,7 +10808,7 @@ function renderTabMochila() {
 // v95: "boneco" do herói com as peças à volta (Mochila → Equipamento).
 function equipDollHtml(p, talisman) {
   const st = effectiveStats(p);
-  const order = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'divino'];
+  const order = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino'];
   let best = null;
   EQUIP_SLOTS.forEach(s => { const it = p.equipment[s]; if (it && (!best || order.indexOf(it.rarity) > order.indexOf(best.rarity))) best = it; });
   const aura = best ? best.rarityColor : '#8a7a5a';
@@ -11286,7 +11478,7 @@ function openChest(chestId) {
 
   saveGame();
   const anim = fxOn();
-  const tier = !revealItem ? '' : revealItem.rarity === 'divino' ? ' rar-divine' : ['lendario', 'unico', 'set', 'temporada', 'demoniaco'].includes(revealItem.rarity) ? ' rar-high' : '';
+  const tier = !revealItem ? '' : revealItem.rarity === 'divino' ? ' rar-divine' : ['lendario', 'unico', 'set', 'temporada', 'demoniaco', 'mitico'].includes(revealItem.rarity) ? ' rar-high' : '';
   openModal(`
     <h3 style="margin-bottom:12px;">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)} Baú aberto!</h3>
     ${anim ? `<div class="chest-stage${tier}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};"><div class="chest-beam"></div><div class="chest-ic">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)}</div></div>` : ''}
@@ -11764,6 +11956,11 @@ function sanitizeItem(item) {
   item.corruption = Number.isFinite(hpDebuff) && hpDebuff > 0 ? { hpDebuff: Math.round(hpDebuff) } : null;
   item.setKey = item.setKey && SET_DEFS[item.setKey] ? item.setKey : null;
   if (item.uniqueEffect !== undefined) item.uniqueEffect = UNIQUE_ITEM_EFFECTS[item.uniqueEffect] ? item.uniqueEffect : null;
+  if (item.mythic !== undefined) { // v184: Míticos
+    const md = MYTHIC_DEFS[item.mythic];
+    if (md && md.slot === item.slot && item.rarity === 'mitico') { item.name = md.name; if (item.mythic === 'coracao_tita') item.sockets = item.sockets.map(() => null); }
+    else delete item.mythic;
+  }
   if (item.armorKind !== undefined && !(ES_SLOTS.includes(item.slot) && (item.armorKind === 'hybrid' || item.armorKind === 'es'))) delete item.armorKind;
   if (item.hwSkin !== undefined && !(item.slot === 'amulet' && item.hwSkin === 'abobora')) delete item.hwSkin; // v174
   if (item.skin !== undefined || item.innateMedio !== undefined) {
@@ -12099,9 +12296,12 @@ const RAR_FORMS = {
   comum: ['Comum', 'Comum', 'Comuns', 'Comuns'], incomum: ['Incomum', 'Incomum', 'Incomuns', 'Incomuns'],
   raro: ['Raro', 'Rara', 'Raros', 'Raras'], lendario: ['Lendário', 'Lendária', 'Lendários', 'Lendárias'],
   unico: ['Único', 'Única', 'Únicos', 'Únicas'], demoniaco: ['Demoníaco', 'Demoníaca', 'Demoníacos', 'Demoníacas'],
-  divino: ['Divino', 'Divina', 'Divinos', 'Divinas'], set: ['de Set', 'de Set', 'de Set', 'de Set'], temporada: ['de Temporada', 'de Temporada', 'de Temporada', 'de Temporada']
+  divino: ['Divino', 'Divina', 'Divinos', 'Divinas'], set: ['de Set', 'de Set', 'de Set', 'de Set'], temporada: ['de Temporada', 'de Temporada', 'de Temporada', 'de Temporada'],
+  mitico: ['Mítico', 'Mítica', 'Míticos', 'Míticas']
 };
 function itemTypeLine(item) {
+  const md = item && item.mythic && MYTHIC_DEFS[item.mythic];
+  if (md) return `${md.base} ${RAR_FORMS.mitico[{ m: 0, f: 1, mp: 2, fp: 3 }[md.g] || 0]}`;
   const name = (item && item.name) || '';
   const base = Object.keys(ITEM_BASE_GENDER).sort((a, b) => b.length - a.length).find(b => name === b || name.startsWith(b + ' '));
   const g = base ? ITEM_BASE_GENDER[base] : 'm';
@@ -12202,8 +12402,9 @@ function itemSheetHtml(item, slot, p, ro) {
       ${prim.length ? `<div class="tt-sep"></div><div class="tt-lines"><div class="tt-lbl">Primários</div>${prim.join('')}</div>` : ''}
       <div class="tt-lines"><div class="tt-lbl">Bónus+ <span>${bonusSlots}</span></div>${bon.length ? bon.join('') : '<div class="tt-empty">Nenhum — usa um 📜 Feitiço em Mochila → Feitiços.</div>'}</div>
       ${leg.length || bad.length ? `<div class="tt-lines">${leg.map(x => `<div class="tt-lg">${x}</div>`).join('')}${bad.map(x => `<div class="tt-bad">${x}</div>`).join('')}</div>` : ''}
+      ${mythicLinesHtml(item)}
       <div class="tt-sep"></div>
-      <div class="tt-lines"><div class="tt-lbl">Encaixes <span>${socks.filter(Boolean).length}/${socks.length}</span></div><div class="tt-socks">${sockHtml}</div></div>
+      ${item.mythic === 'coracao_tita' ? '<div class="tt-lines"><div class="tt-lbl">Encaixes</div><div class="tt-empty">O Coração do Titã não pode ter gemas.</div></div>' : `<div class="tt-lines"><div class="tt-lbl">Encaixes <span>${socks.filter(Boolean).length}/${socks.length}</span></div><div class="tt-socks">${sockHtml}</div></div>`}
       ${setHtml}
       <div class="tt-sep"></div>
       ${smithHtml}
@@ -12302,6 +12503,7 @@ function unequipItem(slot) {
 function addSocketSlot(slot) {
   const p = App.player;
   const item = p.equipment[slot];
+  if (item && item.mythic === 'coracao_tita') { sfx.error(); toast('O Coração do Titã não pode ter gemas.'); return; } // v184
   const cost = socketSlotCost(item);
   if (p.gold < cost) { toast(`Precisas de ${cost} ouro.`); return; }
   p.gold -= cost;
@@ -12330,6 +12532,7 @@ async function removeGem(slot, socketIdx) {
 }
 
 function openGemPicker(slot, socketIdx) {
+  { const it0 = App.player.equipment[slot]; if (it0 && it0.mythic === 'coracao_tita') { sfx.error(); toast('O Coração do Titã não pode ter gemas.'); return; } } // v184
   const p = App.player;
   const item = p.equipment[slot];
   const options = [];
@@ -14280,6 +14483,7 @@ function finishHunt() {
   const before = huntRank(Object.assign({}, h, { renome: h.renome - 1 }));
   const now = huntRank(h);
   drops.push(now !== before ? `⭐ Nova patente: ${now.name}! Graus até ${HUNT_ROM[now.max]} desbloqueados.` : `⭐ +1 Renome (${h.renome})`);
+  mythicRollDrop(p, MYTHIC_BY_BOSS[ct.boss], MYTHIC_HUNT_CHANCE, drops); // v184: Míticos
   if (Math.random() < HUNT_NEXT_CHANCE && h.bag.length < HUNT_BAG_MAX) {
     const g = Math.min(10, ct.grau + 1); h.bag.push(huntNewContract(g));
     drops.push(`📜 Contrato de Caça (Grau ${HUNT_ROM[g]})!`);
@@ -14836,13 +15040,15 @@ function useAbilityAction(key) {
   pStats = applyTempBuffsToStats(pStats, c.battleState, c.enemy.category);
   const hpBefore = c.enemy.hp;
   fxAbility(key);
-  const msgs = c.horde && HORDE_AOE.includes(key) ? hordeAoe(key, p, pStats) : useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss, elementAttackMult(p, c.enemy, key));
+  if (pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = true; // v184
+  const msgs = c.horde && HORDE_AOE.includes(key) ? hordeAoe(key, p, pStats) : useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss, elementAttackMult(p, c.enemy, key) * mythHitMult(c, p, pStats));
   msgs.forEach(m => addCombatLog(m));
   const hasCrit = msgs.some(m => m.cls === 'crit');
   const allGood = msgs.length && msgs.every(m => m.cls === 'good');
   sfx.ability(key, hasCrit);
-  if (c.enemy.hp < hpBefore) { rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); }
-  c.cooldowns[key] = ABILITIES[key].cooldown || 2;
+  if (c.enemy.hp < hpBefore) { rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); }
+  else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
+  c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0));
   postPlayerAction();
 }
 
@@ -14853,9 +15059,10 @@ function useNormalAttackAction() {
   const p = App.player;
   let pStats = effectiveStats(p);
   pStats = applyTempBuffsToStats(pStats, c.battleState, c.enemy.category);
-  const critChance = pStats.crit + (c.battleState.critBuffActive ? 1.0 : 0);
+  const myth = pStats.myth || {};
+  const critChance = pStats.crit + (c.battleState.critBuffActive || c.battleState.mythCritNext || (myth.arco_suspiro && !c.mythFirstDone) ? 1.0 : 0);
   const crit = Math.random() < critChance;
-  let dmg = pStats.dmg * elementAttackMult(p, c.enemy); // v181: vantagem/desvantagem elemental
+  let dmg = pStats.dmg * elementAttackMult(p, c.enemy) * mythHitMult(c, p, pStats) * (myth.tempestade_presa ? 0.85 : 1); // v181: elemento · v184: Míticos
   if (crit && !c.enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
   if ((c.isBoss || c.isMiniBoss) && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
   const defMult = c.battleState.enemyDefDebuff ? (1 - c.battleState.enemyDefDebuff.pct) : 1;
@@ -14867,10 +15074,17 @@ function useNormalAttackAction() {
     if (healLs > 0) { p.hp += healLs; addCombatLog({ text: `🩸 Roubo de vida: +${healLs} HP.`, cls: 'good' }); }
   }
   addCombatLog({ text: `🗡️ Ataque normal: ${final} de dano${crit ? ' — crítico!' : ''}.`, cls: crit ? 'crit' : 'hit' });
+  if (myth.tempestade_presa && c.enemy.hp > 0 && Math.random() < 0.25) { // v184: Tempestade Presa
+    const em = c.enemy.element ? elementMatchup('eletricidade', c.enemy.element) : 1;
+    const z = applyDamage(pStats.dmg * 0.6 * em, c.enemy.def * defMult, p.level);
+    c.enemy.hp -= z;
+    addCombatLog({ text: `⚡ Tempestade Presa: um relâmpago faz ${z} de dano.`, cls: 'hit' });
+  }
   fxSlash(crit);
   if (crit) sfx.crit(); else sfx.attack();
   rollStunOnHit(pStats, c);
   rollPoisonOnHit(pStats, c);
+  mythAfterAttack(c, p, pStats, crit);
   postPlayerAction();
 }
 
@@ -14890,7 +15104,7 @@ function usePotionAction(key) {
     const pStats = effectiveStats(p);
     if (p.hp >= pStats.hp) { sfx.error(); toast('Já tens o HP cheio.'); return; }
     p.potions[key]--;
-    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * POTION_DEFS[key].heal));
+    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * POTION_DEFS[key].heal * (pStats.myth.manto_fenix ? 0.7 : 1)));
     p.hp += heal;
     saveGame();
     sfx.potion();
@@ -14901,6 +15115,7 @@ function usePotionAction(key) {
   }
   // Máximo de 2 Poções de HP por batalha: sem isto, dá para "spammar" cura e
   // tornar qualquer combate — incluindo bosses — trivial enquanto houver ouro.
+  if (isHpPotion(key) && hasMyth(p, 'luvas_sanguessuga')) { sfx.error(); toast('As Luvas da Sanguessuga não te deixam beber poções de HP em combate.'); return; } // v184
   if (isHpPotion(key) && (c.battleState.hpPotionsUsed || 0) >= HP_POTIONS_PER_BATTLE) {
     sfx.error(); toast(`Só podes usar ${HP_POTIONS_PER_BATTLE} Poções de HP por batalha.`); return;
   }
@@ -14910,7 +15125,7 @@ function usePotionAction(key) {
   const pStats = effectiveStats(p);
   if (isHpPotion(key)) {
     c.battleState.hpPotionsUsed = (c.battleState.hpPotionsUsed || 0) + 1;
-    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal * (huntHas(c, 'eclipse') ? 0.5 : 1));
+    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal * (huntHas(c, 'eclipse') ? 0.5 : 1) * (pStats.myth.manto_fenix ? 0.7 : 1));
     p.hp = Math.min(pStats.hp, p.hp + heal);
     addCombatLog({ text: `${huntHas(c, 'eclipse') ? '🌑 ' : ''}${POTION_DEFS[key].icon} Bebeste uma ${POTION_DEFS[key].name} (${c.battleState.hpPotionsUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha): +${heal} HP.`, cls: 'good' });
   } else if (key === 'def') {
@@ -15165,6 +15380,7 @@ function openPotionModal() {
 function postPlayerAction() {
   const c = App.combat;
   const p = App.player;
+  mythExecute(c, p); // v184: Sede do Carrasco
   allyAct(c);
   if (c.horde) { hordePostPlayerAction(); return; }
   if (c.battleState.enemyStatus && c.battleState.enemyStatus.length) {
@@ -15185,6 +15401,7 @@ function postPlayerAction() {
   } else {
     resolveEnemyTurn();
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) { handlePlayerDefeated(); return; }
+    if (c.enemy.hp <= 0) { handleEnemyDefeated(); return; } // v184: Bastião do Mártir
   }
   combatRoundTail(c, p, true);
 }
@@ -15195,7 +15412,7 @@ function combatRoundTail(c, p, tickEnemy) {
     else c.battleState.critBuff.rounds--;
     if (c.battleState.critBuff.rounds <= 0) { c.battleState.critBuff = null; c.battleState.critBuffActive = false; }
   }
-  (tickEnemy ? ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff', 'playerCurse'] : ['playerDefBuff', 'potionDefBuff', 'potionAtkBuff', 'playerCurse']).forEach(k => {
+  (tickEnemy ? ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff', 'playerCurse', 'enemyCurse'] : ['playerDefBuff', 'potionDefBuff', 'potionAtkBuff', 'playerCurse']).forEach(k => {
     if (c.battleState[k]) { c.battleState[k].duration--; if (c.battleState[k].duration <= 0) c.battleState[k] = null; }
   });
   if (tickEnemy && c.battleState.enemyRegenBlocked > 0) { c.battleState.enemyRegenBlocked--; }
@@ -15203,7 +15420,7 @@ function combatRoundTail(c, p, tickEnemy) {
     const pStats = effectiveStats(p);
     const poisoned = c.battleState.playerPoison && c.battleState.playerPoison.duration > 0;
     const foodRegen = Math.round(foodBonus('regen') * 100);
-    const regenPct = Math.min(REGEN_CAP, (pStats.regenPct || 0) + foodRegen);
+    const regenPct = pStats.myth && pStats.myth.garras_berserker ? 0 : Math.min(REGEN_CAP, (pStats.regenPct || 0) + foodRegen); // v184: Garras do Berserker
     if (regenPct && !poisoned) {
       const heal = Math.round(pStats.hp * regenPct / 100);
       if (heal > 0 && p.hp < pStats.hp) {
@@ -15298,10 +15515,21 @@ function resolveEnemyTurn(opts) {
     try { fxPhase2Banner && fxPhase2Banner(c); } catch (e) {}
   }
 
+  const myth = pStats.myth || {};
+  if (myth.capa_sombras) { // v184: Capa das Mil Sombras
+    if (c.battleState.shadowMiss === undefined) c.battleState.shadowMiss = 2;
+    if (c.battleState.shadowMiss > 0) {
+      c.battleState.shadowMiss--;
+      addCombatLog({ text: `🌫️ ${cName} ataca uma sombra e falha (Capa das Mil Sombras).`, cls: 'good' });
+      sfx.dodge();
+      return;
+    }
+  }
   const foodDodge = foodBonus('dodge');
-  const dodgeChance = Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge);
+  const dodgeChance = myth.egide_montanha ? 0 : Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge);
   if (dodgeChance && Math.random() < dodgeChance) {
     addCombatLog({ text: `Esquivaste do ataque de ${cName}!`, cls: 'good' });
+    if (myth.botas_vento) { c.battleState.mythCritNext = true; addCombatLog({ text: '🌬️ Botas do Vento Errante: o teu golpe seguinte é crítico!', cls: 'good' }); }
     sfx.dodge();
     return;
   }
@@ -15323,8 +15551,10 @@ function resolveEnemyTurn(opts) {
   if (enemySkillTriggered && enemySkill.type === 'defbreak') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 2; }
 
   const forcedCrit = enemySkillTriggered && enemySkill.type === 'crit_guaranteed';
-  const enemyCrit = forcedCrit || Math.random() < (c.enemy.critChance || 0.05);
+  const enemyCrit = !myth.egide_montanha && (forcedCrit || Math.random() < (c.enemy.critChance || 0.05));
   if (enemyCrit) dmgMult *= 1.8;
+  if (myth.egide_montanha && isBossFight && (heavyAttack || enemySkillTriggered)) dmgMult *= 0.7; // v184: Égide da Montanha
+  if (c.battleState.enemyCurse) dmgMult *= (1 - c.battleState.enemyCurse.pct); // v184: Peitoral do Eclipse
 
   const defMult = getPlayerDefMultiplier(c.battleState);
   let dmg;
@@ -15347,6 +15577,11 @@ function resolveEnemyTurn(opts) {
   }
   if (dmg > esHp) esAbsorbLog(c, dmg - esHp, esHp);
   sfx.pain(enemyCrit);
+  if (myth.bastiao_martir && !c.horde && dmg > 0 && c.enemy.hp > 0) { // v184: Bastião do Mártir
+    const back = Math.max(1, Math.round(dmg * 0.25));
+    c.enemy.hp -= back;
+    addCombatLog({ text: `🛡️ Bastião do Mártir: devolves ${back} de dano.`, cls: 'good' });
+  }
 
   if (enemySkillTriggered && enemySkill.type === 'defbreak') addCombatLog({ text: '🧊 A tua defesa está a enfraquecer.', cls: 'hit' });
   if (enemySkillTriggered && enemySkill.type === 'bleed' && !c.battleState.playerBleed && !pStats.bleedImmune) {
@@ -15361,7 +15596,7 @@ function resolveEnemyTurn(opts) {
     addCombatLog({ text: '👹🩸 Os Atormentados fazem-te sangrar!', cls: 'hit' });
   }
   // v183: Culto do Eclipse — maldição (−15% de dano, ou −25% durante o Eclipse Total).
-  if (c.enemy.curseChance && Math.random() < c.enemy.curseChance) {
+  if (c.enemy.curseChance && !pStats.curseImmune && Math.random() < c.enemy.curseChance) {
     const pct = c.cultEclipse ? CULT_CURSE_PCT_ECLIPSE : CULT_CURSE_PCT;
     const had = !!c.battleState.playerCurse;
     c.battleState.playerCurse = { pct, duration: CULT_CURSE_ROUNDS };
@@ -15494,7 +15729,7 @@ function wildRewardRoll(c) {
   // Dificuldade escolhida também sobe a própria chance de cair algo (não só a
   // qualidade quando cai) — um monstro mais difícil tem de valer mesmo a pena.
   const diffDropBonus = diff.qualityBoost * 0.05;
-  const dropChance = (isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus;
+  const dropChance = ((isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus) * (pStats.mythDropMult || 1);
   if (Math.random() < dropChance) {
     // Chests de chefe usam a "qualidade melhorada" (+1 tentativa extra de raridade);
     // a dificuldade escolhida pelo jogador soma tentativas extra por cima disso.
@@ -15505,6 +15740,7 @@ function wildRewardRoll(c) {
   }
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
   if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
+  if (isBoss && !c.isCultBoss) mythicRollDrop(p, MYTHIC_BY_BOSS[c.name], MYTHIC_CHANCE, drops); // v184: Míticos
   // Livro das Profissões: só chefes de nível 20+.
   if (isBoss && c.level >= PROFESSION_BOOK_MIN_BOSS_LV && Math.random() < PROFESSION_BOOK_DROP_CHANCE + luck) {
     p.professionBooks = (p.professionBooks || 0) + 1;
@@ -15816,6 +16052,11 @@ function handlePlayerDefeated() {
 function showCombatEnd(won, info) {
   const c = App.combat;
   c.ended = true;
+  if (won && App.player && App.player.hp > 0 && hasMyth(App.player, 'sandalias_peregrino')) { // v184: Sandálias do Peregrino
+    const ps = effectiveStats(App.player), before = App.player.hp;
+    App.player.hp = Math.min(ps.hp, App.player.hp + Math.round(ps.hp * 0.30));
+    if (App.player.hp > before) { info = info || {}; info.drops = (info.drops || []).concat([`👣 Sandálias do Peregrino: +${App.player.hp - before} HP.`]); }
+  }
   guardOnBattleEnd();
   $('cb-log').style.display = 'none';
   const bottom = document.querySelector('#screen-combat .combat-bottom');
@@ -16016,6 +16257,7 @@ function fxCountUp(el, to, ms) {
 // Destaque de cada linha do espólio (pelo texto da linha).
 function lootLineClass(txt) {
   if (/ITEM DIVINO/.test(txt)) return 'loot-divine';
+  if (/\(Mítico ·/.test(txt)) return 'loot-myth';
   if (/Único|🟠|[Ll]endário|🟡|Nephalen|Item raro|🗝️|Temporada|⭐/.test(txt)) return 'loot-epic';
   if (/drop raro|Livro|📖|📗|🐾|Nova região|vela|Sacerdote/.test(txt)) return 'loot-rare';
   return '';
@@ -16092,7 +16334,7 @@ function fxVictoryScreen(info) {
 function fxBodySync() {
   try { document.body.classList.toggle('fx-off', !fxOn()); document.body.classList.toggle('fx-lite', fxLevel() === 'reduzidas'); } catch (e) { /* ignora */ }
 }
-const IFX_MAP = { raro: 'raro', lendario: 'lend', unico: 'unico', demoniaco: 'demo', set: 'set', divino: 'div', temporada: 'temp' };
+const IFX_MAP = { raro: 'raro', lendario: 'lend', unico: 'unico', demoniaco: 'demo', set: 'set', divino: 'div', temporada: 'temp', mitico: 'mit' };
 function ifxWrap(item, inner) {
   if (!item || !fxOn()) return inner;
   const r = IFX_MAP[item.rarity];
@@ -16183,14 +16425,14 @@ function fxCombatEndClasses(won) {
   if (!won && fxOn()) s.classList.add('fx-lost');
 }
 // Drop raro (Único, Demoníaco, Set e Temporada; o Divino já tem o seu ecrã).
-const FX_DROP_RAR = { 'Único': ['#ff9a3d', 'ÚNICO'], 'Demoníaco': ['#ff4a3a', 'DEMONÍACO'], 'Set': ['#6fd46f', 'ITEM DE SET'], 'Temporada': ['#f5d24c', 'TEMPORADA'] };
+const FX_DROP_RAR = { 'Mítico': ['#C4F23A', 'ITEM MÍTICO'], 'Único': ['#ff9a3d', 'ÚNICO'], 'Demoníaco': ['#ff4a3a', 'DEMONÍACO'], 'Set': ['#6fd46f', 'ITEM DE SET'], 'Temporada': ['#f5d24c', 'TEMPORADA'] };
 function fxRareDrop(drops) {
   if (!fxOn() || !drops || !drops.length) return;
   if (drops.some(d => /ITEM DIVINO/.test(d))) return;
-  const order = ['Demoníaco', 'Temporada', 'Set', 'Único'];
+  const order = ['Mítico', 'Demoníaco', 'Temporada', 'Set', 'Único'];
   let best = null, line = '';
   for (const d of drops) {
-    const m = String(d).match(/(?:\(|· )(Único|Demoníaco|Set|Temporada)(?: ·|\)|$)/);
+    const m = String(d).match(/(?:\(|· )(Mítico|Único|Demoníaco|Set|Temporada)(?: ·|\)|$)/);
     if (m && (!best || order.indexOf(m[1]) < order.indexOf(best))) { best = m[1]; line = d; }
   }
   if (!best) return;
@@ -16672,7 +16914,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v183</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v184</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16869,6 +17111,7 @@ function applyPlayerMigrations(player) {
   }
   // v133: o evento ativo guardado no save segue sempre a definição atual (nome, ícone, efeitos),
   // ex.: "Hand of Nod" → "Renegados". Só as batalhas que faltam vêm do save.
+  mythicFoundSync(player); // v184: Coleção Mítica
   if (player && player.activeEvent) {
     const evDef = RANDOM_EVENTS.find(e => e.key === player.activeEvent.key);
     if (evDef) player.activeEvent = Object.assign({}, evDef, { battlesLeft: player.activeEvent.battlesLeft, candles: clamp(Math.floor(Number(player.activeEvent.candles) || 0), 0, CULT_CANDLES) });
@@ -17786,9 +18029,9 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
-const NX_ICON_VER = 181;
+const NX_ICON_VER = 184;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
@@ -17841,7 +18084,7 @@ function nxNameIndex() {
      ['Livro das Profissões', 'profissoes'], ['Livros das Profissões', 'profissoes'], ['Livro do Ferreiro', 'ferreiro'], ['Livros do Ferreiro', 'ferreiro'],
      ['Pergaminho de Feitiço', 'feitico'], ['Pergaminho de Reforço', 'reforco'], ['Pergaminhos de Feitiço', 'feitico'], ['Pergaminhos de Reforço', 'reforco']].forEach(([n, k]) => put(n, 'livro-' + k));
     [['Comum', 'comum'], ['Incomum', 'incomum'], ['Raro', 'raro'], ['Rara', 'raro'], ['Lendário', 'lendario'], ['Lendária', 'lendario'],
-     ['Único', 'unico'], ['Única', 'unico'], ['Demoníaco', 'demoniaco'], ['Demoníaca', 'demoniaco'], ['Divino', 'divino'], ['Divina', 'divino']].forEach(([n, k]) => put(n, 'rar-' + k));
+     ['Único', 'unico'], ['Única', 'unico'], ['Demoníaco', 'demoniaco'], ['Demoníaca', 'demoniaco'], ['Divino', 'divino'], ['Divina', 'divino'], ['Mítico', 'mitico'], ['Mítica', 'mitico']].forEach(([n, k]) => put(n, 'rar-' + k));
     REGIONS.forEach(r => put(r.name, 'banner-' + r.key));
     DUNGEONS.forEach(d => put(d.name, 'dungeon-' + d.key)); CATACUMBAS.forEach(d => put(d.name, 'dungeon-' + d.key)); TOWERS.forEach(d => put(d.name, d.img && NX_ICON_IMG.has(d.img) ? d.img : 'dungeon-torre'));
   } catch (e) { /* defs ainda não carregadas */ return {}; }
@@ -17996,6 +18239,8 @@ const ITEM_TYPE_ICONS = {
   'Pergaminho': ['scroll', '📜'], 'Elmo': ['helmet', '🪖'], 'Coroa': ['crown', '👑'], 'Diadema': ['crown', '👑']
 };
 function itemTypeIcon(item) {
+  const md = item && item.mythic && MYTHIC_DEFS[item.mythic];
+  if (md) return [md.ic, md.emo];
   const name = (item && item.name) || '';
   const base = Object.keys(ITEM_TYPE_ICONS).sort((a, b) => b.length - a.length).find(b => name === b || name.startsWith(b + ' '));
   return base && ITEM_TYPE_ICONS[base] ? ITEM_TYPE_ICONS[base] : null;
