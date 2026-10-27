@@ -2303,3 +2303,18 @@ body:not(.fx-off):not(.fx-lite) .tt-sock.t3 i{animation:ifxGem 2.6s ease-in-out 
 .ak-tag.el-tag{color:var(--ec); border-color:color-mix(in srgb, var(--ec) 60%, #000); background:color-mix(in srgb, var(--ec) 12%, #0c0a08);}
 .tt-af.tt-res{color:#9fa6ff;}
 .res-row .nx-ic,.res-row .nx-k{width:18px; height:18px; font-size:16px; vertical-align:-3px;}
+
+/* v183: 🕯️ Culto do Eclipse — altar com velas no cartão do evento */
+.bt-special.cult-altar{background:linear-gradient(135deg,rgba(90,40,140,.32),rgba(20,12,30,.5));border-color:rgba(176,107,255,.55);}
+.cult-altar-t{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:#bfa8e6;margin-bottom:6px;}
+.cult-altar-t b{font-size:13px;letter-spacing:0;color:#f3e3ff;}
+.cult-altar-n{margin-top:7px;color:#e6dcf3;}
+.cult-candles{display:flex;gap:7px;align-items:flex-end;padding-top:10px;}
+.cult-candles i{position:relative;width:14px;height:20px;border-radius:3px 3px 2px 2px;background:linear-gradient(90deg,#2e2538,#3c3148);box-shadow:inset 0 0 0 1px #4a3d5c;}
+.cult-candles i::before{content:"";position:absolute;left:50%;top:-4px;width:2px;height:4px;margin-left:-1px;background:#1a1420;}
+.cult-candles i.on{background:linear-gradient(90deg,#d9c9a3,#f3e8cc 45%,#cdbb92);box-shadow:inset 0 0 0 1px #a8946a,0 0 10px rgba(255,170,60,.25);}
+.cult-candles i.on::after{content:"";position:absolute;left:50%;top:-12px;width:8px;height:11px;margin-left:-4px;border-radius:50% 50% 50% 50%/60% 60% 40% 40%;background:radial-gradient(circle at 50% 72%,#fff6c2,#ffb347 55%,rgba(255,120,40,0) 72%);filter:drop-shadow(0 0 4px #ffae3c);transform-origin:50% 100%;animation:cultFlame 1.6s ease-in-out infinite alternate;}
+.cult-candles i.on:nth-child(2)::after{animation-delay:-.4s}.cult-candles i.on:nth-child(3)::after{animation-delay:-.9s}.cult-candles i.on:nth-child(4)::after{animation-delay:-1.2s}.cult-candles i.on:nth-child(5)::after{animation-delay:-.2s}
+@keyframes cultFlame{0%{transform:scale(1,1) rotate(-2deg)}100%{transform:scale(.88,1.08) rotate(3deg)}}
+.bt-pill.ev.cult-ready{border-color:#b06bff;color:#f0e2ff;box-shadow:0 0 12px rgba(176,107,255,.55);}
+body.fx-off .cult-candles i.on::after{animation:none}

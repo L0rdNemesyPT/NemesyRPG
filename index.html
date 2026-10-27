@@ -4094,8 +4094,46 @@ const RANDOM_EVENTS = [
   { key: 'escuridao', name: 'Escuridão', icon: '💀', dmgMult: 1.5, hpMult: 1.5, defMult: 1.5,
     desc: 'As trevas envolvem os monstros: dano, vida e defesa sobem todos ×1,5 — um desafio equilibrado, mas mais duro em tudo.' },
   { key: 'atormentados', name: 'Atormentados', icon: '👹', dmgMult: 2.0, hpMult: 3.0, defMult: 0.2, bleedChance: 0.35,
-    desc: 'Especialistas em sangramento: dano ×2 e vida ×3, mas defesa a ×0,2 — e cada ataque deles tem 35% de hipótese de te fazer sangrar.' }
+    desc: 'Especialistas em sangramento: dano ×2 e vida ×3, mas defesa a ×0,2 — e cada ataque deles tem 35% de hipótese de te fazer sangrar.' },
+  { key: 'culto', name: 'Culto do Eclipse', icon: '🕯️', dmgMult: 1.2, hpMult: 1.4, defMult: 1.0, curseChance: 0.25, battles: 8, candles: 0,
+    desc: 'Cultistas do Eclipse tomaram a região. Cada vitória acende uma vela no altar; com 5 velas acesas, o Sumo-Sacerdote do Eclipse vem enfrentar-te.' }
 ];
+// v183: 🕯️ Culto do Eclipse — evento com objetivo. Cada vitória acende 1 vela (máx. 5); com 5,
+// o combate seguinte do separador Batalha é contra o Sumo-Sacerdote do Eclipse (chefe).
+// Os ataques dos monstros podem amaldiçoar-te (−15% de dano durante 2 rondas).
+const CULT_CANDLES = 5;
+const CULT_CURSE_PCT = 0.15, CULT_CURSE_PCT_ECLIPSE = 0.25, CULT_CURSE_ROUNDS = 2;
+const CULT_BOSS = { name: 'Sumo-Sacerdote do Eclipse', icon: '🌑', category: 'humano', lvPlus: 3, curseChance: 0.40,
+  mult: { hp: 1.3, dmg: 1.0, def: 1.0 }, nephalem: 0.25, books: 2, chestQuality: 3, tries: 3 };
+function cultActive(p) { return !!(p && p.activeEvent && p.activeEvent.key === 'culto' && p.activeEvent.battlesLeft > 0); }
+function cultBossReady(p) { return cultActive(p) && (p.activeEvent.candles || 0) >= CULT_CANDLES; }
+// Depois de uma vitória com o Culto ativo: acende uma vela, ou dá o espólio do Sumo-Sacerdote.
+// Devolve true quando o evento acabou (o Sumo-Sacerdote caiu).
+function cultOnVictory(c, p, drops) {
+  if (c.isCultBoss) {
+    for (let i = 0; i < CULT_BOSS.books; i++) p.skillBooks = (p.skillBooks || 0) + 1;
+    drops.push(`📖 ${CULT_BOSS.books}× Livro de Habilidades (Sumo-Sacerdote)`);
+    p.chests.push(newChest('equip', c.level, CULT_BOSS.chestQuality));
+    drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} do Culto — qualidade +${CULT_BOSS.chestQuality} (abre na Mochila)`);
+    if (Math.random() < CULT_BOSS.nephalem) { p.nephalemStones = (p.nephalemStones || 0) + 1; drops.push('💎 Pedra Nephalen! (Sumo-Sacerdote)'); }
+    drops.push('🌅 O Sumo-Sacerdote caiu. O Culto do Eclipse dispersa-se.');
+    p.activeEvent = null;
+    return true;
+  }
+  if (!c.eventApplied || c.eventApplied.key !== 'culto' || !cultActive(p)) return false;
+  const ev = p.activeEvent;
+  if ((ev.candles || 0) >= CULT_CANDLES) return false;
+  ev.candles = (ev.candles || 0) + 1;
+  drops.push(`🕯️ Acendeste uma vela no altar (${ev.candles}/${CULT_CANDLES}).`);
+  if (ev.candles >= CULT_CANDLES) {
+    ev.battlesLeft = Math.max(ev.battlesLeft, CULT_BOSS.tries + 1); // +1: esta batalha ainda vai ser descontada
+    drops.push(`🌑 As ${CULT_CANDLES} velas ardem! O Sumo-Sacerdote do Eclipse espera-te no próximo combate contra monstros.`);
+  }
+  return false;
+}
+function cultCandlesHtml(n) {
+  return `<span class="cult-candles" aria-label="${n} de ${CULT_CANDLES} velas">${Array.from({ length: CULT_CANDLES }, (_, i) => `<i${i < n ? ' class="on"' : ''}></i>`).join('')}</span>`;
+}
 function rollRandomEvent() {
   if (Math.random() > 0.15) return null;
   const ev = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
@@ -4107,7 +4145,8 @@ function rollRandomEvent() {
 const EVENT_DROPS = {
   praga: '🧪 6% de hipótese, por monstro derrotado enquanto a Praga está ativa, de deixar cair uma arma já com o bónus de Envenenamento aplicado.',
   escuridao: '🌀 6% de hipótese, por monstro derrotado enquanto a Escuridão está ativa, de deixar cair uma peça de armadura já com o bónus de Esquiva aplicada.',
-  atormentados: '👹 1% de hipótese, por monstro derrotado enquanto os Atormentados estão ativos, de deixar cair o Amuleto dos Atormentados — imunidade permanente a Sangramento.'
+  atormentados: '👹 1% de hipótese, por monstro derrotado enquanto os Atormentados estão ativos, de deixar cair o Amuleto dos Atormentados — imunidade permanente a Sangramento.',
+  culto: '🌑 Sumo-Sacerdote do Eclipse: o espólio de chefe normal + 2 Livros de Habilidades + Baú de Equipamento (qualidade +3) + 25% de hipótese de Pedra Nephalen.'
 };
 
 // Efeitos únicos que só existem em itens especiais (não fazem parte do BONUS_PLUS_POOL,
@@ -5066,6 +5105,8 @@ function showEventInfoModal(ev) {
   if (ev.defMult !== undefined) rows.push(`Defesa dos monstros: <b>×${x(ev.defMult)}</b>`);
   if (ev.critBonus) rows.push(`Chance de crítico dos monstros: <b>+${Math.round(ev.critBonus * 100)}%</b>`);
   if (ev.bleedChance) rows.push(`Hipótese de te fazerem sangrar: <b>${Math.round(ev.bleedChance * 100)}%</b> por ataque`);
+  if (ev.curseChance) rows.push(`Hipótese de te amaldiçoarem: <b>${Math.round(ev.curseChance * 100)}%</b> por ataque (−${Math.round(CULT_CURSE_PCT * 100)}% de dano, ${CULT_CURSE_ROUNDS} rondas)`);
+  if (ev.key === 'culto') rows.push(`🕯️ Velas no altar: <b>${ev.candles || 0}/${CULT_CANDLES}</b> — com ${CULT_CANDLES}, o combate seguinte é contra o ${CULT_BOSS.name}.`);
   if (EVENT_DROPS[ev.key]) rows.push(EVENT_DROPS[ev.key]);
   const battlesLeft = ev.battlesLeft !== undefined ? `<p class="tiny" style="margin-top:8px;">Continua ativo durante mais ${ev.battlesLeft} batalha(s).</p>` : '';
   showInfoModal(ev.icon, ev.name, `<p class="tiny">${ev.desc || ''}</p><div class="divider"></div>${rows.map(r => `<p class="tiny" style="margin-top:4px;">${r}</p>`).join('')}${battlesLeft}`);
@@ -6044,7 +6085,7 @@ function renderWikiBody() {
       <div class="card raised">
         <span style="font-weight:700;">⚔️ Combates (Batalha)</span>
         <p class="tiny" style="margin-top:6px;">Monstro: 35% de deixar um ${CHEST_DEFS.equip.icon} Baú de Equipamento · 1 rolo de raridade.</p>
-        <p class="tiny" style="margin-top:4px;">Chefe: 90% · 2 rolos. Rift ⭕️: 75% · 2 rolos.</p>
+        <p class="tiny" style="margin-top:4px;">Chefe: 90% · 2 rolos.</p>
         <p class="tiny" style="margin-top:4px;">Dificuldade: cada nível acima de Comum soma +5% à hipótese e +1 rolo (${diffs.map(d => `${d.icon} +${d.qualityBoost}`).join(' · ')}).</p>
         <p class="tiny" style="margin-top:4px;">🍀 Poção da Fortuna: hipótese ×2. A sorte no drop (Mineiro, passivas, Talismã da Fortuna) soma-se.</p>
       </div>
@@ -6448,7 +6489,7 @@ function renderWikiBody() {
     `;
   } else if (t === 'eventos') {
     body.innerHTML = `
-      <p class="muted" style="margin-bottom:10px;">15% de hipótese de surgir em cada combate contra monstros e chefes das regiões; quando surge, fica ativo durante 3 a 6 desses combates, alterando o dano, a vida e a defesa dos monstros. Não afeta dungeons, catacumbas, as Torres nem Rifts.</p>
+      <p class="muted" style="margin-bottom:10px;">15% de hipótese de surgir em cada combate contra monstros e chefes das regiões; quando surge, fica ativo durante 3 a 6 desses combates (o Culto do Eclipse dura 8), alterando o dano, a vida e a defesa dos monstros. Não afeta dungeons, catacumbas nem as Torres.</p>
       ${RANDOM_EVENTS.map(ev => {
         const rows = [];
         if (ev.dmgMult !== undefined) rows.push(`Dano ×${String(ev.dmgMult).replace('.', ',')}`);
@@ -6456,6 +6497,8 @@ function renderWikiBody() {
         if (ev.defMult !== undefined) rows.push(`Defesa ×${String(ev.defMult).replace('.', ',')}`);
         if (ev.critBonus) rows.push(`+${Math.round(ev.critBonus * 100)}% crítico`);
         if (ev.bleedChance) rows.push(`${Math.round(ev.bleedChance * 100)}% de hipótese de Sangramento por ataque`);
+        if (ev.curseChance) rows.push(`${Math.round(ev.curseChance * 100)}% de hipótese de Maldição por ataque (−${Math.round(CULT_CURSE_PCT * 100)}% de dano durante ${CULT_CURSE_ROUNDS} rondas)`);
+        if (ev.key === 'culto') rows.push(`Dura ${ev.battles} batalhas. Cada vitória acende 1 vela; com ${CULT_CANDLES}, o combate seguinte contra monstros é contra o ${CULT_BOSS.name} (chefe, Nv. +${CULT_BOSS.lvPlus}, Maldição ${Math.round(CULT_BOSS.curseChance * 100)}%, Eclipse Total a meio da vida: +25% de dano e maldições de −25%). Tens ${CULT_BOSS.tries} tentativas; se o venceres, o evento termina.`);
         const dropInfo = EVENT_DROPS[ev.key];
         return `<div class="card raised">
           <span style="font-weight:700;">${ev.icon} ${ev.name}</span>
@@ -7483,13 +7526,15 @@ function renderTabBatalha() {
     };
     const left = Math.max(0, ev.battlesLeft || 0);
     eventHtml = `
-      <button type="button" class="bt-pill ev" id="bt-pev"><span class="bt-ev-n">${left}</span>${esc(ev.name)}</button>
+      <button type="button" class="bt-pill ev${ev.key === 'culto' && (ev.candles || 0) >= CULT_CANDLES ? ' cult-ready' : ''}" id="bt-pev"><span class="bt-ev-n">${left}</span>${esc(ev.name)}${ev.key === 'culto' ? ` · 🕯️ ${ev.candles || 0}/${CULT_CANDLES}` : ''}</button>
       <div class="bt-tip ev" id="bt-tip-ev" hidden>
         <div class="bt-tip-h">${nxIconsEnabled() && nxIconFor(ev.icon) ? nxIconFor(ev.icon).replace('class="nx-ic', 'class="nx-ic bt-tip-ic') : `<span class="bt-emo big">${ev.icon}</span>`}<div><small>Evento ativo</small><b>${esc(ev.name)}</b></div><button type="button" class="bt-tip-x" aria-label="Fechar">×</button></div>
         ${ev.desc ? `<div class="bt-tip-d">${esc(ev.desc)}</div>` : ''}
         <div class="bt-st3">${tile(ev.dmgMult, 'Dano', 'sword', '🗡️')}${tile(ev.hpMult, 'Vida', 'heart', '❤️')}${tile(ev.defMult, 'Defesa', 'shield', '🛡️')}</div>
         ${ev.critBonus ? `<div class="bt-special">💥 Os monstros têm <b>+${Math.round(ev.critBonus * 100)}%</b> de hipótese de crítico.</div>` : ''}
         ${ev.bleedChance ? `<div class="bt-special">🩸 Cada ataque deles tem <b>${Math.round(ev.bleedChance * 100)}%</b> de hipótese de te fazer sangrar.</div>` : ''}
+        ${ev.curseChance ? `<div class="bt-special">🕯️ <b>Maldição</b>: cada ataque deles tem <b>${Math.round(ev.curseChance * 100)}%</b> de hipótese de te tirar ${Math.round(CULT_CURSE_PCT * 100)}% de dano durante ${CULT_CURSE_ROUNDS} rondas.</div>` : ''}
+        ${ev.key === 'culto' ? `<div class="bt-special cult-altar"><div class="cult-altar-t"><span>Velas no altar</span><b>${ev.candles || 0}/${CULT_CANDLES}</b></div>${cultCandlesHtml(ev.candles || 0)}<div class="cult-altar-n">${(ev.candles || 0) >= CULT_CANDLES ? `🌑 <b>O ${CULT_BOSS.name} espera-te!</b> O próximo combate contra monstros é contra ele (Nv. +${CULT_BOSS.lvPlus}).` : `Cada vitória acende 1 vela. Com ${CULT_CANDLES}, o combate seguinte é contra o <b>${CULT_BOSS.name}</b>.`}</div></div>` : ''}
         <div class="bt-left"><span>Ainda ativo durante <b>${left} batalha${left === 1 ? '' : 's'}</b></span>${left <= 10 ? `<span class="bt-pips">${'<i></i>'.repeat(left)}</span>` : ''}</div>
         ${EVENT_DROPS[ev.key] ? `<div class="bt-drop">${esc(EVENT_DROPS[ev.key])}</div>` : ''}
       </div>`;
@@ -13931,6 +13976,12 @@ function startCombat(opts) {
   if (!guardAllowsFight(() => startCombat(opts))) return;
   sfx.click();
   const p = App.player;
+  // v183: com as 5 velas acesas, o combate seguinte do separador Batalha é o Sumo-Sacerdote.
+  if (opts.kind === 'wild' && !opts.noEvent && !opts.extra && cultBossReady(p)) {
+    const B = CULT_BOSS;
+    opts = Object.assign({}, opts, { kind: 'boss', name: B.name, icon: B.icon, category: B.category, count: 1,
+      level: Math.min(MAX_LEVEL, (opts.level || p.level) + B.lvPlus), mult: B.mult, extra: { isCultBoss: true } });
+  }
   const isBoss = opts.kind === 'boss';
   const enemy = enemyStatsFor(opts.level, isBoss);
   if (opts.mult) { const m = opts.mult; enemy.hp = Math.round(enemy.hp * (m.hp || 1)); enemy.maxHp = enemy.hp; enemy.dmg = Math.round(enemy.dmg * (m.dmg || 1)); enemy.def = Math.round(enemy.def * (m.def || 1)); } // v174
@@ -13965,7 +14016,7 @@ function startCombat(opts) {
     eventApplied = p.activeEvent;
   } else {
     const ev = rollRandomEvent();
-    if (ev) { p.activeEvent = Object.assign(ev, { battlesLeft: 3 + Math.floor(Math.random() * 4) }); eventApplied = p.activeEvent; }
+    if (ev) { p.activeEvent = Object.assign(ev, { battlesLeft: ev.battles || 3 + Math.floor(Math.random() * 4) }); eventApplied = p.activeEvent; }
     else p.activeEvent = null;
   }
   if (eventApplied) {
@@ -13974,6 +14025,7 @@ function startCombat(opts) {
     enemy.def = Math.round(enemy.def * eventApplied.defMult);
     if (eventApplied.critBonus) enemy.critChance = (enemy.critChance || 0.05) + eventApplied.critBonus;
     if (eventApplied.bleedChance) enemy.bleedChance = eventApplied.bleedChance;
+    if (eventApplied.curseChance) enemy.curseChance = eventApplied.curseChance;
   }
 
   const rollElement = () => null; // v181: os elementos (Nv. 100+) são dados em elementInit()
@@ -13993,6 +14045,7 @@ function startCombat(opts) {
       e.def = Math.round(e.def * eventApplied.defMult);
       if (eventApplied.critBonus) e.critChance = (e.critChance || 0.05) + eventApplied.critBonus;
       if (eventApplied.bleedChance) e.bleedChance = eventApplied.bleedChance;
+      if (eventApplied.curseChance) e.curseChance = eventApplied.curseChance;
     }
     hordeExtra.push(Object.assign(e, { element: rollElement(), critImmune: false, category: opts.category || 'outro' }));
   }
@@ -14012,7 +14065,11 @@ function startCombat(opts) {
   addCombatLog({ text: hordeN > 1 ? `👥 Uma horda de ${hordeN} × ${opts.name} apareceu! Todos atacam em cada ronda.` : `Um(a) ${opts.name} apareceu!`, cls: 'good' });
   if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
-  if (eventApplied) addCombatLog({ text: `${eventApplied.icon} Evento ${eventApplied.name}: os monstros estão alterados neste combate!`, cls: 'hit' });
+  if (App.combat.isCultBoss) {
+    App.combat.enemy.curseChance = CULT_BOSS.curseChance;
+    addCombatLog({ text: `🌑 As ${CULT_CANDLES} velas ardem… o ${CULT_BOSS.name} surge do altar!`, cls: 'crit' });
+    addCombatLog({ text: `🕯️ Amaldiçoa com ${Math.round(CULT_BOSS.curseChance * 100)}% de hipótese e, a meio da vida, invoca o Eclipse Total.`, cls: 'hit' });
+  } else if (eventApplied) addCombatLog({ text: `${eventApplied.icon} Evento ${eventApplied.name}: os monstros estão alterados neste combate!${eventApplied.key === 'culto' ? ` Velas acesas: ${eventApplied.candles || 0}/${CULT_CANDLES}.` : ''}`, cls: 'hit' });
   renderCombat();
 }
 
@@ -14344,58 +14401,6 @@ function renderHuntBody(body, p) {
   body.querySelectorAll('[data-hunt-oath]').forEach(b => b.addEventListener('click', () => { const [s, i] = b.dataset.huntOath.split(':'); huntOath(s, +i); }));
   body.querySelectorAll('[data-hunt-buy]').forEach(b => b.addEventListener('click', () => huntBuy(b.dataset.huntBuy)));
   const det = body.querySelector('details.hunt-help'); if (det) det.addEventListener('toggle', () => { App.huntHelp = det.open; });
-}
-
-// ============================================================
-// RIFTS ⭕️ — ao fim de cada combate (vitória ou derrota), o jogador pode ser
-// interceptado por um Rift: um monstro do mesmo mapa onde está, ao seu nível,
-// mas com Defesa/Dano/HP ×3. Recompensa em troca: drops muito melhores.
-// (No futuro: tabela de drops própria, diferente da normal.)
-// ============================================================
-const RIFT_STAT_MULT = 3;
-const RIFT_CHANCE = 0.12; // hipótese, ao fim de cada combate normal, de aparecer um Rift.
-function startRiftCombat() {
-  if (!guardAllowsFight(() => startRiftCombat())) return;
-  const p = App.player;
-  const regionIdx = clamp(App.selectedRegionIndex !== undefined && App.selectedRegionIndex !== null ? App.selectedRegionIndex : p.regionIndex, 0, REGIONS.length - 1);
-  const region = REGIONS[regionIdx];
-  const mon = region.monsters[Math.floor(Math.random() * region.monsters.length)];
-  const enemy = enemyStatsFor(p.level, false);
-  enemy.hp = Math.round(enemy.hp * RIFT_STAT_MULT); enemy.maxHp = enemy.hp;
-  enemy.dmg = Math.round(enemy.dmg * RIFT_STAT_MULT);
-  enemy.def = Math.round(enemy.def * RIFT_STAT_MULT);
-
-  App.combat = {
-    kind: 'rift', name: mon.name, icon: mon.icon, level: p.level, isBoss: false, isRift: true,
-    monsterName: mon.name, regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
-    enemy: Object.assign(enemy, { element: null, critImmune: false, category: mon.category || 'outro' }),
-    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false },
-    cooldowns: {}, log: [], eventApplied: null, ended: false
-  };
-  resetCombatScreenChrome();
-  showScreen('screen-combat');
-  addCombatLog({ text: `⭕️ Um Rift rasgou o ar — um(a) ${mon.name} distorcido(a) surge à tua frente!`, cls: 'hit' });
-  addCombatLog({ text: `⚠️ Muito mais forte que o normal: Defesa, Dano e HP ×${RIFT_STAT_MULT}.`, cls: 'hit' });
-  sfx.click();
-  renderCombat();
-}
-
-function showRiftInterception() {
-  openModal(`
-    <div style="text-align:center;">
-      <div style="font-size:48px; margin-bottom:6px;">⭕️</div>
-      <h3 style="font-family:var(--font-display); color:var(--arcane-bright); margin-bottom:8px;">Interceptado por um Rift!</h3>
-      <p class="tiny muted" style="margin-bottom:12px;">Um portal instável abriu-se à tua frente. Algo muito mais forte do que o normal espreita do outro lado — mas a recompensa também é muito maior.</p>
-      <div class="card raised" style="text-align:left; border-left:3px solid var(--arcane-bright); margin-bottom:14px;">
-        <p class="tiny">⚔️ Defesa, Dano e HP do monstro: ×${RIFT_STAT_MULT}</p>
-        <p class="tiny">🎁 Se o derrotares, os drops são muito melhores que o normal</p>
-      </div>
-    </div>
-    <button class="btn primary block" id="btn-rift-fight" style="margin-bottom:8px;">⚔️ Enfrentar o Rift</button>
-    <button class="btn ghost block" id="btn-rift-ignore">🚪 Ignorar e voltar à cidade</button>
-  `);
-  $('btn-rift-fight').addEventListener('click', () => { closeModal(); startRiftCombat(); });
-  $('btn-rift-ignore').addEventListener('click', () => { closeModal(); goHub(); });
 }
 
 // ============================================================
@@ -14740,6 +14745,7 @@ function applyTempBuffsToStats(stats, bs, enemyCategory) {
     ? stats.dmgMin + Math.floor(Math.random() * (stats.dmgMax - stats.dmgMin + 1))
     : stats.dmg;
   if (bs.potionAtkBuff) dmg = dmg * (1 + bs.potionAtkBuff.pct);
+  if (bs.playerCurse) dmg = dmg * (1 - bs.playerCurse.pct); // v183: maldição do Culto
   if (bs.towerBlessing) dmg *= (1 + bs.towerBlessing);
   if (foodBonus('dmg')) dmg *= (1 + foodBonus('dmg'));
   if (shrineBonus(App.player, 'dmg')) dmg *= (1 + shrineBonus(App.player, 'dmg')); // v119: Santuário
@@ -15189,7 +15195,7 @@ function combatRoundTail(c, p, tickEnemy) {
     else c.battleState.critBuff.rounds--;
     if (c.battleState.critBuff.rounds <= 0) { c.battleState.critBuff = null; c.battleState.critBuffActive = false; }
   }
-  (tickEnemy ? ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff'] : ['playerDefBuff', 'potionDefBuff', 'potionAtkBuff']).forEach(k => {
+  (tickEnemy ? ['playerDefBuff', 'enemyDefDebuff', 'potionDefBuff', 'potionAtkBuff', 'playerCurse'] : ['playerDefBuff', 'potionDefBuff', 'potionAtkBuff', 'playerCurse']).forEach(k => {
     if (c.battleState[k]) { c.battleState[k].duration--; if (c.battleState[k].duration <= 0) c.battleState[k] = null; }
   });
   if (tickEnemy && c.battleState.enemyRegenBlocked > 0) { c.battleState.enemyRegenBlocked--; }
@@ -15283,6 +15289,15 @@ function resolveEnemyTurn(opts) {
     addCombatLog({ text: `😡 ${cName} entra em fúria! O dano dele aumenta drasticamente.`, cls: 'hit' });
   }
 
+  // v183: Sumo-Sacerdote do Eclipse — a meio da vida invoca o Eclipse Total (uma vez).
+  if (c.isCultBoss && !c.cultEclipse && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.5) {
+    c.cultEclipse = true;
+    c.enemy.dmg = Math.round(c.enemy.dmg * 1.25);
+    c.enemy.curseChance = 0.6;
+    addCombatLog({ text: `🌑 ${cName} invoca o Eclipse Total! +25% de dano e as maldições ficam mais fortes (−25%).`, cls: 'hit' });
+    try { fxPhase2Banner && fxPhase2Banner(c); } catch (e) {}
+  }
+
   const foodDodge = foodBonus('dodge');
   const dodgeChance = Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge);
   if (dodgeChance && Math.random() < dodgeChance) {
@@ -15344,6 +15359,13 @@ function resolveEnemyTurn(opts) {
   if (c.enemy.bleedChance && !c.battleState.playerBleed && !pStats.bleedImmune && Math.random() < c.enemy.bleedChance) {
     c.battleState.playerBleed = { duration: 2, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.22)) };
     addCombatLog({ text: '👹🩸 Os Atormentados fazem-te sangrar!', cls: 'hit' });
+  }
+  // v183: Culto do Eclipse — maldição (−15% de dano, ou −25% durante o Eclipse Total).
+  if (c.enemy.curseChance && Math.random() < c.enemy.curseChance) {
+    const pct = c.cultEclipse ? CULT_CURSE_PCT_ECLIPSE : CULT_CURSE_PCT;
+    const had = !!c.battleState.playerCurse;
+    c.battleState.playerCurse = { pct, duration: CULT_CURSE_ROUNDS };
+    addCombatLog({ text: `🕯️ ${cName} ${had ? 'renova a maldição' : 'amaldiçoa-te'}: −${Math.round(pct * 100)}% de dano durante ${CULT_CURSE_ROUNDS} rondas.`, cls: 'hit' });
   }
   if (enemySkillTriggered && enemySkill.type === 'poison' && !c.battleState.playerPoison && !pStats.poisonImmune) {
     c.battleState.playerPoison = { duration: 3, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.18)) };
@@ -15455,17 +15477,13 @@ function tickProfessionCooldowns(p) {
 function wildRewardRoll(c) {
   const p = App.player;
   const isBoss = c.isBoss;
-  const isRift = !!c.isRift;
   const pStats = effectiveStats(p);
   const luck = pStats.dropLuckBonus || 0;
   // Dificuldade escolhida pelo jogador (raridade = dificuldade): sobe bastante o ouro
   // e a qualidade dos itens, mas só um pouco o XP, de propósito.
   const diff = MONSTER_DIFFICULTY.find(d => d.key === c.difficulty) || MONSTER_DIFFICULTY[0];
-  // Rift: adversário ×3 mais forte, por isso a recompensa também é bastante superior
-  // à de um combate normal do mesmo nível (mas ainda abaixo de um chefe de dungeon).
-  const riftMult = isRift ? 1.8 : 1;
-  const xpGain = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * riftMult * diff.xpMult * (1 + battleXpBonus(c)));
-  const goldGain = Math.round((isBoss ? (30 + c.level * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * riftMult * diff.goldMult * (1 + (pStats.goldPct || 0)));
+  const xpGain = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * diff.xpMult * (1 + battleXpBonus(c)));
+  const goldGain = Math.round((isBoss ? (30 + c.level * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)));
   p.gold += goldGain;
   grantXp(xpGain);
   if (isBoss) p.stats.bossesKilled++;
@@ -15476,14 +15494,13 @@ function wildRewardRoll(c) {
   // Dificuldade escolhida também sobe a própria chance de cair algo (não só a
   // qualidade quando cai) — um monstro mais difícil tem de valer mesmo a pena.
   const diffDropBonus = diff.qualityBoost * 0.05;
-  const dropChance = (isBoss ? 0.9 : isRift ? 0.75 : 0.35) * fortuneMult + luck + diffDropBonus;
+  const dropChance = (isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus;
   if (Math.random() < dropChance) {
-    // Chests de Rift/chefe usam a "qualidade melhorada" (+1 tentativa extra de raridade);
+    // Chests de chefe usam a "qualidade melhorada" (+1 tentativa extra de raridade);
     // a dificuldade escolhida pelo jogador soma tentativas extra por cima disso.
-    const qualityBoost = (isBoss || isRift ? 1 : 0) + diff.qualityBoost;
+    const qualityBoost = (isBoss ? 1 : 0) + diff.qualityBoost;
     p.chests.push(newChest('equip', c.level, qualityBoost));
     drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} (abre na Mochila)`);
-    if (isRift) drops.push('⭕️ Recompensa de Rift — muito acima do normal!');
     if (diff.statMult > 1) drops.push(`${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name} — qualidade deste item bem superior!`);
   }
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
@@ -15605,7 +15622,7 @@ function wildRewardRoll(c) {
       ? '💠 Dificuldade Divino desbloqueada! (aba Batalha)'
       : `💠 Dificuldade Divino desbloqueada — fica disponível quando chegares ao nível ${divinoDef.minLevel}.`);
   }
-  if (isBoss) {
+  if (isBoss && !c.isCultBoss) {
     if (!p.defeatedBosses.includes(c.name)) p.defeatedBosses.push(c.name);
     if (c.isGateBoss && c.regionIndexForBoss === p.regionIndex && p.regionIndex < REGIONS.length - 1) {
       p.regionIndex++;
@@ -15624,8 +15641,9 @@ function finishWildOrBossVictory() {
   const { xpGain, goldGain, drops } = r;
   p.stats.wins++;
   if (p.fortuneBattlesLeft > 0) p.fortuneBattlesLeft--;
-  // O evento só gasta uma batalha nos combates que afetou (não em Rifts).
-  if (c.eventApplied && p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
+  const cultOver = cultOnVictory(c, p, drops); // v183
+  // O evento só gasta uma batalha nos combates que afetou.
+  if (!cultOver && c.eventApplied && p.activeEvent) { p.activeEvent.battlesLeft--; if (p.activeEvent.battlesLeft <= 0) p.activeEvent = null; }
   tickProfessionCooldowns(p);
   consumeTalismanBattle();
 
@@ -15834,7 +15852,6 @@ function showCombatEnd(won, info) {
   if ((App.player.elemPotionBattles || 0) > 0) App.player.elemPotionBattles--; // v181: Poção Elemental gasta 1 batalha
   fxCombatEndClasses(won);
   if (won) fxVictoryScreen(info);
-  const wasRift = !!c.isRift;
   const wasTower = !!c.isTower;
   const wasHunt = !!c.isHunt;
   if (wasHunt && won) $('btn-combat-continue').textContent = 'Voltar aos Contratos';
@@ -15844,7 +15861,7 @@ function showCombatEnd(won, info) {
     App.combat = null;
     if (wasTower) { App.tab = 'mapa'; App.mapaTab = 'tower:' + towerBackKey; goHub(); return; }
     if (wasHunt) { App.tab = 'loja'; App.lojaTab = 'contratos'; goHub(); return; }
-    if (!wasRift && Math.random() < RIFT_CHANCE) showRiftInterception(); else goHub();
+    goHub();
   });
 }
 
@@ -16000,7 +16017,7 @@ function fxCountUp(el, to, ms) {
 function lootLineClass(txt) {
   if (/ITEM DIVINO/.test(txt)) return 'loot-divine';
   if (/Único|🟠|[Ll]endário|🟡|Nephalen|Item raro|🗝️|Temporada|⭐/.test(txt)) return 'loot-epic';
-  if (/drop raro|Livro|📖|📗|🐾|Nova região|Rift/.test(txt)) return 'loot-rare';
+  if (/drop raro|Livro|📖|📗|🐾|Nova região|vela|Sacerdote/.test(txt)) return 'loot-rare';
   return '';
 }
 // Fila de ecrãs de celebração (um de cada vez; tocar fecha).
@@ -16230,7 +16247,7 @@ function fxGoldGain(from, to) {
 
 // ============================================================
 // 🏞️ CENÁRIOS (v96) — paisagens desenhadas em SVG (sem imagens a descarregar) para cada
-// região, Torre, Dungeons/Catacumbas e Rifts; partículas ambiente; medalhão do inimigo por raça.
+// região, Torre, Dungeons/Catacumbas; partículas ambiente; medalhão do inimigo por raça.
 // ============================================================
 const SCENES = {
   planicies:     { sky: ['#13243a', '#3b5a6e', '#e39a62'], sun: '#ffd8a0', layers: [['hills', '#3d5a45', 0.50, 18], ['hills', '#28432f', 0.63, 14], ['hills', '#16291b', 0.78, 10]], fx: 'fireflies' },
@@ -16243,7 +16260,6 @@ const SCENES = {
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
   cripta:        { sky: ['#010302', '#040a07', '#08130e'], sun: null, layers: [['arches', '#24362e', 0.25, 0], ['floor', '#101a15', 0.80, 0]], fx: 'candles' },
   eclipse:       { sky: ['#05030a', '#1c1026', '#4a2a1a'], sun: null, eclipse: true, layers: [['ruins', '#2a1d2e', 0.50, 0], ['hills', '#140c18', 0.80, 10]], fx: 'motes' },
-  rift:          { sky: ['#06010d', '#2a0c4a', '#7a2ac0'], sun: null, layers: [['vortex', '#c08cff', 0.5, 0], ['hills', '#0c0418', 0.80, 14]], fx: 'motes' },
   halloween:     { sky: ['#07040f', '#2a1040', '#c4561a'], sun: '#ffb04a', layers: [['hills', '#1d0f2a', 0.55, 16], ['deadtrees', '#120818', 0.70, 0], ['graves', '#0a050f', 0.84, 0]], fx: 'bats' }, // v174
   templo:        { sky: ['#0b0307', '#3a0b14', '#a8321f'], sun: '#ff6a4a', layers: [['peaks', '#2c0b12', 0.50, 46], ['clouds', '#ff8a6a', 0.46, 0], ['pagoda', '#170509', 0.72, 0], ['torii', '#0b0204', 0.88, 0]], fx: 'sakura' } // v166
 };
@@ -16377,7 +16393,7 @@ function sceneSvg(key) {
   if (sceneCache[key]) return sceneCache[key];
   const sc = SCENES[key] || SCENES.planicies, R = sceneRng(key), W = 390, H = 300;
   let stars = '';
-  if (['planicies', 'tundra', 'florestanegra', 'corrompidas', 'pinaculo', 'rift', 'eclipse', 'templo', 'halloween'].includes(key)) for (let i = 0; i < 26; i++) stars += `<circle cx="${Math.round(R() * W)}" cy="${Math.round(R() * H * 0.45)}" r="${(0.4 + R() * 0.9).toFixed(1)}" fill="#fff" opacity="${(0.25 + R() * 0.6).toFixed(2)}" class="sc-star" style="animation-delay:${(R() * 4).toFixed(1)}s"/>`;
+  if (['planicies', 'tundra', 'florestanegra', 'corrompidas', 'pinaculo', 'eclipse', 'templo', 'halloween'].includes(key)) for (let i = 0; i < 26; i++) stars += `<circle cx="${Math.round(R() * W)}" cy="${Math.round(R() * H * 0.45)}" r="${(0.4 + R() * 0.9).toFixed(1)}" fill="#fff" opacity="${(0.25 + R() * 0.6).toFixed(2)}" class="sc-star" style="animation-delay:${(R() * 4).toFixed(1)}s"/>`;
   const svg = `<svg class="scene-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
     <defs><linearGradient id="sc-sky-${key}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${sc.sky[0]}"/><stop offset=".55" stop-color="${sc.sky[1]}"/><stop offset="1" stop-color="${sc.sky[2]}"/></linearGradient>
       <linearGradient id="sc-snowcap" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/></linearGradient>
@@ -16399,7 +16415,7 @@ function sceneFxHtml(fx) {
   return `<div class="scene-fx fx-${fx}">${h}</div>`;
 }
 function combatSceneKey(c) {
-  if (c.isRift) return 'rift';
+  if (c.isCultBoss) return 'eclipse';
   if (c.isTower) return 'torre';
   if (c.isSoberano) return 'montanhas';
   if (c.isHalloween) return 'halloween';
@@ -16455,13 +16471,13 @@ function renderCombat() {
 
   const glyphEl = $('cb-enemy-glyph');
   { const gk = nxCreature(c.monsterName || c.name, c.icon); if (glyphEl.dataset.ent !== gk) { glyphEl.dataset.ent = gk; glyphEl.innerHTML = gk; } }
-  glyphEl.className = 'enemy-glyph' + (c.isBoss ? ' boss' : c.isMiniBoss ? ' mini' : c.isRift ? ' mini' : '') + (c.bossPhase2 || c.soberanoStage2 ? ' phase2' : '') + (c.isSoberano ? ' soberano' : '');
+  glyphEl.className = 'enemy-glyph' + (c.isBoss ? ' boss' : c.isMiniBoss ? ' mini' : '') + (c.bossPhase2 || c.soberanoStage2 ? ' phase2' : '') + (c.isSoberano ? ' soberano' : '');
   const flashFx = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
   if (c._lastEnemyHp !== undefined && c.enemy.hp < c._lastEnemyHp) flashFx(glyphEl, 'fx-hit');
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : c.isRift ? ' · Rift ⭕️' : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -16524,6 +16540,7 @@ function renderCombat() {
   if (bs.elementDefShred) playerStatusChips.push({ key: 'elementDefShred', icon: '🧊', label: `Defesa -${Math.min(30, bs.elementDefShred * 5)}%`, name: 'Defesa enfraquecida' });
   if (bs.playerBurn) playerStatusChips.push({ key: 'playerBurn', icon: '🔥', label: `A arder (${bs.playerBurn.duration})`, dmg: bs.playerBurn.dmg, duration: bs.playerBurn.duration, name: 'A arder' });
   if (bs.playerPoison) playerStatusChips.push({ key: 'playerPoison', icon: '☣️', label: `Envenenado (${bs.playerPoison.duration})`, dmg: bs.playerPoison.dmg, duration: bs.playerPoison.duration, name: 'Envenenado' });
+  if (bs.playerCurse) playerStatusChips.push({ key: 'playerCurse', icon: '🕯️', label: `Maldição −${Math.round(bs.playerCurse.pct * 100)}% (${bs.playerCurse.duration})`, pct: bs.playerCurse.pct, duration: bs.playerCurse.duration, name: 'Maldição do Eclipse' });
   if (bs.playerBleed) playerStatusChips.push({ key: 'playerBleed', icon: '🩸', label: `A sangrar (${bs.playerBleed.duration})`, dmg: bs.playerBleed.dmg, duration: bs.playerBleed.duration, name: 'A sangrar' });
   { const md = activeMealDef(p); if (md) playerStatusChips.push({ key: 'meal', icon: md.icon, label: `${md.name.split(' ')[0]} (${p.activeMeal.left})`, name: md.name, meal: p.activeMeal.key }); }
   Object.keys(ensureFoodBuffs(p)).forEach(stat => { const k = cropByStat(stat); if (k) playerStatusChips.push({ key: 'food', icon: CROP_DEFS[k].icon, label: `+${Math.round(FOOD_PCT * 100)}% ${CROP_DEFS[k].short} (${p.foodBuffs[stat]})`, name: CROP_DEFS[k].name, crop: k }); });
@@ -16536,6 +16553,7 @@ function renderCombat() {
       else if (s.key === 'elementDefShred') showBuffInfoModal(s.icon, s.name, 'Cada ataque de gelo reduz a tua defesa em 5%, até um máximo de -30%, pelo resto do combate.');
       else if (s.key === 'playerBurn') showBuffInfoModal(s.icon, s.name, `Sofres ${s.dmg} de dano no início do próximo ataque inimigo.`, s.duration);
       else if (s.key === 'playerPoison') showBuffInfoModal(s.icon, s.name, `Sofres ${s.dmg} de dano por ronda e a tua regeneração de HP não funciona enquanto estiveres envenenado.`, s.duration);
+      else if (s.key === 'playerCurse') showBuffInfoModal(s.icon, s.name, `Os teus ataques e habilidades fazem menos ${Math.round(s.pct * 100)}% de dano. Um novo golpe amaldiçoado renova a duração.`, s.duration);
       else if (s.key === 'playerBleed') showBuffInfoModal(s.icon, s.name, `Sofres ${s.dmg} de dano por ronda, ignorando a tua defesa.`, s.duration);
       else if (s.key === 'critBuffActive') showBuffInfoModal(s.icon, s.name, 'Os teus ataques têm crítico garantido durante as próximas rondas, graças ao Divino.');
       else showBuffInfoModal(s.icon, s.name, `${s.name}: ${s.label}.`, s.duration);
@@ -16654,7 +16672,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v182</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v183</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -16853,7 +16871,7 @@ function applyPlayerMigrations(player) {
   // ex.: "Hand of Nod" → "Renegados". Só as batalhas que faltam vêm do save.
   if (player && player.activeEvent) {
     const evDef = RANDOM_EVENTS.find(e => e.key === player.activeEvent.key);
-    if (evDef) player.activeEvent = Object.assign({}, evDef, { battlesLeft: player.activeEvent.battlesLeft });
+    if (evDef) player.activeEvent = Object.assign({}, evDef, { battlesLeft: player.activeEvent.battlesLeft, candles: clamp(Math.floor(Number(player.activeEvent.candles) || 0), 0, CULT_CANDLES) });
     else player.activeEvent = null;
   }
   if (!player.equipment) player.equipment = {};
@@ -17768,7 +17786,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 181;
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
