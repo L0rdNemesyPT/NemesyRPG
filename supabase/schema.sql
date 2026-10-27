@@ -486,7 +486,7 @@ begin
     v_g := case when jsonb_typeof(p_item->'sockets') = 'array' then p_item->'sockets'->v_i else null end;
     if v_g is not null and jsonb_typeof(v_g) = 'object'
       and v_g->>'type' in ('defesa', 'dano', 'vida', 'critico', 'chefes', 'escudo')
-      and coalesce(v_g->>'tier', '') ~ '^[0-2]$' then
+      and coalesce(v_g->>'tier', '') ~ '^[0-4]$' then
       v_sockets := v_sockets || jsonb_build_array(jsonb_build_object('type', v_g->>'type', 'tier', (v_g->>'tier')::integer));
     else
       v_sockets := v_sockets || jsonb_build_array(null::jsonb);
@@ -542,7 +542,7 @@ begin
     return case p_key when 'branca' then 'Pérola Branca' when 'azul' then 'Pérola Azul'
       when 'vermelha' then 'Pérola Vermelha' when 'verde' then 'Pérola Verde' end;
   elsif p_kind = 'gema' then
-    if p_sub is null or p_sub not between 0 and 2 then return null; end if;
+    if p_sub is null or p_sub not between 0 and 4 then return null; end if;
     return (case p_key when 'defesa' then 'Pedra da Defesa' when 'dano' then 'Pedra do Dano'
       when 'vida' then 'Pedra da Vida' when 'critico' then 'Pedra do Crítico'
       when 'chefes' then 'Pedra do Caça-Chefes'
@@ -601,7 +601,7 @@ declare
   v_arr jsonb;
 begin
   if p_kind = 'perola' then v_root := 'pearls';
-  elsif p_kind = 'gema' then v_root := 'gems'; v_len := 3;
+  elsif p_kind = 'gema' then v_root := 'gems'; v_len := 5;
   elsif p_kind = 'pedra' then v_root := 'alchemyStones'; v_len := 10;
   elsif p_kind = 'livro' and p_key in ('feitico', 'reforco', 'feiticoPlus', 'reforcoPlus') then v_root := 'scrolls';
   else return p_save;
