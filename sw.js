@@ -1,4 +1,9 @@
-const CACHE_NAME = 'nemesy-rpg-v188';
+const CACHE_NAME = 'nemesy-rpg-v189';
+// v189: as imagens (ícones, mapas, avatares) ficam numa cache própria que NÃO é apagada nos updates.
+// Cada imagem é guardada com o endereço completo (incluindo ?v=…): só se descarrega outra vez quando
+// a versão dessa imagem muda, e a versão antiga é apagada nessa altura.
+const IMG_CACHE = 'nemesy-img-v1';
+const IMG_RE = /\/(icons|avatars)\/[^/]+\.(webp|png|jpe?g|svg|gif)$/i;
 const APP_SHELL = [
   './',
   './index.html',
@@ -35,7 +40,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys().then(keys => Promise.all(
-      keys.filter(key => key.startsWith('nemesy-rpg-') && key !== CACHE_NAME)
+      keys.filter(key => key.startsWith('nemesy-rpg-') && key !== CACHE_NAME) // a IMG_CACHE fica
         .map(key => caches.delete(key))
     ))
   );
@@ -45,6 +50,28 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+
+  const imgUrl = new URL(request.url);
+  if (IMG_RE.test(imgUrl.pathname)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(IMG_CACHE);
+      const hit = await cache.match(request);
+      if (hit) return hit;
+      try {
+        const response = await fetch(request);
+        if (response.ok) {
+          const keys = await cache.keys();
+          await Promise.all(keys.filter(k => new URL(k.url).pathname === imgUrl.pathname).map(k => cache.delete(k)));
+          await cache.put(request, response.clone());
+        }
+        return response;
+      } catch {
+        const old = await cache.match(request, { ignoreSearch: true }) || await caches.match(request, { ignoreSearch: true });
+        return old || Response.error();
+      }
+    })());
+    return;
+  }
 
   event.respondWith((async () => {
     const requestUrl = new URL(request.url);
