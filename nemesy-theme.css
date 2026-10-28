@@ -2385,3 +2385,42 @@ body:not(.fx-lite):not(.fx-off) .gemv.gt5::before{animation:ifxSpin 9s linear in
 .cap-of.near{color:#f3c64a; opacity:1; font-weight:700;}
 .inv-warn{margin:8px 0; padding:9px 11px; border-radius:10px; font-size:12.5px; line-height:1.4; color:#ffd9a0; background:rgba(201,120,30,.14); border:1px solid rgba(232,160,60,.55);}
 .inv-quick{margin:8px 0;}
+
+/* v188: Mochila em grelha */
+.inv-view{display:flex; align-items:center; gap:4px;}
+.inv-view-b{width:34px; height:30px; border-radius:8px; border:1px solid var(--line,#3a3125); background:rgba(0,0,0,.25); color:var(--text-muted,#9a9080); font-size:16px; line-height:1; cursor:pointer;}
+.inv-view-b.on{background:linear-gradient(180deg,#e3c063,#b8922e); color:#1b1408; border-color:#e3c063;}
+.inv-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(62px,1fr)); gap:6px; padding:8px; border-radius:12px; background:#070605; border:1px solid #2a231a; box-shadow:inset 0 0 18px #000;}
+.ig-cell{--c:#888; position:relative; aspect-ratio:1; border-radius:6px; padding:0; cursor:pointer; border:1px solid #000; display:grid; place-items:center; overflow:visible;
+  background:radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--c) 42%, #120e0a) 0%, color-mix(in srgb, var(--c) 14%, #0b0907) 72%);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--c) 50%, #000), inset 0 0 12px #000;}
+.ig-cell:active{transform:scale(.96);}
+.ig-cell:focus-visible{outline:2px solid #f3d98a; outline-offset:2px;}
+.ig-ic{width:72%; height:72%; display:grid; place-items:center; font-size:26px;}
+.ig-ic .ifx,.ig-ic .nx-ic,.ig-ic img,.ig-ic svg{width:100%; height:100%;}
+.ig-mk{position:absolute; left:3px; top:2px; font:800 11px var(--font-body,system-ui); line-height:1; text-shadow:0 1px 2px #000;}
+.ig-mk.up{color:#6fdc7f;} .ig-mk.new{color:#f3d98a;}
+.ig-gems{position:absolute; right:3px; top:3px; display:flex; flex-direction:column; gap:2px;}
+.ig-gems i{width:6px; height:6px; border-radius:50%; background:#2a2a2a; border:1px solid #000;}
+.ig-gems i.on{background:var(--gc,#fff); box-shadow:0 0 4px var(--gc,#fff);}
+.ig-up{position:absolute; left:3px; bottom:2px; font:800 10px var(--font-body,system-ui); color:#f6e3a1; text-shadow:0 1px 2px #000;}
+.ig-up.asc{color:#fff3c4; text-shadow:0 0 5px #f2c94c;}
+.ig-lock{position:absolute; right:2px; bottom:1px; font-size:10px; line-height:1;}
+.ig-lv{position:absolute; left:50%; bottom:-7px; transform:translateX(-50%); font:700 9px var(--font-body,system-ui); color:#cfc4ad; background:#0d0b08; border:1px solid #2a231a; border-radius:5px; padding:0 4px; line-height:13px;}
+.inv-grid{row-gap:12px;}
+
+/* v188: dicas do início */
+#tut-layer{position:fixed; inset:0; z-index:9000; pointer-events:none;}
+.tut-spot{position:fixed; border-radius:12px; box-shadow:0 0 0 9999px rgba(0,0,0,.62); border:2px solid #f3d98a; transition:all .25s ease; animation:tutPulse 1.6s ease-in-out infinite;}
+@keyframes tutPulse{50%{border-color:#fff3c4; box-shadow:0 0 0 9999px rgba(0,0,0,.62), 0 0 18px #f3d98a;}}
+.tut-bubble{--ax:50%; position:fixed; pointer-events:auto; background:linear-gradient(180deg,#221c12,#141009); border:1px solid #e3c063; border-radius:14px; padding:12px 14px 10px; box-shadow:0 12px 30px rgba(0,0,0,.6); color:var(--text,#ece3cf); animation:tutIn .3s ease-out;}
+.tut-bubble::after{content:""; position:absolute; left:var(--ax); bottom:-8px; width:14px; height:14px; margin-left:-7px; background:#141009; border-right:1px solid #e3c063; border-bottom:1px solid #e3c063; transform:rotate(45deg);}
+.tut-bubble.below::after{bottom:auto; top:-8px; background:#221c12; border:0; border-left:1px solid #e3c063; border-top:1px solid #e3c063;}
+@keyframes tutIn{from{opacity:0; transform:translateY(6px);}}
+.tut-h{display:flex; align-items:center; gap:8px; margin-bottom:4px;}
+.tut-h b{font-family:var(--font-display,Georgia); color:#f3d98a; font-size:15px; flex:1;}
+.tut-ic{font-size:20px;}
+.tut-n{font-size:11px; color:var(--text-muted,#9a9080);}
+.tut-bubble p{margin:0 0 10px; font-size:13px; line-height:1.45;}
+.tut-act{display:flex; justify-content:flex-end; gap:8px;}
+body.fx-off .tut-spot,body.fx-off .tut-bubble{animation:none;}

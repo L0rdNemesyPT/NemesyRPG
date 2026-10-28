@@ -2992,7 +2992,7 @@ function newPlayer(name, cls) {
   const abilities = {};
   CLASSES[cls].abilities.forEach(a => { abilities[a] = { level: 0 }; });
   return {
-    name: name || 'Herói', class: cls, evolution: null, level: 1, xp: 0, seenUpdate: UPDATE_NOTES.id,
+    name: name || 'Herói', class: cls, evolution: null, level: 1, xp: 0, seenUpdate: UPDATE_NOTES.id, tutorial: { seen: [], off: false },
     hp: base.hp, gold: 50,
     potions: { hp: 3, hp2: 0, def: 0, atk: 0, fortune: 0 },
     abilities,
@@ -5316,6 +5316,7 @@ function toast(msg) {
 }
 
 function showScreen(id) {
+  if (App.tutOpen) tutClose(false); // v188
   els('.screen').forEach(s => s.classList.remove('active'));
   $(id).classList.add('active');
   App.screen = id;
@@ -5923,6 +5924,7 @@ document.addEventListener('click', e => {
 });
 
 function renderHubTab() {
+  setTimeout(() => { try { tutCheck('hub'); } catch (e) {} }, 0); // v188
   renderStatusBar();
   if (App.tab === 'batalha') renderTabBatalha();
   else if (App.tab === 'heroi') renderTabHeroi();
@@ -11068,7 +11070,8 @@ function renderMochilaBody() {
           <div style="font-weight:700; font-family:var(--font-display);">🎒 ${list.length}${filtersActive ? ` de ${p.inventory.length}` : ''} ite${list.length === 1 ? 'm' : 'ns'}</div>
           <div class="tiny muted" style="margin-top:2px;">Valor de venda: 🪙 ${totalValue}</div>
         </div>
-        ${filtersActive ? `<button class="btn small ghost" data-inv-reset="1">✖ Limpar filtros</button>` : ''}
+        <div class="inv-view">${filtersActive ? `<button class="btn small ghost" data-inv-reset="1">✖ Filtros</button>` : ''}
+          <button class="inv-view-b${invGridOn() ? '' : ' on'}" data-inv-view="lista" aria-label="Ver em lista" title="Lista">☰</button><button class="inv-view-b${invGridOn() ? ' on' : ''}" data-inv-view="grelha" aria-label="Ver em grelha" title="Grelha">▦</button></div>
       </div>
     </div>`;
 
@@ -11133,7 +11136,18 @@ function renderMochilaBody() {
       </div>`;
     }).join('') : `<div class="empty-hint">Nenhum item com estes filtros.<br><button class="btn small ghost" style="margin-top:10px;" data-inv-reset="1">Limpar filtros</button></div>`;
 
-    body.innerHTML = summary + sortBar + slotBar + rarBar + sellBar + `<div style="margin-top:12px;">${cardsHtml}</div>`;
+    // v188: vista em grelha — quadrados com a cor da raridade; tocar abre a ficha (Comparar / Equipar / Vender).
+    const gridHtml = rows.length ? `<div class="inv-grid">${rows.map(({ item, cmp }) => {
+      const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
+      const mark = cmp.label.startsWith('Novo') ? '<span class="ig-mk new">★</span>' : cmp.cls === 'better' ? '<span class="ig-mk up">▲</span>' : '';
+      return `<button type="button" class="ig-cell" data-cmp-item="${item.id}" style="--c:${item.rarityColor || '#888'};" aria-label="${esc(item.name)}">
+        <span class="ig-ic">${itemIconHtml(item)}</span>${mark}
+        ${item.mythic === 'coracao_tita' ? '' : `<span class="ig-gems">${socks.map(g => `<i${g ? ` class="on" style="--gc:${(GEM_DEFS[g.type] || {}).color || '#fff'};"` : ''}></i>`).join('')}</span>`}
+        ${item.upgrade ? `<span class="ig-up${item.ascended ? ' asc' : ''}">+${item.upgrade}</span>` : ''}${item.locked ? '<span class="ig-lock">🔒</span>' : ''}
+        <span class="ig-lv">${item.itemLevel || 1}</span></button>`; }).join('')}</div>
+      <p class="tiny muted" style="margin-top:8px;">Toca num item para veres a ficha, comparar, equipar ou vender. ▲ melhor que o equipado · ★ espaço vazio.</p>` : cardsHtml;
+    body.innerHTML = summary + sortBar + slotBar + rarBar + sellBar + `<div style="margin-top:12px;">${invGridOn() ? gridHtml : cardsHtml}</div>`;
+    els('[data-inv-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); try { localStorage.setItem('nemesy_inv_view', b.dataset.invView); } catch (e) {} App.invView = b.dataset.invView; renderMochilaBody(); }));
 
     els('[data-equip-item]').forEach(b => b.addEventListener('click', () => equipItem(b.dataset.equipItem)));
     els('[data-cmp-item]').forEach(b => b.addEventListener('click', () => { sfx.click(); openItemCompareModal(b.dataset.cmpItem); }));
@@ -12207,6 +12221,91 @@ async function sellAllByRarity(rarityKey) {
   renderStatusBar();
   fxGoldGain(g0, p.gold);
   toast(`Vendidos ${matching.length} itens ${rarity.name} por ${total} ouro.`);
+}
+
+// v188: Mochila em lista ou em grelha (guardado neste aparelho).
+function invGridOn() {
+  if (App.invView) return App.invView === 'grelha';
+  try { App.invView = localStorage.getItem('nemesy_inv_view') || 'lista'; } catch (e) { App.invView = 'lista'; }
+  return App.invView === 'grelha';
+}
+// ============================================================
+// v188: DICAS DO INÍCIO — 7 dicas curtas para quem começa, cada uma mostrada uma vez no sítio certo.
+// p.tutorial = { seen: [ids], off: bool }. Quem já tinha a conta acima do Nv. 3 começa com elas desligadas.
+// Definições → "Rever as dicas do início" volta a ligá-las.
+// ============================================================
+const TUT_STEPS = [
+  { id: 'batalha', ctx: 'hub', when: () => App.tab === 'batalha', target: '.rm-map, [data-bl-wild]', icon: '⚔️', title: 'A tua primeira batalha',
+    text: 'Toca num monstro para lutar (os chefes têm a etiqueta CHEFE). Começa pelos de nível mais baixo da região.' },
+  { id: 'combate', ctx: 'combat', target: '#cb-btn-attack', icon: '🗡️', title: 'Combate',
+    text: 'Usa o Ataque Normal e as Habilidades quando estiverem prontas. Se a vida baixar, bebe uma Poção.' },
+  { id: 'espolio', ctx: 'end', target: '#cb-end-screen .card', icon: '🎁', title: 'Espólio',
+    text: 'O equipamento cai em Baús. Abre-os em Mochila → Baús e equipa os itens marcados com ▲ Melhor.' },
+  { id: 'mochila', ctx: 'hub', when: p => (p.chests || []).length > 0 && App.tab !== 'mochila', target: '#nav [data-tab="mochila"]', icon: '🎒', title: 'Mochila',
+    text: 'Tens baús por abrir! Na Mochila abres baús, equipas itens e encaixas gemas.' },
+  { id: 'heroi', ctx: 'hub', when: p => (p.level || 1) >= 3 && App.tab !== 'heroi', target: '#nav [data-tab="heroi"]', icon: '🧝', title: 'Herói',
+    text: 'Aqui sobes as Habilidades com Livros de Habilidades e escolhes uma Passiva nova a cada nível.' },
+  { id: 'cidade', ctx: 'hub', when: p => (p.level || 1) >= 5, target: '#nav [data-nav-more]', icon: '🏙️', title: 'Cidade',
+    text: 'Em Mais → Cidade tens a Loja (poções), o Ferreiro (melhorar itens) e os Trabalhos (minerar, pescar e mais).' },
+  { id: 'mapa', ctx: 'hub', when: p => (p.level || 1) >= 8 && App.tab !== 'mapa', target: '#nav [data-tab="mapa"]', icon: '🗺️', title: 'Mapa',
+    text: 'Derrota os chefes de cada região para abrires a seguinte. No Mapa estão também as dungeons, as torres e os desafios.' }
+];
+function tutState(p) {
+  if (!p) return null;
+  if (!p.tutorial || typeof p.tutorial !== 'object') p.tutorial = { seen: [], off: (p.level || 1) > 3 };
+  if (!Array.isArray(p.tutorial.seen)) p.tutorial.seen = [];
+  p.tutorial.seen = p.tutorial.seen.filter(id => TUT_STEPS.some(x => x.id === id));
+  p.tutorial.off = !!p.tutorial.off;
+  return p.tutorial;
+}
+function tutClose(mark) {
+  const L = document.getElementById('tut-layer');
+  if (L) { if (mark && App.tutOpen) { const t = tutState(App.player); if (!t.seen.includes(App.tutOpen)) t.seen.push(App.tutOpen); saveGame(); } L.remove(); }
+  App.tutOpen = null;
+  document.removeEventListener('pointerdown', tutOutside, true);
+  window.removeEventListener('resize', tutPlace);
+}
+function tutOutside(e) { const b = document.querySelector('#tut-layer .tut-bubble'); if (b && !b.contains(e.target)) tutClose(true); }
+function tutPlace() {
+  const L = document.getElementById('tut-layer'), st = TUT_STEPS.find(x => x.id === App.tutOpen);
+  if (!L || !st) return;
+  const el = document.querySelector(st.target);
+  if (!el) { tutClose(false); return; }
+  const r = el.getBoundingClientRect(), pad = 6, vh = window.innerHeight, vw = window.innerWidth;
+  const spot = L.querySelector('.tut-spot'), bub = L.querySelector('.tut-bubble');
+  Object.assign(spot.style, { left: `${r.left - pad}px`, top: `${r.top - pad}px`, width: `${r.width + pad * 2}px`, height: `${r.height + pad * 2}px` });
+  const bw = Math.min(320, vw - 24), below = r.top + r.height / 2 < vh * 0.5;
+  bub.style.width = bw + 'px';
+  bub.style.left = `${clamp(r.left + r.width / 2 - bw / 2, 12, vw - bw - 12)}px`;
+  bub.classList.toggle('below', below);
+  if (below) { bub.style.top = `${Math.min(vh - 12 - bub.offsetHeight, r.bottom + pad + 12)}px`; bub.style.bottom = ''; }
+  else { bub.style.top = ''; bub.style.bottom = `${Math.max(12, vh - r.top + pad + 12)}px`; }
+  const ax = clamp(r.left + r.width / 2 - parseFloat(bub.style.left), 18, bw - 18);
+  bub.style.setProperty('--ax', ax + 'px');
+}
+function tutShow(st) {
+  tutClose(false);
+  const t = tutState(App.player), n = TUT_STEPS.findIndex(x => x.id === st.id) + 1;
+  const L = document.createElement('div');
+  L.id = 'tut-layer';
+  L.innerHTML = `<div class="tut-spot"></div><div class="tut-bubble" role="dialog" aria-label="${esc(st.title)}">
+    <div class="tut-h"><span class="tut-ic">${st.icon}</span><b>${esc(st.title)}</b><span class="tut-n">${n}/${TUT_STEPS.length}</span></div>
+    <p>${st.text}</p>
+    <div class="tut-act"><button type="button" class="btn small ghost" data-tut-off>Saltar dicas</button><button type="button" class="btn small primary" data-tut-ok>Percebi</button></div></div>`;
+  document.body.appendChild(L);
+  App.tutOpen = st.id;
+  L.querySelector('[data-tut-ok]').addEventListener('click', () => { sfx.click(); tutClose(true); });
+  L.querySelector('[data-tut-off]').addEventListener('click', () => { sfx.click(); t.off = true; tutClose(true); toast('Dicas desligadas. Podes voltar a vê-las nas Definições.'); });
+  tutPlace();
+  setTimeout(() => { document.addEventListener('pointerdown', tutOutside, true); window.addEventListener('resize', tutPlace); }, 50);
+}
+// Mostra a próxima dica que faça sentido aqui (hub, combate ou fim do combate).
+function tutCheck(ctx) {
+  const p = App.player, t = tutState(p);
+  if (!t || t.off || App.tutOpen) return;
+  if (document.querySelector('#modal-overlay.active, #nx-confirm, .fx-overlay')) { if (!App.tutWait) { App.tutWait = true; setTimeout(() => { App.tutWait = false; tutCheck(ctx); }, 1500); } return; }
+  const st = TUT_STEPS.find(x => x.ctx === ctx && !t.seen.includes(x.id) && (!x.when || x.when(p)) && document.querySelector(x.target));
+  if (st) setTimeout(() => { if (!App.tutOpen && document.querySelector(st.target)) tutShow(st); }, ctx === 'end' ? 1400 : 500);
 }
 
 // v187: venda rápida — todos os Comuns e Incomuns da mochila (os 🔒 bloqueados ficam).
@@ -14450,6 +14549,7 @@ function startCombat(opts) {
   resetCombatScreenChrome();
   showScreen('screen-combat');
   addCombatLog({ text: hordeN > 1 ? `👥 Uma horda de ${hordeN} × ${opts.name} apareceu! Todos atacam em cada ronda.` : `Um(a) ${opts.name} apareceu!`, cls: 'good' });
+  setTimeout(() => { try { tutCheck('combat'); } catch (e) {} }, 300); // v188
   if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (App.combat.isCultBoss) {
@@ -16284,6 +16384,7 @@ function showCombatEnd(won, info) {
       <button class="btn primary block" id="btn-combat-continue">Voltar ao Mapa</button>`;
   }
   endEl.innerHTML = html;
+  if (won) setTimeout(() => { try { tutCheck('end'); } catch (e) {} }, 0); // v188
   if ((App.player.elemPotionBattles || 0) > 0) App.player.elemPotionBattles--; // v181: Poção Elemental gasta 1 batalha
   fxCombatEndClasses(won);
   if (won) fxVictoryScreen(info);
@@ -17108,7 +17209,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v187</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v188</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -17135,6 +17236,13 @@ function openSettingsModal() {
         : `<p class="tiny" style="margin:6px 0 8px;">Podes mudar o nome <b>uma única vez</b>, por 🪙${RENAME_COST} (tens 🪙${p.gold}).</p>
            <input class="name-input" id="rename-input" maxlength="16" placeholder="Novo nome (até 16 letras)" autocomplete="off" style="margin-bottom:8px;">
            <button class="btn primary block" id="btn-rename-hero" ${p.gold < RENAME_COST ? 'disabled' : ''}>Mudar nome (🪙${RENAME_COST})</button>`}
+    </div>
+    <div class="card raised" style="margin-bottom:12px;">
+      <div class="row" style="justify-content:space-between; align-items:center; gap:8px;">
+        <span style="font-weight:700;">💡 Dicas do início</span>
+        <button class="btn small" id="btn-tut-reset">Rever as dicas</button>
+      </div>
+      <p class="tiny muted" style="margin-top:6px;">${TUT_STEPS.length} dicas curtas que aparecem no sítio certo enquanto jogas.</p>
     </div>
     <div class="card raised" style="margin-bottom:12px;">
       <span style="font-weight:700;">🎼 Tema musical</span>
@@ -17190,6 +17298,7 @@ function openSettingsModal() {
   els('[data-fx-level]').forEach(b => b.addEventListener('click', () => { setFxLevel(b.dataset.fxLevel); sfx.click(); openSettingsModal(); }));
   const adminBtn = $('btn-open-admin');
   if (adminBtn) adminBtn.addEventListener('click', () => { closeModal(); App.tab = 'criador'; els('.nav-btn').forEach(b => b.classList.remove('active')); renderHubTab(); });
+  { const tb = $('btn-tut-reset'); if (tb) tb.addEventListener('click', () => { App.player.tutorial = { seen: [], off: false }; saveGame(); closeModal(); toast('💡 As dicas do início vão voltar a aparecer.'); App.tab = 'batalha'; goHub(); }); } // v188
   const renameBtn = $('btn-rename-hero');
   if (renameBtn) renameBtn.addEventListener('click', renameHero);
   const installBtn = $('btn-install-app');
@@ -17372,6 +17481,7 @@ function applyPlayerMigrations(player) {
   ensureFoodBuffs(player);
   ensureMeals(player);
   ensureHideout(player); // v119: Esconderijo
+  tutState(player); // v188: dicas do início
   { const cm = enforceCaps(player); if (cm.length) setTimeout(() => { try { toast(cm.join(' · ')); } catch (e) {} }, 2500); } // v187
   if (!player.fightDifficulty) player.fightDifficulty = 'comum';
   if (!player.divinoUnlocked && player.season && (Number((player.season.progress || {})[10]) > 0 || (player.season.claimed || []).includes(10))) player.divinoUnlocked = true;
