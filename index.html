@@ -374,7 +374,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- ACCOUNT ENTRY -->
   <div class="screen" id="screen-account">
-    <span class="app-version-badge" id="app-version-badge">V 1.9.1</span>
+    <span class="app-version-badge" id="app-version-badge">V 2.0.1</span>
     <div class="account-lang" role="group" aria-label="Língua">
       <button type="button" data-login-lang="pt" aria-label="Português"><span class="al-flag">🇵🇹</span>PT</button>
       <button type="button" data-login-lang="en" aria-label="English"><span class="al-flag">🇬🇧</span>EN</button>
@@ -2614,12 +2614,14 @@ const CHEST_DEFS = {
   pedras: { name: 'Baú de Pedras', icon: '🧰', desc: 'Contém 1–2 Pedras de Alquimia.' },
   feitico: { name: 'Baú de Feitiço', icon: '✨', desc: 'Contém um Pergaminho de Feitiço ou de Reforço.' },
   ostra: { name: 'Ostra', icon: '🦪', desc: 'Contém uma Pérola... ou apenas uma Pedra.' },
-  temporada1: { name: 'Baú da Temporada 1 ⭐', icon: '🌟', desc: 'Exclusivo da Temporada 1. Contém 1 item Lendário, Único ou Divino. Abre-se de graça.' }
+  temporada1: { name: 'Baú da Temporada 1 ⭐', icon: '🌟', desc: 'Exclusivo da Temporada 1. Contém 1 item Lendário, Único ou Divino. Abre-se de graça.' },
+  vazio: { name: 'Baú do Vazio', icon: '🟪', desc: '2 Recompensas de Nível e 1 peça de equipamento (qualidade +3). Abre-se de graça.' },
+  vazio2: { name: 'Baú do Vazio Maior', icon: '🟪', desc: '3 Recompensas de Nível, 1 peça de equipamento (qualidade +4) e 25% de Pedra Nephalen. Abre-se de graça.' }
 };
 function chestCost(type, level) {
   if (type === 'feitico') return 150;
   if (type === 'pedras') return Math.round(15 + (level || 1) * 2);
-  if (type === 'ostra' || type === 'temporada1') return 0;
+  if (type === 'ostra' || type === 'temporada1' || type === 'vazio' || type === 'vazio2') return 0;
   return Math.round(20 + (level || 1) * 4);
 }
 // Pérolas — obtidas ao abrir Ostras pescadas. Puramente coleção por agora.
@@ -4436,10 +4438,278 @@ function gemEsLeech(c, pStats, dealt) {
   bs.es = Math.min(bs.esMax, bs.es + Math.max(1, Math.round(dealt * pStats.esLeech)));
 }
 function mythExecute(c, p) {
-  if (!c || !c.enemy || c.enemy.hp <= 0 || c.isBoss || c.isMiniBoss || c.isSoberano) return;
+  if (!c || !c.enemy || c.enemy.hp <= 0 || c.isBoss || c.isMiniBoss || c.isSoberano || (c.isObelisk && !c.horde)) return;
   if (c.enemy.hp >= c.enemy.maxHp * 0.15 || !hasMyth(p, 'sede_carrasco')) return;
   c.enemy.hp = 0;
   addCombatLog({ text: '🪓 Sede do Carrasco: execução!', cls: 'crit' });
+}
+
+
+// ============================================================
+// 🔮 OBELISCOS DO VAZIO (v190) — aparecem sozinhos nos mapas das regiões (separador Batalha).
+// Combate longo: Casca de Cristal (no máx. 6% da vida por ronda), 4 ondas de monstros a 80/60/40/20%
+// (o Obelisco fica imune até a onda cair), regenera 2% por ronda e, no fim, a Fúria do Vazio ataca.
+// Escala com o nível do jogador e com a dificuldade escolhida. Máx. 10 por dia (bónus ao 5.º e ao 10.º).
+// ============================================================
+const OB = { NAME: 'Obelisco do Vazio', ICON: '🔮', MIN_LV: 10, DAILY: 10, MAX_ACTIVE: 2, LIFE_MS: 30 * 60e3, GAP_MIN: 10 * 60e3, GAP_MAX: 15 * 60e3,
+  HP_MULT: 5, DEF_MULT: 1.3, CAP: 0.06, REGEN: 0.01, WAVES: [0.8, 0.6, 0.4, 0.2], WAVE_N: 2, WAVE_MULT: 1.0, WAVE_HEAL: 0.20, FURY_PCT: 0.05,
+  XP_MULT: 4, GOLD_MULT: 4, DUST_150: 0.05 };
+function obState(p) {
+  if (!p.obel || typeof p.obel !== 'object') p.obel = {};
+  const o = p.obel, day = soberanoDay();
+  if (o.day !== day) { o.day = day; o.count = 0; }
+  o.count = clamp(Math.floor(Number(o.count) || 0), 0, OB.DAILY);
+  o.spawns = (Array.isArray(o.spawns) ? o.spawns : []).filter(x => x && typeof x.id === 'string' && Number.isFinite(x.exp) && REGIONS[x.region]
+    && Number.isFinite(x.x) && Number.isFinite(x.y)).slice(0, OB.MAX_ACTIVE);
+  o.nextAt = Number.isFinite(o.nextAt) ? o.nextAt : 0;
+  return o;
+}
+// Faz nascer obeliscos conforme o tempo passou (também quem esteve fora). Devolve true se mudou algo.
+function obTick(p) {
+  if (!p || (p.level || 1) < OB.MIN_LV) return false;
+  const o = obState(p), now = Date.now();
+  const n0 = o.spawns.length, ids0 = o.spawns.map(x => x.id).join();
+  o.spawns = o.spawns.filter(x => x.exp > now);
+  if (!o.nextAt) o.nextAt = now;
+  let guard = 0;
+  while (o.nextAt <= now && guard++ < 20) {
+    const t0 = o.nextAt;
+    o.nextAt = t0 + OB.GAP_MIN + Math.random() * (OB.GAP_MAX - OB.GAP_MIN);
+    if (t0 + OB.LIFE_MS <= now) continue; // já teria desaparecido
+    if (o.spawns.length >= OB.MAX_ACTIVE || o.count + o.spawns.length >= OB.DAILY) continue;
+    const maxR = Math.min(p.regionIndex || 0, REGIONS.length - 1);
+    o.spawns.push({ id: 'ob' + Math.random().toString(36).slice(2, 8), region: Math.floor(Math.random() * (maxR + 1)),
+      x: Math.round(18 + Math.random() * 64), y: Math.round(28 + Math.random() * 50), t0, exp: t0 + OB.LIFE_MS });
+  }
+  const changed = o.spawns.length !== n0 || o.spawns.map(x => x.id).join() !== ids0;
+  if (changed) saveGame();
+  return changed;
+}
+function obLeftTxt(ms) { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+function obIc(cls) { return nxIconsEnabled() && NX_ICON_IMG.has('monstro-obelisco-do-vazio') ? nxIconSvg('monstro-obelisco-do-vazio', cls) : OB.ICON; }
+// Cartão por cima do mapa: contador do dia e obeliscos ativos.
+function obCardHtml(p, ri) {
+  if ((p.level || 1) < OB.MIN_LV) return '';
+  const o = obState(p), now = Date.now();
+  const pips = Array.from({ length: OB.DAILY }, (_, i) => `<i class="${i < o.count ? 'on' : ''}${i === 4 || i === 9 ? ' bonus' : ''}"></i>`).join('');
+  const rows = o.spawns.map(x => { const r = REGIONS[x.region], here = x.region === ri;
+    return `<div class="ob-row"><span class="ob-row-t"><b>${esc(r.name)}</b><small>Nv. ${p.level} · desaparece em <span data-ob-left="${x.exp}">${obLeftTxt(x.exp - now)}</span></small></span>
+      <button type="button" class="btn small ${here ? 'danger' : 'ghost'}" ${here ? `data-ob-fight="${x.id}"` : `data-ob-go="${x.region}"`}>${here ? '⚔️ Atacar' : 'Ir'}</button></div>`; }).join('');
+  const done = o.count >= OB.DAILY;
+  const next = !done && o.spawns.length < OB.MAX_ACTIVE && o.count + o.spawns.length < OB.DAILY ? `<small class="ob-next">Próximo obelisco em <span data-ob-left="${o.nextAt}">${obLeftTxt(o.nextAt - now)}</span></small>` : '';
+  return `<div class="ob-card">
+    <div class="ob-head"><span class="ob-ic">${obIc('ob-img')}</span><div class="ob-ht"><b>Obeliscos do Vazio · ${o.count}/${OB.DAILY} hoje</b>
+      <small>${done ? 'Já destruíste os 10 de hoje. Voltam amanhã.' : 'Ao 5.º: Baú do Vazio · Ao 10.º: Baú do Vazio Maior'}</small><div class="ob-pips">${pips}</div></div>
+      <button type="button" class="ob-help" data-ob-help aria-label="Como funcionam">?</button></div>
+    ${rows}${next}
+  </div>`;
+}
+function obMapTokensHtml(p, ri) {
+  if ((p.level || 1) < OB.MIN_LV) return '';
+  return obState(p).spawns.filter(x => x.region === ri).map(x => `<button type="button" class="ob-tok" data-ob-fight="${x.id}" style="left:${x.x}%;top:${x.y}%;" aria-label="${OB.NAME}">
+    <span class="ob-tok-ic">${obIc('ob-img')}</span><b>${OB.NAME}</b><span class="ob-tok-t">NV. ${p.level} · <span data-ob-left="${x.exp}">${obLeftTxt(x.exp - Date.now())}</span></span></button>`).join('');
+}
+function obBindBatalha(p) {
+  els('[data-ob-fight]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); startObelisk(b.dataset.obFight); }));
+  els('[data-ob-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); sfx.tab(); App.selectedRegionIndex = Number(b.dataset.obGo); renderTabBatalha(); }));
+  els('[data-ob-help]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.wikiTab = 'obeliscos'; setTab('wiki'); }));
+  clearInterval(App.obTimer);
+  App.obTimer = setInterval(() => {
+    if (App.tab !== 'batalha' || App.combat || !document.querySelector('#screen-hub.active')) { clearInterval(App.obTimer); return; }
+    const now = Date.now();
+    els('[data-ob-left]').forEach(el => { el.textContent = obLeftTxt(Number(el.dataset.obLeft) - now); });
+    if (obTick(App.player) && !document.querySelector('#modal-overlay.active')) renderTabBatalha();
+  }, 1000);
+}
+function obDiffScale(e, diff) {
+  if (diff.statMult > 1) {
+    e.hp = Math.round(e.hp * (diff.hpMult || diff.statMult));
+    e.dmg = Math.round(e.dmg * (diff.dmgMult || diff.statMult));
+    e.def = Math.round(e.def * (diff.defMult || diff.statMult));
+  }
+  e.maxHp = e.hp;
+  return e;
+}
+function obDiff(p) {
+  let d = MONSTER_DIFFICULTY.find(x => x.key === (p.fightDifficulty || 'comum')) || MONSTER_DIFFICULTY[0];
+  if (!difficultyUnlocked(p, d)) d = MONSTER_DIFFICULTY[0];
+  return d;
+}
+function startObelisk(id) {
+  if (!guardAllowsFight(() => startObelisk(id))) return;
+  const p = App.player, o = obState(p);
+  obTick(p);
+  const sp = o.spawns.find(x => x.id === id);
+  if (!sp) { sfx.error(); toast('Este obelisco já desapareceu.'); renderHubTab(); return; }
+  if (o.count >= OB.DAILY) { sfx.error(); toast('Já destruíste os 10 obeliscos de hoje.'); return; }
+  sfx.click();
+  const diff = obDiff(p), lvl = Math.min(MAX_LEVEL, p.level || 1);
+  const e = obDiffScale(enemyStatsFor(lvl, true), diff);
+  e.hp = Math.round(e.hp * OB.HP_MULT); e.maxHp = e.hp; e.def = Math.round(e.def * OB.DEF_MULT);
+  App.combat = {
+    kind: 'obelisk', isObelisk: true, obId: id, obRegion: sp.region, name: OB.NAME, icon: OB.ICON, level: lvl, isBoss: false, monsterName: null,
+    difficulty: diff.key, gapMult: 1, isDungeon: false,
+    enemy: Object.assign(e, { element: null, critImmune: false, category: 'outro' }),
+    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false },
+    cooldowns: {}, log: [], eventApplied: null, ended: false,
+    ob: { next: 0, fury: false, mark: e.hp, capLogs: 0 }
+  };
+  App.combat.ob.enemy = App.combat.enemy;
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `🔮 Um Obelisco do Vazio crava-se no chão de ${REGIONS[sp.region].name}!`, cls: 'crit' });
+  addCombatLog({ text: `🛡️ Casca de Cristal: só perde ${Math.round(OB.CAP * 100)}% da vida por ronda e regenera ${Math.round(OB.REGEN * 100)}% (nunca acima da última onda). A 80%, 60%, 40% e 20% chama uma onda de monstros.`, cls: 'hit' });
+  if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: o Obelisco e as ondas estão mais fortes, mas o espólio também melhora.`, cls: 'hit' });
+  renderCombat();
+}
+// Depois dos golpes do jogador (e do aliado/estados): Casca de Cristal e limiares das ondas.
+// Devolve true se a ronda acabou aqui (começou uma onda).
+function obAfterHits(c, p) {
+  const ob = c.ob, e = c.enemy, cap = Math.max(1, Math.round(e.maxHp * OB.CAP));
+  if (ob.mark - e.hp > cap) {
+    e.hp = ob.mark - cap;
+    if (ob.capLogs++ < 2) addCombatLog({ text: `🛡️ Casca de Cristal: o Obelisco só perde ${Math.round(OB.CAP * 100)}% da vida por ronda.`, cls: 'hit' });
+  }
+  const th = OB.WAVES[ob.next];
+  if (th !== undefined && e.hp <= e.maxHp * th) {
+    e.hp = Math.max(1, Math.round(e.maxHp * th));
+    ob.next++;
+    obSpawnWave(c, p, th);
+    combatRoundTail(c, p, true);
+    return true;
+  }
+  return false;
+}
+const OB_EKEYS = ['enemyStatus', 'enemyStunned', 'enemyDefDebuff', 'enemyRegenBlocked', 'enemyCurse', 'enemyTurnCount', 'bossEnraged'];
+function obSpawnWave(c, p, th) {
+  const ob = c.ob, bs = c.battleState;
+  ob.enemy = c.enemy;
+  ob.st = {}; OB_EKEYS.forEach(k => { ob.st[k] = bs[k]; });
+  const region = REGIONS[c.obRegion] || REGIONS[0];
+  const m = region.monsters[Math.floor(Math.random() * region.monsters.length)];
+  const diff = MONSTER_DIFFICULTY.find(d => d.key === c.difficulty) || MONSTER_DIFFICULTY[0];
+  const mk = () => { const e = obDiffScale(enemyStatsFor(c.level, false), diff); e.hp = Math.round(e.hp * OB.WAVE_MULT); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * OB.WAVE_MULT); e.def = Math.round(e.def * OB.WAVE_MULT); return Object.assign(e, { element: null, critImmune: false, category: m.category || 'outro' }); };
+  bs.enemyStatus = []; bs.enemyStunned = false; bs.enemyDefDebuff = null; bs.enemyRegenBlocked = 0; bs.enemyCurse = null; bs.enemyTurnCount = 0; bs.bossEnraged = false;
+  c.name = m.name; c.icon = m.icon; c.monsterName = m.name;
+  c.enemy = mk();
+  hordeInit(c, Array.from({ length: OB.WAVE_N - 1 }, mk));
+  addCombatLog({ text: `🔮 O Obelisco pulsa (${Math.round(th * 100)}%)! Uma onda de ${OB.WAVE_N} × ${m.name} sai da fenda. O Obelisco fica imune até a onda cair.`, cls: 'crit' });
+  try { sfx.evolve(); } catch (e) {}
+}
+// Vez do Obelisco (sem onda): regenera e, na Fúria do Vazio, ataca.
+function obTurn(c, p) {
+  const e = c.enemy, bs = c.battleState, pStats = effectiveStats(p);
+  if (bs.enemyRegenBlocked > 0) addCombatLog({ text: '☣️ O veneno impede o Obelisco de regenerar.', cls: 'good' });
+  else if (e.hp > 0) {
+    // v190: só regenera até ao último patamar de onda já passado — o progresso nunca se perde.
+    const ceil = Math.round(e.maxHp * (c.ob.next > 0 ? OB.WAVES[c.ob.next - 1] : 1));
+    const heal = Math.max(0, Math.min(ceil - e.hp, Math.round(e.maxHp * OB.REGEN)));
+    if (heal > 0) { e.hp += heal; addCombatLog({ text: `🔮 O Obelisco regenera ${nxNum(heal)} de vida.`, cls: 'hit' }); }
+  }
+  if (c.ob.fury) {
+    const raw = Math.max(1, Math.round(pStats.hp * OB.FURY_PCT));
+    const dmg = absorbEs(c, raw, true);
+    p.hp -= dmg;
+    addCombatLog({ text: `🌑 Fúria do Vazio: o pulso tira-te ${nxNum(raw)} de vida (ignora a defesa).`, cls: 'hit' });
+    sfx.pain(false);
+  }
+}
+// Fim de uma onda ou do Obelisco.
+function obOnDefeated() {
+  const c = App.combat, p = App.player, ob = c.ob;
+  if (c.horde) {
+    addCombatLog({ text: `💀 A onda de ${c.name} caiu!`, cls: 'crit' });
+    c.horde = null; c.hordeIdx = 0; c.hordeLoot = null;
+    c.enemy = ob.enemy; c.name = OB.NAME; c.icon = OB.ICON; c.monsterName = null;
+    OB_EKEYS.forEach(k => { c.battleState[k] = ob.st ? ob.st[k] : null; });
+    if (!Array.isArray(c.battleState.enemyStatus)) c.battleState.enemyStatus = [];
+    const st = effectiveStats(p), heal = Math.min(st.hp - p.hp, Math.round(st.hp * OB.WAVE_HEAL));
+    if (heal > 0) { p.hp += heal; addCombatLog({ text: `💚 A corrupção recua: recuperas ${nxNum(heal)} de vida.`, cls: 'good' }); }
+    c.battleState.hpPotionsUsed = 0; // v190: depois de cada onda voltas a poder beber 2 poções
+    if (ob.next >= OB.WAVES.length && !ob.fury) { ob.fury = true; addCombatLog({ text: `🌑 O Obelisco entra em Fúria do Vazio! A partir de agora, cada ronda tira-te ${Math.round(OB.FURY_PCT * 100)}% da vida.`, cls: 'hit' }); }
+    else addCombatLog({ text: `🔮 Volta a atacar o Obelisco (${Math.round(c.enemy.hp / c.enemy.maxHp * 100)}% de vida).`, cls: 'good' });
+    ob.mark = c.enemy.hp;
+    sfx.questdone();
+    renderCombat();
+    return;
+  }
+  addCombatLog({ text: `🔮 O Obelisco do Vazio desfaz-se em pó!`, cls: 'crit' });
+  c._fxLogIdx = c.log.length;
+  fxEnemyDie();
+  sfx.enemyDown();
+  seasonOnEnemyDefeated(c);
+  finishObelisk();
+}
+// Recompensa útil para a fase do jogador (uma ao acaso, conforme o nível).
+function obLevelReward(p, lvl) {
+  const add = (o, k, n) => { o[k] = (o[k] || 0) + n; };
+  const opts = lvl < 60 ? [
+    [3, () => { add(p.scrolls, 'feitico', 2); return '📜 Pergaminho de Feitiço ×2'; }],
+    [3, () => { add(p.scrolls, 'reforco', 2); return '🔧 Pergaminho de Reforço ×2'; }],
+    [2, () => { add(p.potions, 'hp2', 5); return '⚗️ Poção de HP Maior ×5'; }],
+    [2, () => { const t = randomAlchemyType(); grantAlchemyStone(p, t, 2); return `${ALCHEMY_STONE_DEFS[t].icon} ${ALCHEMY_STONE_DEFS[t].name} Nv. 2`; }]
+  ] : lvl < 100 ? [
+    [3, () => { add(p, 'skillBooks', 2); return '📖 Livro de Habilidades ×2'; }],
+    [2, () => { const h = huntState(p); if ((p.level || 1) >= HUNT_MIN_LV && h.bag.length < HUNT_BAG_MAX) { const g = Math.max(1, huntMaxGrau(p, h)); h.bag.push(huntNewContract(g)); return `📜 Contrato de Caça (Grau ${HUNT_ROM[g]})`; } add(p, 'skillBooks', 2); return '📖 Livro de Habilidades ×2'; }],
+    [2, () => { add(p.scrolls, 'feitico', 3); return '📜 Pergaminho de Feitiço ×3'; }],
+    [2, () => { add(p.scrolls, 'reforco', 3); return '🔧 Pergaminho de Reforço ×3'; }]
+  ] : lvl < 150 ? [
+    [3, () => { if (!p.pearls) p.pearls = newPearlsBag(); const ks = Object.keys(p.pearls); const got = {}; for (let i = 0; i < 3; i++) { const k = ks[Math.floor(Math.random() * ks.length)]; p.pearls[k]++; got[k] = (got[k] || 0) + 1; } return '🦪 Pérolas: ' + Object.keys(got).map(k => { const d = PEARL_TABLE.find(x => x.key === k); return `${d ? d.icon : '⚪'} ×${got[k]}`; }).join(' '); }],
+    [2, () => { add(p.potions, 'elem', 3); return '🔮 Poção Elemental ×3'; }],
+    [3, () => { add(p, 'skillBooks', 2); return '📖 Livro de Habilidades ×2'; }],
+    [2, () => { const k = Math.random() < 0.5 ? 'feiticoPlus' : 'reforcoPlus'; add(p.scrolls, k, 1); return k === 'feiticoPlus' ? '📜➕ Pergaminho de Feitiço ➕' : '🔧➕ Pergaminho de Reforço ➕'; }]
+  ] : [
+    [2, () => { add(p, 'poEstelar', 1); return '✨ Pó Estelar'; }],
+    [3, () => { add(p, 'skillBooks', 3); return '📖 Livro de Habilidades ×3'; }],
+    [2, () => { add(p, 'smithBooks', 1); return '📕 Livro do Ferreiro'; }],
+    [1, () => { if (!p.pearls) p.pearls = newPearlsBag(); const ks = Object.keys(p.pearls); const k = ks[Math.floor(Math.random() * ks.length)]; p.pearls[k] += 3; const d = PEARL_TABLE.find(x => x.key === k); return `🦪 Pérolas: ${d ? d.icon : '⚪'} ×3`; }],
+    [2, () => { const k = Math.random() < 0.5 ? 'feiticoPlus' : 'reforcoPlus'; add(p.scrolls, k, 1); return k === 'feiticoPlus' ? '📜➕ Pergaminho de Feitiço ➕' : '🔧➕ Pergaminho de Reforço ➕'; }]
+  ];
+  let r = Math.random() * opts.reduce((a, o) => a + o[0], 0);
+  for (const [w, fn] of opts) { if ((r -= w) < 0) return `⭐ Recompensa de Nível: ${fn()}`; }
+  return `⭐ Recompensa de Nível: ${opts[0][1]()}`;
+}
+function obGemTier(lvl) { return lvl < 60 ? 0 : lvl < 100 ? (Math.random() < 0.5 ? 1 : 0) : lvl < 150 ? 1 : (Math.random() < 0.5 ? 2 : 1); }
+function finishObelisk() {
+  const c = App.combat, p = App.player, o = obState(p), pStats = effectiveStats(p), lvl = c.level;
+  const diff = MONSTER_DIFFICULTY.find(d => d.key === c.difficulty) || MONSTER_DIFFICULTY[0];
+  o.spawns = o.spawns.filter(x => x.id !== c.obId);
+  o.count = Math.min(OB.DAILY, o.count + 1);
+  const xpGain = Math.round((35 + lvl * 4.5) * OB.XP_MULT * diff.xpMult * (1 + battleXpBonus(c)));
+  const goldGain = Math.round((30 + lvl * 4) * OB.GOLD_MULT * diff.goldMult * (1 + (pStats.goldPct || 0)));
+  p.gold += goldGain; grantXp(xpGain);
+  p.stats.wins++;
+  const drops = [`🔮 Obelisco do Vazio destruído! (${o.count}/${OB.DAILY} hoje)`];
+  const n = 2 + (Math.random() < 0.5 ? 1 : 0), gotG = {};
+  for (let i = 0; i < n; i++) {
+    const types = Object.keys(GEM_DEFS), t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(lvl);
+    if (!Array.isArray(p.gems[t])) p.gems[t] = Array(GEM_TIERS).fill(0);
+    p.gems[t][tier]++; const k = t + ':' + tier; gotG[k] = (gotG[k] || 0) + 1;
+  }
+  Object.keys(gotG).forEach(k => { const [t, tier] = k.split(':'); drops.push(`${GEM_DEFS[t].icon} ${gemFullName(t, +tier)}${gotG[k] > 1 ? ` ×${gotG[k]}` : ''}`); });
+  const q = 2 + (diff.qualityBoost || 0);
+  p.chests.push(newChest('equip', lvl, q));
+  drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} — qualidade +${q} (abre na Mochila)`);
+  drops.push(obLevelReward(p, lvl));
+  if (lvl >= 150 && Math.random() < OB.DUST_150) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); }
+  if (o.count === 5) { p.chests.push(newChest('vazio', lvl, 3)); drops.push(`${CHEST_DEFS.vazio.icon} ${CHEST_DEFS.vazio.name}! 5.º obelisco do dia (abre na Mochila → Baús)`); }
+  if (o.count === OB.DAILY) { p.chests.push(newChest('vazio2', lvl, 4)); drops.push(`${CHEST_DEFS.vazio2.icon} ${CHEST_DEFS.vazio2.name}! 10.º obelisco do dia (abre na Mochila → Baús)`); }
+  if (p.fortuneBattlesLeft > 0) p.fortuneBattlesLeft--;
+  tickProfessionCooldowns(p);
+  consumeTalismanBattle();
+  saveGame();
+  sfx.evolve();
+  showCombatEnd(true, { xpGain, goldGain, drops, isBoss: true });
+}
+// Baús do Vazio: Recompensas de Nível + 1 peça de equipamento de qualidade alta.
+function openVoidChest(p, chest) {
+  const big = chest.type === 'vazio2', lv = chest.level || p.level || 1;
+  const lines = Array.from({ length: big ? 3 : 2 }, () => obLevelReward(p, lv));
+  if (big && Math.random() < 0.25) { p.nephalemStones = (p.nephalemStones || 0) + 1; lines.push('💎 Pedra Nephalen!'); } // v190: nephalem fica rara (igual ao Soberano)
+  const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+  const item = generateItem(slot, lv, null, big ? 4 : 3);
+  p.inventory.push(item);
+  return { lines, item };
 }
 
 // Efeitos únicos que só existem em itens especiais (não fazem parte do BONUS_PLUS_POOL,
@@ -6281,6 +6551,7 @@ const WIKI_GROUPS = [
     { key: 'soberano', label: 'Boss Soberano', icon: '👑' },
     { key: 'contratos', label: 'Contratos de Caça', icon: '📜' },
     { key: 'elementos', label: 'Elementos', icon: '🔥', nxKey: 'elemento-fogo' },
+    { key: 'obeliscos', label: 'Obeliscos do Vazio', icon: '🔮', nxKey: 'monstro-obelisco-do-vazio' },
     { key: 'eventos', label: 'Eventos', icon: '🌩️' },
     { key: 'baus', label: 'Baús', icon: '🎁' },
     { key: 'mercadonegro', label: 'Mercado Negro', icon: '🏴‍☠️' },
@@ -6490,6 +6761,23 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
         <p class="tiny" style="margin-top:6px;">Na Fase 1 o Soberano usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao descer da metade do HP, enfurece: muda de forma, fica mais forte, regenera vida em cada ronda, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
+  } else if (t === 'obeliscos') {
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">O Vazio crava obeliscos nas regiões. Aparecem sozinhos no mapa do separador Batalha (a partir do Nv. ${OB.MIN_LV}): um novo a cada ${OB.GAP_MIN / 60000}–${OB.GAP_MAX / 60000} minutos, no máximo ${OB.MAX_ACTIVE} de cada vez, e cada um desaparece ao fim de ${OB.LIFE_MS / 60000} minutos. Podes destruir <b>${OB.DAILY} por dia</b>.</p>
+      <div class="card raised"><span style="font-weight:700;">⚔️ O combate</span>
+        <p class="tiny" style="margin-top:6px;">🛡️ <b>Casca de Cristal</b>: nenhuma ronda lhe tira mais de ${Math.round(OB.CAP * 100)}% da vida, por mais forte que sejas. Regenera ${Math.round(OB.REGEN * 100)}% por ronda, mas nunca acima do patamar da última onda que já venceste — o progresso não se perde (o veneno impede a regeneração).</p>
+        <p class="tiny" style="margin-top:4px;">🌊 A 80%, 60%, 40% e 20% da vida pulsa e chama uma onda de ${OB.WAVE_N} monstros da região, reforçados (+${Math.round((OB.WAVE_MULT - 1) * 100)}%). Enquanto a onda está viva, o Obelisco fica imune. Cada onda vencida devolve-te ${Math.round(OB.WAVE_HEAL * 100)}% da vida.</p>
+        <p class="tiny" style="margin-top:4px;">🌑 <b>Fúria do Vazio</b>: depois da última onda, o Obelisco ataca — cada ronda tira-te ${Math.round(OB.FURY_PCT * 100)}% da vida, ignorando a defesa.</p>
+        <p class="tiny" style="margin-top:4px;">📈 Tem sempre o teu nível e a dificuldade escolhida no separador Batalha (Comum → Divino) também conta.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🎁 Espólio</span>
+        <p class="tiny" style="margin-top:6px;">XP e ouro ×${OB.XP_MULT} de um chefe do teu nível · 2–3 gemas (T1 até ao Nv. 59, T1–T2 até ao 99, T2 até ao 149, T2–T3 no 150+) · Baú de Equipamento (qualidade +2, mais a da dificuldade) · 1 Recompensa de Nível · ✨ Pó Estelar (${Math.round(OB.DUST_150 * 100)}%, Nv. 150+).</p>
+        <p class="tiny" style="margin-top:4px;">${nxEnt('bau-vazio', '🟪')} Ao 5.º obelisco do dia: <b>Baú do Vazio</b> (2 Recompensas de Nível + 1 peça de qualidade +3). Ao 10.º: <b>Baú do Vazio Maior</b> (3 Recompensas + 1 peça de qualidade +4 + 25% de 💎 Pedra Nephalen).</p>
+        <p class="tiny" style="margin-top:4px;">As ondas não dão espólio próprio.</p></div>
+      <div class="card raised"><span style="font-weight:700;">⭐ Recompensa de Nível</span>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Nível</th><th>Uma destas, ao acaso</th></tr>
+        <tr><td>1–59</td><td>Pergaminhos de Feitiço ou Reforço ×2, Poções de HP Maior ×5, Pedra de Alquimia Nv. 2</td></tr>
+        <tr><td>60–99</td><td>Livros de Habilidades ×2, Contrato de Caça, Pergaminhos ×3</td></tr>
+        <tr><td>100–149</td><td>Pérolas ×3, Poções Elementais ×3, Livros de Habilidades ×2, Pergaminho ➕</td></tr>
+        <tr><td>150+</td><td>Pó Estelar, Pedra Nephalen (10%), Livro do Ferreiro, Pergaminho ➕</td></tr></table></div>`;
   } else if (t === 'miticos') {
     const p = App.player, found = mythicFoundSync(p);
     const bossLv = n => { const b = ALL_BOSSES.find(x => x.name === n); return b ? b.lv : null; };
@@ -7817,6 +8105,7 @@ function regionListHtml(p, region, diff, pillsHtml) {
 function renderTabBatalha() {
   const p = App.player;
   ensureQuest();
+  obTick(p); // v190: Obeliscos do Vazio
   const maxR = Math.min(p.regionIndex, REGIONS.length - 1);
   if (App.selectedRegionIndex > maxR) App.selectedRegionIndex = maxR;
   const ri = App.selectedRegionIndex;
@@ -7891,8 +8180,10 @@ function renderTabBatalha() {
       <button type="button" class="${listView ? '' : 'on'}" data-bt-view="mapa">${icon('map', '🗺️', 'bt-view-ic')}Mapa</button>
       <button type="button" class="${listView ? 'on' : ''}" data-bt-view="lista"><span class="bt-view-lines"><i></i><i></i><i></i></span>Lista</button>
     </div>
-    ${listView ? regionListHtml(p, region, activeDiff, questHtml + eventHtml) : regionMapHtml(p, region, questHtml + eventHtml)}
+    ${obCardHtml(p, ri)}
+    ${listView ? regionListHtml(p, region, activeDiff, questHtml + eventHtml) : regionMapHtml(p, region, questHtml + eventHtml + obMapTokensHtml(p, ri))}
   `;
+  obBindBatalha(p); // v190
 
   // Regiões: setas ‹ ›
   const goRegion = i => { if (i < 0 || i > maxR || i === App.selectedRegionIndex) return; sfx.tab(); App.selectedRegionIndex = i; renderTabBatalha(); };
@@ -11424,7 +11715,7 @@ function chestBatchCost(p, type, qty) {
 }
 // O servidor recusa saves com mais de INVENTORY_MAX itens na mochila.
 const INVENTORY_MAX = 1500;
-function chestGivesItem(type) { return type === 'equip' || type === 'temporada1'; }
+function chestGivesItem(type) { return type === 'equip' || type === 'temporada1' || type === 'vazio' || type === 'vazio2'; }
 // Quantos baús deste tipo dá para abrir agora (ouro e espaço na mochila).
 function chestOpenMax(p, type) {
   const list = chestsInOpenOrder(p, type);
@@ -11622,6 +11913,20 @@ function openChest(chestId) {
       resultHtml = `<p class="tiny">${pearl.icon} Encontraste uma <b>${pearl.name}</b>!</p>`;
     }
     sfx.equip();
+  } else if (chest.type === 'vazio' || chest.type === 'vazio2') { // v190: Baús do Vazio
+    const r = openVoidChest(p, chest); revealItem = r.item;
+    const cmp = compareToEquipped(r.item, p);
+    resultHtml = `${r.lines.map(t => `<p class="tiny" style="margin-bottom:4px;">${t}</p>`).join('')}
+      <div class="item-row" style="${rarityBoxStyle(r.item)} margin-top:8px;">
+        <div class="item-ic">${itemIconHtml(r.item)}</div>
+        <div class="item-mid">
+          <div class="item-name"><span class="rarity-ic">${rarIc(r.item.rarity, r.item.rarityIcon)}</span>${r.item.name}</div>
+          <div class="item-sub tiny" style="color:${r.item.rarityColor}">Nv.${r.item.itemLevel || 1} · ${r.item.rarityName}</div>
+          <div class="item-stats">${itemStatsLine(r.item)}</div>
+          <div class="item-compare ${cmp.cls}">${cmp.label}</div>
+        </div>
+      </div>`;
+    sfx.evolve();
   } else if (chest.type === 'temporada1') {
     const item = rollSeasonChestItem(p);
     p.inventory.push(item); revealItem = item;
@@ -11666,7 +11971,7 @@ function openAllChestsByType(type, qty) {
 
   openModal(`
     <h3 style="margin-bottom:12px;">${def.icon} Abrir ${matching.length} ${def.name}${matching.length > 1 ? '(s)' : ''}?</h3>
-    <div class="card raised"><p class="tiny">Custa <b>🪙 ${totalCost}</b> ao todo. Tens 🪙 ${p.gold}.</p></div>
+    <div class="card raised"><p class="tiny">${totalCost > 0 ? `Custa <b>🪙 ${totalCost}</b> ao todo. Tens 🪙 ${p.gold}.` : 'Abrem-se de graça.'}</p></div>
     <div class="row" style="gap:8px; margin-top:14px;">
       <button class="btn ghost block" id="btn-cancel-open-chests">Cancelar</button>
       <button class="btn primary block" id="btn-confirm-open-chests">Abrir</button>
@@ -11689,6 +11994,7 @@ function performOpenAllChests(type, matching, totalCost) {
   const stonesFound = {};
   const pearlsFound = {};
   let feiticoFound = 0, reforcoFound = 0, pedrasFound = 0;
+  const voidLines = [];
 
   matching.forEach(chest => {
     if (chest.type === 'equip') {
@@ -11696,6 +12002,10 @@ function performOpenAllChests(type, matching, totalCost) {
       const item = generateItem(slot, chest.level, null, chest.qualityBoost);
       p.inventory.push(item);
       equipFound.push(item);
+    } else if (chest.type === 'vazio' || chest.type === 'vazio2') { // v190
+      const r = openVoidChest(p, chest);
+      equipFound.push(r.item);
+      voidLines.push(...r.lines);
     } else if (chest.type === 'temporada1') {
       const item = rollSeasonChestItem(p);
       p.inventory.push(item);
@@ -11735,6 +12045,7 @@ function performOpenAllChests(type, matching, totalCost) {
     resultHtml += `<p class="tiny">${pdef.icon} ${pdef.name} ×${pearlsFound[pkey]}</p>`;
   });
   if (pedrasFound) resultHtml += `<p class="tiny">🪨 Pedra (sem valor) ×${pedrasFound}</p>`;
+  resultHtml += hordeCompactDrops(voidLines).map(t => `<p class="tiny">${t}</p>`).join('');
 
   openModal(`
     <h3 style="margin-bottom:12px;">${def.icon} ${matching.length} baús abertos!</h3>
@@ -14374,7 +14685,7 @@ function hordeKill(c, m) {
   hordeSwitch(c, idx);
   m.dead = true; m.enemy.hp = 0;
   seasonOnEnemyDefeated(c);
-  const r = wildRewardRoll(c);
+  const r = c.isObelisk ? { xpGain: 0, goldGain: 0, drops: [] } : wildRewardRoll(c); // v190: as ondas do Obelisco não dão espólio
   hordeAddLoot(c, r);
   hordeSwitch(c, cur);
   addCombatLog({ text: `💀 ${m.label} foi derrotado! +${r.xpGain} XP · +${r.goldGain} 🪙`, cls: 'crit' });
@@ -15687,6 +15998,7 @@ function postPlayerAction() {
     c.battleState.enemyStatus = c.battleState.enemyStatus.filter(s => s.duration > 0);
   }
   huntReflect(c, p);
+  if (c.isObelisk && !c.horde && obAfterHits(c, p)) return; // v190: Casca de Cristal / ondas
   if (c.enemy.hp <= 0) { handleEnemyDefeated(); return; }
   if (c.battleState.enemyStunned) {
     addCombatLog({ text: 'O inimigo está atordoado e perde a ronda.', cls: 'good' });
@@ -15700,6 +16012,7 @@ function postPlayerAction() {
 }
 // Fim de cada ronda: buffs/debuffs descem 1, regeneração do herói e desenhar o ecrã.
 function combatRoundTail(c, p, tickEnemy) {
+  if (c.isObelisk && !c.horde && c.ob) c.ob.mark = c.enemy.hp; // v190
   if (c.battleState.critBuff) {
     if (c.battleState.critBuff.fresh) c.battleState.critBuff.fresh = false;
     else c.battleState.critBuff.rounds--;
@@ -15778,6 +16091,7 @@ function resolveEnemyTurn(opts) {
     tickPlayerDots(c, p);
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) return;
   }
+  if (c.isObelisk && !c.horde) { obTurn(c, p); return; } // v190: o Obelisco não ataca (só na Fúria)
   bossPhaseCheck(c);
   soberanoStageCheck(c);
   const cName = hordeLabel(c);
@@ -15924,6 +16238,7 @@ function resolveEnemyTurn(opts) {
 
 function handleEnemyDefeated() {
   const c = App.combat;
+  if (c.isObelisk) { obOnDefeated(); return; } // v190
   addCombatLog({ text: `${c.icon} ${hordeLabel(c)} foi derrotado!`, cls: 'crit' });
   c._fxLogIdx = c.log.length;
   fxEnemyDie();
@@ -17020,7 +17335,7 @@ function renderCombat() {
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -17215,7 +17530,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v189</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v190</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -17391,6 +17706,7 @@ function wireStaticEvents() {
       toast(kept ? `Fugiste da dungeon. 🎒 +${nxNum(kept.xp)} XP · +${nxNum(kept.gold)} 🪙` : 'Fugiste da dungeon.');
       return;
     }
+    if (c && c.isObelisk) { sfx.flee(); App.combat = null; App.tab = 'batalha'; goHub(); toast('Fugiste. O Obelisco continua no mapa, mas recupera a vida toda.'); return; } // v190
     sfx.flee(); App.combat = null; goHub(); toast('Fugiste do combate.');
   });
   $('modal-overlay').addEventListener('click', (e) => { if (e.target.id === 'modal-overlay') closeModal(); });
@@ -17548,7 +17864,7 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 1.9.1';
+const APP_VERSION_LABEL = 'V 2.0.1';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
   { id: 'v181', title: 'V 1.9.1 · Elementos! 🔥🧊⚡🪨', items: [
@@ -18344,7 +18660,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
