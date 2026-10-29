@@ -2451,3 +2451,11 @@ body.fx-off .tut-spot,body.fx-off .tut-bubble{animation:none;}
 .ob-tok-t{margin-top:3px; font:800 10px var(--font-body,system-ui); letter-spacing:.05em; color:#2a0a12; background:linear-gradient(180deg,#ffb3bd,#ff5a6a); border-radius:6px; padding:2px 6px; white-space:nowrap;}
 .ob-tok:focus-visible .ob-tok-ic{outline:2px solid #fff; outline-offset:2px;}
 body.fx-off .ob-tok-ic{animation:none;}
+
+/* v191: forja em todos os espaços — grelha 3×3 */
+.ho-forge-pick{grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.ho-forge-pick .ho-fp{flex-direction:column;align-items:center;gap:4px;padding:8px 4px 7px;text-align:center;}
+.ho-forge-pick .ho-fp span{align-items:center;width:100%;}
+.ho-forge-pick .ho-fp b{font-size:11.5px;}
+.ho-forge-pick .ho-fp small{font-size:9.5px;max-width:100%;}
+.ho-forge-pick .ho-fp .nx-ic,.ho-forge-pick .ho-fp-empty{width:32px;height:32px;}
