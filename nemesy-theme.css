@@ -2459,3 +2459,43 @@ body.fx-off .ob-tok-ic{animation:none;}
 .ho-forge-pick .ho-fp b{font-size:11.5px;}
 .ho-forge-pick .ho-fp small{font-size:9.5px;max-width:100%;}
 .ho-forge-pick .ho-fp .nx-ic,.ho-forge-pick .ho-fp-empty{width:32px;height:32px;}
+
+/* v192: Persistência da Forja */
+.ho-pity{display:flex;align-items:center;gap:10px;margin-top:10px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#140e09;}
+.ho-pity-ic{font-size:20px;filter:grayscale(1) opacity(.45);flex:none;}
+.ho-pity>div{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25;}
+.ho-pity b{font-family:var(--font-display);font-size:12.5px;color:var(--muted);}
+.ho-pity small{font-size:10.5px;color:var(--muted);}
+.ho-pity-pips{display:flex;gap:3px;flex:none;}
+.ho-pity-pips i{width:9px;height:16px;border-radius:3px;background:#2a2017;border:1px solid #3a2c1f;}
+.ho-pity-pips i.on{background:linear-gradient(#FFD27A,#FF7A2E);border-color:#FF9A3E;box-shadow:0 0 6px rgba(255,140,50,.6);}
+.ho-pity.lit{border-color:rgba(255,140,50,.55);background:linear-gradient(90deg,rgba(255,120,40,.12),#140e09 70%);}
+.ho-pity.lit .ho-pity-ic{filter:none;}
+.ho-pity.lit b{color:#FFB357;}
+
+/* v195: Lutar outra vez */
+.end-actions{display:flex;gap:8px;width:100%;}
+.end-actions .btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:48px;}
+.end-actions .btn small{font-size:10.5px;font-weight:600;opacity:.85;}
+.end-actions .btn small.low{color:#FFB0A0;opacity:1;}
+
+/* v195: Painel "Hoje" */
+.td-card{margin:0 0 9px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(180deg,#17110b,#100c08);overflow:hidden;}
+.td-head{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;background:none;border:0;color:var(--parchment);cursor:pointer;text-align:left;}
+.td-h-ic{font-size:16px;}
+.td-head b{font-family:var(--font-display);font-size:14px;color:var(--gold-bright);}
+.td-count{margin-left:auto;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(228,191,74,.14);color:var(--gold-bright);border:1px solid rgba(228,191,74,.35);}
+.td-count.all{background:rgba(142,224,106,.12);color:var(--craft-green,#8EE06A);border-color:rgba(142,224,106,.35);}
+.td-head em{font-style:normal;color:var(--muted);font-size:12px;width:12px;text-align:center;}
+.td-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:0 10px 10px;}
+.td-chip{position:relative;display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:9px;background:#120d08;color:var(--parchment);text-align:left;cursor:pointer;min-width:0;}
+.td-ic{width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;font-size:18px;}
+.td-ic .nx-ic,.td-ic img,.td-ic svg{width:26px;height:26px;}
+.td-t{display:flex;flex-direction:column;min-width:0;line-height:1.2;}
+.td-t b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-t small{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.td-chip.ready{border-color:rgba(228,191,74,.6);background:linear-gradient(90deg,rgba(228,191,74,.13),#120d08 75%);}
+.td-chip.ready small{color:var(--gold-bright);}
+.td-chip.done{opacity:.55;}
+.td-dot{position:absolute;top:6px;right:7px;width:8px;height:8px;border-radius:50%;background:var(--gold-bright);box-shadow:0 0 6px rgba(228,191,74,.9);}
+.td-ok{position:absolute;top:4px;right:7px;font-style:normal;font-size:11px;color:var(--craft-green,#8EE06A);}

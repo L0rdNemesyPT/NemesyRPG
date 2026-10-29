@@ -374,7 +374,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- ACCOUNT ENTRY -->
   <div class="screen" id="screen-account">
-    <span class="app-version-badge" id="app-version-badge">V 2.0.1</span>
+    <span class="app-version-badge" id="app-version-badge">V 2.0.2</span>
     <div class="account-lang" role="group" aria-label="Língua">
       <button type="button" data-login-lang="pt" aria-label="Português"><span class="al-flag">🇵🇹</span>PT</button>
       <button type="button" data-login-lang="en" aria-label="English"><span class="al-flag">🇬🇧</span>EN</button>
@@ -4494,6 +4494,50 @@ function obTick(p) {
   if (changed) saveGame();
   return changed;
 }
+// ---------- v195: Painel "Hoje" (separador Batalha) — o que está pronto ou por fazer hoje ----------
+function todayItems(p) {
+  const L = [], lv = p.level || 1, h = p.hideout;
+  const add = (key, ic, label, state, sub) => L.push({ key, ic, label, state, sub });
+  add('diaria', nxEnt('chest', '🎁'), 'Prémio Diário', dailyAvailable(p) ? 'ready' : 'done', dailyAvailable(p) ? 'Por receber' : 'Recebida');
+  if (lv >= OB.MIN_LV) { const o = obState(p); add('obelisco', obIc('nx-inline'), 'Obeliscos', o.count >= OB.DAILY ? 'done' : o.spawns.length ? 'ready' : 'todo', `${o.count}/${OB.DAILY} hoje${o.spawns.length ? ` · ${o.spawns.length} no mapa` : ''}`); }
+  if (lv >= SOBERANOS[0].minLv) { const left = SOBERANO_DAILY_TRIES - soberanoState(p).tries; add('soberano', nxCreature(SOBERANOS[0].name, '👑'), 'Boss Soberano', left > 0 ? 'todo' : 'done', left > 0 ? `${left}/${SOBERANO_DAILY_TRIES} tentativas` : 'Sem tentativas'); }
+  if (lv >= HUNT_MIN_LV) { const hs = huntState(p); add('contratos', '📜', 'Contrato grátis', hs.freeUsed ? 'done' : 'ready', hs.freeUsed ? 'Já levantado' : 'No quadro'); }
+  if (h) {
+    const ready = hoReadyCount(p), free = expeditionSlots(p) - (h.exp || []).length;
+    add('expedicoes', nxEnt('esconderijo-expedicoes', '🗺️'), 'Expedições', ready ? 'ready' : free > 0 ? 'todo' : 'done', ready ? `${ready} pronta${ready > 1 ? 's' : ''} a recolher` : free > 0 ? `${free} vaga${free > 1 ? 's' : ''} livre${free > 1 ? 's' : ''}` : 'A decorrer');
+    const rw = restReadyIn(p); add('lareira', nxEnt('flame', '🔥'), 'Lareira', rw <= 0 ? 'ready' : 'done', rw <= 0 ? 'Podes descansar' : `Daqui a ${hoTimeLeft(rw)}`);
+  }
+  if (guildBadge()) add('guild', nxEnt('guild', GUILD_TILE_ICON), 'Guild', 'ready', 'Recompensa pronta');
+  const sr = seasonReadyCount(p); if (sr) add('temporada', '🎮', 'Temporada', 'ready', `${sr} recompensa${sr > 1 ? 's' : ''}`);
+  return L;
+}
+function todayOpen() { try { return localStorage.getItem('nemesy_today') !== '0'; } catch (e) { return true; } }
+function todayCardHtml(p) {
+  const L = todayItems(p), left = L.filter(x => x.state !== 'done').length, open = todayOpen();
+  const order = { ready: 0, todo: 1, done: 2 };
+  const chips = L.slice().sort((a, b) => order[a.state] - order[b.state]).map(x => `<button type="button" class="td-chip ${x.state}" data-today="${x.key}">
+      <span class="td-ic">${x.ic}</span><span class="td-t"><b>${x.label}</b><small>${x.sub}</small></span>${x.state === 'done' ? '<i class="td-ok">✓</i>' : x.state === 'ready' ? '<i class="td-dot"></i>' : ''}</button>`).join('');
+  return `<div class="td-card${open ? ' open' : ''}">
+    <button type="button" class="td-head" data-today-toggle><span class="td-h-ic">📅</span><b>Hoje</b>
+      <span class="td-count${left ? '' : ' all'}">${left ? `${left} por fazer` : 'Tudo feito ✓'}</span><em>${open ? '▴' : '▾'}</em></button>
+    ${open ? `<div class="td-grid">${chips}</div>` : ''}
+  </div>`;
+}
+function todayBind() {
+  els('[data-today-toggle]').forEach(b => b.addEventListener('click', () => { sfx.tab(); try { localStorage.setItem('nemesy_today', todayOpen() ? '0' : '1'); } catch (e) {} renderTabBatalha(); }));
+  const go = (tab, extra) => { Object.assign(App, extra || {}); setTab(tab); window.scrollTo(0, 0); };
+  els('[data-today]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.today;
+    if (k === 'diaria') go('loja', { lojaTab: 'diaria' });
+    else if (k === 'obelisco') { sfx.tab(); const el = document.querySelector('.ob-card'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    else if (k === 'soberano') go('mapa', { mapaTab: 'soberano' });
+    else if (k === 'contratos') go('loja', { lojaTab: 'contratos' });
+    else if (k === 'expedicoes') go('heroi', { heroiTab: 'esconderijo', hoStation: 'expedicoes', guildTab: null });
+    else if (k === 'lareira') go('heroi', { heroiTab: 'esconderijo', hoStation: 'lareira', guildTab: null });
+    else if (k === 'guild') go('heroi', { heroiTab: 'guild', guildTab: null });
+    else if (k === 'temporada') go('loja', { lojaTab: 'temporada' });
+  }));
+}
 function obLeftTxt(ms) { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 function obIc(cls) { return nxIconsEnabled() && NX_ICON_IMG.has('monstro-obelisco-do-vazio') ? nxIconSvg('monstro-obelisco-do-vazio', cls) : OB.ICON; }
 // Cartão por cima do mapa: contador do dia e obeliscos ativos.
@@ -8214,10 +8258,12 @@ function renderTabBatalha() {
       <button type="button" class="${listView ? '' : 'on'}" data-bt-view="mapa">${icon('map', '🗺️', 'bt-view-ic')}Mapa</button>
       <button type="button" class="${listView ? 'on' : ''}" data-bt-view="lista"><span class="bt-view-lines"><i></i><i></i><i></i></span>Lista</button>
     </div>
+    ${todayCardHtml(p)}
     ${obCardHtml(p, ri)}
     ${listView ? regionListHtml(p, region, activeDiff, questHtml + eventHtml) : regionMapHtml(p, region, questHtml + eventHtml + obMapTokensHtml(p, ri))}
   `;
   obBindBatalha(p); // v190
+  todayBind(); // v195
 
   // Regiões: setas ‹ ›
   const goRegion = i => { if (i < 0 || i > maxR || i === App.selectedRegionIndex) return; sfx.tab(); App.selectedRegionIndex = i; renderTabBatalha(); };
@@ -8256,8 +8302,8 @@ function renderTabBatalha() {
     if (b.classList.contains('on')) return;
     sfx.tab(); setRegionViewMode(b.dataset.btView); renderTabBatalha();
   }));
-  const fightWild = m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: p.level, category: m.category || 'outro', count: hordeSize(p) });
-  const fightBoss = boss => startCombat({ kind: 'boss', name: boss.name, icon: boss.icon, level: boss.lv, regionIndex: App.selectedRegionIndex, isGate: boss.isGate, category: boss.category });
+  const fightWild = m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: p.level, category: m.category || 'outro', count: hordeSize(p), repeat: true });
+  const fightBoss = boss => startCombat({ kind: 'boss', name: boss.name, icon: boss.icon, level: boss.lv, regionIndex: App.selectedRegionIndex, isGate: boss.isGate, category: boss.category, repeat: true });
   if (listView) {
     clearInterval(App.rmTimer);
     els('[data-bl-wild]').forEach(b => b.addEventListener('click', () => fightWild(region.monsters[Number(b.dataset.blWild)])));
@@ -14952,6 +14998,7 @@ function startCombat(opts) {
     cooldowns: {}, log: [], eventApplied, ended: false
   };
   if (opts.extra) Object.assign(App.combat, opts.extra); // v174
+  if (opts.repeat && !App.combat.isCultBoss) App.combat.repeatOpts = Object.assign({}, opts); // v195: Lutar outra vez
   if (hordeN > 1) hordeInit(App.combat, hordeExtra);
   resetCombatScreenChrome();
   showScreen('screen-combat');
@@ -16782,7 +16829,9 @@ function showCombatEnd(won, info) {
       </div>
       <div class="end-xp"><div class="end-xp-top tiny"><span>Nv. ${pl.level}${lvlUp ? ' ⬆️' : ''}</span><span>${maxed ? 'Máximo' : xpTo + '%'}</span></div><div class="end-xp-bar"><i data-to="${xpTo}"${lvlUp ? ' data-lvl="1"' : ''} style="width:${xpFrom}%;"></i></div></div>
       ${info.drops && info.drops.length ? `<div class="card raised${anim ? ' loot-anim' : ''}" style="text-align:left; width:100%; border-left:3px solid var(--gold-bright);"><div class="tiny muted" style="margin-bottom:6px; font-weight:700;">🎁 Espólio</div>${info.drops.map((d, i) => `<p class="tiny loot-line ${lootLineClass(d)}" style="margin-top:4px; animation-delay:${(0.55 + i * 0.16).toFixed(2)}s;">✦ ${rarLead(d)}</p>`).join('')}</div>` : ''}
-      <button class="btn primary block" id="btn-combat-continue">Continuar</button>`;
+      ${c.repeatOpts && !c.isTower && !c.isHunt ? (() => { const ps = effectiveStats(pl), hpPct = Math.min(100, Math.max(0, Math.round(pl.hp / Math.max(1, ps.hp) * 100)));
+        return `<div class="end-actions"><button class="btn danger" id="btn-combat-repeat">⚔️ Lutar outra vez<small class="${hpPct < 35 ? 'low' : ''}">❤️ ${hpPct}% HP</small></button>
+        <button class="btn primary" id="btn-combat-continue">Continuar</button></div>`; })() : `<button class="btn primary block" id="btn-combat-continue">Continuar</button>`}`;
   } else {
     html = `<div class="glyph">💀</div><h2 style="color:var(--blood-bright); font-family:var(--font-display);">Derrota</h2>
       <div class="card raised" style="width:100%; border-left:3px solid var(--blood-bright);"><p class="tiny">Perdeste 10% do teu ouro${c.goldLost ? ` (🪙 ${c.goldLost})` : ''} e voltaste à cidade com metade do teu HP máximo. Não desistas, herói.</p>${c.horde && c.hordeLoot && c.hordeLoot.kills ? `<p class="tiny" style="margin-top:6px;">👥 Derrotaste ${c.hordeLoot.kills} de ${c.horde.length} da horda e ficaste com <b>+${c.hordeLoot.xp} XP</b> e <b>+${c.hordeLoot.gold} 🪙</b>${c.hordeLoot.drops.length ? ` e ${c.hordeLoot.drops.length} drop${c.hordeLoot.drops.length > 1 ? 's' : ''}` : ''}. O bónus da horda perdeu-se.</p>` : ''}${c.bagKept ? `<p class="tiny" style="margin-top:6px;">🎒 Ficaste com metade do saco da dungeon: <b>+${nxNum(c.bagKept.xp)} XP</b> e <b>+${nxNum(c.bagKept.gold)} 🪙</b>.</p>` : ''}</div>
@@ -16804,6 +16853,13 @@ function showCombatEnd(won, info) {
   if (wasHunt && won) $('btn-combat-continue').textContent = 'Voltar aos Contratos';
   const towerBackKey = c.towerKey || (App.player.tower && App.player.tower.key) || TOWERS[0].key;
   if (wasTower && won) $('btn-combat-continue').textContent = App.player.tower ? (App.player.tower.maze ? 'Continuar no labirinto' : 'Continuar a subir ↑') : 'Voltar ao Mapa';
+  const rep = won && c.repeatOpts && !wasTower && !wasHunt ? c.repeatOpts : null;
+  if (rep && $('btn-combat-repeat')) $('btn-combat-repeat').addEventListener('click', () => {
+    const pl = App.player, o = Object.assign({}, rep);
+    if (o.kind === 'wild') { o.level = pl.level; o.count = hordeSize(pl); }
+    App.combat = null;
+    startCombat(o);
+  });
   $('btn-combat-continue').addEventListener('click', () => {
     App.combat = null;
     if (wasTower) { App.tab = 'mapa'; App.mapaTab = 'tower:' + towerBackKey; goHub(); return; }
@@ -17620,7 +17676,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v194</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v195</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -17954,9 +18010,16 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 2.0.1';
+const APP_VERSION_LABEL = 'V 2.0.2';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v195', title: 'V 2.0.2 · Obeliscos do Vazio! 🔮', items: [
+    ['🔮', 'Novo no separador Batalha (Nv. 10+): os Obeliscos do Vazio aparecem no mapa de tempos a tempos. São difíceis de destruir — a Casca de Cristal só deixa tirar 6% da vida por ronda e chamam ondas de monstros — mas o espólio vale a pena: gemas, Baú de Equipamento de qualidade alta e uma Recompensa de Nível. Até 10 por dia, com Baús do Vazio ao 5.º e ao 10.º.'],
+    ['⚒️', 'Bancada de Craft: agora podes forjar todas as peças de equipamento +9 (Capacete, Luvas, Botas, Capa, Secundária, Amuleto e Artefacto), cada uma com os seus bónus de Craft.'],
+    ['🔥', 'Nova Persistência da Forja: cada falhança num item dá +3% na tentativa seguinte, até +15%. Acabaram-se as sequências de azar.'],
+    ['📅', 'Novo painel "Hoje" no separador Batalha e botão "Lutar outra vez" no fim dos combates.'],
+    ['🛠️', 'Correção de bugs: os saves que deixavam de sincronizar (por exemplo, depois de abrir muitos baús de uma vez) já não ficam presos, e as mensagens de erro dizem agora o que fazer.']
+  ] },
   { id: 'v181', title: 'V 1.9.1 · Elementos! 🔥🧊⚡🪨', items: [
     ['🔥', 'A partir do nível 100, todos os monstros e chefes têm um elemento: Fogo, Gelo, Eletricidade ou Terra, cada um com o seu efeito.'],
     ['🛡️', 'Novas Resistências elementais (máx. 75%): todo o equipamento de nível 100+ tem resistências, incluindo os itens que já tens. Vê-as em Mochila → Equipamento.'],
