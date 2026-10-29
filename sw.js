@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nemesy-rpg-v193';
+const CACHE_NAME = 'nemesy-rpg-v194';
 // v189: as imagens (ícones, mapas, avatares) ficam numa cache própria que NÃO é apagada nos updates.
 // Cada imagem é guardada com o endereço completo (incluindo ?v=…): só se descarrega outra vez quando
 // a versão dessa imagem muda, e a versão antiga é apagada nessa altura.

@@ -5098,6 +5098,22 @@ function flushCloudSave() {
   syncCloudSaveNow();
 }
 
+// v194: porquê da última falha de sincronização — aparece nas mensagens "antes de doar/trocar/…".
+let lastSyncFail = '';
+function syncFailMsg(base) {
+  const b = String(base).replace(/\.$/, '');
+  return lastSyncFail ? `${b}: ${lastSyncFail}` : `${b}.`;
+}
+function syncRejectText(msg) {
+  const r = String(msg || '').replace(/^.*SAVE_REJECTED:?\s*/s, '').trim();
+  const inv = (App.player && App.player.inventory || []).length;
+  if (/mochila com itens a mais/.test(r)) { const mm = r.match(/\((\d+)\/(\d+)\)/), lim = mm ? Number(mm[2]) : INVENTORY_MAX;
+    return `a mochila tem ${inv} itens e o servidor só aceita até ${lim}. Vende ou desmancha ${Math.max(1, inv - lim)} e tenta outra vez.`; }
+  const num = (r.match(/\+\d+/) || [''])[0];
+  if (/itens novos a mais/.test(r)) return `apanhaste muitos itens de uma vez${num ? ` (${num})` : ''}. Espera uns minutos ou vende/desmancha alguns e tenta outra vez.`;
+  if (/ouro a subir/.test(r)) return `o ouro subiu muito depressa${num ? ` (${num})` : ''}. Espera uns minutos e tenta outra vez.`;
+  return r ? `o servidor recusou o progresso (${r}).` : 'o servidor recusou o progresso.';
+}
 function syncCloudSaveNow() {
   const run = syncChain.then(doSyncCloudSave, doSyncCloudSave);
   syncChain = run.catch(() => {});
@@ -5105,7 +5121,10 @@ function syncCloudSaveNow() {
 }
 
 async function doSyncCloudSave() {
-  if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player) return false;
+  if (!cloudClient || !cloudUser || !cloudSaveReady || !App.player) {
+    lastSyncFail = !cloudClient || !cloudUser ? 'não tens sessão iniciada na conta.' : !cloudSaveReady ? 'o save da conta ainda está a carregar. Espera uns segundos e tenta outra vez.' : '';
+    return false;
+  }
   const userId = cloudUser.id;
   const revision = localSaveRevision;
   const localUpdatedAt = localSaveUpdatedAt;
@@ -5128,12 +5147,14 @@ async function doSyncCloudSave() {
     }));
     cloudSaveErrorShown = false;
     saveRejectedShown = false;
+    lastSyncFail = '';
     if (App.player && App.player.renamePrev) { delete App.player.renamePrev; saveGame(); }
     if (revision !== localSaveRevision) queueCloudSave();
     return true;
   } catch (error) {
     console.error('Falha ao sincronizar save:', error);
     if (String(error.message || '').includes('SAVE_CONFLICT')) {
+      lastSyncFail = 'o jogo foi guardado noutro dispositivo ou separador. A carregar o progresso mais recente da conta — tenta outra vez daqui a pouco.';
       cloudSaveReady = false;
       cloudHydrationUserId = null;
       setTimeout(() => {
@@ -5142,16 +5163,19 @@ async function doSyncCloudSave() {
       return false;
     }
     if (String(error.message || '').includes('NAME_TAKEN')) {
+      lastSyncFail = 'o nome do herói já está a ser usado por outro jogador.';
       handleHeroNameTaken();
       return false;
     }
     if (String(error.message || '').includes('SAVE_REJECTED')) {
+      lastSyncFail = syncRejectText(error.message);
       if (!saveRejectedShown) {
-        toast('O servidor recusou este progresso (valores acima do limite). O save local foi mantido; tenta de novo mais tarde.');
+        toast(`O progresso não foi guardado na conta: ${lastSyncFail} O save local foi mantido.`);
         saveRejectedShown = true;
       }
       return false;
     }
+    lastSyncFail = /fetch|network|failed to|timeout|load failed/i.test(String(error.message || '')) ? 'sem ligação ao servidor. Verifica a internet e tenta outra vez.' : `erro do servidor (${String(error.message || 'desconhecido').slice(0, 120)}).`;
     if (!cloudSaveErrorShown) {
       toast('Save local guardado, mas não foi possível sincronizar com a conta.');
       cloudSaveErrorShown = true;
@@ -7487,7 +7511,7 @@ async function listTradeItem(itemId, priceArg) {
   }
   setTradeBusy(true, 'A colocar o item à venda…');
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de anunciar.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes de anunciar.'));
     const { data, error } = await cloudClient.rpc('create_trade_listing', { p_item_id: itemId, p_price: price });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -7507,7 +7531,7 @@ async function listTradeGoods(g, qty, unit) {
   if (!Number.isSafeInteger(unit) || unit < 1 || unit * qty > 2147483647) { toast('O preço total não pode passar de 2 147 483 647 ouro.'); return; }
   setTradeBusy(true, 'A colocar à venda…');
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de anunciar.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes de anunciar.'));
     const { data, error } = await cloudClient.rpc('create_goods_listing', { p_kind: g.kind, p_key: g.kind === 'talisma' ? g.talId : g.key, p_sub: Number(g.sub) || 0, p_qty: qty, p_unit: unit });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -7535,7 +7559,7 @@ async function buyTradeItem(listingId, button, confirmed) {
   }
   setTradeBusy(true, 'A concluir a compra…');
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes da compra.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes da compra.'));
     const { data, error } = await cloudClient.rpc('purchase_trade_listing', { p_listing_id: listingId });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -7553,7 +7577,7 @@ async function cancelTradeItem(listingId, button) {
   if (tradeBusy) { toast('Aguarda um momento…'); return; }
   setTradeBusy(true, 'A retirar o anúncio…');
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de retirar o anúncio.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes de retirar o anúncio.'));
     const { data, error } = await cloudClient.rpc('cancel_trade_listing', { p_listing_id: listingId });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -9944,7 +9968,7 @@ async function respondFriendTrade(t, accept, f) {
   } else if (!await nxConfirm(`Recusar a proposta de ${f.name}? Tudo volta para ${f.name}.`, { title: 'Recusar', icon: '❌', confirmLabel: 'Recusar', danger: true })) return;
   setTradeBusy(true, accept ? 'A concluir a troca…' : 'A recusar…');
   try {
-    if (accept && !await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes da troca.');
+    if (accept && !await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes da troca.'));
     const { data, error } = await cloudClient.rpc('respond_friend_trade', { p_trade: t.id, p_accept: accept });
     if (error) throw error;
     if (data && data.save_data) updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -9961,7 +9985,7 @@ async function cancelFriendTrade(id, f) {
   if (!await nxConfirm('Cancelar esta proposta? Os teus itens e ouro voltam para ti.', { title: 'Cancelar troca', icon: '↩️', confirmLabel: 'Cancelar troca' })) return;
   setTradeBusy(true, 'A cancelar…');
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save.'));
     const { data, error } = await cloudClient.rpc('cancel_friend_trade', { p_trade: id });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -10084,7 +10108,7 @@ async function sendFriendTrade(f) {
   if (!await nxConfirm(`${gift ? `Enviar um presente a ${f.name}?` : `Propor esta troca a ${f.name}?`}\n\nDás:\n${give.join('\n')}${gift ? '' : `\n\nPedes:\n${get.join('\n')}`}`, { title: gift ? 'Presente' : 'Troca', icon: gift ? '🎁' : '🔄', confirmLabel: 'Enviar' })) return;
   setTradeBusy(true, 'A enviar a proposta…');
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes da troca.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes da troca.'));
     const { data, error } = await cloudClient.rpc('propose_friend_trade', { p_friend: f.id, p_offer_ids: ui.offer, p_offer_gold: offerGold, p_request_ids: ui.request, p_request_gold: requestGold });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -10418,7 +10442,7 @@ async function createGuild(name, icon, cost) {
   setTradeBusy(true, 'A criar a Guild…');
   let ok = false;
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de criar a Guild.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes de criar a Guild.'));
     const { data, error } = await cloudClient.rpc('create_guild', { p_name: name, p_icon: icon });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -10747,7 +10771,7 @@ async function donateGuildXp(amount) {
   setTradeBusy(true, 'A doar XP…');
   let result = null;
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de doar.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes de doar.'));
     const { data, error } = await cloudClient.rpc('donate_guild_xp', { p_amount: amount });
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -10772,7 +10796,7 @@ async function claimGuildReward() {
   setTradeBusy(true, 'A receber a recompensa…');
   let result = null;
   try {
-    if (!await syncCloudSaveNow()) throw new Error('Não foi possível sincronizar o save antes de receber a recompensa.');
+    if (!await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save antes de receber a recompensa.'));
     const { data, error } = await cloudClient.rpc('claim_guild_reward');
     if (error) throw error;
     updateTradeSave(data.save_data, data.revision, data.updated_at);
@@ -17596,7 +17620,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v193</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v194</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
