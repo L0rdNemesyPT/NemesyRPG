@@ -33,7 +33,7 @@ create table if not exists public.anticheat_config (
   new_hero_max_level integer not null default 25,
   new_hero_max_gold bigint not null default 5000,
   new_hero_max_items integer not null default 60,
-  max_inventory integer not null default 1500,
+  max_inventory integer not null default 1600, -- v194: folga acima dos 1500 do jogo
   level_burst numeric not null default 30,
   level_refill_seconds numeric not null default 20,
   item_burst numeric not null default 300,
@@ -99,6 +99,9 @@ declare
   v_gain numeric;
   v_level_gain numeric;
   v_sell_bound numeric;
+  v_chests_used integer := 0;
+  v_net_items integer;
+  v_inv integer;
   v_reason text := null;
 begin
   if v_user_id is null then raise exception 'É necessário iniciar sessão.'; end if;
@@ -123,8 +126,9 @@ begin
   v_level := (p_save_data->>'level')::numeric;
   v_gold := (p_save_data->>'gold')::numeric;
 
-  if jsonb_array_length(p_save_data->'inventory') > v_cfg.max_inventory then
-    v_reason := 'mochila com itens a mais';
+  v_inv := jsonb_array_length(p_save_data->'inventory');
+  if v_inv > v_cfg.max_inventory then
+    v_reason := format('mochila com itens a mais (%s/%s)', v_inv, v_cfg.max_inventory);
   end if;
 
   select * into v_row
@@ -176,12 +180,18 @@ begin
 
     v_gold_cap := (v_cfg.gold_rate_base + v_cfg.gold_rate_per_level * v_level) * v_cfg.gold_cap_seconds
                   + v_cfg.gold_burst_base + v_cfg.gold_burst_per_level * v_level;
-    v_gold_budget := least(v_gold_cap,
-      coalesce(v_row.gold_budget, v_gold_cap) + (v_cfg.gold_rate_base + v_cfg.gold_rate_per_level * v_level) * v_elapsed);
-    v_level_budget := least(v_cfg.level_burst,
-      coalesce(v_row.level_budget, v_cfg.level_burst) + v_elapsed / greatest(v_cfg.level_refill_seconds, 1));
-    v_item_budget := least(v_cfg.item_burst,
-      coalesce(v_row.item_budget, v_cfg.item_burst) + v_elapsed * v_cfg.item_rate_per_second);
+    -- v194: o orçamento enche até ao limite normal, mas se o último save aceite já é antigo
+    -- passa a valer pelo menos o ritmo × tempo decorrido. Assim um save recusado deixa de
+    -- ficar bloqueado para sempre: basta o tempo passar para o progresso legítimo caber.
+    v_gold_budget := greatest(least(v_gold_cap,
+      coalesce(v_row.gold_budget, v_gold_cap) + (v_cfg.gold_rate_base + v_cfg.gold_rate_per_level * v_level) * v_elapsed),
+      (v_cfg.gold_rate_base + v_cfg.gold_rate_per_level * v_level) * v_elapsed);
+    v_level_budget := greatest(least(v_cfg.level_burst,
+      coalesce(v_row.level_budget, v_cfg.level_burst) + v_elapsed / greatest(v_cfg.level_refill_seconds, 1)),
+      v_elapsed / greatest(v_cfg.level_refill_seconds, 1));
+    v_item_budget := greatest(least(v_cfg.item_burst,
+      coalesce(v_row.item_budget, v_cfg.item_burst) + v_elapsed * v_cfg.item_rate_per_second),
+      v_elapsed * v_cfg.item_rate_per_second);
 
     select count(*) into v_removed from (
       select i from public.save_item_ids(v_row.save_data) as i
@@ -194,6 +204,12 @@ begin
       select i from public.save_item_ids(v_row.save_data) as i
     ) added;
 
+    -- v194: cada baú aberto pode dar 1 item (Abrir todos com centenas de Baús de Equipamento).
+    v_chests_used := greatest(0,
+      (case when jsonb_typeof(v_row.save_data->'chests') = 'array' then jsonb_array_length(v_row.save_data->'chests') else 0 end)
+      - (case when jsonb_typeof(p_save_data->'chests') = 'array' then jsonb_array_length(p_save_data->'chests') else 0 end));
+    v_net_items := greatest(v_added - v_chests_used, 0);
+
     -- Valor máximo de venda de um item (espelha itemSellValue com a raridade mais alta).
     v_sell_bound := round(10 * 5.5 * v_level / 3) + 5;
     v_gain := v_gold - v_old_gold - v_removed * v_sell_bound;
@@ -201,8 +217,8 @@ begin
 
     if v_reason is null and v_level_gain > v_level_budget then
       v_reason := format('subida de nível rápida demais (+%s)', v_level_gain);
-    elsif v_reason is null and v_added > v_item_budget then
-      v_reason := format('itens novos a mais (+%s)', v_added);
+    elsif v_reason is null and v_net_items > v_item_budget then
+      v_reason := format('itens novos a mais (+%s)', v_net_items);
     elsif v_reason is null and v_gain > v_gold_budget then
       v_reason := format('ouro a subir rápido demais (+%s)', v_gold - v_old_gold);
     elsif v_reason is null and exists (
@@ -224,7 +240,7 @@ begin
     set save_data = p_save_data, updated_at = v_now, revision = v_revision,
         gold_budget = v_gold_budget - greatest(v_gain, 0),
         level_budget = v_level_budget - v_level_gain,
-        item_budget = v_item_budget - v_added,
+        item_budget = v_item_budget - v_net_items,
         budget_at = v_now
     where user_id = v_user_id;
   end if;
