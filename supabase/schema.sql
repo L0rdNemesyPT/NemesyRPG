@@ -454,8 +454,16 @@ begin
   -- v123: bónus de Craft (Esconderijo), só em Peitorais.
   if jsonb_typeof(p_item->'craftBonus') = 'object' then
     -- v164: Armas também têm bónus de Craft (lista própria).
+    -- v191: todos os espaços de equipamento têm bónus de Craft (lista própria por espaço).
     if not ((v_slot = 'chest' and p_item->'craftBonus'->>'key' in ('hp', 'regen', 'bossred', 'sorte', 'terramoto'))
-         or (v_slot = 'weapon' and p_item->'craftBonus'->>'key' in ('w_boss', 'w_demon', 'w_undead', 'w_gems'))) then
+         or (v_slot = 'weapon' and p_item->'craftBonus'->>'key' in ('w_boss', 'w_demon', 'w_undead', 'w_gems'))
+         or (v_slot = 'head' and p_item->'craftBonus'->>'key' in ('h_crit', 'h_res', 'h_xp', 'h_skill'))
+         or (v_slot = 'gloves' and p_item->'craftBonus'->>'key' in ('g_critdmg', 'g_leech', 'g_dmg', 'g_stun'))
+         or (v_slot = 'boots' and p_item->'craftBonus'->>'key' in ('b_dodge', 'b_regen', 'b_gold', 'b_def'))
+         or (v_slot = 'cape' and p_item->'craftBonus'->>'key' in ('c_hp', 'c_es', 'c_res', 'c_luck'))
+         or (v_slot = 'offhand' and p_item->'craftBonus'->>'key' in ('o_def', 'o_bossred', 'o_hp', 'o_poison'))
+         or (v_slot = 'amulet' and p_item->'craftBonus'->>'key' in ('a_xp', 'a_gold', 'a_luck', 'a_regen'))
+         or (v_slot = 'artifact' and p_item->'craftBonus'->>'key' in ('r_boss', 'r_skill', 'r_hp', 'r_critdmg'))) then
       raise exception 'Este item tem um bónus de Craft inválido e não pode ser vendido.';
     end if;
     v_craft := p_item->'craftBonus'->>'key';
