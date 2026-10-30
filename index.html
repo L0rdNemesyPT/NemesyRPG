@@ -2457,6 +2457,49 @@ const PROFESSIONS = {
   pastor: { name: 'Pastor', icon: '🐑', desc: '+1% de Regeneração de HP por turno em combate', regenPct: 1, tag: 'Regeneração', color: 'var(--success)', flavor: 'A paciência do rebanho ensinou-te a curar com calma.' },
   cacador: { name: 'Caçador', icon: '🏹', desc: '+5% de Chance de Crítico', critPct: 5, tag: 'Crítico', color: 'var(--blood-bright)', flavor: 'Sabes sempre onde acertar para o golpe certeiro.' }
 };
+// v196: Níveis de profissão (1–10). O bónus cresce do valor base até PROF_MAX; no Nv. 10 desbloqueia um talento.
+const PROF_MAX_LV = 10;
+const PROF_XP_NEED = [0, 100, 300, 600, 1000, 1500, 2100, 2800, 3600, 4600]; // XP total para chegar a cada nível (1..10)
+const PROF_XP_WIN = 1, PROF_XP_BOSS = 5, PROF_XP_JOB = 3;
+const PROF_SCALE = { // campo do bónus · valor no Nv. 10 · arredondamento
+  lenhador: { f: 'dmgPct', max: 15, step: 1, fmt: v => `+${v}% Dano` },
+  ferreiro: { f: 'defPct', max: 10, step: 1, fmt: v => `+${v}% Defesa` },
+  cozinheiro: { f: 'hpFlat', max: 250, step: 25, fmt: v => `+${v} HP` },
+  mineiro: { f: 'dropLuckPct', max: 5, step: 0.5, fmt: v => `+${String(v).replace('.', ',')}% de sorte no drop de itens` },
+  pastor: { f: 'regenPct', max: 2.5, step: 0.5, fmt: v => `+${String(v).replace('.', ',')}% de Regeneração de HP por turno em combate` },
+  cacador: { f: 'critPct', max: 10, step: 1, fmt: v => `+${v}% de Chance de Crítico` }
+};
+const PROF_TALENTS = {
+  lenhador: { icon: '🪓', name: 'Golpe Brutal', desc: '8% dos teus ataques fazem o dobro do dano.' },
+  ferreiro: { icon: '🔨', name: 'Pele de Aço', desc: 'O primeiro golpe que sofres em cada combate faz metade do dano.' },
+  cozinheiro: { icon: '🍳', name: 'Banquete', desc: 'A comida e as refeições duram +50% das batalhas.' },
+  mineiro: { icon: '⛏️', name: 'Faro de Tesouro', desc: 'Os chefes têm 10% de hipótese de deixar 1 gema extra.' },
+  pastor: { icon: '🐑', name: 'Segundo Fôlego', desc: 'Uma vez por combate, ao cair abaixo de 30% de HP, curas 15% da vida.' },
+  cacador: { icon: '🏹', name: 'Olho de Falcão', desc: 'O primeiro golpe de cada combate é sempre crítico.' }
+};
+function profXpOf(p, key) { const k = key || (p && p.profession); return k && p && p.profXp ? Math.max(0, Math.floor(Number(p.profXp[k]) || 0)) : 0; }
+function profLevelOf(p, key) { const xp = profXpOf(p, key); let lv = 1; for (let i = 1; i < PROF_MAX_LV; i++) if (xp >= PROF_XP_NEED[i]) lv = i + 1; return lv; }
+function profValAt(key, lv) {
+  const pr = PROFESSIONS[key], sc = PROF_SCALE[key]; if (!pr || !sc) return 0;
+  const b1 = pr[sc.f] || 0, raw = b1 + (sc.max - b1) * (clamp(lv, 1, PROF_MAX_LV) - 1) / (PROF_MAX_LV - 1);
+  return Math.round(raw / sc.step) * sc.step;
+}
+function profDescAt(key, lv) { const sc = PROF_SCALE[key]; return sc ? sc.fmt(profValAt(key, lv)) : (PROFESSIONS[key] || {}).desc || ''; }
+function profTalent(p, key) { return !!(p && p.profession === key && profLevelOf(p) >= PROF_MAX_LV); }
+function profGainXp(p, n) {
+  const k = p && p.profession; if (!k || !PROFESSIONS[k] || !(n > 0)) return null;
+  if (!p.profXp || typeof p.profXp !== 'object') p.profXp = {};
+  const before = profLevelOf(p);
+  if (before >= PROF_MAX_LV) return null;
+  p.profXp[k] = Math.min(PROF_XP_NEED[PROF_MAX_LV - 1], profXpOf(p) + n);
+  const after = profLevelOf(p);
+  if (after <= before) return null;
+  const pr = PROFESSIONS[k];
+  return after >= PROF_MAX_LV ? `${pr.icon} ${pr.name} chegou ao Nv. 10! Talento desbloqueado: ${PROF_TALENTS[k].icon} ${PROF_TALENTS[k].name}.`
+    : `${pr.icon} ${pr.name} subiu para o Nv. ${after}: ${profDescAt(k, after)}.`;
+}
+function profJobXp(p) { const m = profGainXp(p, PROF_XP_JOB); if (m) { saveGame(); sfx.levelup(); setTimeout(() => toast('🎉 ' + m), 900); } }
+function foodBattlesFor(p) { return profTalent(p, 'cozinheiro') ? Math.ceil(FOOD_BATTLES * 1.5) : FOOD_BATTLES; }
 const PROFESSION_BOOK_MIN_BOSS_LV = 20;
 const PROFESSION_BOOK_DROP_CHANCE = 0.08;
 const PET_DROP_CHANCE = 0.08;
@@ -2865,7 +2908,7 @@ function ensureMeals(p) {
   if (!p.meals || typeof p.meals !== 'object') p.meals = {};
   Object.keys(p.meals).forEach(k => { const n = Math.floor(Number(p.meals[k]) || 0); if (!MEAL_DEFS[k] || n <= 0) delete p.meals[k]; else p.meals[k] = n; });
   if (p.activeMeal && (!MEAL_DEFS[p.activeMeal.key] || !(p.activeMeal.left > 0))) p.activeMeal = null;
-  if (p.activeMeal) p.activeMeal.left = Math.min(Math.floor(p.activeMeal.left), MEAL_DEFS[p.activeMeal.key].battles);
+  if (p.activeMeal) p.activeMeal.left = Math.min(Math.floor(p.activeMeal.left), Math.ceil(MEAL_DEFS[p.activeMeal.key].battles * 1.5));
   return p.meals;
 }
 function activeMealDef(p) { return p && p.activeMeal && p.activeMeal.left > 0 ? MEAL_DEFS[p.activeMeal.key] : null; }
@@ -2880,7 +2923,7 @@ function foodBonus(stat) {
 function mealHpPct(player) { const m = activeMealDef(player); return m ? (m.fx.hp || 0) : 0; }
 function ensureFoodBuffs(p) {
   if (!p.foodBuffs || typeof p.foodBuffs !== 'object') p.foodBuffs = {};
-  Object.keys(p.foodBuffs).forEach(k => { const n = Math.floor(Number(p.foodBuffs[k]) || 0); if (n > 0) p.foodBuffs[k] = Math.min(n, FOOD_BATTLES); else delete p.foodBuffs[k]; });
+  Object.keys(p.foodBuffs).forEach(k => { const n = Math.floor(Number(p.foodBuffs[k]) || 0); if (n > 0) p.foodBuffs[k] = Math.min(n, Math.ceil(FOOD_BATTLES * 1.5)); else delete p.foodBuffs[k]; });
   return p.foodBuffs;
 }
 function foodActive(stat) { const p = App.player; return !!(p && p.foodBuffs && p.foodBuffs[stat] > 0); }
@@ -3476,13 +3519,14 @@ function effectiveStats(player) {
     if (b.poisonImmune) poisonImmune = true;
   });
   if (player.profession && PROFESSIONS[player.profession]) {
-    const prof = PROFESSIONS[player.profession];
-    if (prof.dmgPct) dmgPctTotal += prof.dmgPct / 100;
-    if (prof.defPct) defPctTotal += prof.defPct / 100;
-    if (prof.hpFlat) hp += prof.hpFlat;
-    if (prof.critPct) crit += prof.critPct / 100;
-    if (prof.regenPct) professionRegenPct += prof.regenPct;
-    if (prof.dropLuckPct) dropLuckBonus += prof.dropLuckPct / 100;
+    const prof = PROFESSIONS[player.profession], sc = PROF_SCALE[player.profession];
+    const pv = (f, base) => sc && sc.f === f ? profValAt(player.profession, profLevelOf(player)) : base; // v196: cresce com o nível
+    if (prof.dmgPct) dmgPctTotal += pv('dmgPct', prof.dmgPct) / 100;
+    if (prof.defPct) defPctTotal += pv('defPct', prof.defPct) / 100;
+    if (prof.hpFlat) hp += pv('hpFlat', prof.hpFlat);
+    if (prof.critPct) crit += pv('critPct', prof.critPct) / 100;
+    if (prof.regenPct) professionRegenPct += pv('regenPct', prof.regenPct);
+    if (prof.dropLuckPct) dropLuckBonus += pv('dropLuckPct', prof.dropLuckPct) / 100;
   }
   // Passivas (Herói → Passivas)
   const pv = passiveTotals(player);
@@ -4938,6 +4982,7 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
   const skillMult = 1 + (pStats.skillDmgPct || 0) / 100;
   function dealHit(mult, forceCrit) {
     let dmg = pStats.dmg * mult * skillMult * aoeMult;
+    if (profTalent(player, 'lenhador') && Math.random() < 0.08) { dmg *= 2; if (!msgs.some(m => m.brutal)) msgs.push({ text: '🪓 Golpe Brutal: dano a dobrar!', cls: 'hit', brutal: true }); } // v196
     const crit = forceCrit || Math.random() < critChance;
     if (crit && !enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
     if (isBossTarget && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
@@ -7389,9 +7434,12 @@ function renderWikiBody() {
         const prof = PROFESSIONS[key];
         return `<div class="card raised">
           <span style="font-weight:700;">${prof.icon} ${prof.name}</span>
-          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">${prof.desc}</p>
+          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">Nv. 1: ${prof.desc} → Nv. 10: ${profDescAt(key, PROF_MAX_LV)}</p>
+          <p class="tiny" style="margin-top:4px;">${PROF_TALENTS[key].icon} <b>${PROF_TALENTS[key].name}</b> (Nv. 10): ${PROF_TALENTS[key].desc}</p>
         </div>`;
       }).join('')}
+      <div class="card raised"><span style="font-weight:700;">📈 Níveis de profissão</span>
+        <p class="tiny" style="margin-top:6px;">A profissão sobe do Nv. 1 ao 10: +${PROF_XP_WIN} XP por vitória, +${PROF_XP_BOSS} por chefe e +${PROF_XP_JOB} por Trabalho. XP total para cada nível: ${PROF_XP_NEED.slice(1).map((x, i) => `Nv. ${i + 2}: ${x.toLocaleString('pt-PT')}`).join(' · ')}. Se esqueceres a profissão (Livro da Amnésia), o nível dela fica guardado.</p></div>
     `;
   }
 }
@@ -10864,7 +10912,7 @@ async function claimGuildReward() {
 function renderProfissoesBody() {
   const p = App.player;
   const body = $('heroi-body');
-  let html = `<p class="muted" style="margin-bottom:10px;">Cada jogador só pode escolher 1 profissão, para sempre. Usa um 📗 Livro das Profissões (chefes de nível ${PROFESSION_BOOK_MIN_BOSS_LV}+ têm uma hipótese de o deixar cair) para escolheres.</p>`;
+  let html = `<p class="muted" style="margin-bottom:10px;">Cada jogador só pode escolher 1 profissão. Ela sobe de nível (1–10) enquanto jogas, o bónus cresce e no Nv. 10 ganhas um talento. Usa um 📗 Livro das Profissões (chefes de nível ${PROFESSION_BOOK_MIN_BOSS_LV}+ têm uma hipótese de o deixar cair) para escolheres.</p>`;
 
   if (p.profession) {
     const prof = PROFESSIONS[p.profession];
@@ -10880,10 +10928,7 @@ function renderProfissoesBody() {
             <p class="tiny muted" style="margin-top:4px; font-style:italic;">"${prof.flavor}"</p>
           </div>
         </div>
-        <div class="row between" style="align-items:center; margin-top:12px; padding-top:10px; border-top:1px solid var(--line-soft);">
-          <span class="tiny" style="font-weight:700; color:var(--gold-bright);">✨ ${prof.desc}</span>
-          <span class="pill">🔒 Permanente</span>
-        </div>
+        ${profProgressHtml(p)}
       </div>
     `;
     const others = Object.keys(PROFESSIONS).filter(k => k !== p.profession);
@@ -10896,7 +10941,7 @@ function renderProfissoesBody() {
           <div class="card raised" style="flex:1; min-width:135px; opacity:0.55;">
             <div style="font-size:20px;">${o.icon}</div>
             <div class="tiny" style="font-weight:700; margin-top:4px;">${o.name}</div>
-            <div class="tiny muted" style="margin-top:2px;">${o.desc}</div>
+            <div class="tiny muted" style="margin-top:2px;">${o.desc}${profXpOf(p, key) ? ` · Nv. ${profLevelOf(p, key)}` : ''}</div>
           </div>
         `;
       }).join('');
@@ -10926,7 +10971,8 @@ function renderProfissoesBody() {
                 <span class="pill" style="border-color:${prof.color}; color:${prof.color};">${prof.tag}</span>
               </div>
               <div class="tiny muted" style="font-style:italic; margin-top:2px;">"${prof.flavor}"</div>
-              <div class="tiny" style="margin-top:4px; color:var(--gold-bright); font-weight:700;">✨ ${prof.desc}</div>
+              <div class="tiny" style="margin-top:4px; color:var(--gold-bright); font-weight:700;">✨ ${prof.desc} <span class="muted" style="font-weight:600;">(Nv. 1) → ${profDescAt(key, PROF_MAX_LV)} (Nv. 10)</span></div>
+              <div class="tiny muted" style="margin-top:3px;">${PROF_TALENTS[key].icon} Talento do Nv. 10: <b>${PROF_TALENTS[key].name}</b> — ${PROF_TALENTS[key].desc}</div>
             </div>
           </div>
           <button class="btn primary block" style="margin-top:10px;" data-choose-profession="${key}" ${canChoose ? '' : 'disabled'}>${canChoose ? `Escolher ${prof.name}` : 'Precisas de 1 Livro 📗'}</button>
@@ -10938,6 +10984,19 @@ function renderProfissoesBody() {
   els('[data-choose-profession]').forEach(b => b.addEventListener('click', () => chooseProfession(b.dataset.chooseProfession)));
 }
 
+function profProgressHtml(p) {
+  const k = p.profession, lv = profLevelOf(p), xp = profXpOf(p), max = lv >= PROF_MAX_LV, t = PROF_TALENTS[k];
+  const lo = PROF_XP_NEED[lv - 1], hi = max ? lo : PROF_XP_NEED[lv], pct = max ? 100 : Math.round((xp - lo) / Math.max(1, hi - lo) * 100);
+  const pips = Array.from({ length: PROF_MAX_LV }, (_, i) => `<span class="${i < lv ? 'on' : ''}${i === PROF_MAX_LV - 1 ? ' ten' : ''}">${i + 1}</span>`).join('');
+  return `<div class="pf-prog">
+      <div class="pf-xp"><span>Nível <b>${lv}</b> / ${PROF_MAX_LV}</span><span>${max ? 'Nível máximo' : `${(xp - lo).toLocaleString('pt-PT')} / ${(hi - lo).toLocaleString('pt-PT')} XP`}</span></div>
+      <div class="pf-bar"><i style="width:${pct}%"></i></div>
+      <div class="pf-pips">${pips}</div>
+      <div class="pf-stat"><span>Bónus atual</span><b>✨ ${profDescAt(k, lv)}${max ? '' : ` <small>Nv. ${lv + 1}: ${profDescAt(k, lv + 1).replace(/^\+/, '+')}</small>`}</b></div>
+      <div class="pf-talent${max ? ' open' : ''}"><span class="pf-ti">${t.icon}</span><div><span class="pf-tag">${max ? '✓ Talento ativo' : '🔒 Desbloqueia no Nv. 10'}</span><b>${t.name}</b><p>${t.desc}</p></div></div>
+      <p class="tiny muted" style="margin-top:8px;">+${PROF_XP_WIN} XP por vitória · +${PROF_XP_BOSS} por chefe · +${PROF_XP_JOB} por Trabalho (Cidade → Trabalhos).</p>
+    </div>`;
+}
 async function chooseProfession(key) {
   const p = App.player;
   if (p.profession || (p.professionBooks || 0) < 1 || !PROFESSIONS[key]) return;
@@ -13687,6 +13746,7 @@ function doFish() {
   saveGame();
   sfx.gold();
   renderHubTab();
+  profJobXp(p); // v196
   toast(`🎣 Pescaste um peixe ${chosen.name}! +${gold} ouro.${extra}`);
 }
 
@@ -13723,6 +13783,7 @@ function doMine() {
   saveGame();
   sfx.gold();
   renderHubTab();
+  profJobXp(p); // v196
   toast(`⛏️ Minaste ${chosen.name}! +${gold} ouro.`);
 }
 
@@ -13913,6 +13974,7 @@ function bindFarmHandlers() {
     for (const y of FARM_YIELD_TABLE) { acc += y.chance; if (r <= acc) { qty = y.qty; break; } }
     farm.crops[slot.crop] += qty;
     farm.slots[i] = null;
+    profJobXp(App.player); // v196
     sfx.gold();
     toast(`${CROP_DEFS[slot.crop].icon} Colheste ${qty}× ${CROP_DEFS[slot.crop].name}! Volta a plantar para colher de novo.`);
     farmRefresh();
@@ -14270,6 +14332,7 @@ function doWood() {
   saveGame();
   sfx.gold();
   renderHubTab();
+  profJobXp(p); // v196
   toast(`🪓 Cortaste ${chosen.name}! +${gold} ouro.`);
 }
 
@@ -15780,7 +15843,11 @@ function useAbilityAction(key) {
   const hpBefore = c.enemy.hp;
   fxAbility(key);
   if (pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = true; // v184
+  const hawk = profTalent(p, 'cacador') && !c.profFirstDone; // v196: Olho de Falcão
+  if (hawk) c.battleState.mythCritNext = true;
   const msgs = c.horde && HORDE_AOE.includes(key) ? hordeAoe(key, p, pStats) : useAbility(key, p, pStats, c.enemy, c.battleState, c.isBoss || c.isMiniBoss, elementAttackMult(p, c.enemy, key) * mythHitMult(c, p, pStats));
+  if (hawk) { c.profFirstDone = true; c.battleState.mythCritNext = false; msgs.push({ text: '🏹 Olho de Falcão: o primeiro golpe é sempre crítico.', cls: 'good' }); }
+  c.profFirstDone = true;
   msgs.forEach(m => addCombatLog(m));
   const hasCrit = msgs.some(m => m.cls === 'crit');
   const allGood = msgs.length && msgs.every(m => m.cls === 'good');
@@ -15799,10 +15866,14 @@ function useNormalAttackAction() {
   let pStats = effectiveStats(p);
   pStats = applyTempBuffsToStats(pStats, c.battleState, c.enemy.category);
   const myth = pStats.myth || {};
-  const critChance = pStats.crit + (c.battleState.critBuffActive || c.battleState.mythCritNext || (myth.arco_suspiro && !c.mythFirstDone) ? 1.0 : 0);
+  const hawk = profTalent(p, 'cacador') && !c.profFirstDone; // v196: Olho de Falcão
+  const critChance = pStats.crit + (c.battleState.critBuffActive || c.battleState.mythCritNext || hawk || (myth.arco_suspiro && !c.mythFirstDone) ? 1.0 : 0);
   const crit = Math.random() < critChance;
+  c.profFirstDone = true;
   let dmg = pStats.dmg * elementAttackMult(p, c.enemy) * mythHitMult(c, p, pStats) * (myth.tempestade_presa ? 0.85 : 1); // v181: elemento · v184: Míticos
   if (crit && !c.enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
+  const brutal = profTalent(p, 'lenhador') && Math.random() < 0.08; // v196: Golpe Brutal
+  if (brutal) dmg *= 2;
   if ((c.isBoss || c.isMiniBoss) && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
   const defMult = (c.battleState.enemyDefDebuff ? (1 - c.battleState.enemyDefDebuff.pct) : 1) * (1 - (pStats.defPen || 0)); // v186: Pedra da Defesa na arma
   let final = applyDamage(dmg, c.enemy.def * defMult, p.level);
@@ -15814,6 +15885,8 @@ function useNormalAttackAction() {
     if (healLs > 0) { p.hp += healLs; addCombatLog({ text: `🩸 Roubo de vida: +${healLs} HP.`, cls: 'good' }); }
   }
   addCombatLog({ text: `🗡️ Ataque normal: ${final} de dano${crit ? ' — crítico!' : ''}.`, cls: crit ? 'crit' : 'hit' });
+  if (hawk && crit) addCombatLog({ text: '🏹 Olho de Falcão: o primeiro golpe é sempre crítico.', cls: 'good' });
+  if (brutal) addCombatLog({ text: '🪓 Golpe Brutal: dano a dobrar!', cls: 'crit' });
   if (myth.tempestade_presa && c.enemy.hp > 0 && Math.random() < 0.25) { // v184: Tempestade Presa
     const em = c.enemy.element ? elementMatchup('eletricidade', c.enemy.element) : 1;
     const z = applyDamage(pStats.dmg * 0.6 * em, c.enemy.def * defMult, p.level);
@@ -15983,7 +16056,7 @@ function useFoodAction(key) {
   if (fb[d.stat] > 0) { sfx.error(); toast(`O efeito de ${d.short} já está ativo (faltam ${fb[d.stat]} batalha${fb[d.stat] > 1 ? 's' : ''}). Não acumula.`); return; }
   if (inCombat) tickCooldowns();
   p.farm.crops[key]--;
-  fb[d.stat] = FOOD_BATTLES;
+  fb[d.stat] = foodBattlesFor(p); // v196: Banquete
   sfx.potion();
   if (inCombat) {
     addCombatLog({ text: `${d.icon} Comeste ${d.name}: ${d.effect}.`, cls: 'good' });
@@ -16005,9 +16078,10 @@ function eatMealAction(key) {
   if (cur) { sfx.error(); toast(`Já tens um prato ativo: ${cur.icon} ${cur.name} (faltam ${p.activeMeal.left} batalha${p.activeMeal.left > 1 ? 's' : ''}).`); return; }
   if (inCombat) tickCooldowns();
   p.meals[key]--; if (p.meals[key] <= 0) delete p.meals[key];
-  p.activeMeal = { key, left: d.battles };
+  const mb = profTalent(p, 'cozinheiro') ? Math.ceil(d.battles * 1.5) : d.battles; // v196: Banquete
+  p.activeMeal = { key, left: mb };
   sfx.potion();
-  const msg = `${d.icon} Comeste ${d.name}: ${mealFxText(d)} durante ${d.battles} batalhas.`;
+  const msg = `${d.icon} Comeste ${d.name}: ${mealFxText(d)} durante ${mb} batalhas.`;
   if (inCombat) { addCombatLog({ text: msg, cls: 'good' }); closeModal(); postPlayerAction(); }
   else { saveGame(); toast(msg); renderStatusBar(); if (App.tab === 'loja') renderLojaBody(); else if (typeof renderMochilaBody === 'function') renderMochilaBody(); }
 }
@@ -16301,6 +16375,7 @@ function resolveEnemyTurn(opts) {
   if (myth.egide_montanha && isBossFight && (heavyAttack || enemySkillTriggered)) dmgMult *= 0.7; // v184: Égide da Montanha
   if (c.battleState.enemyCurse) dmgMult *= (1 - c.battleState.enemyCurse.pct); // v184: Peitoral do Eclipse
   if (pStats.dmgTakenRed) dmgMult *= (1 - pStats.dmgTakenRed); // v186: Pedra da Defesa na joia
+  if (profTalent(p, 'ferreiro') && !c.profHitTaken) { c.profHitTaken = true; dmgMult *= 0.5; addCombatLog({ text: '🔨 Pele de Aço: o primeiro golpe faz metade do dano.', cls: 'good' }); } // v196
 
   const defMult = getPlayerDefMultiplier(c.battleState);
   let dmg;
@@ -16323,6 +16398,10 @@ function resolveEnemyTurn(opts) {
   }
   if (dmg > esHp) esAbsorbLog(c, dmg - esHp, esHp);
   sfx.pain(enemyCrit);
+  if (profTalent(p, 'pastor') && !c.profSecondWind && p.hp > 0 && p.hp < pStats.hp * 0.3) { // v196: Segundo Fôlego
+    c.profSecondWind = true; const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * 0.15));
+    if (heal > 0) { p.hp += heal; addCombatLog({ text: `🐑 Segundo Fôlego: recuperas ${heal} de vida.`, cls: 'good' }); }
+  }
   if (myth.bastiao_martir && !c.horde && dmg > 0 && c.enemy.hp > 0) { // v184: Bastião do Mártir
     const back = Math.max(1, Math.round(dmg * 0.25));
     c.enemy.hp -= back;
@@ -16488,6 +16567,11 @@ function wildRewardRoll(c) {
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
   if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
   if (isBoss && !c.isCultBoss) mythicRollDrop(p, MYTHIC_BY_BOSS[c.name], MYTHIC_CHANCE, drops); // v184: Míticos
+  if (isBoss && profTalent(p, 'mineiro') && Math.random() < 0.10) { // v196: Faro de Tesouro
+    const types = Object.keys(GEM_DEFS), t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(c.level);
+    if (!Array.isArray(p.gems[t])) p.gems[t] = Array(GEM_TIERS).fill(0);
+    p.gems[t][tier]++; drops.push(`⛏️ Faro de Tesouro: ${GEM_DEFS[t].icon} ${gemFullName(t, tier)}`);
+  }
   if (isBoss && !c.isCultBoss && c.level >= PO_ESTELAR_MIN_LV && Math.random() < PO_ESTELAR_BOSS) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); } // v186
   // Livro das Profissões: só chefes de nível 20+.
   if (isBoss && c.level >= PROFESSION_BOOK_MIN_BOSS_LV && Math.random() < PROFESSION_BOOK_DROP_CHANCE + luck) {
@@ -16804,6 +16888,10 @@ function showCombatEnd(won, info) {
     const inv = (App.player.inventory || []).length;
     if (inv >= INVENTORY_WARN) cm.push(`⚠️ Mochila quase cheia: ${inv}/${INVENTORY_MAX} itens. Vende alguns (Mochila → Itens → 🧹 Venda rápida).`);
     if (cm.length) { info = info || {}; if (won) info.drops = (info.drops || []).concat(cm); else setTimeout(() => toast(cm.join(' · ')), 600); } }
+  if (won && App.player) { // v196: XP de profissão
+    const lu = profGainXp(App.player, (info && info.isBoss) || c.isBoss || c.isMiniBoss || c.isSoberano ? PROF_XP_BOSS : PROF_XP_WIN);
+    if (lu) { info = info || {}; info.drops = (info.drops || []).concat([`🎉 ${lu}`]); setTimeout(() => sfx.levelup(), 400); }
+  }
   if (won && App.player && App.player.hp > 0 && hasMyth(App.player, 'sandalias_peregrino')) { // v184: Sandálias do Peregrino
     const ps = effectiveStats(App.player), before = App.player.hp;
     App.player.hp = Math.min(ps.hp, App.player.hp + Math.round(ps.hp * 0.30));
@@ -17676,7 +17764,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v195</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v196</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
