@@ -374,7 +374,7 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- ACCOUNT ENTRY -->
   <div class="screen" id="screen-account">
-    <span class="app-version-badge" id="app-version-badge">V 2.0.2</span>
+    <span class="app-version-badge" id="app-version-badge">V 2.1.0</span>
     <div class="account-lang" role="group" aria-label="Língua">
       <button type="button" data-login-lang="pt" aria-label="Português"><span class="al-flag">🇵🇹</span>PT</button>
       <button type="button" data-login-lang="en" aria-label="English"><span class="al-flag">🇬🇧</span>EN</button>
@@ -4551,6 +4551,12 @@ function todayItems(p) {
     add('expedicoes', nxEnt('esconderijo-expedicoes', '🗺️'), 'Expedições', ready ? 'ready' : free > 0 ? 'todo' : 'done', ready ? `${ready} pronta${ready > 1 ? 's' : ''} a recolher` : free > 0 ? `${free} vaga${free > 1 ? 's' : ''} livre${free > 1 ? 's' : ''}` : 'A decorrer');
     const rw = restReadyIn(p); add('lareira', nxEnt('flame', '🔥'), 'Lareira', rw <= 0 ? 'ready' : 'done', rw <= 0 ? 'Podes descansar' : `Daqui a ${hoTimeLeft(rw)}`);
   }
+  if (p.vila) { // v198: Vila
+    if (vilaTick(p)) saveGame();
+    const v = p.vila, fim = v.exp && v.exp.phase === 'fim', br = Object.keys(v.broken).length, fora = v.exp && !fim;
+    add('vila', nxEnt('vila', '🏰'), 'Vila', fim || br ? 'ready' : !v.work ? 'todo' : 'done',
+      fim ? 'Relatório da armada' : br ? 'Reparar estragos' : !v.work ? (fora ? 'Armada fora · construtores livres' : 'Construtores livres') : `A construir · ${vlMins(v.work.left)}`);
+  }
   if (guildBadge()) add('guild', nxEnt('guild', GUILD_TILE_ICON), 'Guild', 'ready', 'Recompensa pronta');
   const sr = seasonReadyCount(p); if (sr) add('temporada', '🎮', 'Temporada', 'ready', `${sr} recompensa${sr > 1 ? 's' : ''}`);
   return L;
@@ -4579,6 +4585,7 @@ function todayBind() {
     else if (k === 'expedicoes') go('heroi', { heroiTab: 'esconderijo', hoStation: 'expedicoes', guildTab: null });
     else if (k === 'lareira') go('heroi', { heroiTab: 'esconderijo', hoStation: 'lareira', guildTab: null });
     else if (k === 'guild') go('heroi', { heroiTab: 'guild', guildTab: null });
+    else if (k === 'vila') go('heroi', { heroiTab: 'vila', guildTab: null });
     else if (k === 'temporada') go('loja', { lojaTab: 'temporada' });
   }));
 }
@@ -6685,7 +6692,8 @@ const WIKI_GROUPS = [
     { key: 'passivas', label: 'Passivas', icon: '🌳' },
     { key: 'guild', label: 'Guild', icon: '⚜️', nxKey: 'guild' },
     { key: 'amigos', label: 'Amigos', icon: '👥', nxKey: 'amigos' },
-    { key: 'esconderijo', label: 'Esconderijo', icon: '🏰', nxKey: 'esconderijo' }
+    { key: 'esconderijo', label: 'Esconderijo', icon: '🏰', nxKey: 'esconderijo' },
+    { key: 'vila', label: 'Vila', icon: '🏘️', nxKey: 'vila' }
   ] },
   { title: 'Companheiros e ofícios', sections: [
     { key: 'mascotes', label: 'Mascotes', icon: '🐾' },
@@ -7447,6 +7455,20 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Cada item só pode ser comprado uma vez por renovação. Depois fica "Comprado" até o mercado renovar.</p></div>
       <div class="card raised"><span style="font-weight:700;">🛍️ O que pode aparecer</span>
         <p class="tiny" style="margin-top:6px;">⚪ Pérolas de melhoria (🪙2500 a 5000) · 💠 Gemas T1 (🪙1000 a 3000) · 🌱 Sementes e legumes da Agricultura (🪙100 a 300) · 🦪 Ostras (🪙500).</p></div>
+    `;
+  } else if (t === 'vila') { // v198
+    body.innerHTML = `
+      <p class="muted" style="margin-bottom:10px;">Herói → Vila. Com o Esconderijo no Nv. ${HIDEOUT_MAX_LEVEL}, fundas uma vila por ${nxNum(VILA_FOUND_COST)} de ouro. O Esconderijo continua igual, dentro da vila.</p>
+      <div class="card raised"><span style="font-weight:700;">👷 Aldeões e recursos</span>
+        <p class="tiny" style="margin-top:6px;">Os aldeões juntam pedra, madeira e comida, também com o jogo fechado (até ${VILA_MAX_CATCHUP_MIN / 1440} dias e até encher o Armazém). Cada aldeão: ${VL_JOBS.wood.rate} madeira, ${VL_JOBS.stone.rate} pedra ou ${VL_JOBS.food.rate} comida por hora; cada nível da Serração, Pedreira ou Quinta dá +15%. Contratar: ${nxNum(VL_HIRE.gold)} ouro e ${VL_HIRE.food} comida. População: 8 + 4 por nível do Salão.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🏘️ Edifícios</span>
+        <p class="tiny" style="margin-top:6px;">O Salão da Vila vai até ao Nv. 5 e nenhum outro edifício passa do nível do Salão. Só há uma obra de cada vez. Salão: ${[1, 2, 3, 4].map(l => `Nv. ${l + 1} ${vlMins(VL_B.salao.time(l))}`).join(' · ')}. Armazém: 1 500 de cada recurso por nível. Quartel: 20 soldados, +10 por nível.</p></div>
+      <div class="card raised"><span style="font-weight:700;">⚔️ Soldados</span>
+        ${VL_ORDER.map(k => { const u = VL_UNITS[k]; return `<p class="tiny" style="margin-top:6px;">${u.emo} <b>${u.n}</b> (${u.role}): ataque ${u.atk}, vida ${u.hp}, treino ${vlMins(u.t)}. Fortes contra ${VL_UNITS[VL_STRONG[k]].n}, fracos contra ${VL_UNITS[vlWeakTo(k)].n}.</p>`; }).join('')}
+        <p class="tiny" style="margin-top:6px;">Contra quem é forte, faz ×1,5 de dano; contra quem é fraco, só ×0,67. A Ferraria melhora cada tipo (+8% de ataque e vida por nível, até Nv. 5).</p></div>
+      <div class="card raised"><span style="font-weight:700;">🗺️ Sala de Guerra</span>
+        ${Object.keys(VL_ENEMY).map(k => { const e = VL_ENEMY[k]; return `<p class="tiny" style="margin-top:6px;"><b>${e.n}</b> (${e.d}${e.need ? `, Salão Nv. ${e.need}` : ''}): ${e.boss} e ${vlSum(e.army)} soldados · marcha ${vlMins(e.march)} · recupera em ${vlMins(e.cool)} · espólio ${nxNum(e.loot.gold)} ouro, ${e.loot.wood} madeira, ${e.loot.stone} pedra, ${e.loot.food} comida${e.chest ? ` e um Baú de Equipamento +${e.chest}` : ''}.</p>`; }).join('')}
+        <p class="tiny" style="margin-top:6px;">Cada batalha tem até ${VL_ROUNDS} rondas de ${VL_ROUND_MIN} min. O herói lidera: +1% de ataque por cada 10 níveis. Depois de uma vitória o chefe pode contra-atacar (30%): a Muralha reduz os estragos 15% por nível. Uma construção danificada produz metade até ser reparada.</p></div>
     `;
   } else if (t === 'esconderijo') {
     body.innerHTML = `
@@ -9772,7 +9794,8 @@ const UNLOCKS = {
     guild: { lv: 10, label: 'Guild', alt: () => !!(typeof guildCache !== 'undefined' && guildCache && guildCache.data && guildCache.data.guild) },
     amigos: { lv: 10, label: 'Amigos' },
     profissoes: { lv: 15, label: 'Profissões', alt: p => !!p.profession || (p.professionBooks || 0) > 0 },
-    esconderijo: { lv: HIDEOUT_MIN_LEVEL, label: 'Esconderijo', alt: p => !!p.hideout }
+    esconderijo: { lv: HIDEOUT_MIN_LEVEL, label: 'Esconderijo', alt: p => !!p.hideout },
+    vila: { lv: 999, label: 'Vila', need: p => vilaUnlocked(p), needTxt: `Esconderijo Nv. ${HIDEOUT_MAX_LEVEL}` } // v198
   },
   loja: {
     ferreiro: { lv: 3, label: 'Ferreiro' },
@@ -9813,6 +9836,7 @@ function unlockNewlyAt(p, fromLv, toLv) {
   Object.keys(UNLOCKS).forEach(g => Object.keys(UNLOCKS[g]).forEach(k => { const u = UNLOCKS[g][k]; if (!u.need && !(u.alt && u.alt(p)) && u.lv > fromLv && u.lv <= toLv) out.push(u.label); }));
   return out;
 }
+function vilaBadge(p) { const v = p && p.vila; if (!v) return null; return v.exp && v.exp.phase === 'fim' ? '📜' : Object.keys(v.broken || {}).length ? '⚠️' : null; }
 function heroiSections(p) {
   const pvLeft = passivePointsLeft(p);
   return [
@@ -9824,7 +9848,8 @@ function heroiSections(p) {
     { key: 'guild', label: 'Guild', icon: nxEnt('guild', GUILD_TILE_ICON), badge: guildBadge() },
     { key: 'amigos', label: 'Amigos', icon: nxEnt('amigos', '👥'), badge: friendBadgeTotal() || null },
     { key: 'esconderijo', label: 'Esconderijo', icon: nxEnt('esconderijo', '🏰'), locked: p.level < HIDEOUT_MIN_LEVEL, sub: p.level < HIDEOUT_MIN_LEVEL ? `🔒 Nv. ${HIDEOUT_MIN_LEVEL}` : null,
-      badge: p.hideout ? (hoReadyCount(p) || null) : (p.level >= HIDEOUT_MIN_LEVEL ? 'Novo' : null) }
+      badge: p.hideout ? (hoReadyCount(p) || null) : (p.level >= HIDEOUT_MIN_LEVEL ? 'Novo' : null) },
+    { key: 'vila', label: 'Vila', icon: nxEnt('vila', '🏰'), badge: vilaBadge(p) } // v198
   ];
 }
 
@@ -9876,7 +9901,368 @@ function renderTabHeroi() {
   else if (current.key === 'guild') renderGuildBody();
   else if (current.key === 'amigos') renderAmigosBody();
   else if (current.key === 'esconderijo') renderEsconderijoBody();
+  else if (current.key === 'vila') renderVilaBody(); // v198
   else renderHeroiPerfilBody(current.key);
+}
+
+// ============================================================
+// 🏰 VILA DO HERÓI (v198) — Herói → Vila. Abre com o Esconderijo no Nv. 6.
+// Aldeões juntam pedra, madeira e comida (por tempo real, também com o jogo fechado). Com esses
+// recursos e ouro sobem-se os edifícios, reparam-se estragos, treinam-se e melhoram-se soldados,
+// e a armada ataca aldeias inimigas (marcha → batalha por rondas → regresso, tudo com duração).
+// Ciclo de soldados: Magos › Guerreiros › Bárbaros › Arqueiros › Magos (×1,5 / ×0,67).
+// O tempo usa hoNow() (relógio sincronizado com o servidor). O servidor limita os valores (antibatota_v198.sql).
+// ============================================================
+const VILA_FOUND_COST = 50000;
+const VILA_MAX_CATCHUP_MIN = 7 * 24 * 60; // no máximo 7 dias de produção com o jogo fechado
+const VL_UNITS = {
+  guerreiro: { n: 'Guerreiros', one: 'Guerreiro', img: 'amigo-guerreiro', emo: '🛡️', role: 'Tanque', atk: 8, hp: 60, c: { gold: 150, food: 40, stone: 20 }, t: 2 },
+  barbaro: { n: 'Bárbaros', one: 'Bárbaro', img: 'amigo-berserk', emo: '🪓', role: 'Investida', atk: 11, hp: 44, c: { gold: 140, food: 50, wood: 20 }, t: 2 },
+  arqueiro: { n: 'Arqueiros', one: 'Arqueiro', img: 'amigo-arqueiro', emo: '🏹', role: 'À distância', atk: 16, hp: 30, c: { gold: 120, food: 30, wood: 40 }, t: 2 },
+  mago: { n: 'Magos', one: 'Mago', img: 'amigo-mago', emo: '🧙', role: 'Dano mágico', atk: 20, hp: 24, c: { gold: 220, food: 30 }, t: 3 }
+};
+const VL_ORDER = ['guerreiro', 'barbaro', 'arqueiro', 'mago'];
+const VL_STRONG = { mago: 'guerreiro', guerreiro: 'barbaro', barbaro: 'arqueiro', arqueiro: 'mago' };
+const VL_WHY = { mago: 'a magia atravessa as armaduras', guerreiro: 'o escudo trava a fúria', barbaro: 'carregam sobre quem dispara de longe', arqueiro: 'acertam antes de o feitiço sair' };
+const VL_SM = 1.5, VL_SHARE = 0.7, VL_ROUNDS = 6, VL_ROUND_MIN = 2;
+const vlMult = (a, d) => VL_STRONG[a] === d ? VL_SM : VL_STRONG[d] === a ? 1 / VL_SM : 1;
+const vlWeakTo = k => VL_ORDER.find(x => VL_STRONG[x] === k);
+const vlSum = o => Object.values(o || {}).reduce((a, b) => a + (Number(b) || 0), 0);
+const VL_RES = { stone: { n: 'Pedra', img: 'recurso-pedra', emo: '🪨' }, wood: { n: 'Madeira', img: 'recurso-madeira', emo: '🪵' }, food: { n: 'Comida', img: 'recurso-comida', emo: '🍖' } };
+const VL_JOBS = { wood: { n: 'Lenhadores', img: 'aldeao-lenhador', b: 'serracao', rate: 30 }, stone: { n: 'Pedreiros', img: 'aldeao-pedreiro', b: 'pedreira', rate: 20 }, food: { n: 'Agricultores', img: 'aldeao-agricultor', b: 'quinta', rate: 40 } };
+const vlGrow = (base, f) => l => { const m = Math.pow(f, l - 1), o = {}; Object.keys(base).forEach(k => { o[k] = Math.round(base[k] * m / 10) * 10; }); return o; };
+const VL_B = {
+  salao: { n: 'Salão da Vila', img: 'vila-salao', x: 50, y: 23, big: 1, max: 5, d: 'O coração da vila. Cada nível: +4 aldeões, os outros edifícios podem subir mais um nível e abrem novas aldeias inimigas.', cost: vlGrow({ gold: 15000, wood: 800, stone: 600 }, 2.5), time: l => 30 * Math.pow(2, l - 1) },
+  serracao: { n: 'Serração', img: 'vila-serracao', x: 15, y: 47, d: 'Onde os lenhadores trabalham. Cada nível: +15% de madeira.', job: 'wood', cost: vlGrow({ gold: 2000, wood: 150, stone: 100 }, 2), time: l => 15 * l },
+  ferraria: { n: 'Ferraria', img: 'vila-ferraria', x: 38, y: 47, d: 'Melhora os soldados. Cada nível deixa melhorar os soldados mais um nível.', go: 'quartel', cost: vlGrow({ gold: 6000, wood: 300, stone: 500 }, 2), time: l => 30 * l },
+  guerra: { n: 'Sala de Guerra', img: 'vila-sala-guerra', x: 62, y: 47, d: 'Planeia ataques a aldeias inimigas e segue a marcha da armada.', go: 'guerra' },
+  pedreira: { n: 'Pedreira', img: 'vila-pedreira', x: 85, y: 47, d: 'Onde os pedreiros trabalham. Cada nível: +15% de pedra.', job: 'stone', cost: vlGrow({ gold: 2000, wood: 200, stone: 50 }, 2), time: l => 15 * l },
+  quinta: { n: 'Quinta', img: 'vila-quinta', x: 18, y: 67, d: 'Onde os agricultores trabalham. A comida treina soldados e aldeões.', job: 'food', cost: vlGrow({ gold: 2000, wood: 200, stone: 80 }, 2), time: l => 15 * l },
+  armazem: { n: 'Armazém', img: 'vila-armazem', x: 50, y: 67, d: 'Guarda a pedra, a madeira e a comida: 1 500 de cada por nível.', cost: vlGrow({ gold: 3000, wood: 300, stone: 200 }, 2), time: l => 20 * l },
+  quartel: { n: 'Quartel', img: 'vila-quartel', x: 82, y: 67, d: 'Treina soldados. Nv. 1: 20 soldados, +10 por nível.', go: 'quartel', cost: vlGrow({ gold: 6000, wood: 400, stone: 400 }, 2), time: l => 30 * l },
+  antigo: { n: 'Antigo Esconderijo', img: 'esconderijo', x: 30, y: 86, d: 'O teu Esconderijo continua aqui, com todas as estações: Lareira, Expedições, Bancada de Craft, Desmanche, Santuário, Boneco de Treino e Sala de Troféus.', go: 'esconderijo' },
+  muralha: { n: 'Muralha', img: 'vila-muralha', x: 70, y: 86, d: 'Diminui os estragos dos contra-ataques: −15% por nível. Danificada, protege metade.', cost: vlGrow({ gold: 5000, wood: 200, stone: 800 }, 2), time: l => 30 * l }
+};
+const VL_LEVELED = ['salao', 'serracao', 'pedreira', 'quinta', 'armazem', 'quartel', 'ferraria', 'muralha'];
+const VL_ENEMY = {
+  goblin: { n: 'Aldeia Goblin', boss: 'Rei Goblin', img: 'aldeia-goblin', bossImg: 'chefe-rei-goblin', soldier: 'monstro-goblin', d: 'Fácil', c: '#7ed36a', m: 0.8, march: 10, cool: 180,
+    army: { guerreiro: 6, arqueiro: 12, barbaro: 4 }, loot: { gold: 5000, wood: 500, stone: 300, food: 400 } },
+  bandido: { n: 'Covil dos Bandidos', boss: 'Capitão Bandido', img: 'aldeia-bandidos', bossImg: 'chefe-capitao-bandido', soldier: 'monstro-bandido', d: 'Médio', c: '#e4bf4a', m: 1.0, march: 20, cool: 360, need: 2,
+    army: { guerreiro: 4, arqueiro: 6, mago: 6, barbaro: 14 }, loot: { gold: 12000, wood: 900, stone: 700, food: 700 } },
+  oni: { n: 'Fortaleza Oni', boss: 'General Oni', img: 'aldeia-oni', bossImg: 'chefe-general-oni', soldier: 'monstro-oni-vermelho', d: 'Difícil', c: '#e0485a', m: 1.25, march: 40, cool: 720, need: 3,
+    army: { guerreiro: 20, mago: 8, arqueiro: 6, barbaro: 6 }, loot: { gold: 30000, wood: 2000, stone: 1800, food: 1500 }, chest: 4 }
+};
+const VL_TYPE_N = { guerreiro: 'lanceiros', arqueiro: 'arqueiros', mago: 'xamãs', barbaro: 'brutos' };
+const VL_HIRE = { gold: 300, food: 50 }, VL_HIRE_MIN = 2;
+
+function vlIc(k, cls) { return nxIconsEnabled() && NX_ICON_IMG.has(k) ? nxIconSvg(k, cls || 'nx-inline') : `<img class="nx-ic nx-img ${cls || 'nx-inline'}" src="icons/${k}.webp?v=${NX_ICON_REV[k] || NX_ICON_VER}" alt="" draggable="false">`; }
+function vlImg(k, cls) { return `<img class="${cls || ''}" src="icons/${k}.webp?v=${NX_ICON_REV[k] || NX_ICON_VER}" alt="" draggable="false" loading="lazy">`; }
+function vilaUnlocked(p) { return !!(p && (p.vila || hideoutLevel(p) >= HIDEOUT_MAX_LEVEL)); }
+function newVila(now) {
+  return { t: now, r: { stone: 300, wood: 400, food: 500 }, jobs: { wood: 2, stone: 1, food: 2 }, hireQ: 0, hireLeft: 0,
+    b: { salao: 1, serracao: 1, pedreira: 1, quinta: 1, armazem: 1, quartel: 1, ferraria: 1, muralha: 1 }, broken: {}, work: null,
+    army: { guerreiro: 6, barbaro: 2, arqueiro: 6, mago: 2 }, train: [], tLeft: 0, up: { guerreiro: 1, barbaro: 1, arqueiro: 1, mago: 1 }, forge: null,
+    exp: null, cool: {}, raid: null, wins: {} };
+}
+// Limpa/repara um save da Vila (valores impossíveis ficam dentro dos limites).
+function vilaEnsure(p) {
+  const v = p && p.vila; if (!v || typeof v !== 'object') { if (p) delete p.vila; return null; }
+  const int = (x, a, b) => clamp(Math.floor(Number(x) || 0), a, b);
+  v.t = Number(v.t) || hoNow();
+  v.b = v.b && typeof v.b === 'object' ? v.b : {}; VL_LEVELED.forEach(k => { v.b[k] = int(v.b[k] || 1, 1, 5); });
+  VL_LEVELED.forEach(k => { if (k !== 'salao' && v.b[k] > v.b.salao) v.b[k] = v.b.salao; });
+  v.r = v.r && typeof v.r === 'object' ? v.r : {}; Object.keys(VL_RES).forEach(k => { v.r[k] = clamp(Number(v.r[k]) || 0, 0, vlCap(v)); });
+  v.jobs = v.jobs && typeof v.jobs === 'object' ? v.jobs : {}; Object.keys(VL_JOBS).forEach(k => { v.jobs[k] = int(v.jobs[k], 0, 40); });
+  while (vlSum(v.jobs) > vlPopMax(v)) { const k = Object.keys(v.jobs).sort((a, b) => v.jobs[b] - v.jobs[a])[0]; v.jobs[k]--; }
+  v.hireQ = int(v.hireQ, 0, Math.max(0, vlPopMax(v) - vlSum(v.jobs))); v.hireLeft = int(v.hireLeft, 0, VL_HIRE_MIN);
+  v.broken = v.broken && typeof v.broken === 'object' ? v.broken : {}; Object.keys(v.broken).forEach(k => { const d = int(v.broken[k], 0, 90); if (!VL_B[k] || !d) delete v.broken[k]; else v.broken[k] = d; });
+  if (v.work && !(VL_B[v.work.k] && v.work.left > 0)) v.work = null;
+  v.army = v.army && typeof v.army === 'object' ? v.army : {}; VL_ORDER.forEach(k => { v.army[k] = int(v.army[k], 0, 60); });
+  v.up = v.up && typeof v.up === 'object' ? v.up : {}; VL_ORDER.forEach(k => { v.up[k] = int(v.up[k] || 1, 1, 5); });
+  v.train = Array.isArray(v.train) ? v.train.filter(k => VL_UNITS[k]).slice(0, 60) : []; v.tLeft = int(v.tLeft, 0, 3);
+  if (v.forge && !(VL_UNITS[v.forge.k] && v.forge.left > 0)) v.forge = null;
+  if (v.exp && !(VL_ENEMY[v.exp.k] && v.exp.me && v.exp.foe)) v.exp = null;
+  v.cool = v.cool && typeof v.cool === 'object' ? v.cool : {}; Object.keys(v.cool).forEach(k => { if (!VL_ENEMY[k] || !(v.cool[k] > 0)) delete v.cool[k]; });
+  v.wins = v.wins && typeof v.wins === 'object' ? v.wins : {};
+  return v;
+}
+const vlPopMax = v => 8 + 4 * v.b.salao;
+const vlCap = v => 1500 * ((v.b && v.b.armazem) || 1);
+const vlArmyCap = v => 20 + 10 * (v.b.quartel - 1);
+const vlOut = v => v.exp && v.exp.phase !== 'fim' ? vlSum(v.exp.me) : 0;
+const vlArmyUsed = v => vlSum(v.army) + v.train.length + vlOut(v);
+const vlMaxLv = (v, k) => VL_B[k].max || v.b.salao;
+const vlRate = (v, k) => { const j = VL_JOBS[k]; return v.jobs[k] * j.rate / 60 * (1 + 0.15 * (v.b[j.b] - 1)) * (v.broken[j.b] ? 0.5 : 1); };
+const vlUpM = (v, k) => 1 + 0.08 * (v.up[k] - 1);
+const vlHero = p => 1 + Math.floor((p.level || 1) / 10) / 100;
+const vlRepairCost = (v, k) => { const d = v.broken[k] || 0, l = v.b[k] || 1; return { wood: Math.round(d * 4 * l / 10) * 10, stone: Math.round(d * 6 * l / 10) * 10 }; };
+const vlRepairTime = (v, k) => Math.max(1, Math.ceil((v.broken[k] || 0) / 2));
+const vlForgeCost = l => ({ gold: 2500 * l, stone: 200 * l, wood: 150 * l });
+function vlCan(p, c) { const v = p.vila; return Object.keys(c).every(k => (k === 'gold' ? p.gold : v.r[k]) >= c[k]); }
+function vlPay(p, c) { const v = p.vila; Object.keys(c).forEach(k => { if (k === 'gold') p.gold -= c[k]; else v.r[k] -= c[k]; }); }
+function vlCostHtml(p, c) {
+  const v = p.vila;
+  return `<span class="vl-cost">${Object.keys(c).filter(k => c[k]).map(k => { const have = k === 'gold' ? p.gold : v.r[k];
+    return `<span class="${have < c[k] ? 'no' : ''}">${k === 'gold' ? vlIc('coin') : vlIc(VL_RES[k].img)} ${nxNum(c[k])}</span>`; }).join('')}</span>`;
+}
+function vlMins(m) { m = Math.max(0, Math.ceil(m)); const h = Math.floor(m / 60), r = m % 60; return h ? `${h} h${r ? ` ${r} min` : ''}` : `${m} min`; }
+
+// ---------- Batalha da armada (rondas) ----------
+function vlDmg(atk, def, m, rnd) {
+  const out = {}, alive = Object.keys(def).filter(k => def[k] > 0), tot = alive.reduce((s, k) => s + def[k], 0);
+  if (!tot) return out;
+  Object.keys(atk).forEach(k => { if (!atk[k] || !VL_UNITS[k]) return;
+    const raw = atk[k] * VL_UNITS[k].atk * m.a(k) * (rnd ? 0.9 + Math.random() * 0.2 : 1), st = VL_STRONG[k], share = {};
+    if (alive.includes(st)) { const rest = alive.filter(x => x !== st), rt = rest.reduce((s, x) => s + def[x], 0); share[st] = rest.length ? VL_SHARE : 1; rest.forEach(x => { share[x] = (1 - VL_SHARE) * def[x] / rt; }); }
+    else alive.forEach(x => { share[x] = def[x] / tot; });
+    Object.keys(share).forEach(t => { out[t] = (out[t] || 0) + raw * share[t] * vlMult(k, t); }); });
+  return out;
+}
+function vlApply(side, d, carry, m) { let lost = 0; Object.keys(d).forEach(t => { const hp = VL_UNITS[t].hp * m.h(t), tot = d[t] + (carry[t] || 0), k = Math.min(side[t], Math.floor(tot / hp)); side[t] -= k; lost += k; carry[t] = side[t] ? tot - k * hp : 0; }); return lost; }
+const vlPower = (o, m) => Object.keys(o).reduce((s, k) => s + (o[k] || 0) * (VL_UNITS[k] ? VL_UNITS[k].atk * m.a(k) * VL_UNITS[k].hp * m.h(k) : 0), 0);
+const vlMyM = p => ({ a: k => vlUpM(p.vila, k) * vlHero(p), h: k => vlUpM(p.vila, k) });
+const vlFoeM = e => ({ a: () => e.m, h: () => e.m });
+
+// ---------- Tempo ----------
+// Avança a vila minuto a minuto até agora (também o tempo em que o jogo esteve fechado).
+function vilaTick(p) {
+  const v = vilaEnsure(p); if (!v) return false;
+  const now = hoNow();
+  let n = Math.floor((now - v.t) / 60000);
+  if (n <= 0) { if (n < -5) v.t = now; return false; }
+  if (n > VILA_MAX_CATCHUP_MIN) { v.t = now - VILA_MAX_CATCHUP_MIN * 60000; n = VILA_MAX_CATCHUP_MIN; }
+  let ev = false;
+  for (let i = 0; i < n; i++) ev = vlMinute(p, v) || ev;
+  v.t += n * 60000;
+  return ev;
+}
+function vlMinute(p, v) {
+  let ev = false;
+  const cap = vlCap(v);
+  Object.keys(VL_RES).forEach(k => { v.r[k] = Math.min(cap, v.r[k] + vlRate(v, k)); });
+  if (v.work && --v.work.left <= 0) { const w = v.work; v.work = null; ev = true;
+    if (w.kind === 'repair') { delete v.broken[w.k]; if (!Object.keys(v.broken).length) v.raid = null; } else v.b[w.k] = Math.min(vlMaxLv(v, w.k), v.b[w.k] + 1); }
+  if (v.hireQ > 0 && --v.hireLeft <= 0) { v.hireQ--; v.jobs.food++; v.hireLeft = v.hireQ ? VL_HIRE_MIN : 0; ev = true; }
+  if (v.train.length && --v.tLeft <= 0) { const k = v.train.shift(); v.army[k]++; v.tLeft = v.train.length ? VL_UNITS[v.train[0]].t : 0; ev = true; }
+  if (v.forge && --v.forge.left <= 0) { v.up[v.forge.k] = Math.min(5, v.up[v.forge.k] + 1); v.forge = null; ev = true; }
+  Object.keys(v.cool).forEach(k => { if (--v.cool[k] <= 0) { delete v.cool[k]; ev = true; } });
+  if (v.exp && v.exp.phase !== 'fim') ev = vlExpMinute(p, v) || ev;
+  return ev;
+}
+function vlExpMinute(p, v) {
+  const x = v.exp, e = VL_ENEMY[x.k];
+  x.left--;
+  if (x.phase === 'marcha') { if (x.left > 0) return false;
+    x.phase = 'batalha'; x.left = VL_ROUND_MIN; x.log.push(['y', `⚔️ Chegaste a ${e.n}! ${e.boss} manda os soldados para a frente.`]); return true; }
+  if (x.phase === 'batalha') { if (x.left > 0) return false;
+    x.left = VL_ROUND_MIN; x.round++;
+    const my = vlMyM(p), foe = vlFoeM(e), d1 = vlDmg(x.me, x.foe, my, true), d2 = vlDmg(x.foe, x.me, foe, true);
+    const k1 = vlApply(x.foe, d1, x.cFoe, foe), k2 = vlApply(x.me, d2, x.cMe, my);
+    const adv = VL_ORDER.filter(t => x.me[t] && x.foe[VL_STRONG[t]]).map(t => VL_UNITS[t].n);
+    x.log.push([k1 >= k2 ? 'g' : 'r', `Ronda ${x.round}: derrubaste ${k1} e perdeste ${k2}.${adv.length ? ` Vantagem: ${adv.join(', ')}.` : ''}`]);
+    if (x.round >= VL_ROUNDS || !vlSum(x.me) || !vlSum(x.foe)) {
+      x.won = vlSum(x.me) > 0 && (!vlSum(x.foe) || vlPower(x.me, my) > vlPower(x.foe, foe));
+      x.log.push(x.won ? ['g', `🏆 ${e.boss} foge! A aldeia é tua para saquear.`] : ['r', `🏳️ A armada recua. ${e.boss} resistiu.`]);
+      x.phase = 'regresso'; x.left = e.march;
+    }
+    return true; }
+  if (x.phase === 'regresso') { if (x.left > 0) return false;
+    x.phase = 'fim';
+    VL_ORDER.forEach(t => { v.army[t] += x.me[t] || 0; });
+    v.cool[x.k] = e.cool;
+    if (x.won) {
+      p.gold += e.loot.gold;
+      Object.keys(VL_RES).forEach(r => { v.r[r] = Math.min(vlCap(v), v.r[r] + (e.loot[r] || 0)); });
+      if (e.chest) { p.chests.push(newChest('equip', p.level || 1, e.chest)); }
+      v.wins[x.k] = (v.wins[x.k] || 0) + 1;
+      x.log.push(['y', '🏠 A armada voltou com o espólio.']);
+      if (Math.random() < 0.3) {
+        const prot = Math.min(0.75, 0.15 * v.b.muralha * (v.broken.muralha ? 0.5 : 1));
+        const dmg = Math.max(5, Math.round((20 + Math.random() * 25) * (1 - prot)));
+        v.broken.muralha = Math.min(90, (v.broken.muralha || 0) + dmg);
+        if (Math.random() < 0.5) { const b = ['quinta', 'serracao', 'pedreira'][Math.floor(Math.random() * 3)]; v.broken[b] = Math.min(90, (v.broken[b] || 0) + Math.round(dmg * 0.8)); }
+        v.raid = { boss: e.boss, img: e.bossImg };
+        x.log.push(['r', `⚠️ ${e.boss} contra-atacou a vila! A Muralha perdeu ${dmg}%.`]);
+      }
+    } else x.log.push(['y', '🏠 O que restou da armada voltou à vila.']);
+    return true; }
+  return false;
+}
+
+// ---------- Ações ----------
+function vilaFound() {
+  const p = App.player;
+  if (p.vila || hideoutLevel(p) < HIDEOUT_MAX_LEVEL) return;
+  if (p.gold < VILA_FOUND_COST) { sfx.error(); toast(`Precisas de ${nxNum(VILA_FOUND_COST)} de ouro para fundar a vila.`); return; }
+  p.gold -= VILA_FOUND_COST;
+  p.vila = newVila(hoNow());
+  sfx.evolve(); fxVibrate([20, 40, 20]); saveGame(); renderStatusBar();
+  toast('🏰 Fundaste a tua Vila! Põe os aldeões a trabalhar.');
+  renderTabHeroi();
+}
+function vilaAction(kind, a, b) {
+  const p = App.player, v = vilaEnsure(p); if (!v) return;
+  vilaTick(p);
+  let ok = false;
+  if (kind === 'up') { const k = a, lv = v.b[k], c = VL_B[k].cost(lv);
+    if (!v.work && lv < vlMaxLv(v, k) && vlCan(p, c)) { vlPay(p, c); const t = VL_B[k].time(lv); v.work = { k, kind: 'up', left: t, total: t, label: `${VL_B[k].n} → Nv. ${lv + 1}` }; ok = true; } }
+  else if (kind === 'repair') { const k = a, c = vlRepairCost(v, k);
+    if (!v.work && v.broken[k] && vlCan(p, c)) { vlPay(p, c); const t = vlRepairTime(v, k); v.work = { k, kind: 'repair', left: t, total: t, label: `Reparar ${VL_B[k].n}` }; ok = true; } }
+  else if (kind === 'job') { const k = a, d = b;
+    if (d > 0) { const from = Object.keys(v.jobs).filter(x => x !== k && v.jobs[x] > 0).sort((x, y) => v.jobs[y] - v.jobs[x])[0]; if (from) { v.jobs[from]--; v.jobs[k]++; ok = true; } }
+    else if (v.jobs[k] > 0) { const to = Object.keys(v.jobs).filter(x => x !== k).sort((x, y) => v.jobs[x] - v.jobs[y])[0]; v.jobs[k]--; v.jobs[to]++; ok = true; } }
+  else if (kind === 'hire') { if (vlSum(v.jobs) + v.hireQ < vlPopMax(v) && vlCan(p, VL_HIRE)) { vlPay(p, VL_HIRE); if (!v.hireQ) v.hireLeft = VL_HIRE_MIN; v.hireQ++; ok = true; } }
+  else if (kind === 'train') { const k = a, u = VL_UNITS[k];
+    for (let i = 0; i < b; i++) { if (vlArmyUsed(v) >= vlArmyCap(v) || !vlCan(p, u.c)) break; vlPay(p, u.c); if (!v.train.length) v.tLeft = u.t; v.train.push(k); ok = true; } }
+  else if (kind === 'forge') { const k = a, l = v.up[k], c = vlForgeCost(l);
+    if (!v.forge && l < Math.min(5, v.b.ferraria + 2) && vlCan(p, c)) { vlPay(p, c); v.forge = { k, left: 20 * l }; ok = true; } }
+  else if (kind === 'attack') { const k = a, e = VL_ENEMY[k];
+    if (e && !(v.exp && v.exp.phase !== 'fim') && !v.cool[k] && !(e.need && v.b.salao < e.need) && vlSum(v.army) > 0) {
+      v.exp = { k, phase: 'marcha', left: e.march, types: VL_ORDER.filter(t => v.army[t] > 0), me: Object.assign({}, v.army), foe: Object.assign({}, e.army), cMe: {}, cFoe: {},
+        log: [['y', `📯 A armada parte para ${e.n}. Chegada em ${vlMins(e.march)}.`]], round: 0, sent: vlSum(v.army) };
+      VL_ORDER.forEach(t => { v.army[t] = 0; }); ok = true; } }
+  else if (kind === 'report') { if (v.exp && v.exp.phase === 'fim') { v.exp = null; ok = true; } }
+  if (ok) { sfx.click(); saveGame(); renderStatusBar(); } else sfx.error();
+  renderVilaBody();
+}
+
+// ---------- Ecrã ----------
+function renderVilaBody() {
+  const p = App.player, body = $('heroi-body'); if (!body) return;
+  clearInterval(App.vlTimer);
+  if (!p.vila) {
+    const lv = hideoutLevel(p), can = lv >= HIDEOUT_MAX_LEVEL;
+    body.innerHTML = `<div class="vl-found">${vlImg('vila', 'vl-found-ic')}
+      <h3>A Vila do Herói</h3>
+      <p class="muted">Com o Esconderijo no nível máximo, podes fundar uma pequena vila. Aldeões juntam <b>pedra, madeira e comida</b>, sobes edifícios, treinas soldados e atacas aldeias inimigas — Rei Goblin, Capitão Bandido e General Oni.</p>
+      <div class="vl-found-list"><span>${vlImg('aldeao')} Aldeões que trabalham sozinhos</span><span>${vlImg('vila-quartel')} Quartel e Ferraria</span><span>${vlImg('vila-sala-guerra')} Sala de Guerra</span><span>${vlImg('armada')} Batalhas com duração</span></div>
+      ${can ? `<button class="btn primary block" id="btn-vl-found"${p.gold >= VILA_FOUND_COST ? '' : ' disabled'}>🏰 Fundar a Vila · ${nxNum(VILA_FOUND_COST)} 🪙</button>` : `<div class="ho-note warn">Precisas do Esconderijo no Nv. ${HIDEOUT_MAX_LEVEL} (está no Nv. ${lv}).</div>`}
+      <p class="tiny muted" style="margin-top:8px;">O teu Esconderijo continua igual, dentro da vila.</p></div>`;
+    const fb = $('btn-vl-found'); if (fb) fb.addEventListener('click', vilaFound);
+    return;
+  }
+  if (vilaTick(p)) saveGame();
+  const v = p.vila, tab = ['vila', 'aldeoes', 'quartel', 'guerra'].includes(App.vlTab) ? App.vlTab : 'vila';
+  App.vlTab = tab;
+  const resBar = `<div class="vl-res">${['gold', 'stone', 'wood', 'food'].map(k => k === 'gold'
+      ? `<span>${vlIc('coin')}<b>${nxNum(Math.floor(p.gold))}</b><small>do herói</small></span>`
+      : `<span>${vlIc(VL_RES[k].img)}<b data-vl-r="${k}">${nxNum(Math.floor(v.r[k]))}</b><small data-vl-i="${k}">${v.r[k] >= vlCap(v) ? 'cheio' : `+${nxNum(Math.round(vlRate(v, k) * 60))}/h`}</small></span>`).join('')}</div>
+    <div class="vl-sub tiny muted">Armazém: ${nxNum(vlCap(v))} de cada · Aldeões ${vlSum(v.jobs)}/${vlPopMax(v)} · Soldados ${vlArmyUsed(v)}/${vlArmyCap(v)}</div>`;
+  const tabs = `<div class="tab-strip vl-tabs">${[['vila', '🏘️ Vila', Object.keys(v.broken).length], ['aldeoes', '👷 Aldeões'], ['quartel', '🛡️ Quartel'], ['guerra', '⚔️ Guerra', v.exp && v.exp.phase === 'fim']].map(([k, l, dot]) =>
+    `<button class="tab-chip${k === tab ? ' active' : ''}" data-vl-tab="${k}">${l}${dot ? '<i class="vl-dot"></i>' : ''}</button>`).join('')}</div>`;
+  let main = '';
+  if (tab === 'vila') main = vlVilaHtml(p, v);
+  else if (tab === 'aldeoes') main = vlAldeoesHtml(p, v);
+  else if (tab === 'quartel') main = vlQuartelHtml(p, v);
+  else main = vlGuerraHtml(p, v);
+  body.innerHTML = resBar + tabs + main;
+  els('[data-vl-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.vlTab = b.dataset.vlTab; renderVilaBody(); }));
+  els('[data-vl-house]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.vlSel = b.dataset.vlHouse; renderVilaBody(); }));
+  els('[data-vl-go]').forEach(b => b.addEventListener('click', () => { sfx.tab(); const g = b.dataset.vlGo; if (g === 'esconderijo') { App.heroiTab = 'esconderijo'; App.hoStation = null; renderTabHeroi(); window.scrollTo(0, 0); } else { App.vlTab = g; renderVilaBody(); } }));
+  els('[data-vl-act]').forEach(b => b.addEventListener('click', () => { const [k, a, x] = b.dataset.vlAct.split(':'); vilaAction(k, a, x !== undefined ? Number(x) : undefined); }));
+  const bl = body.querySelector('.vl-blog'); if (bl) bl.scrollTop = bl.scrollHeight;
+  // Relógio: contagens a cada segundo; o ecrã inteiro só volta a desenhar quando algo acontece.
+  App.vlTimer = setInterval(() => {
+    if (App.tab !== 'heroi' || App.heroiTab !== 'vila' || !document.querySelector('#screen-hub.active') || !App.player || !App.player.vila) { clearInterval(App.vlTimer); return; }
+    const pl = App.player, vv = pl.vila;
+    if (vilaTick(pl)) { saveGame(); renderStatusBar(); if (!document.querySelector('#modal-overlay.active')) renderVilaBody(); return; }
+    const sec = Math.max(0, 60 - Math.floor((hoNow() - vv.t) / 1000));
+    els('[data-vl-r]').forEach(el => { el.textContent = nxNum(Math.floor(vv.r[el.dataset.vlR])); });
+    els('[data-vl-left]').forEach(el => { const m = Number(el.dataset.vlLeft); el.textContent = m > 1 ? vlMins(m) : `${sec} s`; });
+  }, 1000);
+}
+function vlLeftHtml(min) { return `<span data-vl-left="${min}">${vlMins(min)}</span>`; }
+function vlVilaHtml(p, v) {
+  const sel = VL_B[App.vlSel] ? App.vlSel : 'salao';
+  const raid = Object.keys(v.broken).length ? `<div class="vl-alert">${vlImg(v.raid ? v.raid.img : 'estado-danificado')}<div><b>${v.raid ? `${esc(v.raid.boss)} atacou a vila!` : 'A vila tem estragos'}</b><small>${Object.keys(v.broken).map(k => VL_B[k].n).join(', ')} ${Object.keys(v.broken).length > 1 ? 'estão danificadas' : 'está danificada'}. Repara para voltarem a funcionar a 100%.</small></div></div>` : '';
+  const houses = Object.keys(VL_B).map(k => { const b = VL_B[k], w = v.work && v.work.k === k;
+    const tag = w ? `🔨 ${vlLeftHtml(v.work.left)}` : v.broken[k] ? `⚠️ ${100 - v.broken[k]}%` : VL_LEVELED.includes(k) ? `Nv. ${v.b[k]}` : k === 'antigo' ? `Nv. ${hideoutLevel(p)}` : '';
+    return `<button type="button" class="vl-house${b.big ? ' big' : ''}${k === sel ? ' sel' : ''}${v.broken[k] && !w ? ' broken' : ''}${w ? ' work' : ''}" data-vl-house="${k}" style="left:${b.x}%;top:${b.y}%;">${vlImg(b.img)}<b>${b.n}</b>${tag ? `<i>${tag}</i>` : ''}</button>`; }).join('');
+  const b = VL_B[sel], lv = v.b[sel];
+  let card = `<div class="vl-head">${vlImg(b.img)}<div><b>${b.n}${VL_LEVELED.includes(sel) ? ` <span class="vl-lv">Nv. ${lv}/${vlMaxLv(v, sel)}</span>` : ''}</b><small>${b.d}</small></div></div>`;
+  if (v.broken[sel]) { const rc = vlRepairCost(v, sel);
+    card += `<div class="vl-kv"><span>${vlImg('estado-danificado', 'vl-kv-ic')} Estado</span><b class="bad">${100 - v.broken[sel]}%</b></div><div class="vl-bar hp"><i style="width:${100 - v.broken[sel]}%"></i></div>
+      <p class="tiny muted" style="margin-top:6px;">${b.job ? 'Danificada: produz metade até ser reparada.' : 'Danificada: só protege metade no próximo contra-ataque.'}</p>`;
+    if (!(v.work && v.work.k === sel)) card += `<div class="vl-row"><button class="btn danger vl-ico" data-vl-act="repair:${sel}"${v.work || !vlCan(p, rc) ? ' disabled' : ''}>${vlImg('acao-reparar')}Reparar · ${vlMins(vlRepairTime(v, sel))}</button>${vlCostHtml(p, rc)}</div>`; }
+  if (b.job) card += `<div class="vl-kv"><span>Aldeões a trabalhar</span><b>${v.jobs[b.job]}</b></div>`;
+  if (v.work && v.work.k === sel) card += `<div class="vl-queue">🔨 <b>${v.work.label}</b> · faltam ${vlLeftHtml(v.work.left)}<div class="vl-bar go"><i style="width:${(1 - v.work.left / v.work.total) * 100}%"></i></div></div>`;
+  else if (VL_LEVELED.includes(sel)) {
+    if (lv >= vlMaxLv(v, sel)) card += `<p class="tiny muted" style="margin-top:8px;">${VL_B[sel].max ? 'Nível máximo.' : `Para subir mais, melhora primeiro o <b>Salão da Vila</b> (Nv. ${v.b.salao}).`}</p>`;
+    else { const c = b.cost(lv); card += `<div class="vl-row"><button class="btn primary vl-ico" data-vl-act="up:${sel}"${v.work || !vlCan(p, c) ? ' disabled' : ''}>${vlImg('acao-melhorar')}Melhorar para Nv. ${lv + 1} · ${vlMins(b.time(lv))}</button>${vlCostHtml(p, c)}</div>`; }
+    if (v.work && v.work.k !== sel) card += `<p class="tiny muted" style="margin-top:6px;">Os construtores estão ocupados: <b>${v.work.label}</b> (${vlLeftHtml(v.work.left)}).</p>`;
+  }
+  if (b.go) card += `<div class="vl-row"><button class="btn ghost" data-vl-go="${b.go}">Abrir ${b.go === 'guerra' ? 'Sala de Guerra' : b.go === 'quartel' ? 'Quartel' : 'Esconderijo'}</button></div>`;
+  return `${raid}<div class="vl-map" style="background-image:url(icons/mapa-vila.webp?v=${NX_ICON_REV['mapa-vila'] || NX_ICON_VER});"><div class="vl-wall${v.broken.muralha ? ' dmg' : ''}"></div>
+      <div class="vl-flag">${vlImg('vila')}Vila de ${esc(p.name || 'Herói')} · Nv. ${v.b.salao}</div>${houses}</div>
+    <div class="card raised vl-card">${card}</div>`;
+}
+function vlAldeoesHtml(p, v) {
+  const used = vlSum(v.jobs), full = used + v.hireQ >= vlPopMax(v);
+  const rows = Object.keys(VL_JOBS).map(k => { const j = VL_JOBS[k], bk = j.b;
+    return `<div class="vl-it">${vlImg(j.img, 'vl-round')}<div class="vl-t"><b>${j.n}</b><small>${VL_B[bk].n} Nv. ${v.b[bk]}${v.broken[bk] ? ' · ⚠️ danificada (−50%)' : ''}</small>
+      <small class="good">+${nxNum(Math.round(vlRate(v, k) * 60))} ${VL_RES[k].n.toLowerCase()} por hora</small></div>
+      <div class="vl-step"><button class="btn small ghost" data-vl-act="job:${k}:-1"${v.jobs[k] ? '' : ' disabled'}>−</button><span class="vl-n">${v.jobs[k]}</span><button class="btn small ghost" data-vl-act="job:${k}:1"${used - v.jobs[k] > 0 ? '' : ' disabled'}>+</button></div></div>`; }).join('');
+  return `<div class="card raised vl-card"><div class="vl-head">${vlImg('aldeao', 'vl-round')}<div><b>Aldeões · ${used + v.hireQ}/${vlPopMax(v)}</b><small>Escolhe onde trabalham. Juntam recursos sem parar, mesmo com o jogo fechado (até ${VILA_MAX_CATCHUP_MIN / 1440} dias, e até encher o Armazém).</small></div></div>
+    <div class="vl-list">${rows}</div>
+    <div class="vl-row"><button class="btn primary" data-vl-act="hire"${full || !vlCan(p, VL_HIRE) ? ' disabled' : ''}>👷 Contratar aldeão · ${VL_HIRE_MIN} min</button>${vlCostHtml(p, VL_HIRE)}</div>
+    ${v.hireQ ? `<div class="vl-queue">⏳ A chegar: <b>${v.hireQ} aldeão${v.hireQ > 1 ? 's' : ''}</b> · próximo em ${vlLeftHtml(v.hireLeft)} (começam na Quinta)</div>` : ''}
+    ${full ? `<p class="tiny muted" style="margin-top:6px;">População cheia. Melhora o Salão da Vila para teres mais aldeões (+4 por nível).</p>` : ''}
+    <p class="tiny muted" style="margin-top:8px;">Cada aldeão: 30 madeira, 20 pedra ou 40 comida por hora. Cada nível da Serração, Pedreira ou Quinta dá +15%.</p></div>`;
+}
+function vlQuartelHtml(p, v) {
+  const used = vlArmyUsed(v), cap = vlArmyCap(v), out = vlOut(v);
+  const units = VL_ORDER.map(k => { const u = VL_UNITS[k], c5 = {}; Object.keys(u.c).forEach(r => { c5[r] = u.c[r] * 5; });
+    return `<div class="vl-it">${vlImg(u.img, 'vl-round')}<div class="vl-t"><b>${u.n} <span class="vl-lv">Nv. ${v.up[k]}</span></b>
+      <small>⚔️ ${(Math.round(u.atk * vlUpM(v, k) * 10) / 10).toLocaleString('pt-PT')} · ❤️ ${Math.round(u.hp * vlUpM(v, k))} · ${vlMins(u.t)} cada</small>
+      <small><span class="good">Forte vs ${VL_UNITS[VL_STRONG[k]].n}</span> · <span class="bad">fraco vs ${VL_UNITS[vlWeakTo(k)].n}</span></small>${vlCostHtml(p, u.c)}</div>
+      <span class="vl-n">${v.army[k]}</span><div class="vl-step col"><button class="btn small primary" data-vl-act="train:${k}:1"${used >= cap || !vlCan(p, u.c) ? ' disabled' : ''}>+1</button><button class="btn small ghost" data-vl-act="train:${k}:5"${used + 5 > cap || !vlCan(p, c5) ? ' disabled' : ''}>+5</button></div></div>`; }).join('');
+  const matrix = `<table class="vl-mx"><tr><th></th>${VL_ORDER.map(k => `<th>${vlImg(VL_UNITS[k].img, 'vl-round')}</th>`).join('')}</tr>${VL_ORDER.map(a => `<tr><th>${vlImg(VL_UNITS[a].img, 'vl-round')}</th>${VL_ORDER.map(d => { const m = vlMult(a, d); return `<td class="${a === d ? 'n' : m > 1 ? 's' : m < 1 ? 'w' : 'n'}">${a === d ? '—' : m > 1 ? '×1,5' : m < 1 ? '×0,67' : '×1'}</td>`; }).join('')}</tr>`).join('')}</table>`;
+  const fmax = Math.min(5, v.b.ferraria + 2);
+  const ups = VL_ORDER.map(k => { const u = VL_UNITS[k], l = v.up[k], c = vlForgeCost(l);
+    return `<div class="vl-it">${vlImg(u.img, 'vl-round')}<div class="vl-t"><b>${u.n} Nv. ${l}${l < 5 ? ` → ${l + 1}` : ''}</b><small>${l >= 5 ? 'Nível máximo' : l >= fmax ? `Precisa da Ferraria Nv. ${l - 1}` : `+8% ataque e vida · ${vlMins(20 * l)}`}</small>${l < fmax ? vlCostHtml(p, c) : ''}</div>
+      <button class="btn small primary" data-vl-act="forge:${k}"${l >= fmax || v.forge || !vlCan(p, c) ? ' disabled' : ''}>${l >= 5 ? 'Máx.' : '⬆'}</button></div>`; }).join('');
+  return `<div class="card raised vl-card"><div class="vl-head">${vlImg('vila-quartel')}<div><b>Quartel · ${used}/${cap} soldados</b><small>Cada tipo é forte contra um e fraco contra outro. Nv. ${v.b.quartel}: até ${cap} soldados.</small></div></div>
+      <div class="vl-queue">${v.train.length ? `⏳ A treinar: <b>${v.train.slice(0, 5).map(k => VL_UNITS[k].one).join(', ')}${v.train.length > 5 ? ` +${v.train.length - 5}` : ''}</b> · próximo em ${vlLeftHtml(v.tLeft)}` : 'Fila de treino vazia.'}${out ? ` · ${out} soldados estão fora com a armada.` : ''}</div>
+      <div class="vl-list">${units}</div></div>
+    <div class="card raised vl-card"><b class="vl-title">Quem vence quem</b>
+      <p class="tiny muted" style="margin-top:4px;">Lê a linha: o soldado da esquerda faz <b class="good">×1,5 de dano</b> ao que está forte e <b class="bad">só ×0,67</b> ao que está fraco. Também ataca primeiro quem consegue vencer.</p>
+      ${matrix}
+      <div class="vl-why">${VL_ORDER.map(k => `<span>${VL_UNITS[k].emo} <b>${VL_UNITS[k].n}</b> › ${VL_UNITS[VL_STRONG[k]].n}: ${VL_WHY[k]}.</span>`).join('')}</div></div>
+    <div class="card raised vl-card"><div class="vl-head">${vlImg('vila-ferraria')}<div><b>Ferraria · Nv. ${v.b.ferraria}</b><small>Melhora um tipo de soldado de cada vez: +8% de ataque e vida por nível, até Nv. ${fmax}.</small></div></div>
+      <div class="vl-queue">${v.forge ? `🔨 A melhorar <b>${VL_UNITS[v.forge.k].n}</b> para Nv. ${v.up[v.forge.k] + 1} · faltam ${vlLeftHtml(v.forge.left)}` : 'A Ferraria está livre.'}</div>
+      <div class="vl-list">${ups}</div></div>`;
+}
+function vlGuerraHtml(p, v) {
+  const busy = v.exp && v.exp.phase !== 'fim';
+  const tg = Object.keys(VL_ENEMY).map(k => { const e = VL_ENEMY[k], locked = e.need && v.b.salao < e.need, cd = v.cool[k];
+    const main = Object.keys(e.army).sort((a, b) => e.army[b] - e.army[a])[0], best = vlWeakTo(main);
+    return `<div class="vl-tgt${locked ? ' lock' : ''}">${vlImg(e.img, 'vl-tgt-ic')}<div class="vl-t"><b>${e.n} <span class="vl-diff" style="color:${e.c};border-color:${e.c}">${e.d}</span></b>
+      <small>${vlImg(e.bossImg, 'vl-mini')} ${e.boss} · ${vlSum(e.army)} soldados${e.m !== 1 ? ` (${e.m > 1 ? 'mais fortes' : 'mais fracos'} ×${String(e.m).replace('.', ',')})` : ''} · marcha ${vlMins(e.march)}</small>
+      <div class="vl-comp">${Object.keys(e.army).map(t => `<span>${vlImg(e.soldier, 'vl-round')}${e.army[t]} <em>${VL_TYPE_N[t]}</em></span>`).join('')}</div>
+      <small class="vl-hint">💡 Muitos ${VL_TYPE_N[main]}: leva ${VL_UNITS[best].n}.</small>
+      <small class="vl-loot">Espólio: <span>${vlIc('coin')} ${nxNum(e.loot.gold)}</span>${Object.keys(VL_RES).map(r => `<span>${vlIc(VL_RES[r].img)} ${nxNum(e.loot[r])}</span>`).join('')}${e.chest ? `<span>📦 Baú de Equipamento +${e.chest}</span>` : ''}</small>
+      ${cd ? `<small class="vl-cd">⏳ A recuperar do último ataque: ${vlLeftHtml(cd)}</small>` : ''}</div>
+      ${locked ? `<span class="vl-cost vl-lockt">🔒 Precisa do Salão da Vila Nv. ${e.need}</span>` : `<button class="btn small danger" data-vl-act="attack:${k}"${busy || cd || !vlSum(v.army) ? ' disabled' : ''}>Atacar</button>`}</div>`; }).join('');
+  return `<div class="card raised vl-card"><div class="vl-head">${vlImg('vila-sala-guerra')}<div><b>Sala de Guerra</b><small>Vê quem defende cada aldeia, leva os soldados certos e envia a armada. O teu herói lidera: +${Math.round((vlHero(p) - 1) * 100)}% de ataque (+1% por cada 10 níveis).</small></div></div>
+    ${vlExpHtml(p, v)}<div class="vl-list">${tg}</div>
+    <p class="tiny muted" style="margin-top:10px;">Depois de uma vitória, o chefe pode contra-atacar (30%) e estragar a Muralha ou uma casa de trabalho. Cada nível da Muralha reduz os estragos em 15%.</p></div>`;
+}
+function vlExpHtml(p, v) {
+  const x = v.exp; if (!x) return '';
+  const e = VL_ENEMY[x.k], idx = ['marcha', 'batalha', 'regresso', 'fim'].indexOf(x.phase);
+  const prog = x.phase === 'marcha' ? 1 - x.left / e.march : x.phase === 'regresso' ? 1 - x.left / e.march : 1;
+  const pos = x.phase === 'marcha' ? prog * 78 + 6 : x.phase === 'batalha' ? 84 : x.phase === 'regresso' ? (1 - prog) * 78 + 6 : 6;
+  const tl = x.phase === 'batalha' ? (VL_ROUNDS - x.round - 1) * VL_ROUND_MIN + x.left : x.left;
+  const side = (a, who) => VL_ORDER.filter(t => who === 'm' ? x.types.includes(t) : e.army[t]).map(t => `<div class="vl-u${!a[t] ? ' dead' : ''}">${vlImg(who === 'm' ? VL_UNITS[t].img : e.soldier, 'vl-round')}<b>${a[t] || 0}</b><small>${who === 'm' ? VL_UNITS[t].n : VL_TYPE_N[t]}</small></div>`).join('');
+  const status = { marcha: `A marchar para ${e.n}`, batalha: `Em batalha · ronda ${x.round}/${VL_ROUNDS}`, regresso: 'A regressar à vila', fim: 'Relatório de batalha' }[x.phase];
+  return `<div class="vl-march"><div class="vl-phases">${['🚶 Marcha', '⚔️ Batalha', '🏠 Regresso', '📜 Relatório'].map((l, i) => `<span class="${i === idx ? 'on' : i < idx ? 'done' : ''}">${l}</span>`).join('')}</div>
+    <div class="vl-mstat"><span>${status}</span><b>${x.phase === 'fim' ? '' : vlLeftHtml(tl)}</b></div>
+    <div class="vl-road">${vlImg('vila', 'home')}${vlImg('armada', 'army" style="left:' + pos + '%')}${vlImg(e.img, 'foe')}</div>
+    <div class="vl-sides"><div><h4 class="good">A tua armada</h4>${side(x.me, 'm')}</div><div class="vl-vs">VS</div><div><h4 class="bad">${e.n}</h4>${side(x.foe, 'f')}</div></div>
+    <div class="vl-blog">${x.log.map(([c, t]) => `<div class="${c}">${t}</div>`).join('')}</div>
+    ${x.phase === 'fim' ? `<div class="vl-report"><h3 class="${x.won ? 'win' : 'lose'}">${x.won ? 'VITÓRIA!' : 'RETIRADA'}</h3>
+      <p${x.won ? ' class="vl-loot vl-loot-c"' : ''}>${x.won ? `<span>${vlIc('coin')} ${nxNum(e.loot.gold)}</span>${Object.keys(VL_RES).map(r => `<span>${vlIc(VL_RES[r].img)} ${nxNum(e.loot[r])}</span>`).join('')}${e.chest ? `<span>📦 Baú de Equipamento +${e.chest}</span>` : ''}` : 'O inimigo resistiu. Treina mais soldados, melhora-os na Ferraria ou leva os que têm vantagem.'}</p>
+      <p>Soldados perdidos: <b>${x.sent - vlSum(x.me)}</b> de ${x.sent}.</p><button class="btn ghost" data-vl-act="report">Fechar relatório</button></div>` : ''}</div>`;
 }
 
 // ============================================================
@@ -17965,7 +18351,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v197</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v198</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -18238,6 +18624,7 @@ function applyPlayerMigrations(player) {
   ensureFoodBuffs(player);
   ensureMeals(player);
   ensureHideout(player); // v119: Esconderijo
+  vilaEnsure(player); // v198: Vila
   tutState(player); // v188: dicas do início
   { const cm = enforceCaps(player); if (cm.length) setTimeout(() => { try { toast(cm.join(' · ')); } catch (e) {} }, 2500); } // v187
   if (!player.fightDifficulty) player.fightDifficulty = 'comum';
@@ -18299,9 +18686,17 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 2.0.2';
+const APP_VERSION_LABEL = 'V 2.1.0';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v198', title: 'V 2.1.0 · A Vila do Herói! 🏰', items: [
+    ['🏰', 'Com o Esconderijo no Nv. 6, já podes fundar a tua Vila em Herói → Vila. O Esconderijo continua lá dentro, igual.'],
+    ['👷', 'Contrata aldeões e põe-nos a juntar pedra, madeira e comida. Trabalham sozinhos, mesmo com o jogo fechado.'],
+    ['🏘️', 'Usa os recursos e o ouro para subir o Salão da Vila, a Serração, a Pedreira, a Quinta, o Armazém, o Quartel, a Ferraria e a Muralha. As obras levam tempo.'],
+    ['⚔️', 'Treina Guerreiros, Bárbaros, Arqueiros e Magos. Cada um é forte contra um e fraco contra outro: Magos › Guerreiros › Bárbaros › Arqueiros › Magos. Na Ferraria ficam mais fortes.'],
+    ['🗺️', 'Na Sala de Guerra ataca a Aldeia Goblin, o Covil dos Bandidos e a Fortaleza Oni. A armada marcha, luta ronda a ronda e volta com o espólio. Cuidado: os chefes podem contra-atacar a tua vila!'],
+    ['🛠️', 'Correção de pequenos bugs.']
+  ] },
   { id: 'v195', title: 'V 2.0.2 · Obeliscos do Vazio! 🔮', items: [
     ['🔮', 'Novo no separador Batalha (Nv. 10+): os Obeliscos do Vazio aparecem no mapa de tempos a tempos. São difíceis de destruir — a Casca de Cristal só deixa tirar 6% da vida por ronda e chamam ondas de monstros — mas o espólio vale a pena: gemas, Baú de Equipamento de qualidade alta e uma Recompensa de Nível. Até 10 por dia, com Baús do Vazio ao 5.º e ao 10.º.'],
     ['⚒️', 'Bancada de Craft: agora podes forjar todas as peças de equipamento +9 (Capacete, Luvas, Botas, Capa, Secundária, Amuleto e Artefacto), cada uma com os seus bónus de Craft.'],
@@ -19103,7 +19498,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
