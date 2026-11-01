@@ -6701,12 +6701,16 @@ function renderTabWiki() {
     App.wikiTab = null;
     $('hub-content').innerHTML = `
       <div class="section-title">📚 Wiki do Nemesy</div>
+      <div class="wk-search"><span class="wk-s-ic">🔎</span><input id="wiki-q" type="search" placeholder="Pesquisar na Wiki (ex.: Escudo Mágico, gemas, obelisco)" value="${esc(App.wikiQ || '')}" autocomplete="off"><button type="button" class="wk-s-x" id="wiki-q-x" aria-label="Limpar"${App.wikiQ ? '' : ' hidden'}>×</button></div>
+      <div id="wiki-results"></div>
+      <div id="wiki-groups">
       <p class="muted" style="margin-bottom:12px;">Escolhe um tema para ver a informação.</p>
       ${WIKI_GROUPS.map(g => `
         <div class="wiki-group-title">${g.title}</div>
         <div class="wiki-grid">
           ${g.sections.map(s => `<button class="wiki-tile" data-wikitab="${s.key}"><span class="wiki-tile-ic">${s.nxKey ? nxEnt(s.nxKey, s.icon) : s.icon}</span><span class="wiki-tile-lb">${s.label}</span></button>`).join('')}
         </div>`).join('')}
+      </div>
     `;
   } else {
     $('hub-content').innerHTML = `
@@ -6720,7 +6724,70 @@ function renderTabWiki() {
   els('[data-wikitab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.wikiTab = b.dataset.wikitab; renderTabWiki(); window.scrollTo(0, 0); }));
   const back = $('btn-wiki-back');
   if (back) back.addEventListener('click', () => { sfx.tab(); App.wikiTab = null; renderTabWiki(); window.scrollTo(0, 0); });
-  if (current) renderWikiBody();
+  if (current) { renderWikiBody(); if (App.wikiHl) { const q = App.wikiHl; App.wikiHl = null; setTimeout(() => wikiHighlight(q), 60); } }
+  const qi = $('wiki-q');
+  if (qi) {
+    const run = () => { App.wikiQ = qi.value; $('wiki-q-x').hidden = !qi.value; wikiSearchRender(qi.value); };
+    qi.addEventListener('input', run);
+    $('wiki-q-x').addEventListener('click', () => { qi.value = ''; run(); qi.focus(); });
+    if (App.wikiQ) wikiSearchRender(App.wikiQ);
+  }
+}
+// v197: pesquisa na Wiki — o texto de cada tema é lido uma vez (por sessão) e pesquisado sem acentos.
+const wikiNorm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function wikiIndex() {
+  if (App.wikiIdx) return App.wikiIdx;
+  const keep = App.wikiTab, holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:360px;visibility:hidden;';
+  holder.innerHTML = '<div id="wiki-body"></div>';
+  document.body.appendChild(holder);
+  const idx = [];
+  WIKI_GROUPS.forEach(g => g.sections.forEach(sec => {
+    let txt = '';
+    try { App.wikiTab = sec.key; renderWikiBody(); const parts = [], tw = document.createTreeWalker(holder, NodeFilter.SHOW_TEXT); let nd; while ((nd = tw.nextNode())) parts.push(nd.data); txt = parts.join(' ').replace(/\s+/g, ' ').replace(/ ([.,;:!?)])/g, '$1').trim(); } catch (e) { txt = ''; }
+    idx.push({ key: sec.key, label: sec.label, icon: sec.icon, nxKey: sec.nxKey, txt, n: wikiNorm(sec.label + ' ' + txt) });
+  }));
+  holder.remove();
+  App.wikiTab = keep;
+  App.wikiIdx = idx;
+  return idx;
+}
+function wikiSearchRender(q) {
+  const res = $('wiki-results'), groups = $('wiki-groups');
+  if (!res || !groups) return;
+  const nq = wikiNorm(q).trim();
+  if (nq.length < 2) { res.innerHTML = ''; groups.hidden = false; return; }
+  groups.hidden = true;
+  const words = nq.split(/\s+/).filter(Boolean);
+  const hits = wikiIndex().map(s => {
+    if (!words.every(w => s.n.includes(w))) return null;
+    const inTitle = wikiNorm(s.label).includes(words[0]);
+    const pos = wikiNorm(s.txt).indexOf(words[0]);
+    let snip = '';
+    if (pos >= 0) { const a = Math.max(0, pos - 50), b = Math.min(s.txt.length, pos + words[0].length + 70);
+      snip = (a ? '…' : '') + esc(s.txt.slice(a, pos)) + '<mark>' + esc(s.txt.slice(pos, pos + words[0].length)) + '</mark>' + esc(s.txt.slice(pos + words[0].length, b)) + (b < s.txt.length ? '…' : ''); }
+    const count = s.n.split(words[0]).length - 1;
+    return { s, snip, score: (inTitle ? 100 : 0) + count };
+  }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 12);
+  res.innerHTML = hits.length ? `<div class="tiny muted" style="margin:2px 0 8px;">${hits.length} tema${hits.length > 1 ? 's' : ''} com "${esc(q.trim())}"</div>` + hits.map(h => `<button type="button" class="wk-hit" data-wiki-hit="${h.s.key}">
+      <span class="wk-hit-ic">${h.s.nxKey ? nxEnt(h.s.nxKey, h.s.icon) : h.s.icon}</span><span class="wk-hit-t"><b>${h.s.label}</b>${h.snip ? `<small>${h.snip}</small>` : ''}</span></button>`).join('')
+    : `<div class="card raised"><p class="tiny muted">Nada encontrado para "${esc(q.trim())}". Experimenta outra palavra (ex.: "poção", "chefe", "gema").</p></div>`;
+  els('[data-wiki-hit]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.wikiHl = q.trim(); App.wikiTab = b.dataset.wikiHit; renderTabWiki(); window.scrollTo(0, 0); }));
+}
+function wikiHighlight(q) {
+  const body = $('wiki-body'); if (!body || !q) return;
+  const w = wikiNorm(q).split(/\s+/)[0]; if (!w) return;
+  const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const i = wikiNorm(node.data).indexOf(w);
+    if (i < 0) continue;
+    const r = document.createRange(); r.setStart(node, i); r.setEnd(node, Math.min(node.data.length, i + w.length));
+    const mk = document.createElement('mark'); mk.className = 'wk-mark';
+    try { r.surroundContents(mk); } catch (e) { return; }
+    mk.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
 }
 
 function renderWikiBody() {
@@ -9697,6 +9764,55 @@ function hoStartTimers() {
 }
 
 // Menu do Herói em quadradinhos (como a Wiki). App.heroiTab = secção aberta (null = grelha).
+// v197: menus que aparecem aos poucos — o que ainda não se pode usar fica escondido e aparece com "Novo" ao desbloquear.
+const UNLOCKS = {
+  heroi: {
+    mascotes: { lv: 5, label: 'Mascotes', alt: p => (p.pets || []).length > 0 },
+    passivas: { lv: 10, label: 'Passivas' },
+    guild: { lv: 10, label: 'Guild', alt: () => !!(typeof guildCache !== 'undefined' && guildCache && guildCache.data && guildCache.data.guild) },
+    amigos: { lv: 10, label: 'Amigos' },
+    profissoes: { lv: 15, label: 'Profissões', alt: p => !!p.profession || (p.professionBooks || 0) > 0 },
+    esconderijo: { lv: HIDEOUT_MIN_LEVEL, label: 'Esconderijo', alt: p => !!p.hideout }
+  },
+  loja: {
+    ferreiro: { lv: 3, label: 'Ferreiro' },
+    profissao: { lv: 5, label: 'Trabalhos' },
+    classificacao: { lv: 5, label: 'Classificação' },
+    temporada: { lv: 5, label: 'Temporada' },
+    cozinha: { lv: 8, label: 'Cozinha' },
+    mercadonegro: { lv: 12, label: 'Mercado Negro' },
+    cambio: { lv: 15, label: 'Câmbio' },
+    contratos: { lv: 60, label: 'Contratos de Caça' }, // = HUNT_MIN_LV (definido mais abaixo)
+    bar: { lv: HIDEOUT_MIN_LEVEL, label: 'Bar', need: p => hideoutLevel(p) >= ALLY_HIDEOUT_LV, needTxt: `Esconderijo Nv. ${ALLY_HIDEOUT_LV}` }
+  }
+};
+function unlockOk(p, grp, key) {
+  const u = UNLOCKS[grp] && UNLOCKS[grp][key]; if (!u) return true;
+  if (u.alt && u.alt(p)) return true;
+  if (u.need) return !!u.need(p);
+  return (p.level || 1) >= u.lv;
+}
+function unlockInit(p) {
+  if (!Array.isArray(p.seenUnlocks)) p.seenUnlocks = [];
+  if (p.unlockInit) return;
+  p.unlockInit = 1; // quem já jogava não vê tudo marcado como "Novo"
+  Object.keys(UNLOCKS).forEach(g => Object.keys(UNLOCKS[g]).forEach(k => { if (unlockOk(p, g, k) && !p.seenUnlocks.includes(g + ':' + k)) p.seenUnlocks.push(g + ':' + k); }));
+}
+function unlockIsNew(p, grp, key) { unlockInit(p); return !!(UNLOCKS[grp] && UNLOCKS[grp][key]) && unlockOk(p, grp, key) && !p.seenUnlocks.includes(grp + ':' + key); }
+function unlockSeen(p, grp, key) { unlockInit(p); const id = grp + ':' + key; if (UNLOCKS[grp] && UNLOCKS[grp][key] && !p.seenUnlocks.includes(id)) { p.seenUnlocks.push(id); saveGame(); } }
+function unlockFilter(p, grp, sections) {
+  return sections.filter(s => unlockOk(p, grp, s.key)).map(s => unlockIsNew(p, grp, s.key) ? Object.assign({}, s, { badge: 'Novo', isNew: true }) : s);
+}
+function unlockNextHtml(p, grp) {
+  const L = Object.keys(UNLOCKS[grp]).filter(k => !unlockOk(p, grp, k)).map(k => Object.assign({ key: k }, UNLOCKS[grp][k])).sort((a, b) => a.lv - b.lv).slice(0, 3);
+  if (!L.length) return '';
+  return `<div class="unl-next"><span class="unl-t">🔒 Próximos desbloqueios</span>${L.map(u => `<span class="unl-i"><b>${u.need ? u.needTxt : `Nv. ${u.lv}`}</b> ${u.label}</span>`).join('')}</div>`;
+}
+function unlockNewlyAt(p, fromLv, toLv) {
+  const out = [];
+  Object.keys(UNLOCKS).forEach(g => Object.keys(UNLOCKS[g]).forEach(k => { const u = UNLOCKS[g][k]; if (!u.need && !(u.alt && u.alt(p)) && u.lv > fromLv && u.lv <= toLv) out.push(u.label); }));
+  return out;
+}
 function heroiSections(p) {
   const pvLeft = passivePointsLeft(p);
   return [
@@ -9715,7 +9831,7 @@ function heroiSections(p) {
 function renderTabHeroi() {
   stopGuildTimers();
   const p = App.player;
-  const sections = heroiSections(p);
+  const sections = unlockFilter(p, 'heroi', heroiSections(p)); // v197
   const current = sections.find(s => s.key === App.heroiTab);
   if (!current) {
     App.heroiTab = null;
@@ -9725,11 +9841,13 @@ function renderTabHeroi() {
       <p class="muted" style="margin-bottom:12px;">Escolhe o que queres ver.</p>
       <div class="wiki-grid">
         ${sections.map(s => `<button class="wiki-tile${s.locked ? ' is-locked' : ''}" data-heroitab="${s.key}">
-          ${s.badge ? `<span class="wiki-tile-badge">${s.badge}</span>` : ''}
+          ${s.badge ? `<span class="wiki-tile-badge${s.isNew ? ' new' : ''}">${s.badge}</span>` : ''}
           <span class="wiki-tile-ic">${s.icon}</span><span class="wiki-tile-lb">${s.label}</span>${s.sub ? `<span class="wiki-tile-sub">${s.sub}</span>` : ''}</button>`).join('')}
       </div>
+      ${unlockNextHtml(p, 'heroi')}
     `;
   } else {
+    unlockSeen(p, 'heroi', current.key);
     const guildSub = current.key === 'guild' ? GUILD_SECTIONS.find(x => x.key === App.guildTab) : null;
     if (!guildSub) App.guildTab = null;
     const hoSub = current.key === 'esconderijo' && App.player.hideout && App.hoStation ? hoStation(App.hoStation) : null;
@@ -11014,13 +11132,51 @@ async function chooseProfession(key) {
 // Uma linha de stat para a folha completa do Herói: mostra o valor atual e, quando o
 // stat tem um teto de segurança (ver DODGE_CAP, CRIT_CAP, etc.), uma barra até esse
 // máximo — assim o jogador vê de imediato quão perto está do limite absoluto do jogo.
+// v197: tocar num stat explica o que faz.
+const STAT_HELP = {
+  'HP máximo': 'A tua vida. Se chegar a 0, perdes o combate. Sobe com o equipamento, as Pedras da Vida, as Passivas, as refeições e a Sala de Troféus.',
+  'Dano': 'O dano de cada Ataque Normal, antes da Defesa do inimigo. As habilidades usam este valor multiplicado pela força de cada uma.',
+  'Defesa': 'Reduz o dano de cada golpe que recebes. Quanto maior a tua Defesa face ao dano do inimigo, mais o golpe é amortecido (passa sempre pelo menos 10% do dano).',
+  'Crítico': 'Hipótese de um golpe ser crítico. Um crítico faz ×1,8 de dano, mais o bónus de Dano Crítico.',
+  'Escudo Mágico': 'Uma segunda vida, azul: leva o dano antes do HP (depois da Defesa). Enche-se no início de cada batalha e, nas dungeons, recupera 25% entre salas.',
+  'Esquiva': 'Hipótese de evitares por completo um golpe do inimigo.',
+  'Regeneração de HP por ronda': 'Recuperas esta percentagem da vida máxima no fim de cada ronda. O veneno impede a regeneração enquanto durar.',
+  'Atordoar ao atacar (itens)': 'Hipótese de cada golpe teu atordoar o inimigo, que perde o próximo turno.',
+  'Dano vs. Animais': 'Dano extra contra monstros da categoria Animal.',
+  'Dano vs. Humanos': 'Dano extra contra monstros da categoria Humano.',
+  'Dano vs. Demónios': 'Dano extra contra monstros da categoria Demónio.',
+  'Dano vs. Mortos-Vivos': 'Dano extra contra monstros da categoria Morto-Vivo.',
+  'Dano das Habilidades': 'Aumenta só o dano das habilidades (o Ataque Normal não conta).',
+  'Dano vs. Bosses e Mini-Chefes': 'Dano extra contra chefes e mini-chefes.',
+  'Redução de dano de Bosses': 'Recebes menos dano dos ataques de chefes e mini-chefes.',
+  'Roubo de vida': 'Curas esta percentagem do dano que fazes.',
+  'Dano fixo vs. monstros': 'Dano somado a cada golpe, depois da Defesa do inimigo.',
+  'Envenenar ao atacar (arma)': 'Hipótese de envenenar o inimigo: sofre dano em cada ronda e não regenera.',
+  'Sorte no drop de itens': 'Aumenta a hipótese de os monstros e chefes deixarem itens.',
+  'Dano dos críticos': 'Quanto um golpe crítico multiplica o dano. A base é ×1,8; sobe com gemas, Passivas e alguns Míticos.',
+  'Ouro extra ganho': 'Ganhas mais ouro em cada vitória.',
+  'Penetração de Defesa': 'Ignoras esta parte da Defesa do inimigo em cada golpe.',
+  'Redução de dano recebido': 'Todo o dano que recebes é reduzido nesta percentagem.',
+  'Escudo Mágico por dano feito': 'Recuperas Escudo Mágico com esta parte do dano que fazes.',
+  'Escudo Mágico por ronda': 'O Escudo Mágico recupera esta parte do máximo no fim de cada ronda.'
+};
+function showStatHelp(label) {
+  const t = STAT_HELP[label]; if (!t) return;
+  sfx.click();
+  openModal(`<h3 style="margin-bottom:8px;">${esc(label)}</h3><p class="tiny" style="line-height:1.55;">${t}</p><button class="btn primary block" id="btn-stat-help-ok" style="margin-top:14px;">Percebi</button>`);
+  $('btn-stat-help-ok').addEventListener('click', closeModal);
+}
+if (typeof document !== 'undefined') document.addEventListener('click', e => {
+  const el = e.target && e.target.closest ? e.target.closest('[data-stat-help]') : null;
+  if (el) showStatHelp(el.dataset.statHelp);
+});
 function statSheetRow(icon, label, valueText, current, cap, capText, color) {
   color = color || 'var(--gold-bright)';
   const hasCap = cap !== undefined && cap !== null && cap > 0;
   const fillPct = hasCap ? clamp((current / cap) * 100, 0, 100) : 0;
-  return `<div class="card raised" style="margin-bottom:8px;">
+  return `<div class="card raised${STAT_HELP[label] ? ' st-help' : ''}" style="margin-bottom:8px;"${STAT_HELP[label] ? ` data-stat-help="${esc(label)}"` : ''}>
     <div class="row between" style="align-items:center;">
-      <span class="tiny" style="font-weight:700;">${icon} ${label}</span>
+      <span class="tiny" style="font-weight:700;">${icon} ${label}${STAT_HELP[label] ? ' <i class="st-q">?</i>' : ''}</span>
       <span class="tiny" style="font-weight:700; color:${color};">${valueText}</span>
     </div>
     ${hasCap ? `<div class="bar" style="margin-top:6px;"><div class="bar-fill" style="width:${fillPct}%; background:${color};"></div></div>
@@ -11050,6 +11206,10 @@ function renderFullStatsSheet(stats) {
   if (stats.dropLuckBonus) rows.push(statSheetRow('🍀', 'Sorte no drop de itens', pct(stats.dropLuckBonus), null));
   rows.push(statSheetRow('🎯', 'Dano dos críticos', '×' + (1.8 + (stats.critDmgBonus || 0)).toFixed(2).replace(/0$/, ''), null));
   if (stats.goldPct) rows.push(statSheetRow('🪙', 'Ouro extra ganho', pct(stats.goldPct), null));
+  if (stats.defPen) rows.push(statSheetRow('🔨', 'Penetração de Defesa', pct(stats.defPen), null)); // v197
+  if (stats.dmgTakenRed) rows.push(statSheetRow('🛡️', 'Redução de dano recebido', pct(stats.dmgTakenRed), null));
+  if (stats.esLeech) rows.push(statSheetRow('🔷', 'Escudo Mágico por dano feito', pct(stats.esLeech), null));
+  if (stats.esRegen) rows.push(statSheetRow('🔷', 'Escudo Mágico por ronda', pct(stats.esRegen), null));
 
   const badges = [];
   if (stats.critImmune) badges.push('💥🚫 Imune a Críticos');
@@ -11059,7 +11219,7 @@ function renderFullStatsSheet(stats) {
 
   return `
     <div class="section-title">📊 Todos os stats</div>
-    <p class="muted" style="margin-bottom:10px;">Cada barra mostra o teto absoluto desse stat no jogo — nenhuma combinação de equipamento consegue ir além dele.</p>
+    <p class="muted" style="margin-bottom:10px;">Cada barra mostra o teto absoluto desse stat no jogo — nenhuma combinação de equipamento consegue ir além dele. Toca num stat para saberes o que faz.</p>
     ${badges.length ? `<div class="row" style="gap:6px; flex-wrap:wrap; margin-bottom:10px;">${badges.map(b => `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">${b}</span>`).join('')}</div>` : ''}
     ${rows.join('')}
   `;
@@ -11215,11 +11375,11 @@ function renderHeroiPerfilBody(part) {
     html = heroSheetHtml + `
     <div class="section-title">${heroIconHtml(p)} ${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
     <div class="stat-grid">
-      <div class="stat-box"><div class="v">${stats.hp}</div><div class="k">HP máximo</div></div>
-      <div class="stat-box"><div class="v">${stats.dmgMin}–${stats.dmgMax}</div><div class="k">Dano</div></div>
-      <div class="stat-box"><div class="v st-def">${stats.def}</div><div class="k">Defesa</div></div>
-      <div class="stat-box"><div class="v">${pct(stats.crit)}</div><div class="k">Crítico</div></div>
-      ${stats.es ? `<div class="stat-box es"><div class="v st-es">${stats.es}</div><div class="k">Escudo Mágico</div></div>` : ''}
+      <div class="stat-box st-help" data-stat-help="HP máximo"><div class="v">${stats.hp}</div><div class="k">HP máximo <i class="st-q">?</i></div></div>
+      <div class="stat-box st-help" data-stat-help="Dano"><div class="v">${stats.dmgMin}–${stats.dmgMax}</div><div class="k">Dano <i class="st-q">?</i></div></div>
+      <div class="stat-box st-help" data-stat-help="Defesa"><div class="v st-def">${stats.def}</div><div class="k">Defesa <i class="st-q">?</i></div></div>
+      <div class="stat-box st-help" data-stat-help="Crítico"><div class="v">${pct(stats.crit)}</div><div class="k">Crítico <i class="st-q">?</i></div></div>
+      ${stats.es ? `<div class="stat-box es st-help" data-stat-help="Escudo Mágico"><div class="v st-es">${stats.es}</div><div class="k">Escudo Mágico <i class="st-q">?</i></div></div>` : ''}
     </div>
     ${evoHtml}
     ${renderFullStatsSheet(stats)}
@@ -11307,6 +11467,7 @@ function grantXp(amount) {
   p.xp += amount;
   try { allyGainXp(amount); } catch (e) { /* o amigo nunca pode estragar o XP do herói */ }
   let leveled = false;
+  const lvFrom = p.level;
   while (p.level < MAX_LEVEL && p.xp >= xpForLevel(p.level)) {
     p.xp -= xpForLevel(p.level);
     p.level++;
@@ -11319,6 +11480,7 @@ function grantXp(amount) {
   // Subir de nível enche o HP até ao máximo REAL (com equipamento, sets, passivas…).
   if (leveled) p.hp = Math.max(p.hp, effectiveStats(p).hp);
   if (leveled) { sfx.levelup(); fxVibrate([20, 40, 20]); if (!fxLevelUp(p.level)) toast(`Subiste para o nível ${p.level}!`); }
+  if (leveled) { const nu = unlockNewlyAt(p, lvFrom, p.level); if (nu.length) setTimeout(() => toast(`🔓 Desbloqueaste: ${nu.join(', ')}!`), 2200); } // v197
   return leveled;
 }
 
@@ -13465,8 +13627,9 @@ function renderTabLoja() {
     { key: 'cambio', label: 'Câmbio', icon: '⚖️' },
     { key: 'contratos', label: 'Contratos de Caça', icon: '📜', badge: (p.level || 1) >= HUNT_MIN_LV && !huntState(p).freeUsed ? '🎁' : null },
     { key: 'bar', label: 'Bar', icon: nxEnt('bar', '🍺'), badge: hideoutLevel(p) >= ALLY_HIDEOUT_LV && !p.ally ? 'Novo' : null }
-  ];
+  ].filter(x => unlockOk(p, 'loja', x.key)).map(x => unlockIsNew(p, 'loja', x.key) ? Object.assign({}, x, { badge: 'Novo', isNew: true }) : x); // v197
   const current = sections.find(x => x.key === App.lojaTab);
+  if (current) unlockSeen(p, 'loja', current.key);
   if (!current) {
     App.lojaTab = null;
     $('hub-content').innerHTML = `
@@ -13474,9 +13637,10 @@ function renderTabLoja() {
       <p class="muted" style="margin-bottom:12px;">Para onde queres ir?</p>
       <div class="wiki-grid">
         ${sections.map(x => `<button class="wiki-tile" data-lojatab="${x.key}">
-          ${x.badge ? `<span class="wiki-tile-badge">${x.badge}</span>` : ''}
+          ${x.badge ? `<span class="wiki-tile-badge${x.isNew ? ' new' : ''}">${x.badge}</span>` : ''}
           <span class="wiki-tile-ic">${x.icon}</span><span class="wiki-tile-lb">${x.label}</span></button>`).join('')}
       </div>
+      ${unlockNextHtml(p, 'loja')}
     `;
   } else {
     const seasonSub = current.key === 'temporada' ? SEASON_MISSIONS.find(x => x.id === App.seasonMission) : null;
@@ -14744,7 +14908,45 @@ function turnInBiologoPlusQuest(level) {
 // ============================================================
 // COMBAT
 // ============================================================
-function addCombatLog(msg) { App.combat.log.push(msg); }
+function addCombatLog(msg) { if (msg && typeof msg === 'object') msg.r = App.combat.round || 0; App.combat.log.push(msg); }
+// v197: registo de combate por rondas. "Resumo" (por defeito) junta os efeitos menores de cada ronda numa linha.
+function logCompact() { try { return localStorage.getItem('nemesy_log') !== 'full'; } catch (e) { return true; } }
+const LOG_MINOR = [
+  [/O veneno impede a tua regeneração/, null],
+  [/Regeneraste (\d+) HP/, m => `💚 +${m[1]}`],
+  [/Roubo de vida: \+(\d+)/, m => `❤️ +${m[1]}`],
+  [/Sangramento causa (\d+)/, m => `🩸 ${m[1]}`],
+  [/O veneno causa (\d+)/, m => `☣️ ${m[1]}`],
+  [/As chamas causam (\d+)/, m => `🔥 ${m[1]}`],
+  [/Escudo Mágico absorveu (\d+)/, m => `🔷 ${m[1]}`]
+];
+function logMinorChip(m) {
+  const t = String(m.text || '').replace(/<[^>]+>/g, '');
+  if (m.cls === 'ally') { const ic = (t.match(/^\S+/) || [''])[0], n = (t.match(/(\d[\d.\s]*)/) || ['', ''])[1].trim(); return n ? `${ic} ${n}${/furioso/i.test(t) ? '!' : ''}` : null; }
+  for (const [re, f] of LOG_MINOR) { const mm = t.match(re); if (mm) return f ? f(mm) : ''; }
+  return null; // linha importante
+}
+function combatLogHtml(c) {
+  const compact = logCompact(), log = c.log || [];
+  const rounds = []; let cur = null;
+  log.forEach(m => { const r = m.r || 0; if (!cur || cur.r !== r) { cur = { r, lines: [] }; rounds.push(cur); } cur.lines.push(m); });
+  const keep = compact ? rounds.slice(-6) : rounds.slice(-12);
+  const body = keep.map(rd => {
+    const head = rd.r ? `<div class="log-rd"><span>Ronda ${rd.r}</span></div>` : '';
+    if (!compact) return head + rd.lines.map(m => `<div class="log-line ${m.cls || ''}">${m.text}</div>`).join('');
+    const major = [], chips = [];
+    rd.lines.forEach(m => { const ch = logMinorChip(m); if (ch === null) major.push(m); else if (ch) chips.push(ch); });
+    return head + major.map(m => `<div class="log-line ${m.cls || ''}">${m.text}</div>`).join('') + (chips.length ? `<div class="log-line sum">${chips.join('<i>·</i>')}</div>` : '');
+  }).join('');
+  return `<button type="button" class="log-mode" data-log-mode aria-label="Mudar o tipo de registo">${compact ? '📜 Resumo' : '📜 Detalhe'}</button>${body}`;
+}
+function renderCombatLog() {
+  const c = App.combat, logEl = $('cb-log'); if (!c || !logEl) return;
+  logEl.innerHTML = combatLogHtml(c);
+  logEl.scrollTop = logEl.scrollHeight;
+  const b = logEl.querySelector('[data-log-mode]');
+  if (b) b.addEventListener('click', e => { e.stopPropagation(); try { localStorage.setItem('nemesy_log', logCompact() ? 'full' : 'compact'); } catch (er) {} sfx.tab(); renderCombatLog(); });
+}
 
 function resetCombatScreenChrome() {
   // v146: nunca deixar o combate "bloqueado" por uma transição de dungeon que ficou a meio.
@@ -15738,6 +15940,7 @@ function spawnCatacumbaWave() {
 function tickCooldowns() {
   const c = App.combat;
   if (!c || !c.cooldowns) return;
+  c.round = (c.round || 0) + 1; // v197: rondas no registo
   Object.keys(c.cooldowns).forEach(k => {
     c.cooldowns[k] = Math.max(0, c.cooldowns[k] - 1);
     if (!c.cooldowns[k]) delete c.cooldowns[k];
@@ -17652,9 +17855,7 @@ function renderCombat() {
     });
   });
 
-  const logEl = $('cb-log');
-  logEl.innerHTML = c.log.slice(-40).map(m => `<div class="log-line ${m.cls || ''}">${m.text}</div>`).join('');
-  logEl.scrollTop = logEl.scrollHeight;
+  renderCombatLog(); // v197
 
   const cls = CLASSES[p.class];
   const allAbilities = cls.abilities.concat(p.evolution ? [EVOLUTIONS[p.class].find(e => e.key === p.evolution).ability] : [], craftAbilityKeys(p));
@@ -17764,7 +17965,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v196</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v197</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
