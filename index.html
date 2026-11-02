@@ -8154,16 +8154,21 @@ function progressQuest(isBoss) {
 // o herói caminha até eles e o "Atacar" abre o MESMO combate da lista.
 // ============================================================
 const REGION_MAP_CFG = {
-  planicies: { lair: 'Acampamento Goblin', pool: 'Lagoa', mirror: false },
-  montanhas: { lair: 'Cratera Ardente', pool: 'Lago de Lava', mirror: true },
-  tundra: { lair: 'Santuário de Gelo', pool: 'Lago Gelado', mirror: false },
-  planalto: { lair: 'Círculo de Pedras', pool: 'Poço da Tempestade', mirror: true },
-  corrompidas: { lair: 'Altar Profano', pool: 'Poço Venenoso', mirror: false },
-  florestanegra: { lair: 'Bosque Antigo', pool: 'Pântano', mirror: true },
-  pinaculo: { lair: 'Templo Celeste', pool: 'Fenda Estelar', mirror: false },
+  // v202: mapas novos — cada região diz onde ficam o chefe final, os outros chefes (pela ordem da região, depois os sítios livres) e a placa.
+  planicies: { lair: 'Acampamento Goblin', pool: 'Lagoa', mirror: false, gateSpot: [52, 18], poolAt: [16, 58], bossSpots: [[24, 82], [77, 70], [32, 64], [80, 52], [22, 30], [80, 30]] },
+  montanhas: { lair: 'Cratera Ardente', pool: 'Lago de Lava', mirror: false, zones: 'L', gateSpot: [50, 17], poolAt: [87, 57], bossSpots: [[80, 79], [22, 52], [30, 70], [70, 63], [28, 30], [72, 28]] },
+  tundra: { lair: 'Santuário de Gelo', pool: 'Lago Gelado', mirror: false, gateSpot: [50, 20], poolAt: [22, 61], bossSpots: [[20, 76], [78, 68], [24, 32], [76, 44], [72, 86], [30, 88]] },
+  planalto: { lair: 'Círculo de Pedras', pool: 'Poço da Tempestade', mirror: false, zones: 'L', gateSpot: [48, 18], poolAt: [82, 68], bossSpots: [[82, 80], [18, 63], [80, 47], [25, 40], [72, 30], [30, 85]] },
+  corrompidas: { lair: 'Altar Profano', pool: 'Poço Venenoso', mirror: false, gateSpot: [50, 16], poolAt: [22, 73], extraZone: [60, 68, 60, 66], bossSpots: [[20, 86], [80, 74], [18, 43], [80, 48], [20, 22], [80, 22]] },
+  florestanegra: { lair: 'Bosque Antigo', pool: 'Pântano', mirror: false, zones: 'L', gateSpot: [50, 18], poolAt: [16, 67], extraZone: [60, 68, 58, 64], bossSpots: [[78, 76], [22, 24], [78, 24], [18, 44], [78, 50], [22, 84]] },
+  pinaculo: { lair: 'Templo Celeste', pool: 'Fenda Estelar', mirror: false, zones: 'P', gateSpot: [50, 17], poolAt: [22, 72], extraZone: [60, 68, 52, 58], bossSpots: [[16, 86], [84, 74], [20, 38], [86, 27], [70, 45], [36, 52]] },
   submerso: { lair: 'Templo Afundado', pool: 'Fossa Abissal', mirror: false, poolAt: [15, 31], gateSpot: [50, 16], bossSpots: [[19, 66]] } // v201
 };
 const RM_GATE_SPOT = [50, 19];
+const RM_ZONE_SETS = { // v202: 2.ª zona noutro sítio quando há um chefe em baixo à direita
+  L: [[42, 58, 70, 78], [28, 40, 80, 88], [44, 58, 53, 60], [42, 58, 37, 44]],
+  P: [[42, 58, 70, 78], [58, 68, 84, 92], [44, 58, 53, 60], [42, 58, 37, 44]]
+};
 const RM_BOSS_SPOTS = [[24, 82], [77, 69], [22, 50], [78, 49], [20, 30], [80, 29]];
 const RM_ZONES = [[42, 58, 70, 78], [62, 80, 82, 90], [44, 58, 53, 60], [42, 58, 37, 44]];
 const RM_EXTRA_ZONE = [31, 39, 60, 66];
@@ -8192,9 +8197,9 @@ function regionMapTokens(p, region) {
   const BS = cfg.bossSpots ? cfg.bossSpots.concat(RM_BOSS_SPOTS.slice(cfg.bossSpots.length)) : RM_BOSS_SPOTS, GS = cfg.gateSpot || RM_GATE_SPOT; // v201: posições próprias por região
   nonGate.forEach((b, i) => { const s = BS[i] || BS[BS.length - 1]; toks.push({ id: 'b' + i, boss: b, x: mx(s[0]), y: s[1], home: [mx(s[0]), s[1]] }); });
   if (gate) toks.push({ id: 'bg', boss: gate, gate: true, x: mx(GS[0]), y: GS[1], home: [mx(GS[0]), GS[1]] });
-  const zones = RM_ZONES.map(mz);
+  const zones = (RM_ZONE_SETS[cfg.zones] || RM_ZONES).map(mz); // v202: zonas próprias por região
   BS.slice(nonGate.length).forEach(s => zones.push(mz([s[0] - 6, s[0] + 6, s[1] - 4, s[1] + 4])));
-  zones.push(mz(RM_EXTRA_ZONE));
+  zones.push(mz(cfg.extraZone || RM_EXTRA_ZONE));
   const wild = [];
   region.monsters.forEach(m => wild.push(m));
   const want = Math.min(RM_MAX_WILD, zones.length, Math.max(region.monsters.length, 10 - region.bosses.length));
@@ -8218,7 +8223,7 @@ function regionMapHtml(p, region, overlayHtml) {
       <span class="rm-alert">!</span><span class="rm-c">${rmCreatureImg(t.mon.name, t.mon.icon)}</span><span class="rm-lb">${esc(t.mon.name)}</span><span class="rm-lv">Nv. ${rgLvTxt(region, p)}</span></button>`;
   }).join('');
   return `
-    <div class="rm-map" id="rm-map" style="background-image:url(icons/mapa-${region.key}.webp?v=${NX_ICON_VER});--rm-ring:${(MONSTER_DIFFICULTY.find(d => d.key === (p.fightDifficulty || 'comum')) || MONSTER_DIFFICULTY[0]).color || '#B9B4A8'};">
+    <div class="rm-map" id="rm-map" style="background-image:url(icons/mapa-${region.key}.webp?v=${NX_ICON_REV['mapa-' + region.key] || NX_ICON_VER});--rm-ring:${(MONSTER_DIFFICULTY.find(d => d.key === (p.fightDifficulty || 'comum')) || MONSTER_DIFFICULTY[0]).color || '#B9B4A8'};">
       ${st.cfg.pool ? `<div class="rm-sign" style="left:${st.mx(st.cfg.poolAt ? st.cfg.poolAt[0] : 19)}%;top:${st.cfg.poolAt ? st.cfg.poolAt[1] : 68.5}%;">${esc(st.cfg.pool)}</div>` : ''}
       ${tokHtml}
       <div class="rm-hero" id="rm-hero" style="left:${saved.x}%;top:${saved.y}%;z-index:${4 + Math.round(saved.y)};">${heroAvatarHtml(p)}</div>
@@ -15991,7 +15996,7 @@ function huntDetailHtml(p, h, ct, src, idx) {
   const rastos = HUNT_RASTOS + (huntSealsOf(ct).includes('matilha') ? 1 : 0);
   const anim = App.huntOathAnim === ct.id; App.huntOathAnim = null;
   return `<div class="hunt-detail">
-    <div class="hunt-banner" style="background-image:url('icons/mapa-${bd.region.key}.webp?v=${NX_ICON_VER}')"><span>GRAU ${HUNT_ROM[ct.grau]}</span></div>
+    <div class="hunt-banner" style="background-image:url('icons/mapa-${bd.region.key}.webp?v=${NX_ICON_REV['mapa-' + bd.region.key] || NX_ICON_VER}')"><span>GRAU ${HUNT_ROM[ct.grau]}</span></div>
     <div class="hunt-dbody">
       <div><div class="hunt-dtitle">Caçar ${esc(ct.boss)}</div><div class="hunt-dsub">${bd.region.name} · monstros Nv. ${lv}–${lv + 4} · ${rastos} rastos e a presa</div></div>
       <div class="hunt-preyrow"><span class="hunt-preyrow-ic">${nxCreature(ct.boss, bd.boss.icon)}</span><div><small>A presa</small><b>${esc(ct.boss)}</b><small>Normalmente Nv. ${bd.boss.lv}. Neste contrato aparece reforçada, com <b>Nv. ${lv + 5}</b>.</small></div></div>
@@ -18434,7 +18439,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v201</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v202</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19594,7 +19599,7 @@ const NX_ICON_IMG = new Set(["banner-submerso","mapa-submerso","monstro-tritao-c
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
-const NX_ICON_REV = { resistencias: 193 }; // v193: volta ao escudo original
+const NX_ICON_REV = { resistencias: 193, 'mapa-planicies': 202, 'mapa-montanhas': 202, 'mapa-tundra': 202, 'mapa-planalto': 202, 'mapa-corrompidas': 202, 'mapa-florestanegra': 202, 'mapa-pinaculo': 202 }; // v193: volta ao escudo original · v202: mapas novos
 // Se a imagem não existir no servidor, volta a mostrar o emoji em vez de uma imagem partida.
 function nxIconFail(img) {
   const p = img.parentNode;
