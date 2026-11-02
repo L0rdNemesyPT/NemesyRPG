@@ -9947,6 +9947,7 @@ function renderTabHeroi() {
         <button class="btn small ghost" id="btn-heroi-back">${backTxt}</button>
         <span class="wiki-current">${guildSub ? `${guildSub.icon} ${guildSub.label}` : hoSub ? `${hoStationIc(hoSub, 'nx-inline')} ${hoSub.short}` : `${current.icon} ${current.label}`}</span>
       </div>
+      ${current.key === 'guild' && !guildSub ? interiorHtml('guild') : ''}
       <div id="heroi-body"></div>
     `;
   }
@@ -14065,6 +14066,25 @@ function renderSeasonBody(body, p) {
   if (claim) claim.addEventListener('click', () => claimSeasonMission(m.id));
 }
 
+// v205: ilustração no topo de cada edifício da Cidade (e do salão da Guild), com quem lá trabalha.
+const INTERIORS = {
+  diaria: ['Praça da Fonte', 'Todas as manhãs alguém deixa aqui um baú. Hoje é o teu.'],
+  loja: ['Velho Aldo, o mercador', 'Poções frescas, pergaminhos e baús! Vê com calma, não há pressa.'],
+  ferreiro: ['Bruno, o ferreiro', 'Traz-me esse ferro velho e eu faço dele uma lenda.'],
+  profissao: ['Mestre Gaspar', 'Cada ofício tem os seus segredos. Qual queres aprender?'],
+  cozinha: ['Tio Fernão, o cozinheiro', 'Barriga cheia, espada firme! O caldo já está quase.'],
+  classificacao: ['Salão dos Heróis', 'Os nomes dos maiores heróis do reino ficam gravados aqui.'],
+  temporada: ['Arena do Torneio', 'A multidão grita o teu nome. A coroa espera pelo campeão.'],
+  cambio: ['Senhor Duarte, o cambista', 'Pérolas, moedas, joias… tudo tem o seu preço justo.'],
+  contratos: ['Rui, o caçador', 'Escolhe um cartaz. Quanto maior a fera, maior o prémio.'],
+  bar: ['Zé da Taberna', 'Senta-te, aventureiro! Há sempre alguém à procura de companhia para lutar.'],
+  mercadonegro: ['O Encapuzado', 'Não perguntes de onde vem. Pergunta só quanto custa.'],
+  guild: ['Salão da Guild', 'A tua guild reúne-se aqui. Os estandartes são de quem já cá passou.']
+};
+function interiorHtml(key) {
+  const d = INTERIORS[key]; if (!d) return '';
+  return `<div class="in-hero" style="background-image:url(icons/interior-${key}.webp?v=${NX_ICON_REV['interior-' + key] || NX_ICON_VER});"><div class="in-say"><b>${d[0]}</b><span>«${d[1]}»</span></div></div>`;
+}
 // v203: Cidade ilustrada — cada sítio é um edifício do mapa (icons/mapa-cidade.webp).
 const CITY_SPOTS = { classificacao: [50, 20], cambio: [24, 24], temporada: [77, 25], loja: [22, 39], ferreiro: [80, 38], diaria: [55, 53],
   cozinha: [22, 57], profissao: [79, 61], bar: [30, 78], mercadonegro: [70, 76], contratos: [67, 92] };
@@ -14128,6 +14148,7 @@ function renderTabLoja() {
         <button class="btn small ghost" id="btn-city-back">${seasonSub ? '← Temporada' : '← Cidade'}</button>
         <span class="wiki-current">${seasonSub ? `${seasonSub.icon} Missão ${seasonSub.id}` : `${current.icon} ${current.label}`}</span>
       </div>
+      ${seasonSub ? '' : interiorHtml(current.key)}
       <div id="loja-body"></div>
     `;
   }
@@ -18050,6 +18071,7 @@ const SCENES = {
   corrompidas:   { sky: ['#0c0710', '#2b1236', '#5c7a2a'], sun: '#b6ff5a', layers: [['spires', '#2a1533', 0.45, 0], ['spires', '#1a0c22', 0.62, 0], ['hills', '#0d0612', 0.82, 12]], fx: 'spores' },
   florestanegra: { sky: ['#03080a', '#0c2124', '#24484a'], sun: '#cfe8e0', layers: [['pines', '#123033', 0.46, 0], ['pines', '#0a1f22', 0.60, 0], ['pines', '#051012', 0.76, 0]], fx: 'fog' },
   pinaculo:      { sky: ['#1b1a3a', '#6d5aa0', '#f3cf86'], sun: '#fff1c4', layers: [['clouds', '#f6e2b8', 0.70, 0], ['islands', '#5a4a6e', 0.42, 0], ['clouds', '#fff4dc', 0.86, 0]], fx: 'motes' },
+  soberano:      { sky: ['#1a0906', '#4a1510', '#c2431c'], sun: null, layers: [['peaks', '#3a1612', 0.40, 70], ['peaks', '#140605', 0.78, 26]], fx: 'embers' }, // v205
   submerso:      { sky: ['#2a8f94', '#0c3d4e', '#03131b'], sun: '#bff7ee', layers: [['ruins', '#0e3b45', 0.52, 0], ['hills', '#0a2b34', 0.72, 12], ['hills', '#04171d', 0.86, 8]], fx: 'bubbles' }, // v201
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
   cripta:        { sky: ['#010302', '#040a07', '#08130e'], sun: null, layers: [['arches', '#24362e', 0.25, 0], ['floor', '#101a15', 0.80, 0]], fx: 'candles' },
@@ -18184,7 +18206,7 @@ function sceneLayer(type, color, base, amp, R, W, H) {
 }
 const sceneCache = {};
 // v204: fundos pintados (icons/cena-<chave>.webp); sem imagem, fica o cenário desenhado em código.
-const SCENE_IMG = ['planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo'];
+const SCENE_IMG = ['soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo'];
 function sceneArt(key) {
   if (SCENE_IMG.includes(key)) return `<div class="scene-img" style="background-image:url(icons/cena-${key}.webp?v=${NX_ICON_REV['cena-' + key] || NX_ICON_VER});"></div>`;
   return sceneSvg(key);
@@ -18217,7 +18239,7 @@ function sceneFxHtml(fx) {
 function combatSceneKey(c) {
   if (c.isCultBoss) return 'eclipse';
   if (c.isTower) return 'torre';
-  if (c.isSoberano) return 'montanhas';
+  if (c.isSoberano) return 'soberano'; // v205: arena do trono
   if (c.isHalloween) return 'halloween';
   if (c.isHunt && c.huntRegion && SCENES[c.huntRegion]) return c.huntRegion;
   if (c.isDungeon && c.dungeonDef && c.dungeonDef.scene && SCENES[c.dungeonDef.scene]) return c.dungeonDef.scene;
@@ -18470,7 +18492,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v204</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v205</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
