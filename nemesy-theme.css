@@ -2704,3 +2704,9 @@ body.fx-off .ob-tok-ic{animation:none;}
 .vl-loot span{margin-right:9px;}
 .vl-loot-c{justify-content:center;}
 .vl-loot-c span{margin:0 5px;}
+/* v201: Reino Submerso — bolhas e raios de luz na cena de combate */
+.fx-bubbles::before{content:''; position:absolute; inset:0; background:linear-gradient(100deg,transparent 18%,rgba(190,250,240,.10) 24%,transparent 30%,transparent 52%,rgba(190,250,240,.08) 57%,transparent 63%); animation:scRays 9s ease-in-out infinite alternate; pointer-events:none;}
+@keyframes scRays{to{transform:translateX(26px); opacity:.6;}}
+.fx-bubbles i{width:6px; height:6px; border:1px solid rgba(220,255,250,.75); background:rgba(200,250,245,.12); animation-name:scRise; top:100% !important; opacity:.8;}
+.fx-bubbles i:nth-child(3n){width:3px; height:3px;}
+@media (prefers-reduced-motion:reduce){.fx-bubbles::before{animation:none;}}
