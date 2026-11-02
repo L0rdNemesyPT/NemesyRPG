@@ -2729,3 +2729,6 @@ body.fx-off .ob-tok-ic{animation:none;}
 @media (prefers-reduced-motion:reduce){.ct-npc{transition:none;}}
 /* v203: fundo ilustrado nos ecrãs de entrada, de carregar e de criar herói */
 body #screen-boot,body #screen-account,body #screen-create{background:linear-gradient(180deg,rgba(8,6,14,.35) 0%,rgba(8,6,14,.72) 38%,rgba(8,6,14,.72) 70%,rgba(8,6,14,.45) 100%),url(icons/fundo-entrada.webp?v=203) center/cover no-repeat,#0b0810;}
+/* v204: fundos de combate pintados */
+.cb-scene .scene-img{position:absolute;left:0;right:0;top:-22%;height:122%;background-size:cover;background-position:center top;background-repeat:no-repeat;}
+.wiki-tile-scene .scene-img{position:absolute;inset:0;background-size:cover;background-position:center 45%;}
