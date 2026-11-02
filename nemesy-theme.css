@@ -2710,3 +2710,22 @@ body.fx-off .ob-tok-ic{animation:none;}
 .fx-bubbles i{width:6px; height:6px; border:1px solid rgba(220,255,250,.75); background:rgba(200,250,245,.12); animation-name:scRise; top:100% !important; opacity:.8;}
 .fx-bubbles i:nth-child(3n){width:3px; height:3px;}
 @media (prefers-reduced-motion:reduce){.fx-bubbles::before{animation:none;}}
+/* v203: Cidade ilustrada */
+.ct-map{position:relative;width:100%;max-width:100%;aspect-ratio:4/5;border:2px solid #5d4a28;border-radius:10px;overflow:hidden;background-color:#2a2418;background-size:cover;background-position:center;box-shadow:inset 0 0 40px rgba(0,0,0,.5),0 6px 18px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none;}
+.ct-dark{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 55%,rgba(20,30,70,.15),rgba(8,10,30,.72));opacity:0;transition:opacity .6s;}
+.ct-lamp{position:absolute;width:9%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(255,200,110,.7),transparent 65%);opacity:0;transition:opacity .6s;pointer-events:none;}
+.ct-lamp.p{width:16%;background:radial-gradient(circle,rgba(190,110,255,.75),transparent 65%);}
+.ct-map.night .ct-dark,.ct-map.night .ct-lamp{opacity:1;}
+.ct-npc{position:absolute;width:11px;height:11px;border-radius:50%;background:#e8d3a8;border:2px solid #5a3f1d;transform:translate(-50%,-50%);transition:left 4s linear,top 4s linear;box-shadow:0 3px 3px rgba(0,0,0,.5);pointer-events:none;}
+.ct-spot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:1px;background:none;border:0;padding:0;cursor:pointer;color:#fff;z-index:3;-webkit-tap-highlight-color:transparent;}
+.ct-c{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:22px;background:radial-gradient(circle at 50% 35%,#2b2418,#0d0a07);border:2.5px solid #b98f3a;box-shadow:0 0 8px rgba(0,0,0,.45),0 5px 7px rgba(0,0,0,.55);transition:transform .15s;}
+.ct-c .nx-ic,.ct-c img{width:32px;height:32px;}
+.ct-spot:active .ct-c{transform:scale(.93);}
+.ct-spot:focus-visible .ct-c{box-shadow:0 0 0 3px rgba(228,191,74,.6);}
+.ct-spot.dark .ct-c{border-color:#7a3a4a;}
+.ct-lb{font:700 9.5px var(--font-body);text-shadow:0 1px 2px #000,0 0 5px #000;line-height:1.1;text-align:center;width:max-content;max-width:90px;}
+.ct-bd{position:absolute;top:-6px;right:-8px;font:800 9.5px var(--font-body);color:#1c1409;background:var(--gold-bright);border:1.5px solid #fff3c4;border-radius:999px;padding:1px 5px;line-height:1.3;}
+.ct-bd.new{background:#8ee06a;}
+@media (prefers-reduced-motion:reduce){.ct-npc{transition:none;}}
+/* v203: fundo ilustrado nos ecrãs de entrada, de carregar e de criar herói */
+body #screen-boot,body #screen-account,body #screen-create{background:linear-gradient(180deg,rgba(8,6,14,.35) 0%,rgba(8,6,14,.72) 38%,rgba(8,6,14,.72) 70%,rgba(8,6,14,.45) 100%),url(icons/fundo-entrada.webp?v=203) center/cover no-repeat,#0b0810;}
