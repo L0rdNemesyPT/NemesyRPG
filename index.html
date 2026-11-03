@@ -5848,6 +5848,7 @@ function showInfoModal(icon, title, bodyHtml) {
   $('btn-close-modal').addEventListener('click', closeModal);
 }
 
+const EVENT_ART = ['demoniaco', 'corrompido', 'nod', 'kappa', 'praga', 'escuridao', 'atormentados', 'culto']; // v206: icons/evento-<chave>.webp
 function showEventInfoModal(ev) {
   const rows = [];
   const x = v => String(v).replace('.', ',');
@@ -5860,7 +5861,7 @@ function showEventInfoModal(ev) {
   if (ev.key === 'culto') rows.push(`🕯️ Velas no altar: <b>${ev.candles || 0}/${CULT_CANDLES}</b> — com ${CULT_CANDLES}, o combate seguinte é contra o ${CULT_BOSS.name}.`);
   if (EVENT_DROPS[ev.key]) rows.push(EVENT_DROPS[ev.key]);
   const battlesLeft = ev.battlesLeft !== undefined ? `<p class="tiny" style="margin-top:8px;">Continua ativo durante mais ${ev.battlesLeft} batalha(s).</p>` : '';
-  showInfoModal(ev.icon, ev.name, `<p class="tiny">${ev.desc || ''}</p><div class="divider"></div>${rows.map(r => `<p class="tiny" style="margin-top:4px;">${r}</p>`).join('')}${battlesLeft}`);
+  showInfoModal(ev.icon, ev.name, `${EVENT_ART.includes(ev.key) ? `<div class="ev-art" style="background-image:url(icons/evento-${ev.key}.webp?v=${NX_ICON_VER});"></div>` : ''}<p class="tiny">${ev.desc || ''}</p><div class="divider"></div>${rows.map(r => `<p class="tiny" style="margin-top:4px;">${r}</p>`).join('')}${battlesLeft}`);
 }
 
 function showPetInfoModal(pet, isActive) {
@@ -6238,8 +6239,8 @@ function scheduleMusicLoop() {
 // ============================================================
 function renderClassList() {
   const html = Object.values(CLASSES).map(c => `
-    <div class="class-card${App.createClass === c.key ? ' selected' : ''}" data-class="${c.key}">
-      <div class="class-glyph has-av">${avatarImg(c.key, null, c.icon)}</div>
+    <div class="class-card has-art${App.createClass === c.key ? ' selected' : ''}" data-class="${c.key}" style="--cls-art:url(icons/classe-arte-${c.key}.webp?v=${NX_ICON_VER});">
+      <div class="class-art"></div>
       <div class="class-body">
         <h3>${c.name}</h3>
         <div class="blurb">${c.blurb}</div>
@@ -11490,6 +11491,7 @@ function renderProfissoesBody() {
     const prof = PROFESSIONS[p.profession];
     html += `
       <div class="card raised" style="border-left:3px solid ${prof.color}; background:linear-gradient(135deg, var(--bg-raised), var(--bg-panel));">
+        <div class="prof-art" style="background-image:url(icons/prof-${p.profession}.webp?v=${NX_ICON_VER});"></div>
         <div class="row" style="gap:12px; align-items:center;">
           <div style="font-size:34px;">${nxEnt('profissao-' + p.profession, prof.icon)}</div>
           <div style="flex:1;">
@@ -11511,6 +11513,7 @@ function renderProfissoesBody() {
         const o = PROFESSIONS[key];
         return `
           <div class="card raised" style="flex:1; min-width:135px; opacity:0.55;">
+            <div class="prof-art sm" style="background-image:url(icons/prof-${key}.webp?v=${NX_ICON_VER});"></div>
             <div style="font-size:20px;">${o.icon}</div>
             <div class="tiny" style="font-weight:700; margin-top:4px;">${o.name}</div>
             <div class="tiny muted" style="margin-top:2px;">${o.desc}${profXpOf(p, key) ? ` · Nv. ${profLevelOf(p, key)}` : ''}</div>
@@ -11535,6 +11538,7 @@ function renderProfissoesBody() {
       const canChoose = books >= 1;
       return `
         <div class="card raised" style="border-left:3px solid ${prof.color}; margin-bottom:8px;">
+          <div class="prof-art" style="background-image:url(icons/prof-${key}.webp?v=${NX_ICON_VER});"></div>
           <div class="row" style="gap:10px; align-items:center;">
             <div style="font-size:28px;">${nxEnt('profissao-' + key, prof.icon)}</div>
             <div style="flex:1;">
@@ -15450,7 +15454,7 @@ function renderCombatLog() {
 function resetCombatScreenChrome() {
   // v146: nunca deixar o combate "bloqueado" por uma transição de dungeon que ficou a meio.
   $('screen-combat').classList.remove('dg-transit');
-  $('cb-end-screen').style.display = 'none';
+  $('cb-end-screen').style.display = 'none'; $('cb-end-screen').classList.remove('has-art');
   $('cb-log').style.display = '';
   const bottom = document.querySelector('#screen-combat .combat-bottom');
   if (bottom) bottom.style.display = '';
@@ -17654,6 +17658,7 @@ function showCombatEnd(won, info) {
       <button class="btn primary block" id="btn-combat-continue">Voltar ao Mapa</button>`;
   }
   endEl.innerHTML = html;
+  endEl.classList.toggle('has-art', true); endEl.style.setProperty('--end-art', `url(icons/fim-${won ? 'vitoria' : 'derrota'}.webp${'?v=' + NX_ICON_VER})`); // v206
   if (won) setTimeout(() => { try { tutCheck('end'); } catch (e) {} }, 0); // v188
   if ((App.player.elemPotionBattles || 0) > 0) App.player.elemPotionBattles--; // v181: Poção Elemental gasta 1 batalha
   fxCombatEndClasses(won);
@@ -18325,7 +18330,7 @@ function renderCombat() {
   const elementChip = document.querySelector('[data-info-element]');
   if (elementChip) elementChip.addEventListener('click', () => showElementInfoModal(elementChip.dataset.infoElement));
 
-  $('cb-event-banner').innerHTML = c.eventApplied ? `<div class="event-banner" id="cb-event-tap">${c.eventApplied.icon} Evento ${c.eventApplied.name} · toca para detalhes</div>` : '';
+  $('cb-event-banner').innerHTML = c.eventApplied ? `<div class="event-banner${EVENT_ART.includes(c.eventApplied.key) ? ' has-art' : ''}" id="cb-event-tap"${EVENT_ART.includes(c.eventApplied.key) ? ` style="--ev-art:url(icons/evento-${c.eventApplied.key}.webp?v=${NX_ICON_VER});"` : ''}>${c.eventApplied.icon} Evento ${c.eventApplied.name} · toca para detalhes</div>` : '';
   const eventTap = $('cb-event-tap');
   if (eventTap) eventTap.addEventListener('click', () => showEventInfoModal(c.eventApplied));
 
@@ -18492,7 +18497,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v205</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v206</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
