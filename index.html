@@ -9929,6 +9929,105 @@ function unlockNewlyAt(p, fromLv, toLv) {
   return out;
 }
 function vilaBadge(p) { const v = p && p.vila; if (!v) return null; return v.exp && v.exp.phase === 'fim' ? '📜' : Object.keys(v.broken || {}).length ? '⚠️' : null; }
+// ============================================================
+// v209: menu Herói — cartão do herói com Poder, "A fazer", botões com estado em grupos e Caderneta.
+// ============================================================
+function heroPower(p) {
+  const st = effectiveStats(p), r = st.res || {}, ra = ELEMENT_KEYS.reduce((a, k) => a + Math.min(RES_CAP, Math.max(0, r[k] || 0)), 0) / ELEMENT_KEYS.length;
+  const hit = (st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0)));
+  return Math.max(1, Math.round((hit * 4 + (st.hp || 0) * 0.4 + (st.es || 0) * 0.3 + (st.def || 0) * 2.5) * (1 + ra / 300) * (1 + Math.min(0.5, st.dodge || 0))));
+}
+// Guarda o Poder visto, para a próxima vez mostrar quanto subiu (ou desceu).
+function heroPowerSeen(p) { p.powerSeen = heroPower(p); }
+function heroMenuSub(p, s) {
+  const pl = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+  switch (s.key) {
+    case 'perfil': return ['Equipamento e stats'];
+    case 'habilidades': return p.skillBooks ? [`${pl(p.skillBooks, 'livro', 'livros')} por usar`, 'go'] : ['Sobe as tuas habilidades'];
+    case 'passivas': { const n = passivePointsLeft(p); return n > 0 ? [`${pl(n, 'ponto livre', 'pontos livres')}`, 'go'] : ['Tudo distribuído']; }
+    case 'mascotes': { const a = (p.pets || []).find(x => x.id === p.activePet), d = a && PET_DEFS[a.type]; return d ? [`${d.name} Nv. ${a.level}`] : (p.pets || []).length ? [`${pl(p.pets.length, 'mascote', 'mascotes')} · nenhuma ativa`, 'go'] : ['Ainda nenhuma']; }
+    case 'profissoes': return p.profession && PROFESSIONS[p.profession] ? [`${PROFESSIONS[p.profession].name} Nv. ${profLevelOf(p, p.profession)}`] : p.professionBooks ? ['Por escolher · tens 📗', 'go'] : ['Por escolher'];
+    case 'caderneta': { const n = ALL_BOSSES.filter(b => (p.defeatedBosses || []).includes(b.name)).length; return [`${pl(n, 'chefe vencido', 'chefes vencidos')}`]; }
+    case 'guild': { const d = typeof guildCache !== 'undefined' && guildCache && cloudUser && guildCache.userId === cloudUser.id ? guildCache.data : null;
+      if (!d) return ['A tua guild']; if (!d.guild) return ['Sem guild · junta-te a uma']; return [guildBadge() ? `${esc(d.guild.name || 'Guild')} · prémio pronto` : esc(d.guild.name || 'Guild'), guildBadge() ? 'go' : '']; }
+    case 'amigos': { const n = friendBadgeTotal(); return n ? [`${pl(n, 'novidade', 'novidades')}`, 'go'] : ['Conversas e trocas']; }
+    case 'esconderijo': { if (s.sub) return [s.sub]; if (!p.hideout) return ['Por construir', 'go']; const n = hoReadyCount(p);
+      return [`Nv. ${hideoutLevel(p)}${n ? ` · ${pl(n, 'expedição pronta', 'expedições prontas')}` : ''}`, n ? 'ok' : '']; }
+    case 'vila': { const v = p.vila; if (!v) return ['Por fundar', 'go'];
+      const fim = v.exp && v.exp.phase === 'fim', br = Object.keys(v.broken || {}).length;
+      return [`Salão Nv. ${v.b.salao} · ${fim ? 'relatório pronto' : br ? 'estragos por reparar' : v.work ? 'a construir' : 'construtores livres'}`, fim || br ? 'go' : '']; }
+  }
+  return [s.sub || ''];
+}
+function heroTodo(p, sections) {
+  const has = k => sections.some(s => s.key === k), out = [];
+  const add = (k, ic, t, sub) => out.push(`<button type="button" class="hm-td" data-heroitab="${k}"><span class="hm-td-ic">${ic}</span><span><b>${t}</b><small>${sub}</small></span></button>`);
+  const pv = has('passivas') ? passivePointsLeft(p) : 0; if (pv > 0) add('passivas', nxEnt('pine', '🌳'), `${pv} ${pv === 1 ? 'ponto' : 'pontos'} de Passivas`, 'por gastar');
+  if (has('habilidades') && p.skillBooks) add('habilidades', nxEnt('openbook', '📖'), `${p.skillBooks} ${p.skillBooks === 1 ? 'Livro' : 'Livros'} de Habilidades`, 'para subir habilidades');
+  if (has('profissoes') && !p.profession && p.professionBooks) add('profissoes', nxEnt('pick', '⛏️'), 'Escolhe uma Profissão', 'já tens o 📗');
+  const ho = has('esconderijo') ? hoReadyCount(p) : 0; if (ho) add('esconderijo', nxEnt('esconderijo', '🏰'), `${ho} ${ho === 1 ? 'expedição pronta' : 'expedições prontas'}`, 'no Esconderijo');
+  const v = has('vila') && p.vila; if (v && v.exp && v.exp.phase === 'fim') add('vila', nxEnt('vila', '🏰'), 'A armada voltou', 'relatório na Vila'); else if (v && Object.keys(v.broken || {}).length) add('vila', nxEnt('vila', '🏰'), 'A Vila tem estragos', 'repara os edifícios');
+  if (has('guild') && guildBadge()) add('guild', nxEnt('guild', GUILD_TILE_ICON), 'Prémio da Guild', 'pronto a receber');
+  const fr = has('amigos') ? friendBadgeTotal() : 0; if (fr) add('amigos', nxEnt('amigos', '👥'), `${fr} ${fr === 1 ? 'novidade' : 'novidades'} dos amigos`, 'pedidos, mensagens ou trocas');
+  if (has('mascotes') && (p.pets || []).length && !(p.pets || []).some(x => x.id === p.activePet)) add('mascotes', nxEnt('paw', '🐾'), 'Nenhuma mascote ativa', 'escolhe uma para ter bónus');
+  return out;
+}
+function heroBookStats(p) {
+  const db = p.defeatedBosses || [], st = p.stats || {};
+  const mile = n => [10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000].find(m => m > n) || n;
+  return [
+    ['Chefes das regiões', ALL_BOSSES.filter(b => db.includes(b.name)).length, ALL_BOSSES.length],
+    ['Regiões', Math.min((p.regionIndex || 0) + 1, REGIONS.length), REGIONS.length],
+    ['Dungeons', DUNGEONS.filter(d => (p.clearedDungeons || []).includes(d.key)).length, DUNGEONS.length],
+    ['Catacumbas', CATACUMBAS.filter(d => (p.clearedCatacumbas || []).includes(d.key)).length, CATACUMBAS.length],
+    ['Míticos', mythicFoundSync(p).length, MYTHIC_KEYS.length],
+    ['Mascotes', new Set((p.pets || []).map(x => x.type).filter(t => PET_DEFS[t])).size, Object.keys(PET_DEFS).length],
+    ['Vitórias', st.wins || 0, mile(st.wins || 0), true],
+    ['Chefes vencidos', st.bossesKilled || 0, mile(st.bossesKilled || 0), true]
+  ];
+}
+function heroBookRowsHtml(p, few) {
+  const rows = heroBookStats(p).slice(0, few ? 6 : 99);
+  return rows.map(([lb, n, max, mile]) => `<div class="hm-row"><span>${lb}</span><div class="hm-bar"><i style="width:${max ? Math.min(100, Math.round(n / max * 100)) : 0}%"></i></div><b>${nxNum(n)}${mile ? `<small> / ${nxNum(max)}</small>` : `/${max}`}</b></div>`).join('');
+}
+function heroMenuHtml(p, sections) {
+  const st = effectiveStats(p), cls = CLASSES[p.class] || {}, evo = p.evolution && EVOLUTIONS[p.class] ? EVOLUTIONS[p.class].find(e => e.key === p.evolution) : null;
+  const pw = heroPower(p), seen = Number(p.powerSeen) || 0, dif = seen ? pw - seen : 0;
+  const gear = EQUIP_SLOTS.map(sl => { const it = p.equipment && p.equipment[sl], r = it && RARITIES.find(x => x.key === it.rarity); return `<i style="border-color:${r ? r.color : 'rgba(255,255,255,.15)'};${r ? '' : 'opacity:.5;'}"></i>`; }).join('');
+  const crit = Math.round((st.crit || 0) * 100);
+  const card = `<button type="button" class="hm-card" data-heroitab="perfil" style="--hm-art:url(icons/classe-arte-${p.class}.webp?v=${NX_ICON_VER});">
+    <span class="hm-art"></span><span class="hm-open">Perfil ›</span>
+    <span class="hm-in">
+      <span class="hm-top"><span class="hm-av">${heroAvatarHtml(p)}<em>${p.level}</em></span><span><b class="hm-name">${esc(p.name || 'Herói')}</b><small class="hm-cls">${evo ? `${evo.name} · ${cls.name}` : cls.name || ''}</small></span></span>
+      <span class="hm-pw"><span>Poder</span><b>${nxNum(pw)}</b>${dif ? `<em class="${dif > 0 ? 'up' : 'dn'}">${dif > 0 ? '▲' : '▼'} ${nxNum(Math.abs(dif))}</em>` : ''}</span>
+      <span class="hm-mini"><span><b>${nxNum(st.hp)}</b>Vida</span><span><b>${nxNum(st.dmg)}</b>Dano</span><span><b>${nxNum(st.def)}</b>Defesa</span><span><b>${crit}%</b>Crítico</span></span>
+    </span><span class="hm-gear" aria-hidden="true">${gear}</span></button>`;
+  const tile = (s, wide) => { const [sub, c] = heroMenuSub(p, s);
+    return `<button type="button" class="hm-t${wide ? ' w' : ''}${s.locked ? ' is-locked' : ''}" data-heroitab="${s.key}">${s.badge ? `<span class="hm-bd${s.isNew ? ' new' : ''}">${s.badge}</span>` : ''}<span class="hm-ic">${s.icon}</span><span class="hm-tx"><b>${s.label}</b><small class="${c || ''}">${sub}</small></span></button>`; };
+  const grp = (title, keys, wide) => { const L = keys.map(k => sections.find(s => s.key === k)).filter(Boolean); return L.length ? `<div class="hm-sec">${title}</div><div class="hm-grid${wide ? ' two' : ''}">${L.map(s => tile(s, wide)).join('')}</div>` : ''; };
+  const todo = heroTodo(p, sections);
+  return `<div class="hm">${card}
+    ${todo.length ? `<div class="hm-sec">A fazer</div><div class="hm-todo">${todo.join('')}</div>` : ''}
+    ${grp('O teu herói', ['habilidades', 'passivas', 'mascotes', 'profissoes', 'caderneta', 'perfil'])}
+    ${grp('Social', ['guild', 'amigos'], true)}
+    ${grp('A tua base', ['esconderijo', 'vila'], true)}
+    <div class="hm-sec">Caderneta</div><button type="button" class="hm-book" data-heroitab="caderneta">${heroBookRowsHtml(p, true)}<span class="hm-more">Ver tudo ›</span></button></div>`;
+}
+function renderCadernetaBody() {
+  const p = App.player, body = $('heroi-body'); if (!body) return;
+  const db = p.defeatedBosses || [], found = mythicFoundSync(p), petT = new Set((p.pets || []).map(x => x.type));
+  const chip = (ok, ic, name, sub) => `<span class="hm-chip${ok ? ' ok' : ''}">${ic}<span><b>${ok ? esc(name) : '???'}</b>${sub ? `<small>${sub}</small>` : ''}</span></span>`;
+  const regs = REGIONS.map((r, i) => { const open = i <= (p.regionIndex || 0);
+    return `<div class="card raised hm-reg"><div class="row between" style="align-items:center;"><span style="font-weight:700;">${nxEnt('banner-' + r.key, r.icon)} ${open ? r.name : '🔒 Região por descobrir'}</span><span class="pill">${r.bosses.filter(b => db.includes(b.name)).length}/${r.bosses.length}</span></div>
+      <div class="hm-chips">${r.bosses.map(b => chip(db.includes(b.name), nxCreature(b.name, b.icon), b.name, `Nv. ${b.lv}`)).join('')}</div></div>`; }).join('');
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">O teu progresso no jogo. O que ainda não encontraste aparece como ???.</p>
+    <div class="hm-book static">${heroBookRowsHtml(p)}</div>
+    <div class="section-title" style="margin-top:14px;">Chefes por região</div>${regs}
+    <div class="section-title" style="margin-top:14px;">Míticos · ${found.length}/${MYTHIC_KEYS.length}</div>
+    <div class="card raised"><div class="hm-chips">${MYTHIC_KEYS.map(k => chip(found.includes(k), found.includes(k) ? nxEnt(mythicIconKey(k), MYTHIC_DEFS[k].emo) : '❔', MYTHIC_DEFS[k].name, found.includes(k) ? `de ${MYTHIC_DEFS[k].boss}` : '')).join('')}</div></div>
+    <div class="section-title" style="margin-top:14px;">Mascotes · ${[...petT].filter(t => PET_DEFS[t]).length}/${Object.keys(PET_DEFS).length}</div>
+    <div class="card raised"><div class="hm-chips">${Object.keys(PET_DEFS).map(t => chip(petT.has(t), petT.has(t) ? nxEnt('pet-' + t, PET_DEFS[t].icon) : '❔', PET_DEFS[t].name, petT.has(t) ? PET_DEFS[t].role : '')).join('')}</div></div>`;
+}
 function heroiSections(p) {
   const pvLeft = passivePointsLeft(p);
   return [
@@ -9941,7 +10040,8 @@ function heroiSections(p) {
     { key: 'amigos', label: 'Amigos', icon: nxEnt('amigos', '👥'), badge: friendBadgeTotal() || null },
     { key: 'esconderijo', label: 'Esconderijo', icon: nxEnt('esconderijo', '🏰'), locked: p.level < HIDEOUT_MIN_LEVEL, sub: p.level < HIDEOUT_MIN_LEVEL ? `🔒 Nv. ${HIDEOUT_MIN_LEVEL}` : null,
       badge: p.hideout ? (hoReadyCount(p) || null) : (p.level >= HIDEOUT_MIN_LEVEL ? 'Novo' : null) },
-    { key: 'vila', label: 'Vila', icon: nxEnt('vila', '🏰'), badge: vilaBadge(p) } // v198
+    { key: 'vila', label: 'Vila', icon: nxEnt('vila', '🏰'), badge: vilaBadge(p) }, // v198
+    { key: 'caderneta', label: 'Caderneta', icon: nxEnt('trofeu-vitoria', '🏆') } // v209
   ];
 }
 
@@ -9953,16 +10053,8 @@ function renderTabHeroi() {
   if (!current) {
     App.heroiTab = null;
     App.guildTab = null;
-    $('hub-content').innerHTML = `
-      <div class="section-title">${heroIconHtml(p)} Herói</div>
-      <p class="muted" style="margin-bottom:12px;">Escolhe o que queres ver.</p>
-      <div class="wiki-grid">
-        ${sections.filter(s => !s.hidden).map(s => `<button class="wiki-tile${s.locked ? ' is-locked' : ''}" data-heroitab="${s.key}">
-          ${s.badge ? `<span class="wiki-tile-badge${s.isNew ? ' new' : ''}">${s.badge}</span>` : ''}
-          <span class="wiki-tile-ic">${s.icon}</span><span class="wiki-tile-lb">${s.label}</span>${s.sub ? `<span class="wiki-tile-sub">${s.sub}</span>` : ''}</button>`).join('')}
-      </div>
-      ${unlockNextHtml(p, 'heroi')}
-    `;
+    $('hub-content').innerHTML = heroMenuHtml(p, sections.filter(s => !s.hidden)) + unlockNextHtml(p, 'heroi');
+    heroPowerSeen(p);
   } else {
     unlockSeen(p, 'heroi', current.key);
     const guildSub = current.key === 'guild' ? GUILD_SECTIONS.find(x => x.key === App.guildTab) : null;
@@ -9999,6 +10091,7 @@ function renderTabHeroi() {
   else if (current.key === 'amigos') renderAmigosBody();
   else if (current.key === 'esconderijo') renderEsconderijoBody();
   else if (current.key === 'vila') renderVilaBody(); // v198
+  else if (current.key === 'caderneta') renderCadernetaBody(); // v209
   else renderHeroiPerfilBody(current.key);
 }
 
@@ -18529,7 +18622,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v208</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v209</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
