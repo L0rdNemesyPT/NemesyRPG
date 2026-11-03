@@ -2740,7 +2740,14 @@ body #screen-boot,body #screen-account,body #screen-create{background:linear-gra
 .in-say span{font-size:12px;color:#e8dcc0;font-style:italic;text-shadow:0 1px 4px #000;line-height:1.35;}
 /* v206: ilustrações — fim do combate, classes, profissões e eventos */
 /* v207: o fundo vai no próprio ecrã (sem overflow:hidden), para o conteúdo poder crescer e a página deslizar até aos botões */
-#cb-end-screen.has-art{flex:1 0 auto;min-height:auto;border-radius:14px;margin:8px;background:linear-gradient(180deg,rgba(8,6,4,.25) 0%,rgba(8,6,4,.55) 40%,rgba(8,6,4,.88) 75%,rgba(8,6,4,.96) 100%),var(--end-art) center top/cover no-repeat;}
+#cb-end-screen.has-art{border-radius:14px;margin:8px;background:linear-gradient(180deg,rgba(8,6,4,.25) 0%,rgba(8,6,4,.55) 40%,rgba(8,6,4,.88) 75%,rgba(8,6,4,.96) 100%),var(--end-art) center top/cover no-repeat;}
+/* v208: o fim do combate desliza por dentro (em qualquer ponto) e os botões ficam sempre à vista em baixo */
+#cb-end-screen{flex:1 1 0;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;justify-content:flex-start;padding-bottom:0;}
+#cb-end-screen > :first-child{margin-top:auto;}
+#cb-end-screen > .end-actions,#cb-end-screen > #btn-combat-continue{position:sticky;bottom:0;z-index:2;margin-top:auto;box-shadow:0 -14px 18px 6px rgba(8,6,4,.85);}
+#cb-end-screen > .end-actions{padding-bottom:calc(12px + env(safe-area-inset-bottom, 0px));background:rgba(8,6,4,.92);border-radius:12px 12px 0 0;padding-top:8px;}
+#cb-end-screen > #btn-combat-continue{margin-bottom:calc(12px + env(safe-area-inset-bottom, 0px));}
+#screen-combat.ended{overflow:hidden;}
 .class-card.has-art{position:relative;overflow:hidden;min-height:150px;padding-left:118px;}
 .class-card.has-art .class-art{position:absolute;left:0;top:0;bottom:0;width:112px;background:var(--cls-art) center 18%/cover no-repeat;}
 .class-card.has-art .class-art::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 55%,var(--bg-panel));}
@@ -2749,3 +2756,7 @@ body #screen-boot,body #screen-account,body #screen-create{background:linear-gra
 .prof-art.sm{height:56px;margin-bottom:6px;}
 body .event-banner.has-art,body.ui-modern .event-banner.has-art{background:linear-gradient(90deg,rgba(8,6,4,.8),rgba(8,6,4,.3) 50%,rgba(8,6,4,.8)),var(--ev-art) center/cover no-repeat !important;color:#ffe0d8;font-size:12px;padding:14px 8px;border-style:solid;text-shadow:0 1px 3px #000,0 0 6px #000;}
 .ev-art{height:110px;border-radius:10px;margin-bottom:10px;background-size:cover;background-position:center;border:1px solid var(--line);}
+/* v208: enquanto uma imagem grande carrega, o espaço pulsa devagar em vez de ficar preto */
+@keyframes nxLoadPulse{0%,100%{background-color:#1a140d;}50%{background-color:#2a2116;}}
+.rm-map,.ct-map,.in-hero,.prof-art,.ev-art,.cb-scene .scene-img,.wiki-tile-scene .scene-img,.vl-map{animation:nxLoadPulse 1.6s ease-in-out 4;}
+@media (prefers-reduced-motion:reduce){.rm-map,.ct-map,.in-hero,.prof-art,.ev-art,.cb-scene .scene-img,.wiki-tile-scene .scene-img,.vl-map{animation:none;}}

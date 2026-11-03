@@ -6326,7 +6326,36 @@ function renderStatusBar() {
   if (settingsBtn) settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); openSettingsModal(); });
 }
 
+// v208: carregar imagens antes de serem precisas. O pedido passa pelo service worker, que as guarda
+// (mesmo endereço com ?v= que o jogo usa depois), por isso quando o ecrã abre a imagem já lá está.
+function nxImgUrl(k) { return `icons/${k}.webp?v=${NX_ICON_REV[k] || NX_ICON_VER}`; }
+const NX_PRELOADED = new Set();
+function nxPreload(keys) {
+  (keys || []).forEach(k => { if (!k || NX_PRELOADED.has(k)) return; NX_PRELOADED.add(k); const im = new Image(); im.decoding = 'async'; im.src = nxImgUrl(k); });
+}
+function nxNetOk() { const c = navigator.connection; return !(c && (c.saveData || /(^|-)2g$/.test(c.effectiveType || ''))); }
+// Depois de entrar: guarda aos poucos (uma imagem de cada vez, quando o telemóvel está livre) as imagens grandes
+// dos sítios já desbloqueados. Em poupança de dados ou rede 2G não faz nada; em dados móveis só o essencial.
+function nxWarmImages() {
+  if (App.nxWarmed || !App.player) return; App.nxWarmed = true;
+  if (!nxNetOk()) return;
+  const p = App.player, ri = Math.min(p.regionIndex || 0, REGIONS.length - 1), here = REGIONS[App.selectedRegionIndex != null ? App.selectedRegionIndex : ri] || REGIONS[0];
+  const first = ['mapa-' + here.key, 'cena-' + here.key, 'fim-vitoria', 'fim-derrota', 'mapa-cidade'];
+  nxPreload(first);
+  const c = navigator.connection, cell = c && c.type === 'cellular';
+  if (cell) return;
+  const rest = [];
+  REGIONS.slice(0, ri + 1).forEach(r => rest.push('mapa-' + r.key, 'cena-' + r.key));
+  Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
+  if (p.profession) rest.push('prof-' + p.profession);
+  rest.push('world-map', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  const queue = rest.slice();
+  const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
+  const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
+  setTimeout(next, 4000);
+}
 function goHub() {
+  setTimeout(nxWarmImages, 1500);
   showScreen('screen-hub');
   renderStatusBar();
   renderHubTab();
@@ -15454,7 +15483,7 @@ function renderCombatLog() {
 function resetCombatScreenChrome() {
   // v146: nunca deixar o combate "bloqueado" por uma transição de dungeon que ficou a meio.
   $('screen-combat').classList.remove('dg-transit');
-  $('cb-end-screen').style.display = 'none'; $('cb-end-screen').classList.remove('has-art');
+  $('cb-end-screen').style.display = 'none'; $('cb-end-screen').classList.remove('has-art'); { const sc = $('screen-combat'); if (sc) sc.classList.remove('ended'); }
   $('cb-log').style.display = '';
   const bottom = document.querySelector('#screen-combat .combat-bottom');
   if (bottom) bottom.style.display = '';
@@ -17629,6 +17658,8 @@ function showCombatEnd(won, info) {
   if (bottom) bottom.style.display = 'none';
   const endEl = $('cb-end-screen');
   endEl.style.display = 'flex';
+  { const sc = $('screen-combat'); if (sc) { sc.scrollTop = 0; sc.classList.add('ended'); } } // v208: só o fim do combate desliza
+  endEl.scrollTop = 0;
   let html;
   if (won) {
     const pl = App.player, need = xpForLevel(pl.level), maxed = pl.level >= MAX_LEVEL;
@@ -18256,6 +18287,7 @@ function combatSceneKey(c) {
   return r && SCENES[r.key] ? r.key : 'planicies';
 }
 function sceneUpdate(c) {
+  if (c && !c._preImg) { c._preImg = true; nxPreload(['fim-vitoria', 'fim-derrota']); } // v208: o ecrã final já carregado
   const host = document.getElementById('screen-combat'); if (!host || !c) return;
   const key = combatSceneKey(c) + '|' + fxLevel();
   let el = document.getElementById('cb-scene');
@@ -18497,7 +18529,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v207</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v208</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
