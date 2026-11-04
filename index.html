@@ -3836,18 +3836,77 @@ const SOBERANOS = [
       { type: 'crit_guaranteed', icon: '⚔️', label: 'Golpe Implacável', desc: 'crítico garantido' },
       { type: 'heavy', icon: '🪨', label: 'Punho Sísmico', desc: 'golpe esmagador (×1,7 de dano)' }
     ],
-    rewards: { xpMult: 5, goldMult: 5, rolls: 4, divino: 0.06, nephalem: 0.25, core: 0.10, plus: 0.15, heart: 0.20, talisman: 0.12 } }
+    rewards: { xpMult: 5, goldMult: 5, rolls: 4, divino: 0.06, nephalem: 0.25, core: 0.10, plus: 0.15, heart: 0.20, talisman: 0.12 } },
+  // v210: Ymir — Armadura de Gelo (camadas que reduzem o dano; o Fogo parte 2 de cada vez), 3 fases.
+  { key: 'ymir', name: 'Ymir, o Gigante de Gelo', icon: '🧊', lv: 250, minLv: 200, category: 'outro', scene: 'ymir', ymir: true,
+    mult: { hp: 16, dmg: 1.25, def: 1.6 },
+    stage2: { atPct: 0.6, name: 'Ymir, o Inverno Eterno', icon: '🌬️', mult: { dmg: 1.2, def: 1.0 }, regenPct: 0,
+      msg: '🌬️ Inverno Eterno! O Ymir fica mais forte (+20% de dano) e o gelo volta em todas as rondas. A Tempestade de Gelo começa.' },
+    stage3: { atPct: 0.25, name: 'Ymir, Coração de Gelo', icon: '💎', dmg: 1.3, shatter: 0.15 },
+    skillChance: 0.30,
+    skills1: [
+      { type: 'defbreak', icon: '🌨️', label: 'Nevasca', desc: 'congela-te e tira-te defesa' },
+      { type: 'heavy', icon: '🦶', label: 'Pisada Glacial', desc: 'golpe esmagador (×1,7 de dano)' }
+    ],
+    skills2: [
+      { type: 'defbreak', icon: '🌨️', label: 'Nevasca', desc: 'congela-te e tira-te defesa' },
+      { type: 'heavy', icon: '🦶', label: 'Pisada Glacial', desc: 'golpe esmagador (×1,7 de dano)' },
+      { type: 'multi', icon: '🏔️', label: 'Avalanche', desc: 'dois golpes seguidos' }
+    ],
+    skills3: [
+      { type: 'heavy', icon: '🦶', label: 'Pisada Glacial', desc: 'golpe esmagador (×1,7 de dano)' },
+      { type: 'multi', icon: '🏔️', label: 'Avalanche', desc: 'dois golpes seguidos' },
+      { type: 'crit_guaranteed', icon: '💎', label: 'Lança de Cristal', desc: 'crítico garantido' }
+    ],
+    rewards: { xpMult: 7, goldMult: 7, rolls: 5, divino: 0.10, nephalem: 0.40, core: 0.20, plus: 0.25, heart: 0.35, talisman: 0.18 } }
 ];
+// v210: Armadura de Gelo do Ymir
+const YMIR = { LAYERS: 5, RED: 0.15, STORM_PCT: 0.04, STORM_RES: 40, FREEZE: 0.25 };
+function ymirArmorMult(c) { const y = c && c.ymir; return y && y.phase < 3 ? Math.max(0, 1 - YMIR.RED * y.layers) : 1; }
+function ymirAfterHit(c, p, abilityKey) {
+  const y = c && c.ymir; if (!y || y.phase >= 3 || y.layers <= 0) return;
+  const fire = playerAttackElement(p, abilityKey) === 'fogo', n = Math.min(y.layers, fire ? 2 : 1);
+  y.layers -= n;
+  addCombatLog({ text: `${fire ? '🔥' : '🧊'} Partiste ${n} ${n === 1 ? 'camada' : 'camadas'} de gelo${y.layers ? ` (restam ${y.layers})` : ' — a armadura está em baixo!'}.`, cls: 'good' });
+}
+// No início da vez do Ymir: Coração de Gelo (fase 3), o gelo que volta, a Tempestade e a Prisão de Gelo.
+function ymirTurn(c, p, pStats) {
+  const y = c && c.ymir, B = c && c.soberanoDef; if (!y || !B || c.enemy.hp <= 0) return;
+  y.rounds++;
+  if (c.soberanoStage2 && y.phase < 2) y.phase = 2;
+  if (y.phase < 3 && c.enemy.hp <= c.enemy.maxHp * B.stage3.atPct) {
+    y.phase = 3; y.layers = 0;
+    const lost = Math.round(pStats.hp * B.stage3.shatter); p.hp = Math.max(1, p.hp - lost);
+    c.enemy.dmg = Math.round(c.enemy.dmg * B.stage3.dmg); c.name = B.stage3.name; c.icon = B.stage3.icon;
+    if (c.battleState) { c.battleState.enemyStatus = []; c.battleState.enemyDefDebuff = null; }
+    addCombatLog({ text: `💎 A Armadura de Gelo estilhaça! Perdes ${nxNum(lost)} HP. Sem escudo, o ${B.stage3.name} fica +${Math.round((B.stage3.dmg - 1) * 100)}% mais forte.`, cls: 'crit' });
+    try { sfx.evolve(); } catch (e) {}
+    const g = document.getElementById('cb-enemy-glyph'); if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
+    return;
+  }
+  if (y.phase < 3 && y.layers < YMIR.LAYERS && y.rounds % (y.phase >= 2 ? 1 : 2) === 0) { y.layers++; addCombatLog({ text: `🧊 O gelo cresce: +1 camada (${y.layers}/${YMIR.LAYERS}).`, cls: 'hit' }); }
+  if (y.phase === 2) {
+    const res = resFor(pStats, 'gelo');
+    if (res >= YMIR.STORM_RES) addCombatLog({ text: `❄️ A Tempestade de Gelo não te afeta (Resistência ao Gelo ${res}%).`, cls: 'good' });
+    else { const d = Math.max(1, Math.round(pStats.hp * YMIR.STORM_PCT)); p.hp = Math.max(0, p.hp - d); addCombatLog({ text: `❄️ Tempestade de Gelo: perdes ${nxNum(d)} HP (precisas de ${YMIR.STORM_RES}% de Resistência ao Gelo para a ignorar).`, cls: 'hit' }); }
+  }
+  if (y.phase === 3 && Math.random() < YMIR.FREEZE * (1 - resFor(pStats, 'gelo') / 100)) c.ymirFreeze = true;
+}
+
 function soberanoDay() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 function soberanoState(p) {
   p.soberano = p.soberano && typeof p.soberano === 'object' ? p.soberano : {};
   const st = p.soberano;
-  if (st.day !== soberanoDay()) { st.day = soberanoDay(); st.tries = 0; }
+  // v210: 3 tentativas por dia para cada Soberano (antes eram partilhadas).
+  if (!st.triesBy || typeof st.triesBy !== 'object') st.triesBy = { moloch: Number(st.tries) || 0 };
+  if (st.day !== soberanoDay()) { st.day = soberanoDay(); st.tries = 0; st.triesBy = {}; }
+  Object.keys(st.triesBy).forEach(k => { st.triesBy[k] = clamp(Math.floor(Number(st.triesBy[k]) || 0), 0, SOBERANO_DAILY_TRIES); });
   st.tries = clamp(Math.floor(Number(st.tries) || 0), 0, SOBERANO_DAILY_TRIES);
   st.kills = st.kills && typeof st.kills === 'object' ? st.kills : {};
   return st;
 }
-function soberanoTriesLeft(p) { return SOBERANO_DAILY_TRIES - soberanoState(p).tries; }
+function soberanoTriesLeft(p, key) { return SOBERANO_DAILY_TRIES - (soberanoState(p).triesBy[key || 'moloch'] || 0); }
+function soberanoTriesSummary(p) { const L = SOBERANOS.filter(B => (p.level || 1) >= B.minLv); return { left: L.reduce((a, B) => a + soberanoTriesLeft(p, B.key), 0), max: L.length * SOBERANO_DAILY_TRIES, n: L.length }; }
 function soberanoStats(B) {
   const e = enemyStatsFor(B.lv, true), m = B.mult || {};
   e.hp = Math.round(e.hp * (m.hp || 1)); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * (m.dmg || 1)); e.def = Math.round(e.def * (m.def || 1));
@@ -3855,11 +3914,11 @@ function soberanoStats(B) {
 }
 function soberanoRewardsText(B) {
   const r = B.rewards, pc = v => `${String(Math.round(v * 1000) / 10).replace('.', ',')}%`;
-  return [`${nxEnt('coracao-soberano', '❤️‍🔥')} <b>Coração do Soberano</b> (${pc(r.heart)}; garantido na 1.ª vitória)`, `${nxEnt('talisma-soberano', '👑')} <b>Talismã do Soberano</b> (${pc(r.talisman)})`, `${r.xpMult}× o XP e o ouro de um chefe normal`, `${CHEST_DEFS.equip.icon} item Nv. ${B.lv} garantido (${r.rolls} rolos de raridade)`, `💠 item Divino (${pc(r.divino)})`,
+  return [`${nxEnt('coracao-soberano', '❤️‍🔥')} <b>Coração do Soberano</b> (${pc(r.heart)}; garantido na 1.ª vitória)`, `${nxEnt('talisma-soberano', '👑')} <b>Talismã do Soberano</b> (${pc(r.talisman)})`, `${r.xpMult}× o XP e o ouro de um chefe normal`, `${CHEST_DEFS.equip.icon} item Nv. ${Math.min(B.lv, MAX_LEVEL)} garantido (${r.rolls} rolos de raridade)`, `💠 item Divino (${pc(r.divino)})`,
     `💎 Pedra Nephalen (${pc(r.nephalem)})`, `✨ Pedra do Núcleo (${pc(r.core)})`, `📜➕ Pergaminho ➕ (${pc(r.plus)})`].join(' · ');
 }
 function soberanoCardHtml(B, p, withButton) {
-  const e = soberanoStats(B), locked = (p.level || 1) < B.minLv, kills = soberanoState(p).kills[B.key] || 0, left = soberanoTriesLeft(p);
+  const e = soberanoStats(B), locked = (p.level || 1) < B.minLv, kills = soberanoState(p).kills[B.key] || 0, left = soberanoTriesLeft(p, B.key);
   return `<div class="card raised sob-card">
       <div class="sob-head">
         <div class="sob-ic">${nxCreature(B.name, B.icon)}</div>
@@ -3869,19 +3928,28 @@ function soberanoCardHtml(B, p, withButton) {
         </div>
       </div>
       <div class="sob-stats"><span>❤️ ${nxNum(e.hp)}</span><span>⚔️ ${nxNum(e.dmg)}</span><span>🛡️ ${nxNum(e.def)}</span></div>
-      <div class="sob-stage"><div class="sob-st-h">Fase 1 · 100% → ${Math.round(B.stage2.atPct * 100)}% de HP</div>
+      ${B.ymir ? ymirCardStagesHtml(B) : `<div class="sob-stage"><div class="sob-st-h">Fase 1 · 100% → ${Math.round(B.stage2.atPct * 100)}% de HP</div>
         ${B.skills1.map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('')}</div>
       <div class="sob-stage fury"><div class="sob-st-h"><span class="sob-mini">${nxCreature(B.stage2.name, B.stage2.icon)}</span> Fase 2 · Enfurecido (abaixo de ${Math.round(B.stage2.atPct * 100)}%)</div>
         <p class="tiny">💢 +${Math.round((B.stage2.mult.dmg - 1) * 100)}% dano, +${Math.round((B.stage2.mult.def - 1) * 100)}% defesa, regenera ${Math.round(B.stage2.regenPct * 100)}% do HP por ronda e livra-se de todos os efeitos.</p>
-        ${B.skills2.filter(k => !B.skills1.some(x => x.label === k.label)).map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('')}</div>
+        ${B.skills2.filter(k => !B.skills1.some(x => x.label === k.label)).map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('')}</div>`}
       <p class="tiny" style="margin-top:8px;">🎁 ${soberanoRewardsText(B)}</p>
       <p class="tiny muted" style="margin-top:4px;">A partir do nível ${B.minLv}. Perder não te tira ouro — só gasta a tentativa.</p>
       ${withButton ? `<button class="btn danger block" data-sob-fight="${B.key}" style="margin-top:10px;"${locked || left <= 0 ? ' disabled' : ''}>${locked ? `🔒 Precisas de nível ${B.minLv}` : left <= 0 ? '⏳ Sem tentativas hoje' : `👑 Desafiar (${left}/${SOBERANO_DAILY_TRIES})`}</button>` : ''}
     </div>`;
 }
+function ymirCardStagesHtml(B) {
+  const sk = L => L.map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('');
+  return `<div class="sob-stage"><div class="sob-st-h">🧊 Armadura de Gelo · Fase 1 (100% → ${Math.round(B.stage2.atPct * 100)}%)</div>
+      <p class="tiny">Começa com ${YMIR.LAYERS} camadas de gelo: cada uma tira ${Math.round(YMIR.RED * 100)}% ao dano que lhe fazes. Cada golpe parte 1 camada; um golpe de 🔥 Fogo parte 2. O gelo volta: +1 camada a cada 2 rondas.</p>${sk(B.skills1)}</div>
+    <div class="sob-stage fury"><div class="sob-st-h"><span class="sob-mini">${nxCreature(B.stage2.name, B.stage2.icon)}</span> Fase 2 · Inverno Eterno (abaixo de ${Math.round(B.stage2.atPct * 100)}%)</div>
+      <p class="tiny">💢 +${Math.round((B.stage2.mult.dmg - 1) * 100)}% de dano e +1 camada em todas as rondas. ❄️ Tempestade de Gelo: perdes ${Math.round(YMIR.STORM_PCT * 100)}% da vida máxima por ronda, a não ser que tenhas ${YMIR.STORM_RES}% de Resistência ao Gelo.</p>${sk(B.skills2.filter(k => !B.skills1.some(x => x.label === k.label)))}</div>
+    <div class="sob-stage fury"><div class="sob-st-h"><span class="sob-mini">${nxCreature(B.stage3.name, B.stage3.icon)}</span> Fase 3 · Coração de Gelo (abaixo de ${Math.round(B.stage3.atPct * 100)}%)</div>
+      <p class="tiny">💎 A armadura estilhaça de vez (perdes ${Math.round(B.stage3.shatter * 100)}% da vida) e o Ymir fica +${Math.round((B.stage3.dmg - 1) * 100)}% mais forte. 🔒 Prisão de Gelo: até ${Math.round(YMIR.FREEZE * 100)}% de hipótese de perderes a vez (a Resistência ao Gelo baixa-a).</p>${sk(B.skills3.filter(k => !B.skills2.some(x => x.label === k.label)))}</div>`;
+}
 function renderSoberanoBody(body) {
-  const p = App.player, left = soberanoTriesLeft(p);
-  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Desafia um Soberano: um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e 2 fases de combate. Tens <b>${left}/${SOBERANO_DAILY_TRIES}</b> tentativas hoje.</p>
+  const p = App.player;
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Desafia um Soberano: um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e várias fases de combate. Cada Soberano tem <b>${SOBERANO_DAILY_TRIES} tentativas por dia</b>.</p>
     ${SOBERANOS.map(B => soberanoCardHtml(B, p, true)).join('')}`;
   els('[data-sob-fight]').forEach(b => b.addEventListener('click', () => startSoberano(b.dataset.sobFight)));
 }
@@ -3889,9 +3957,9 @@ function startSoberano(key) {
   if (!guardAllowsFight(() => startSoberano(key))) return;
   const p = App.player, B = SOBERANOS.find(x => x.key === key);
   if (!B || (p.level || 1) < B.minLv) return;
-  if (soberanoTriesLeft(p) <= 0) { sfx.error(); toast('Já usaste as tentativas de hoje. Volta amanhã!'); return; }
+  if (soberanoTriesLeft(p, B.key) <= 0) { sfx.error(); toast('Já usaste as tentativas de hoje deste Soberano. Volta amanhã!'); return; }
   sfx.click();
-  soberanoState(p).tries++;
+  { const st = soberanoState(p); st.triesBy[B.key] = (st.triesBy[B.key] || 0) + 1; }
   saveGame();
   App.combat = {
     kind: 'soberano', isSoberano: true, soberanoDef: B, name: B.name, icon: B.icon, level: B.lv, isBoss: true, isDungeon: false,
@@ -3901,7 +3969,9 @@ function startSoberano(key) {
   };
   resetCombatScreenChrome();
   showScreen('screen-combat');
+  if (B.ymir) App.combat.ymir = { layers: YMIR.LAYERS, phase: 1, rounds: 0 }; // v210
   addCombatLog({ text: `👑 ${B.name} (Nv. ${B.lv}) aceita o teu desafio! Muito mais forte do que um chefe normal.`, cls: 'hit' });
+  if (B.ymir) addCombatLog({ text: `🧊 Está coberto por ${YMIR.LAYERS} camadas de gelo (−${Math.round(YMIR.LAYERS * YMIR.RED * 100)}% ao teu dano). Cada golpe parte uma; o Fogo parte duas.`, cls: 'hit' });
   renderCombat();
 }
 // Fase 2 do Soberano (chamado no início da vez do inimigo).
@@ -3913,7 +3983,7 @@ function soberanoStageCheck(c) {
   c.enemy.dmg = Math.round(c.enemy.dmg * m.dmg); c.enemy.def = Math.round(c.enemy.def * m.def);
   const old = c.name; c.name = B.stage2.name; c.icon = B.stage2.icon;
   if (c.battleState) { c.battleState.enemyStatus = []; c.battleState.enemyDefDebuff = null; c.battleState.enemyStunned = false; }
-  addCombatLog({ text: `💢 ${old} ENFURECE! Torna-se ${B.stage2.name}: mais dano e defesa, regenera vida e livra-se de todos os efeitos.`, cls: 'crit' });
+  addCombatLog({ text: B.stage2.msg || `💢 ${old} ENFURECE! Torna-se ${B.stage2.name}: mais dano e defesa, regenera vida e livra-se de todos os efeitos.`, cls: 'crit' });
   try { sfx.evolve(); } catch (e) {}
   const g = document.getElementById('cb-enemy-glyph');
   if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
@@ -4497,6 +4567,7 @@ function mythHitMult(c, p, pStats) {
   if (m.arco_suspiro) { if (!c.mythFirstDone) k *= 2; else if ((c.battleState.enemyTurnCount || 0) >= 5) k *= 0.8; }
   if (m.sede_carrasco && (c.isBoss || c.isMiniBoss || c.isSoberano) && c.enemy.hp < c.enemy.maxHp * 0.3) k *= 1.3;
   if (m.garras_berserker && pStats.hp > 0) { const miss = 1 - clamp(p.hp / pStats.hp, 0, 1); k *= 1 + Math.min(0.5, miss / 2); }
+  if (c.ymir) k *= ymirArmorMult(c); // v210: Armadura de Gelo
   if (m.coroa_afogada) k *= 1 + Math.min(0.20, (c.round || 0) * 0.01); // v201: Coroa Afogada
   return k;
 }
@@ -4593,7 +4664,7 @@ function todayItems(p) {
   const add = (key, ic, label, state, sub) => L.push({ key, ic, label, state, sub });
   add('diaria', nxEnt('chest', '🎁'), 'Prémio Diário', dailyAvailable(p) ? 'ready' : 'done', dailyAvailable(p) ? 'Por receber' : 'Recebida');
   if (lv >= OB.MIN_LV) { const o = obState(p); add('obelisco', obIc('nx-inline'), 'Obeliscos', o.count >= OB.DAILY ? 'done' : o.spawns.length ? 'ready' : 'todo', `${o.count}/${OB.DAILY} hoje${o.spawns.length ? ` · ${o.spawns.length} no mapa` : ''}`); }
-  if (lv >= SOBERANOS[0].minLv) { const left = SOBERANO_DAILY_TRIES - soberanoState(p).tries; add('soberano', nxCreature(SOBERANOS[0].name, '👑'), 'Boss Soberano', left > 0 ? 'todo' : 'done', left > 0 ? `${left}/${SOBERANO_DAILY_TRIES} tentativas` : 'Sem tentativas'); }
+  if (lv >= SOBERANOS[0].minLv) { const t = soberanoTriesSummary(p); add('soberano', nxCreature(SOBERANOS[0].name, '👑'), t.n > 1 ? 'Bosses Soberanos' : 'Boss Soberano', t.left > 0 ? 'todo' : 'done', t.left > 0 ? `${t.left}/${t.max} tentativas` : 'Sem tentativas'); }
   if (lv >= HUNT_MIN_LV) { const hs = huntState(p); add('contratos', '📜', 'Contrato grátis', hs.freeUsed ? 'done' : 'ready', hs.freeUsed ? 'Já levantado' : 'No quadro'); }
   if (h) {
     const ready = hoReadyCount(p), free = expeditionSlots(p) - (h.exp || []).length;
@@ -7033,9 +7104,9 @@ function renderWikiBody() {
     ['wcalc-slot', 'wcalc-rar', 'wcalc-lv'].forEach(id => $(id).addEventListener(id === 'wcalc-lv' ? 'input' : 'change', calc));
     calc();
   } else if (t === 'soberano') {
-    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Mapa → Desafios → Boss Soberano. Um combate só, contra um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e 2 fases. Tens ${SOBERANO_DAILY_TRIES} tentativas por dia (renovam à meia-noite); perder não tira ouro.</p>
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Mapa → Desafios → Boss Soberano. Um combate só, contra um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e várias fases. Cada Soberano tem ${SOBERANO_DAILY_TRIES} tentativas por dia (renovam à meia-noite); perder não tira ouro.</p>
       <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
-        <p class="tiny" style="margin-top:6px;">Na Fase 1 o Soberano usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao descer da metade do HP, enfurece: muda de forma, fica mais forte, regenera vida em cada ronda, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
+        <p class="tiny" style="margin-top:6px;">Cada Soberano tem as suas fases (vê os cartões abaixo). Em geral, usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao mudar de fase, muda de forma, fica mais forte, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
   } else if (t === 'obeliscos') {
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">O Vazio crava obeliscos nas regiões. Aparecem sozinhos no mapa do separador Batalha (a partir do Nv. ${OB.MIN_LV}): um novo a cada ${OB.GAP_MIN / 60000}–${OB.GAP_MAX / 60000} minutos, no máximo ${OB.MAX_ACTIVE} de cada vez, e cada um desaparece ao fim de ${OB.LIFE_MS / 60000} minutos. Podes destruir <b>${OB.DAILY} por dia</b>.</p>
@@ -15212,7 +15283,7 @@ function mapaGroups(p) {
     { title: 'Dungeons · Tier 2', tiles: tier2 },
     { title: 'Catacumbas', tiles: catTiles },
     { title: 'Desafios', tiles: [{ key: 'soberano', kind: 'soberano', icon: nxCreature(SOBERANOS[0].name, '👑'), label: 'Boss Soberano', sub: `Nv. ${SOBERANOS[0].minLv}+`, scene: 'montanhas',
-      locked: (p.level || 1) < SOBERANOS[0].minLv, badge: `${soberanoTriesLeft(p)}/${SOBERANO_DAILY_TRIES}` }] },
+      locked: (p.level || 1) < SOBERANOS[0].minLv, badge: (() => { const t = soberanoTriesSummary(p); return `${t.left}/${t.max}`; })() }] },
     { title: 'Torres', tiles: TOWERS.map(T => {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
@@ -16682,7 +16753,7 @@ function useAbilityAction(key) {
   const hasCrit = msgs.some(m => m.cls === 'crit');
   const allGood = msgs.length && msgs.every(m => m.cls === 'good');
   sfx.ability(key, hasCrit);
-  if (c.enemy.hp < hpBefore) { rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); gemEsLeech(c, pStats, hpBefore - Math.max(0, c.enemy.hp)); }
+  if (c.enemy.hp < hpBefore) { ymirAfterHit(c, p, key); rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); gemEsLeech(c, pStats, hpBefore - Math.max(0, c.enemy.hp)); }
   else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
   c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0));
   postPlayerAction();
@@ -16727,6 +16798,7 @@ function useNormalAttackAction() {
   if (crit) sfx.crit(); else sfx.attack();
   rollStunOnHit(pStats, c);
   rollPoisonOnHit(pStats, c);
+  ymirAfterHit(c, p); // v210
   mythAfterAttack(c, p, pStats, crit);
   postPlayerAction();
 }
@@ -17047,6 +17119,7 @@ function postPlayerAction() {
     c.battleState.enemyStunned = false;
   } else {
     resolveEnemyTurn();
+    if (c.ymirFreeze && p.hp > 0 && c.enemy.hp > 0) { c.ymirFreeze = false; addCombatLog({ text: '🔒 Prisão de Gelo: ficas congelado e perdes a vez!', cls: 'hit' }); resolveEnemyTurn({ noDots: true }); } // v210
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) { handlePlayerDefeated(); return; }
     if (c.enemy.hp <= 0) { handleEnemyDefeated(); return; } // v184: Bastião do Mártir
   }
@@ -17148,10 +17221,12 @@ function resolveEnemyTurn(opts) {
   if (c.isObelisk && !c.horde) { obTurn(c, p); return; } // v190: o Obelisco não ataca (só na Fúria)
   bossPhaseCheck(c);
   soberanoStageCheck(c);
+  ymirTurn(c, p, pStats); // v210
+  if (p.hp <= 0 && !passiveUndyingSave(c, p)) return;
   const cName = hordeLabel(c);
 
   const isBossFight = c.isBoss || c.isMiniBoss;
-  const sobSkills = c.isSoberano ? (c.soberanoStage2 ? c.soberanoDef.skills2 : c.soberanoDef.skills1) : null;
+  const sobSkills = c.isSoberano ? (c.ymir && c.ymir.phase >= 3 && c.soberanoDef.skills3 ? c.soberanoDef.skills3 : c.soberanoStage2 ? c.soberanoDef.skills2 : c.soberanoDef.skills1) : null;
   if (c.isSoberano && c.soberanoStage2 && c.soberanoDef.stage2.regenPct && c.enemy.hp > 0 && c.enemy.hp < c.enemy.maxHp) {
     const heal = Math.round(c.enemy.maxHp * c.soberanoDef.stage2.regenPct);
     c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + heal);
@@ -18201,6 +18276,7 @@ const SCENES = {
   florestanegra: { sky: ['#03080a', '#0c2124', '#24484a'], sun: '#cfe8e0', layers: [['pines', '#123033', 0.46, 0], ['pines', '#0a1f22', 0.60, 0], ['pines', '#051012', 0.76, 0]], fx: 'fog' },
   pinaculo:      { sky: ['#1b1a3a', '#6d5aa0', '#f3cf86'], sun: '#fff1c4', layers: [['clouds', '#f6e2b8', 0.70, 0], ['islands', '#5a4a6e', 0.42, 0], ['clouds', '#fff4dc', 0.86, 0]], fx: 'motes' },
   soberano:      { sky: ['#1a0906', '#4a1510', '#c2431c'], sun: null, layers: [['peaks', '#3a1612', 0.40, 70], ['peaks', '#140605', 0.78, 26]], fx: 'embers' }, // v205
+  ymir:          { sky: ['#0e1a2b', '#2f4d6b', '#9fc3d9'], sun: null, layers: [['peaks', '#4f6f88', 0.50, 46], ['hills', '#dfeaf2', 0.80, 8]], fx: 'snow' }, // v210
   submerso:      { sky: ['#2a8f94', '#0c3d4e', '#03131b'], sun: '#bff7ee', layers: [['ruins', '#0e3b45', 0.52, 0], ['hills', '#0a2b34', 0.72, 12], ['hills', '#04171d', 0.86, 8]], fx: 'bubbles' }, // v201
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
   cripta:        { sky: ['#010302', '#040a07', '#08130e'], sun: null, layers: [['arches', '#24362e', 0.25, 0], ['floor', '#101a15', 0.80, 0]], fx: 'candles' },
@@ -18335,7 +18411,7 @@ function sceneLayer(type, color, base, amp, R, W, H) {
 }
 const sceneCache = {};
 // v204: fundos pintados (icons/cena-<chave>.webp); sem imagem, fica o cenário desenhado em código.
-const SCENE_IMG = ['soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo'];
+const SCENE_IMG = ['ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo'];
 function sceneArt(key) {
   if (SCENE_IMG.includes(key)) return `<div class="scene-img" style="background-image:url(icons/cena-${key}.webp?v=${NX_ICON_REV['cena-' + key] || NX_ICON_VER});"></div>`;
   return sceneSvg(key);
@@ -18368,7 +18444,7 @@ function sceneFxHtml(fx) {
 function combatSceneKey(c) {
   if (c.isCultBoss) return 'eclipse';
   if (c.isTower) return 'torre';
-  if (c.isSoberano) return 'soberano'; // v205: arena do trono
+  if (c.isSoberano) return (c.soberanoDef && c.soberanoDef.scene) || 'soberano'; // v205: arena do trono · v210: cada Soberano a sua
   if (c.isHalloween) return 'halloween';
   if (c.isHunt && c.huntRegion && SCENES[c.huntRegion]) return c.huntRegion;
   if (c.isDungeon && c.dungeonDef && c.dungeonDef.scene && SCENES[c.dungeonDef.scene]) return c.dungeonDef.scene;
@@ -18429,7 +18505,7 @@ function renderCombat() {
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.ymir && c.ymir.phase < 3 ? ` · 🧊 ${c.ymir.layers}/${YMIR.LAYERS}` : '') + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.ymir && c.ymir.phase >= 3 ? ' · Soberano · Fase 3' : c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -18622,7 +18698,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v209</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v210</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19778,7 +19854,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
