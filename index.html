@@ -6422,7 +6422,7 @@ function nxWarmImages() {
   REGIONS.slice(0, ri + 1).forEach(r => rest.push('mapa-' + r.key, 'cena-' + r.key));
   Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
   if (p.profession) rest.push('prof-' + p.profession);
-  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'cena-soberano', 'cena-cripta', 'cena-torre');
   const queue = rest.slice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
   const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
@@ -12808,61 +12808,111 @@ function chestOpenLimitReason(p, type, max) {
 // ============================================================
 // MOCHILA · FEITIÇOS (Bónus+ dos itens)
 // ============================================================
+// v213: Feitiços — mesa com os pergaminhos, peças em grelha, força de cada bónus, o que pode sair e animações.
+function ftBonusDef(b, plus) { return (plus ? BONUS_PLUS2_POOL : BONUS_PLUS_POOL).find(x => x.key === b.key); }
+function ftQuality(b, plus) {
+  const d = ftBonusDef(b, plus); if (!d || d.min == null || d.max == null) return { q: 1, t: '—', c: '#a8987f' };
+  const q = d.max === d.min ? 1 : clamp((b.value - d.min) / (d.max - d.min), 0, 1);
+  if (q >= 1) return { q, t: 'Máximo ★', c: '#f6dc85' };
+  if (q >= 0.67) return { q, t: 'Forte', c: '#8ee06a' };
+  if (q >= 0.34) return { q, t: 'Médio', c: '#e8a23a' };
+  return { q, t: 'Fraco', c: '#e0485a' };
+}
+function ftBonusRowHtml(b, plus) {
+  const d = ftBonusDef(b, plus), Q = ftQuality(b, plus);
+  const lbl = plus ? plus2Label(b) : `${d ? d.icon : '✨'} ${bonusPlusLabel(b)}`;
+  return `<div class="ft-b${plus ? ' pl' : ''}" style="--qc:${Q.c};"><div class="t"><b>${plus ? '➕ ' : ''}${lbl}</b>
+    ${d && d.min != null ? `<div class="qbar"><i style="width:${Math.max(4, Math.round(Q.q * 100))}%"></i></div><div class="qr"><span>mín. ${d.min}</span><span>máx. ${d.max}</span></div>` : ''}</div><span class="q">${Q.t}</span></div>`;
+}
+function ftPoolFor(item) { return BONUS_PLUS_POOL.filter(b => (!b.slots || b.slots.includes(item.slot)) && (!b.minLv || (item.itemLevel || 0) >= b.minLv)); }
 function renderFeiticosBody(body, p) {
   const equippedSlots = EQUIP_SLOTS.filter(s => p.equipment[s]);
-  const scrollsHtml = `
-    <div class="stat-grid" style="margin-bottom:12px;">
-      <div class="stat-box"><div class="v">${nxEnt('livro-feitico', '📜')} ${p.scrolls.feitico}</div><div class="k">Pergaminhos de Feitiço</div></div>
-      <div class="stat-box"><div class="v">${nxEnt('livro-reforco', '🔧')} ${p.scrolls.reforco}</div><div class="k">Pergaminhos de Reforço</div></div>
-      <div class="stat-box plus2-box"><div class="v">📜➕ ${p.scrolls.feiticoPlus || 0}</div><div class="k">Feitiço ➕</div></div>
-      <div class="stat-box plus2-box"><div class="v">🔧➕ ${p.scrolls.reforcoPlus || 0}</div><div class="k">Reforço ➕</div></div>
-    </div>
-  `;
-
+  const art = NX_ICON_IMG.has('fundo-feiticos');
+  const sc = (k, n, lbl, plus) => `<div class="ft-sc${plus ? ' plus' : ''}"><span class="ic">${nxEnt(k, plus ? '📜' : '🔧')}</span><span><b>${n || 0}${plus ? '<i>➕</i>' : ''}</b><small>${lbl}</small></span></div>`;
+  const desk = `<div class="ft-desk${art ? ' has-art' : ''}"${art ? ` style="--ft-art:url('${nxImgUrl('fundo-feiticos')}')"` : ''}>
+      <div class="ft-scrolls">${sc('livro-feitico', p.scrolls.feitico, 'Feitiço')}${sc('livro-reforco', p.scrolls.reforco, 'Reforço')}${sc('livro-feitico', p.scrolls.feiticoPlus, 'Feitiço', true)}${sc('livro-reforco', p.scrolls.reforcoPlus, 'Reforço', true)}</div></div>`;
+  const intro = `<p class="muted" style="margin-bottom:10px;">📜 Feitiço adiciona um bónus ao acaso (máx. ${ITEM_BONUS_MAX_SLOTS} por peça). 🔧 Reforço troca todos os bónus da peça por outros ao acaso — pode sair melhor ou pior. ➕ Os Pergaminhos ➕ (raros, da Torre) só mexem no bónus ➕ amarelo.</p>`;
   if (!equippedSlots.length) {
-    body.innerHTML = scrollsHtml + `<div class="empty-hint">🗡️ Equipa alguma coisa primeiro para poderes aplicar Feitiços e Reforços.</div>`;
+    body.innerHTML = intro + desk + `<div class="empty-hint">🗡️ Equipa alguma coisa primeiro para poderes aplicar Feitiços e Reforços.</div>`;
     return;
   }
-
-  const itemsHtml = equippedSlots.map(slot => {
-    const item = p.equipment[slot];
-    const bonuses = item.bonuses || [];
-    const full = bonuses.length >= ITEM_BONUS_MAX_SLOTS;
-    return `<div class="card raised" style="${rarityBoxStyle(item)}">
-      <div class="row" style="gap:10px;">
-        <div class="item-ic">${itemIconHtml(item)}</div>
-        <div style="flex:1;">
-          <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name}</div>
-          <div class="tiny">Nv.${item.itemLevel || 1} · ${SLOT_NAMES[slot]} · ${bonuses.length}/${ITEM_BONUS_MAX_SLOTS} bónus</div>
-        </div>
-      </div>
-      ${bonuses.length ? `<div class="row" style="gap:6px; flex-wrap:wrap; margin-top:8px;">${bonuses.map(b => {
-        const def = BONUS_PLUS_POOL.find(x => x.key === b.key);
-        return `<span class="pill" style="color:var(--gold-bright); border-color:var(--gold);">${def ? def.icon : '✨'} ${bonusPlusLabel(b)}</span>`;
-      }).join('')}</div>` : `<p class="tiny" style="margin-top:8px;">Sem bónus ainda.</p>`}
-      ${item.plusBonus ? `<div class="row" style="gap:6px; flex-wrap:wrap; margin-top:6px;">${plus2Chip(item.plusBonus)}</div>` : ''}
-      <div class="row" style="gap:8px; margin-top:10px;">
-        <button class="btn small ${p.scrolls.feitico > 0 && !full ? 'primary' : 'ghost'}" data-cast-feitico="${slot}" ${p.scrolls.feitico > 0 && !full ? '' : 'disabled'}>📜 Feitiço</button>
-        <button class="btn small ${p.scrolls.reforco > 0 && bonuses.length ? 'danger' : 'ghost'}" data-cast-reforco="${slot}" ${p.scrolls.reforco > 0 && bonuses.length ? '' : 'disabled'}>🔧 Reforço</button>
-      </div>
-      ${(p.scrolls.feiticoPlus || 0) + (p.scrolls.reforcoPlus || 0) > 0 || item.plusBonus ? `<div class="row" style="gap:8px; margin-top:8px;">
-        <button class="btn small ${p.scrolls.feiticoPlus > 0 && !item.plusBonus ? 'plus2-btn' : 'ghost'}" data-cast-feiticoplus="${slot}" ${p.scrolls.feiticoPlus > 0 && !item.plusBonus ? '' : 'disabled'}>📜 Feitiço ➕</button>
-        <button class="btn small ${p.scrolls.reforcoPlus > 0 && item.plusBonus ? 'plus2-btn' : 'ghost'}" data-cast-reforcoplus="${slot}" ${p.scrolls.reforcoPlus > 0 && item.plusBonus ? '' : 'disabled'}>🔧 Reforço ➕</button>
-      </div>` : ''}
-      ${full ? `<p class="tiny" style="margin-top:6px;">Cheio — usa um Reforço para arriscar trocar os bónus por outros à sorte.</p>` : ''}
-    </div>`;
+  if (!equippedSlots.includes(App.ftSel)) App.ftSel = equippedSlots[0];
+  const freeB = equippedSlots.reduce((a, s) => a + Math.max(0, ITEM_BONUS_MAX_SLOTS - (p.equipment[s].bonuses || []).length), 0);
+  const freeP = equippedSlots.filter(s => !p.equipment[s].plusBonus).length;
+  const grid = equippedSlots.map(slot => {
+    const it = p.equipment[slot], bs = it.bonuses || [];
+    const socks = Array.from({ length: ITEM_BONUS_MAX_SLOTS }, (_, j) => { const b = bs[j], d = b && ftBonusDef(b); return b ? `<span class="sk on" style="--qc:${ftQuality(b).c};">${d ? d.icon : '✨'}</span>` : '<span class="sk"></span>'; }).join('')
+      + (it.plusBonus ? `<span class="sk pl on">${(ftBonusDef(it.plusBonus, true) || {}).icon || '➕'}</span>` : '<span class="sk pl"></span>');
+    return `<button type="button" class="ft-tile${slot === App.ftSel ? ' sel' : ''}" data-ft-sel="${slot}" style="--rc:${it.rarityColor};"><span class="ic">${itemIconHtml(it)}</span><span class="socks">${socks}</span><span class="nm">${SLOT_NAMES[slot]}</span></button>`;
   }).join('');
-
-  body.innerHTML = `
-    <p class="muted" style="margin-bottom:10px;">📜 Feitiço adiciona um bónus aleatório novo (máx. ${ITEM_BONUS_MAX_SLOTS} por item). 🔧 Reforço é um "gamble": troca todos os bónus do item (1 ou 2) por novos, com novos valores — pode sair melhor ou pior.</p>
-    <p class="tiny" style="margin-bottom:10px; color:#FFF1A8;">➕ Os Pergaminhos ➕ (raros, da Torre) mexem só no bónus ➕ amarelo: o Feitiço ➕ adiciona 1 bónus ➕ e o Reforço ➕ troca-o por outro. Os pergaminhos normais não lhe tocam.</p>
-    ${scrollsHtml}
-    ${itemsHtml}
-  `;
+  const slot = App.ftSel, item = p.equipment[slot], bonuses = item.bonuses || [], full = bonuses.length >= ITEM_BONUS_MAX_SLOTS;
+  const pool = ftPoolFor(item), have = bonuses.map(b => b.key), resP = pool.filter(b => RES_BONUS_EL[b.key]);
+  const poolList = pool.filter(b => !RES_BONUS_EL[b.key]).map(d => `<span class="${have.includes(d.key) ? 'has' : ''}">${d.icon} ${d.name}</span><span>${d.min}–${d.max}%</span>`).join('')
+    + (resP.length ? `<span>🛡️ Resistência a um elemento (ao acaso)</span><span>${resP[0].min}–${resP[0].max}%</span>` : '');
+  const plusPool = plus2Pool(slot).map(d => `${d.icon} ${d.name} ${d.min}–${d.max}${d.key === 'pp_hp' ? '' : '%'}`).join(' · ');
+  const weak = bonuses.some(b => ftQuality(b).q < 0.34);
+  const panel = `<div class="card raised ft-panel">
+    <div class="ft-ph"><span class="ic">${itemIconHtml(item)}</span><div><b style="color:${item.rarityColor};">${esc(item.name)}</b><span class="tiny muted">${item.rarityName || ''} · Nv. ${item.itemLevel || 1} · ${SLOT_NAMES[slot]}</span></div></div>
+    <div class="ft-lab"><span>Bónus+</span><span>${bonuses.length}/${ITEM_BONUS_MAX_SLOTS}</span></div>
+    <div class="ft-bon">${bonuses.map(b => ftBonusRowHtml(b)).join('')}${Array.from({ length: Math.max(0, ITEM_BONUS_MAX_SLOTS - bonuses.length) }, () => '<div class="ft-b empty"><span>🔮 Encaixe livre — usa um Feitiço</span></div>').join('')}</div>
+    <div class="ft-acts">
+      <button class="btn ${p.scrolls.feitico > 0 && !full ? 'primary' : 'ghost'}" data-cast-feitico="${slot}" ${p.scrolls.feitico > 0 && !full ? '' : 'disabled'}>📜 Feitiço <small>${p.scrolls.feitico}</small></button>
+      <button class="btn ${p.scrolls.reforco > 0 && bonuses.length ? 'danger' : 'ghost'}" data-cast-reforco="${slot}" ${p.scrolls.reforco > 0 && bonuses.length ? '' : 'disabled'}>🔧 Reforço <small>${p.scrolls.reforco}</small></button>
+    </div>
+    ${weak ? `<p class="tiny ft-hint">💡 Tens um bónus <b>Fraco</b>: é um bom candidato para um Reforço (troca ${bonuses.length === 1 ? 'o bónus' : `os ${bonuses.length} bónus`} por outros ao acaso).</p>` : ''}
+    <div class="ft-lab"><span>Bónus ➕</span><span>${item.plusBonus ? 1 : 0}/1</span></div>
+    <div class="ft-bon">${item.plusBonus ? ftBonusRowHtml(item.plusBonus, true) : '<div class="ft-b empty pl"><span>➕ Encaixe ➕ livre — usa um Feitiço ➕</span></div>'}</div>
+    <div class="ft-acts">
+      <button class="btn ${p.scrolls.feiticoPlus > 0 && !item.plusBonus ? 'plus2-btn' : 'ghost'}" data-cast-feiticoplus="${slot}" ${p.scrolls.feiticoPlus > 0 && !item.plusBonus ? '' : 'disabled'}>📜 Feitiço ➕ <small>${p.scrolls.feiticoPlus || 0}</small></button>
+      <button class="btn ${p.scrolls.reforcoPlus > 0 && item.plusBonus ? 'plus2-btn' : 'ghost'}" data-cast-reforcoplus="${slot}" ${p.scrolls.reforcoPlus > 0 && item.plusBonus ? '' : 'disabled'}>🔧 Reforço ➕ <small>${p.scrolls.reforcoPlus || 0}</small></button>
+    </div>
+    <details class="ft-pool"${App.ftPoolOpen ? ' open' : ''}><summary>O que pode sair nesta peça</summary><div class="ft-pl">${poolList}</div>
+      <p class="tiny muted" style="margin-top:8px;">Os bónus não se repetem na mesma peça (os riscados já tens).${plusPool ? ` ➕ nesta peça: ${plusPool}.` : ''}</p></details>
+  </div>`;
+  body.innerHTML = intro + desk + `<p class="ft-free"><b>${freeB}</b> ${freeB === 1 ? 'encaixe livre' : 'encaixes livres'} para Feitiço · <b>${freeP}</b> para ➕</p>`
+    + `<div class="ft-grid">${grid}</div>` + panel;
+  els('[data-ft-sel]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.ftSel = b.dataset.ftSel; renderMochilaBody(); }));
+  const det = body.querySelector('.ft-pool'); if (det) det.addEventListener('toggle', () => { App.ftPoolOpen = det.open; });
   els('[data-cast-feitico]').forEach(b => b.addEventListener('click', () => castScrollOnItem(b.dataset.castFeitico, 'feitico')));
   els('[data-cast-reforco]').forEach(b => b.addEventListener('click', () => castScrollOnItem(b.dataset.castReforco, 'reforco')));
   els('[data-cast-feiticoplus]').forEach(b => b.addEventListener('click', () => castPlus2OnItem(b.dataset.castFeiticoplus, 'feiticoPlus')));
   els('[data-cast-reforcoplus]').forEach(b => b.addEventListener('click', () => castPlus2OnItem(b.dataset.castReforcoplus, 'reforcoPlus')));
+}
+// v213: animação do Feitiço (círculo de runas) e do Reforço (bónus a rodar até parar).
+function ftFx(opts) {
+  const { kind, plus, item, before, after } = opts;
+  const old = document.getElementById('ft-fx'); if (old) old.remove();
+  const el = document.createElement('div'); el.id = 'ft-fx'; el.className = 'ft-fx' + (plus ? ' plus' : '');
+  document.body.appendChild(el);
+  const anim = fxOn();
+  const done = () => { el.remove(); renderMochilaBody(); renderStatusBar(); };
+  const avg = a => a.reduce((x, b) => x + ftQuality(b, plus).q, 0) / Math.max(1, a.length);
+  const result = () => {
+    let title;
+    if (kind === 'cast') title = plus ? '➕ Bónus ➕ novo!' : '📜 Bónus novo!';
+    else { const d = avg(after) - avg(before); title = d > 0.05 ? '🎲 Saiu melhor!' : d < -0.05 ? '🎲 Saiu pior…' : '🎲 Ficou parecido'; }
+    el.innerHTML = `<div class="ft-fx-box"><h4>${title}</h4><div class="tiny" style="color:${item.rarityColor};font-weight:700;">${esc(item.name)}</div>
+      ${kind === 'reroll' ? `<div class="ft-fx-lb">Antes</div>${before.map(b => `<div class="ft-fx-old">${plus ? '➕ ' + plus2Label(b) : `${(ftBonusDef(b) || {}).icon || '✨'} ${bonusPlusLabel(b)}`} · ${ftQuality(b, plus).t}</div>`).join('')}<div class="ft-fx-lb">Agora</div>` : ''}
+      <div class="ft-fx-res">${after.map(b => ftBonusRowHtml(b, plus)).join('')}</div>
+      <button class="btn primary block" type="button" id="ft-fx-ok">Fixe!</button></div>`;
+    $('ft-fx-ok').addEventListener('click', done);
+  };
+  if (!anim) { result(); return; }
+  if (kind === 'cast') {
+    el.innerHTML = `<div class="ft-circle"><div class="r1"></div><div class="r2"></div><div class="ic">${nxIconSvg('livro-feitico') || '📜'}</div></div><h4 class="ft-fx-t">${plus ? 'Feitiço ➕' : 'Feitiço'}…</h4>`;
+    setTimeout(result, 1300);
+  } else {
+    const pool = plus ? plus2Pool(opts.slot) : ftPoolFor(item);
+    const lbl = d => { const v = d.min + Math.floor(Math.random() * (d.max - d.min + 1)); return plus ? `➕ ${d.icon} ${d.label(v)}` : `${d.icon} ${d.label(v)}`; };
+    const N = 14;
+    el.innerHTML = `<h4 class="ft-fx-t">🎲 ${plus ? 'Reforço ➕' : 'Reforço'}…</h4>` + after.map((b, j) => {
+      const lines = Array.from({ length: N }, () => lbl(pool[Math.floor(Math.random() * pool.length)]));
+      lines.push(plus ? `➕ ${plus2Label(b)}` : `${(ftBonusDef(b) || {}).icon || '✨'} ${bonusPlusLabel(b)}`);
+      return `<div class="ft-reel"><div class="strip" id="ft-st${j}">${lines.map(l => `<div>${l}</div>`).join('')}</div></div>`;
+    }).join('');
+    after.forEach((_, j) => { const st = document.getElementById('ft-st' + j); if (st && st.animate) st.animate([{ transform: 'translateY(0)' }, { transform: `translateY(-${N * 44}px)` }], { duration: 1400 + j * 400, easing: 'cubic-bezier(.15,.6,.25,1)', fill: 'forwards' }); });
+    setTimeout(result, 1400 + after.length * 400 + 200);
+  }
 }
 
 function castPlus2OnItem(slot, kind) {
@@ -12878,16 +12928,7 @@ function castPlus2OnItem(slot, kind) {
   item.plusBonus = plus2Roll(slot);
   saveGame();
   sfx.evolve();
-  openModal(`
-    <h3 style="margin-bottom:12px;">${kind === 'feiticoPlus' ? '📜 Feitiço ➕ lançado!' : '🔧 Reforço ➕ aplicado! 🎲'}</h3>
-    <div class="card raised">
-      <p class="tiny" style="margin-bottom:6px;"><b>${item.name}</b></p>
-      ${before ? `<p class="tiny muted">Antes:</p><p class="tiny" style="text-decoration:line-through; opacity:.7;">➕ ${plus2Label(before)}</p><p class="tiny muted" style="margin-top:8px;">Agora:</p>` : ''}
-      <p class="tiny" style="color:#FFF1A8; font-weight:700;">➕ ${plus2Label(item.plusBonus)}</p>
-    </div>
-    <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
-  `);
-  $('btn-close-modal').addEventListener('click', () => { closeModal(); renderMochilaBody(); renderStatusBar(); });
+  ftFx({ kind: before ? 'reroll' : 'cast', plus: true, item, slot, before: before ? [before] : [], after: [item.plusBonus] }); // v213
 }
 
 function castScrollOnItem(slot, kind) {
@@ -12903,11 +12944,8 @@ function castScrollOnItem(slot, kind) {
     const result = applyFeitico(item);
     saveGame();
     sfx.evolve();
-    openModal(`
-      <h3 style="margin-bottom:12px;">📜 Feitiço lançado!</h3>
-      <div class="card raised"><p class="tiny">${item.name} recebeu: <b>${bonusPlusLabel(result.bonus)}</b></p></div>
-      <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
-    `);
+    ftFx({ kind: 'cast', plus: false, item, slot, before: [], after: [result.bonus] }); // v213
+    return;
   } else {
     if (!item.bonuses.length) { sfx.error(); toast('Este item ainda não tem bónus. Usa primeiro um Feitiço.'); return; }
     const result = applyReforco(item);
@@ -12915,20 +12953,8 @@ function castScrollOnItem(slot, kind) {
     p.scrolls.reforco--;
     saveGame();
     sfx.evolve();
-    const chip = b => { const d = BONUS_PLUS_POOL.find(x => x.key === b.key); return `${d ? d.icon : '✨'} ${bonusPlusLabel(b)}`; };
-    openModal(`
-      <h3 style="margin-bottom:12px;">🔧 Reforço aplicado! 🎲</h3>
-      <div class="card raised">
-        <p class="tiny" style="margin-bottom:6px;"><b>${item.name}</b></p>
-        <p class="tiny muted">Antes:</p>
-        ${result.removed.map(b => `<p class="tiny" style="text-decoration:line-through; opacity:.7;">${chip(b)}</p>`).join('')}
-        <p class="tiny muted" style="margin-top:8px;">Agora:</p>
-        ${result.bonuses.map(b => `<p class="tiny" style="color:var(--gold-bright); font-weight:700;">${chip(b)}</p>`).join('')}
-      </div>
-      <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
-    `);
+    ftFx({ kind: 'reroll', plus: false, item, slot, before: result.removed, after: result.bonuses }); // v213
   }
-  $('btn-close-modal').addEventListener('click', () => { closeModal(); renderMochilaBody(); renderStatusBar(); });
 }
 
 function openChest(chestId) {
@@ -18794,7 +18820,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v212</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v213</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19950,7 +19976,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
