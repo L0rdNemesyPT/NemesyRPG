@@ -6434,7 +6434,7 @@ function nxWarmImages() {
   REGIONS.slice(0, ri + 1).forEach(r => rest.push('mapa-' + r.key, 'cena-' + r.key));
   Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
   if (p.profession) rest.push('prof-' + p.profession);
-  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'fundo-passivas', 'fundo-habilidades', 'fundo-estabulo', 'fundo-honra', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'fundo-passivas', 'fundo-habilidades', 'fundo-estabulo', 'fundo-honra', 'fundo-taberna', 'fundo-despensa', 'trabalho-mina', 'trabalho-floresta', 'trabalho-lagoa', 'trabalho-quinta', 'cena-soberano', 'cena-cripta', 'cena-torre');
   const queue = rest.slice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
   const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
@@ -10600,7 +10600,9 @@ const FRIEND_CHAT_MAX = 200;
 let friendsCache = null;        // { at, userId, data }
 let friendBadgeCache = { at: 0, total: 0, data: null };
 let friendChatTimer = null;
-let friendChatLastId = 0;
+let friendChatLastId = 0, friendChatLastDay = '';
+function friendDayLabel(ms) { const d = new Date(Number(ms)), t = new Date(), y = new Date(Date.now() - 86400000); return d.toDateString() === t.toDateString() ? 'Hoje' : d.toDateString() === y.toDateString() ? 'Ontem' : `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`; }
+function friendHm(ms) { const d = new Date(Number(ms)); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
 let friendChatSession = 0;
 let friendChatSending = false;
 let friendClaiming = false;
@@ -10635,6 +10637,17 @@ function friendClassIcon(f) {
   const cls = CLASSES[f.class];
   const evo = f.evolution && EVOLUTIONS[f.class] ? EVOLUTIONS[f.class].find(e => e.key === f.evolution) : null;
   return evo ? evo.icon : cls ? cls.icon : '🧝';
+}
+// v218: Amigos — nome da classe, cor da classe e grupo pelo estado.
+function friendClassName(f) { const c = CLASSES[f.class], e = f.evolution && EVOLUTIONS[f.class] ? EVOLUTIONS[f.class].find(x => x.key === f.evolution) : null; return (c ? c.name : '') + (e ? ' · ' + e.name : ''); }
+function friendClassColor(f) { return { guerreiro: '#d46a5a', arqueiro: '#7ccf6a', mago: '#9a7bff' }[f.class] || '#e4bf4a'; }
+function friendMinAgo(ms) { return ms ? Math.max(0, Math.round((Date.now() - Number(ms)) / 60000)) : 1e9; }
+function friendCardHtml(f) {
+  const min = friendMinAgo(f.last_seen), on = min < 5, need = f.unread || f.trades_in;
+  return `<button class="fr-card${need ? ' need' : ''}" data-fr-open="${f.id}" type="button" style="--cc:${friendClassColor(f)};">
+    <span class="fr-av"><span class="im">${friendAvatar(f)}</span><span class="dot${on ? ' on' : ''}"></span><span class="lv">${f.level}</span></span>
+    <span class="fr-m"><b class="nx-notr">${esc(f.name)}</b><span class="cl">${friendClassName(f)}</span>${f.guild ? `<span class="g">⚜️ <span class="nx-notr">${esc(f.guild)}</span></span>` : ''}<span class="s${on ? ' on' : ''}">${on ? '● Online' : friendSeenText(f.last_seen).replace(/<[^>]+>/g, '')}</span></span>
+    <span class="fr-bdg">${f.unread ? `<span class="msg">${f.unread} ${f.unread === 1 ? 'mensagem' : 'mensagens'}</span>` : ''}${f.trades_in ? `<span class="trd">🔄 Troca para ti</span>` : ''}${f.trades_out ? `<span class="wait">⏳ À espera</span>` : ''}</span></button>`;
 }
 function friendSeenText(ms) {
   if (!ms) return '';
@@ -10674,16 +10687,14 @@ async function renderAmigosBody() {
   const tabs = [['amigos', `👥 Amigos (${fr.length})`], ['pedidos', `📨 Pedidos${inc.length ? ` (${inc.length})` : ''}`], ['bloqueados', `🚫 Bloqueados${blk.length ? ` (${blk.length})` : ''}`]];
   let list = '';
   if (ui.tab === 'amigos') {
-    list = fr.length ? fr.map(f => `
-      <button class="fr-row" data-fr-open="${f.id}" type="button">
-        <span class="fr-ic has-av">${friendAvatar(f)}</span>
-        <span class="fr-mid">
-          <span class="fr-name nx-notr">${esc(f.name)}</span>
-          <span class="tiny muted">Nv. ${f.level}${f.guild ? ` · ⚜️ <span class="nx-notr">${esc(f.guild)}</span>` : ''}</span>
-          <span class="tiny fr-seen">${friendSeenText(f.last_seen)}</span>
-        </span>
-        <span class="fr-badges">${f.unread ? `<span class="fr-badge">💬 ${f.unread}</span>` : ''}${f.trades_in ? `<span class="fr-badge gold">🔄 ${f.trades_in}</span>` : ''}${f.trades_out ? `<span class="fr-badge dim">⏳ ${f.trades_out}</span>` : ''}</span>
-      </button>`).join('') : `<div class="empty-hint">Ainda não tens amigos. Adiciona alguém pelo nome do herói! 👋</div>`;
+    // v218: pedidos recebidos em destaque + grupos por estado.
+    const reqs = inc.map(f => `<div class="fr-req"><span class="av">${friendAvatar(f)}</span><div class="t"><b class="nx-notr">${esc(f.name)} · Nv. ${f.level}</b>quer ser teu amigo</div>
+      <button class="btn small primary" data-fr-accept="${f.id}">✔</button><button class="btn small ghost" data-fr-decline="${f.id}">✖</button></div>`).join('');
+    const needL = fr.filter(f => f.unread || f.trades_in), rest = fr.filter(f => !(f.unread || f.trades_in));
+    const grp = (t, c, l) => l.length ? `<div class="fr-grp"><i style="--c:${c};"></i>${t} · ${l.length}</div>${l.map(friendCardHtml).join('')}` : '';
+    list = reqs + (fr.length ? grp('Precisa de ti', '#e4bf4a', needL) + grp('Online agora', '#8ee06a', rest.filter(f => friendMinAgo(f.last_seen) < 5))
+      + grp('Vistos hoje', '#6fa8ff', rest.filter(f => { const m = friendMinAgo(f.last_seen); return m >= 5 && m < 1440; })) + grp('Há mais tempo', '#6a5a40', rest.filter(f => friendMinAgo(f.last_seen) >= 1440))
+      : `<div class="fr-empty"><b>Ainda não tens amigos</b>Escreve o nome de um herói em cima e toca em Adicionar. Ou copia o teu nome e manda-o a quem quiseres. 👋</div>`);
   } else if (ui.tab === 'pedidos') {
     list = (inc.length ? `<div class="section-title">Recebidos</div>` + inc.map(f => `
       <div class="fr-row static"><span class="fr-ic has-av">${friendAvatar(f)}</span>
@@ -10700,7 +10711,13 @@ async function renderAmigosBody() {
         <button class="btn small ghost" data-fr-unblock="${f.id}">Desbloquear</button></div>`).join('') : `<div class="empty-hint">Não bloqueaste ninguém.</div>`;
   }
   const sent = Number(d.gold_sent_today) || 0;
-  body.innerHTML = `
+  const onl = fr.filter(f => friendMinAgo(f.last_seen) < 5);
+  const tvArt = NX_ICON_IMG.has('fundo-taberna');
+  const tavern = `<div class="fr-tav${tvArt ? ' has-art' : ''}"${tvArt ? ` style="--fr-art:url('${nxImgUrl('fundo-taberna')}')"` : ''}><div class="in">
+    <div class="onl"><small>Online agora · ${onl.length}</small></div>
+    <div class="faces">${onl.length ? onl.map(f => `<button type="button" class="face" data-fr-open="${f.id}" style="--cc:${friendClassColor(f)};"><span class="av">${friendAvatar(f)}</span><span class="nx-notr">${esc(f.name)}</span></button>`).join('') : '<div class="none">Nenhum amigo online neste momento.</div>'}</div>
+    <div class="me">O teu nome: <b class="nx-notr">${esc(App.player.name || '')}</b><button class="btn small" type="button" id="btn-fr-copy">Copiar</button></div></div></div>`;
+  body.innerHTML = tavern + `
     <div class="card raised" style="margin-bottom:10px;">
       <div class="row" style="gap:8px;">
         <input class="name-input" id="fr-add-name" maxlength="16" placeholder="Nome do herói…" autocomplete="off" style="flex:1; margin:0; padding:10px; font-size:13px;">
@@ -10724,6 +10741,7 @@ async function renderAmigosBody() {
     } catch (e) { sfx.error(); toast(friendErrorText(e, 'Não foi possível enviar o pedido.')); }
   };
   $('btn-fr-add').addEventListener('click', add);
+  const cpb = $('btn-fr-copy'); if (cpb) cpb.addEventListener('click', () => { const nm = App.player.name || ''; try { navigator.clipboard.writeText(nm).then(() => toast('Nome copiado!'), () => toast(`O teu nome: ${nm}`)); } catch (e) { toast(`O teu nome: ${nm}`); } });
   $('fr-add-name').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
   els('[data-fr-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); friendsUi().tab = b.dataset.frTab; renderAmigosBody(); }));
   els('[data-fr-open]').forEach(b => b.addEventListener('click', () => { sfx.tab(); Object.assign(friendsUi(), { view: 'chat', friend: b.dataset.frOpen }); renderAmigosBody(); window.scrollTo(0, 0); }));
@@ -10774,7 +10792,7 @@ async function renderFriendChat(body) {
   let f = friendById(ui.friend);
   if (!f) { try { await fetchFriends(true); } catch (e) { /* ignora */ } f = friendById(ui.friend); }
   if (!f) { ui.view = 'list'; ui.friend = null; return renderAmigosBody(); }
-  friendChatLastId = 0;
+  friendChatLastId = 0; friendChatLastDay = '';
   const session = ++friendChatSession;
   body.innerHTML = `
     <div class="card raised fr-head">
@@ -10787,7 +10805,8 @@ async function renderFriendChat(body) {
     </div>
     <div id="fr-trades"></div>
     <div class="guild-chat-log fr-chat-log" id="fr-chat-log"><p class="tiny muted">A carregar mensagens…</p></div>
-    <div class="row" style="gap:8px; margin-top:10px;">
+    <div class="fr-quick">${['👋 Olá!', '👍', '😂', 'GG!', 'Bora a uma dungeon?', 'Obrigado! 🙏'].map(q => `<button type="button" data-fr-quick="${q}">${q}</button>`).join('')}</div>
+    <div class="row" style="gap:8px; margin-top:8px;">
       <input class="name-input" id="fr-chat-input" maxlength="${FRIEND_CHAT_MAX * 2}" placeholder="Escreve a ${esc(f.name)}…" autocomplete="off" style="flex:1; margin:0; padding:10px; font-size:13px;">
       <button class="btn small primary" id="btn-fr-send">Enviar</button>
     </div>
@@ -10802,6 +10821,7 @@ async function renderFriendChat(body) {
   });
   $('btn-fr-more').addEventListener('click', () => openFriendOptions(f));
   const send = () => sendFriendMessage(f);
+  els('[data-fr-quick]').forEach(b => b.addEventListener('click', () => { const i = $('fr-chat-input'); if (!i) return; i.value = b.dataset.frQuick; send(); }));
   $('btn-fr-send').addEventListener('click', send);
   $('fr-chat-input').addEventListener('keydown', e => { if (e.key === 'Enter') send(); });
   loadFriendTrades(f);
@@ -10825,11 +10845,10 @@ async function loadFriendChat(f, initial, session) {
     if (!rows.length) return;
     const empty = $('fr-chat-empty'); if (empty) empty.remove();
     const nearBottom = initial || box.scrollHeight - box.scrollTop - box.clientHeight < 60;
-    box.insertAdjacentHTML('beforeend', rows.map(m => `
-      <div class="guild-msg${m.is_me ? ' me' : ''}">
-        <div class="guild-msg-top"><span class="guild-msg-author nx-notr">${m.is_me ? 'Tu' : esc(f.name)}</span><span class="guild-msg-time">${guildChatTime(m.at)}</span></div>
-        <div class="guild-msg-body nx-notr">${esc(m.body)}</div>
-      </div>`).join(''));
+    box.insertAdjacentHTML('beforeend', rows.map(m => { // v218: balões com retrato e separadores de dia
+      const day = friendDayLabel(m.at), sep = day !== friendChatLastDay ? `<div class="fr-day">${day}</div>` : ''; friendChatLastDay = day;
+      return `${sep}<div class="fr-mg${m.is_me ? ' me' : ''}${initial ? '' : ' pop'}" style="--cc:${m.is_me ? '#e4bf4a' : friendClassColor(f)};"><span class="av">${m.is_me ? heroAvatarHtml(App.player, 'tiny') : friendAvatar(f, 'tiny')}</span>
+        <div class="bb nx-notr">${esc(m.body)}<small>${friendHm(m.at)}</small></div></div>`; }).join(''));
     rows.forEach(m => { friendChatLastId = Math.max(friendChatLastId, Number(m.id)); });
     if (nearBottom) box.scrollTop = box.scrollHeight;
     if (rows.some(m => !m.is_me) && !initial) { sfx.click(); loadFriendTrades(f); }
@@ -12732,85 +12751,65 @@ function consumablesTotal(p) {
 }
 
 function renderConsumablesBody(body, p) {
-  const section = CONSUMABLE_SECTIONS.find(x => x.key === App.consTab);
-  if (!section) {
-    const counts = consumableCounts(p);
-    body.innerHTML = `
-      <p class="muted" style="margin-bottom:12px;">Poções, pérolas, ostras e produtos da agricultura ficam guardados aqui.</p>
-      <div class="wiki-grid">
-        ${CONSUMABLE_SECTIONS.map(x => `<button class="wiki-tile${counts[x.key] ? '' : ' is-empty'}" data-constab="${x.key}">
-          ${counts[x.key] ? `<span class="wiki-tile-badge">${counts[x.key]}</span>` : ''}
-          <span class="wiki-tile-ic">${x.icon}</span><span class="wiki-tile-lb">${x.label}</span></button>`).join('')}
-      </div>
-    `;
-    body.querySelectorAll('[data-constab]').forEach(b => b.addEventListener('click', () => {
-      sfx.tab(); App.consTab = b.dataset.constab; renderTabMochila(); window.scrollTo(0, 0);
-    }));
-    return;
-  }
-
-  if (section.key === 'pocoes') {
-    const pStats = effectiveStats(p);
-    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">As poções de HP podem ser usadas aqui; as outras só em combate. Compra mais na Cidade → Loja.</p>` +
-      Object.keys(POTION_DEFS).map(key => {
-        const d = POTION_DEFS[key], n = p.potions[key] || 0;
-        const canUse = isHpPotion(key) && n > 0 && p.hp < pStats.hp;
-        return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
-          <div class="item-ic">${nxEnt('pocao-' + key, d.icon)}</div>
-          <div class="item-mid"><div class="item-name">${d.name} ×${n}</div><div class="tiny">${d.desc}${isHpPotion(key) ? '' : ' · só em combate'}</div></div>
-          ${isHpPotion(key) ? `<button class="btn small ${canUse ? 'primary' : 'ghost'}" data-cons-potion="${key}" ${canUse ? '' : 'disabled'}>Usar</button>` : ''}
-        </div>`;
-      }).join('');
-    els('[data-cons-potion]').forEach(b => b.addEventListener('click', () => { usePotionAction(b.dataset.consPotion); renderMochilaBody(); }));
-  } else if (section.key === 'perolas') {
-    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">As pérolas encontram-se dentro das ostras e os Cristais Luar no Santuário do Eclipse. Usam-se no Ferreiro para as melhorias mais altas.</p>` +
-      PEARL_TABLE.filter(x => x.key !== 'pedra').map(x => {
-        const n = (p.pearls && p.pearls[x.key]) || 0;
-        const lvl = Object.keys(UPGRADE_PEARL_REQUIREMENT).find(l => UPGRADE_PEARL_REQUIREMENT[l] === x.key);
-        const lvl200 = Object.keys(UPGRADE_REQ_LV200).find(l => UPGRADE_REQ_LV200[l][1] === x.key);
-        return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
-          <div class="item-ic">${nxEnt('perola-' + x.key, x.icon)}</div>
-          <div class="item-mid"><div class="item-name">${x.name} ×${n}</div><div class="tiny">${lvl ? `Ferreiro: +${lvl} em itens Nv. 101–199${lvl200 ? ` · +${lvl200} em itens Nv. 200` : ''}.` : 'Pérola de coleção.'}</div></div>
-        </div>`;
-      }).join('') +
-      Object.keys(LUNAR_DEFS).map(k => {
-        const d = LUNAR_DEFS[k], n = (p.lunar && p.lunar[k]) || 0;
-        const lvl = Object.keys(UPGRADE_REQ_LV200).find(l => UPGRADE_REQ_LV200[l][1] === k);
-        return `<div class="item-row" ${n ? '' : 'style="opacity:.55;"'}>
-          <div class="item-ic">${nxEnt('cristal-' + k, d.icon)}</div>
-          <div class="item-mid"><div class="item-name">${d.name} ×${n}</div><div class="tiny">Ferreiro: +${lvl} em itens Nv. 200. Cai em: ${d.source}.</div></div>
-        </div>`;
-      }).join('');
-  } else if (section.key === 'ostras') {
+  // v218: despensa com separadores (tudo num só ecrã), prateleira de poções, pérolas para o Ferreiro, ostras e cozinha.
+  if (App.consTab) { App.consIn = App.consTab; App.consTab = null; }
+  if (!CONSUMABLE_SECTIONS.some(x => x.key === App.consIn)) App.consIn = 'pocoes';
+  const counts = consumableCounts(p), sec = App.consIn;
+  const TI = { pocoes: ['pocao-hp', '🧪', 'Poções'], perolas: ['perola-azul', '⚪', 'Pérolas'], ostras: ['bau-ostra', '🦪', 'Ostras'], agricultura: ['alimento-apple', '🍎', 'Cozinha'] };
+  const art = NX_ICON_IMG.has('fundo-despensa');
+  const pantry = `<div class="cs-pantry${art ? ' has-art' : ''}"${art ? ` style="--cs-art:url('${nxImgUrl('fundo-despensa')}')"` : ''}><div class="cs-tabs">${CONSUMABLE_SECTIONS.map(x => `<button type="button" class="cs-tb${sec === x.key ? ' on' : ''}${counts[x.key] ? '' : ' empty'}" data-cs-tab="${x.key}">${counts[x.key] ? `<i>${counts[x.key]}</i>` : ''}<span class="ic">${nxEnt(TI[x.key][0], TI[x.key][1])}</span><span>${TI[x.key][2]}</span></button>`).join('')}</div></div>`;
+  let html = '';
+  if (sec === 'pocoes') {
+    const st = effectiveStats(p), hp = Math.min(Math.round(p.hp), st.hp), fen = st.myth && st.myth.manto_fenix ? 0.7 : 1;
+    html = `<div class="cs-hp">❤️ Vida <div class="bar" id="cs-hpb"><i style="width:${Math.round(hp / Math.max(1, st.hp) * 100)}%"></i></div><b>${hp.toLocaleString('pt-PT')} / ${st.hp.toLocaleString('pt-PT')}</b></div>
+      <div class="cs-shelf">${Object.keys(POTION_DEFS).map(key => {
+        const d = POTION_DEFS[key], n = p.potions[key] || 0, cure = isHpPotion(key);
+        const amt = cure ? Math.min(st.hp - hp, Math.round(st.hp * d.heal * fen)) : 0;
+        let btn = '';
+        if (cure) btn = `<button class="btn small${n > 0 && hp < st.hp ? ' primary' : ''}" data-cons-potion="${key}" ${n > 0 && hp < st.hp ? '' : 'disabled'}>${hp >= st.hp ? 'Vida cheia' : n > 0 ? `Usar · +${amt.toLocaleString('pt-PT')}` : 'Usar'}</button>`;
+        else if (key === 'elem') { const on = (p.elemPotionBattles || 0) >= 3; btn = `<button class="btn small${n > 0 && !on ? ' primary' : ''}" data-cons-potion="elem" ${n > 0 && !on ? '' : 'disabled'}>${on ? 'Ativa' : 'Beber'}</button>`; }
+        return `<div class="cs-pt${n ? '' : ' zero'}"${cure ? ` data-heal="${amt}"` : ''}><span class="n">×${n}</span><span class="ic">${nxEnt('pocao-' + key, d.icon)}</span><span class="kind${cure ? ' cure' : ''}">${cure ? 'Cura' : key === 'elem' ? 'Antes do combate' : 'Combate'}</span><b>${d.name}</b><small>${d.desc}</small>${btn}</div>`;
+      }).join('')}</div>
+      <p class="tiny muted" style="margin-top:8px;">As de Combate usam-se durante a batalha. Compra mais na Cidade → Loja.</p>`;
+  } else if (sec === 'perolas') {
+    const lv = App.consPearlLv === '200' ? '200' : '101';
+    const rows = lv === '101' ? Object.keys(UPGRADE_PEARL_REQUIREMENT).map(u => [u, 'pearl', UPGRADE_PEARL_REQUIREMENT[u]]) : Object.keys(UPGRADE_REQ_LV200).map(u => [u, UPGRADE_REQ_LV200[u][0], UPGRADE_REQ_LV200[u][1]]);
+    html = `<div class="cs-seg"><button type="button" data-cs-plv="101" class="${lv === '101' ? 'on' : ''}">Itens Nv. 101–199</button><button type="button" data-cs-plv="200" class="${lv === '200' ? 'on' : ''}">Itens Nv. 200</button></div>
+      <div class="cs-ladder">${rows.map(([u, kind, k]) => {
+        const lunar = kind === 'lunar', d = lunar ? LUNAR_DEFS[k] : PEARL_TABLE.find(x => x.key === k), have = lunar ? ((p.lunar && p.lunar[k]) || 0) : ((p.pearls && p.pearls[k]) || 0);
+        return `<div class="cs-lr${have ? '' : ' zero'}"><span class="up">+${u}</span><span class="ic">${nxEnt((lunar ? 'cristal-' : 'perola-') + k, d.icon)}</span><div class="t"><b>${d.name}</b><small>${lunar ? d.source : 'Dentro das ostras'}</small></div><span class="have${have ? '' : ' no'}">×${have}</span></div>`;
+      }).join('')}</div>
+      <p class="tiny muted" style="margin-top:8px;">Cada melhoria do Ferreiro a partir do +${rows[0][0]} (itens ${lv === '101' ? 'Nv. 101–199' : 'Nv. 200'}) pede a pérola ou o cristal da linha. Troca pérolas no Câmbio.</p>`;
+  } else if (sec === 'ostras') {
     const oysters = p.chests.filter(c => c.type === 'ostra');
-    body.innerHTML = oysters.length
-      ? `<p class="muted" style="margin-bottom:10px;">${CHEST_DEFS.ostra.desc}</p>` +
-        `<button class="btn small primary block" style="margin-bottom:8px;" data-cons-open-all>🦪 Abrir todas (${oysters.length})</button>` +
-        oysters.map(c => `<div class="item-row"><div class="item-ic">🦪</div><div class="item-mid"><div class="item-name">Ostra</div><div class="tiny">${CHEST_DEFS.ostra.desc}</div></div><button class="btn small primary" data-cons-oyster="${c.id}">Abrir</button></div>`).join('')
-      : `<div class="empty-hint">🦪 Não tens ostras.<br>Pesca na Cidade → Trabalhos ou compra no Mercado Negro.</div>`;
-    els('[data-cons-oyster]').forEach(b => b.addEventListener('click', () => openChest(b.dataset.consOyster)));
-    const all = body.querySelector('[data-cons-open-all]');
-    if (all) all.addEventListener('click', () => openAllChestsByType('ostra'));
-  } else if (section.key === 'agricultura') {
-    const farm = ensureFarm(p);
-    const seedKeys = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
-    const cropKeys = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
-    const fbs = ensureFoodBuffs(p);
-    const activeHtml = Object.keys(fbs).length ? `<div class="card raised" style="margin-bottom:10px;"><span style="font-weight:700;">🍽️ Efeitos ativos</span><div class="row" style="gap:10px; flex-wrap:wrap; margin-top:6px;">${Object.keys(fbs).map(st => { const k = cropByStat(st); return k ? `<span class="tiny">${CROP_DEFS[k].icon} +${Math.round(FOOD_PCT * 100)}% ${CROP_DEFS[k].short} · <b>${fbs[st]}</b> batalha${fbs[st] > 1 ? 's' : ''}</span>` : ''; }).join('')}</div></div>` : '';
-    const mealKeys = Object.keys(ensureMeals(p)).filter(k => p.meals[k] > 0);
-    if (!seedKeys.length && !cropKeys.length && !mealKeys.length) {
-      body.innerHTML = mealActiveCardHtml(p) + activeHtml + `<div class="empty-hint">🌾 Ainda não tens sementes nem alimentos.<br>As sementes caem de monstros e chefes de todas as regiões.</div>`;
-      return;
-    }
-    body.innerHTML = mealActiveCardHtml(p) + activeHtml + `<p class="tiny muted" style="margin-bottom:8px;">🍽️ Come antes de ir lutar: cada alimento dura ${FOOD_BATTLES} batalhas (uma dungeon conta como 1). Alimentos diferentes juntam-se; o mesmo efeito não acumula.</p>` +
-      (seedKeys.length ? `<div class="section-title" style="margin-top:0;">🌱 Sementes</div>` +
-        seedKeys.map(k => `<div class="item-row"><div class="item-ic">${nxEnt('item-semente', '🌱')}</div><div class="item-mid"><div class="item-name">Semente de ${CROP_DEFS[k].name} ×${farm.seeds[k]}</div><div class="tiny">Planta na Cidade → Trabalhos → Agricultura.</div></div></div>`).join('') : '') +
-      (cropKeys.length ? `<div class="section-title"${seedKeys.length ? '' : ' style="margin-top:0;"'}>🧺 Alimentos</div>` +
-        cropKeys.map(k => { const on = foodActive(CROP_DEFS[k].stat); return `<div class="item-row"><div class="item-ic">${nxEnt('alimento-' + k, CROP_DEFS[k].icon)}</div><div class="item-mid"><div class="item-name">${CROP_DEFS[k].name} ×${farm.crops[k]}</div><div class="tiny">${CROP_DEFS[k].effect}${on ? ` · <b style="color:var(--success);">ativo (${p.foodBuffs[CROP_DEFS[k].stat]})</b>` : ''}</div></div><button class="btn small ${on ? 'ghost' : 'primary'}" data-cons-eat="${k}" ${on ? 'disabled' : ''}>${on ? 'Ativo' : '🍽️ Comer'}</button></div>`; }).join('') : '');
-    body.insertAdjacentHTML('beforeend', mealsListHtml(p, mealKeys));
-    els('[data-cons-eat]').forEach(b => b.addEventListener('click', () => useFoodAction(b.dataset.consEat)));
-    bindMealButtons(body);
+    html = oysters.length ? `<div class="cs-oy"><span class="ic big">${nxEnt('bau-ostra', '🦪')}</span><b>${oysters.length} ${oysters.length === 1 ? 'ostra' : 'ostras'}</b><small>${CHEST_DEFS.ostra.desc}</small>
+        <div class="row" style="gap:8px; justify-content:center;"><button class="btn primary" data-cons-oyster="${oysters[0].id}">🦪 Abrir 1</button>${oysters.length > 1 ? `<button class="btn" data-cons-open-all>Abrir todas (${oysters.length})</button>` : ''}</div></div>`
+      : `<div class="cs-oy"><span class="ic big off">${nxEnt('bau-ostra', '🦪')}</span><b>Não tens ostras</b><small>Pesca na Cidade → Trabalhos ou compra no Mercado Negro.</small></div>`;
+  } else {
+    const farm = ensureFarm(p), fbs = ensureFoodBuffs(p), mealKeys = Object.keys(ensureMeals(p)).filter(k => p.meals[k] > 0), fbTot = foodBattlesFor(p);
+    const buffs = Object.keys(fbs).filter(stt => fbs[stt] > 0).map(stt => { const k = cropByStat(stt); return k ? `<div class="cs-bf"><span class="ring" style="--p:${Math.round(fbs[stt] / fbTot * 100)};"><span>${fbs[stt]}</span></span>${CROP_DEFS[k].icon} +${Math.round(FOOD_PCT * 100)}% ${CROP_DEFS[k].short}</div>` : ''; }).join('');
+    const crops = Object.keys(CROP_DEFS).map(k => { const q = farm.crops[k] || 0, sd = farm.seeds[k] || 0, on = foodActive(CROP_DEFS[k].stat);
+      return `<button type="button" class="cs-cr${q ? '' : ' zero'}${sd ? ' seed' : ''}${on ? ' on' : ''}" ${q && !on ? `data-cons-eat="${k}"` : ''} title="${CROP_DEFS[k].name}: ${CROP_DEFS[k].effect}"><span class="ic">${nxEnt('alimento-' + k, CROP_DEFS[k].icon)}</span><i>${q}${sd ? `+${sd}🌱` : ''}</i></button>`; }).join('');
+    const recs = Object.keys(MEAL_DEFS).map(k => { const d = MEAL_DEFS[k], ok = Object.keys(d.ing).every(x => (farm.crops[x] || 0) >= d.ing[x]);
+      return `<div class="cs-rc${ok ? ' ok' : ''}"><span class="ic">${nxEnt('prato-' + k, d.icon)}</span><div class="t"><b>${d.name}</b><small>${mealFxText(d)} · ${d.battles} batalhas</small>
+        <div class="ing">${Object.keys(d.ing).map(x => { const h = farm.crops[x] || 0, nd = d.ing[x]; return `<span class="${h >= nd ? 'ok' : 'no'}">${nxEnt('alimento-' + x, CROP_DEFS[x].icon)}${h}/${nd}</span>`; }).join('')}</div></div><span class="st ${ok ? 'ok' : 'no'}">${ok ? '✓ Podes<br>cozinhar' : 'Falta'}</span></div>`; }).join('');
+    html = mealActiveCardHtml(p) + (buffs ? `<div class="cs-h4">Efeitos ativos</div><div class="cs-buffs">${buffs}</div>` : '')
+      + `<div class="cs-h4">Alimentos e sementes</div><div class="cs-crops">${crops}</div>
+      <p class="tiny muted" style="margin-top:6px;">Toca num alimento para o comer (dura ${fbTot} batalhas; o mesmo efeito não acumula).${Object.values(farm.seeds).some(Boolean) ? ' 🌱 Planta as sementes na Cidade → Trabalhos → Quinta.' : ''}</p>`
+      + mealsListHtml(p, mealKeys)
+      + `<div class="cs-h4">Receitas <button class="btn small" type="button" data-cs-cozinha style="margin-left:auto;">🍲 Ir à Cozinha</button></div><div class="cs-recipes">${recs}</div>`;
   }
+  body.innerHTML = pantry + html;
+  els('[data-cs-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.consIn = b.dataset.csTab; renderMochilaBody(); }));
+  els('[data-cs-plv]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.consPearlLv = b.dataset.csPlv; renderMochilaBody(); }));
+  els('[data-cons-potion]').forEach(b => b.addEventListener('click', () => { usePotionAction(b.dataset.consPotion); renderMochilaBody(); }));
+  els('.cs-pt[data-heal]').forEach(el => { const amt = +el.dataset.heal; if (!amt) return; const show = () => { const bar = $('cs-hpb'); if (!bar) return; const st = effectiveStats(p); let u = bar.querySelector('u'); if (!u) { u = document.createElement('u'); bar.appendChild(u); } u.style.left = (Math.min(p.hp, st.hp) / st.hp * 100) + '%'; u.style.width = (amt / st.hp * 100) + '%'; }; const hide = () => { const u = document.querySelector('#cs-hpb u'); if (u) u.remove(); };
+    el.addEventListener('pointerenter', show); el.addEventListener('pointerleave', hide); });
+  els('[data-cons-oyster]').forEach(b => b.addEventListener('click', () => openChest(b.dataset.consOyster)));
+  const all = body.querySelector('[data-cons-open-all]'); if (all) all.addEventListener('click', () => openAllChestsByType('ostra'));
+  els('[data-cons-eat]').forEach(b => b.addEventListener('click', () => useFoodAction(b.dataset.consEat)));
+  const ck = body.querySelector('[data-cs-cozinha]'); if (ck) ck.addEventListener('click', () => { sfx.tab(); App.lojaTab = 'cozinha'; setTab('loja'); });
+  bindMealButtons(body);
 }
 
 function renderChestsBody(body, p) {
@@ -13087,7 +13086,7 @@ function openChest(chestId) {
   p.gold -= cost;
   p.chests.splice(idx, 1);
 
-  let resultHtml = '', revealItem = null;
+  let resultHtml = '', revealItem = null, oysterPearl = null;
   if (chest.type === 'equip') {
     const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
     const item = generateItem(slot, chest.level, null, chest.qualityBoost);
@@ -13121,6 +13120,7 @@ function openChest(chestId) {
     sfx.equip();
   } else if (chest.type === 'ostra') {
     const pearl = rollPearl();
+    oysterPearl = pearl.key; // v218
     if (pearl.key === 'pedra') {
       resultHtml = `<p class="tiny">🪨 Só uma pedra... nada de especial desta vez.</p>`;
     } else {
@@ -13165,7 +13165,7 @@ function openChest(chestId) {
   const tier = !revealItem ? '' : revealItem.rarity === 'divino' ? ' rar-divine' : ['lendario', 'unico', 'set', 'temporada', 'demoniaco', 'mitico'].includes(revealItem.rarity) ? ' rar-high' : '';
   openModal(`
     <h3 style="margin-bottom:12px;">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)} Baú aberto!</h3>
-    ${anim ? `<div class="chest-stage${tier}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};"><div class="chest-beam"></div><div class="chest-ic">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)}</div></div>` : ''}
+    ${anim ? `<div class="chest-stage${tier}${oysterPearl ? ' oyster' : ''}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};"><div class="chest-beam"></div><div class="chest-ic">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)}</div>${oysterPearl && oysterPearl !== 'pedra' ? `<div class="chest-pearl">${nxIconSvg('perola-' + oysterPearl) || '⚪'}</div>` : ''}</div>` : ''}
     <div class="card raised${anim ? ' chest-result' + tier : ''}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};">${resultHtml}</div>
     <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
   `);
@@ -14813,6 +14813,12 @@ function upgradeItem(slot) {
   fxSmith(slot, success, item.upgrade);
 }
 
+// v218: resultado de cada Trabalho (para a animação e os achados recentes).
+function tbNote(key, data, msg) {
+  App.tbLast = Object.assign({ key }, data);
+  App.tbLog = App.tbLog || {}; (App.tbLog[key] = App.tbLog[key] || []).unshift([data.name, data.gold ? `+${data.gold.toLocaleString('pt-PT')} 🪙` : (data.tag || 'item')]); App.tbLog[key] = App.tbLog[key].slice(0, 5);
+  if (!App.tbQuiet) toast(msg);
+}
 function doFish() {
   const p = App.player;
   if ((p.fishCooldown || 0) > 0) { sfx.error(); toast(`Precisas de lutar mais ${p.fishCooldown} batalha(s) antes de voltar a pescar.`); return; }
@@ -14825,6 +14831,8 @@ function doFish() {
     p.chests.push(newChest('ostra', p.level));
     saveGame();
     renderHubTab();
+    tbNote('pescar', { name: 'Ostra', row: 'Ostra', icon: 'bau-ostra', color: '#cfe0ff', tag: 'ostra', sub: 'Abre-a na Mochila → Consumíveis → Ostras.' }, '🦪 Pescaste uma Ostra!');
+    if (App.tbQuiet) return;
     openModal(`
       <h3 style="margin-bottom:12px;">🦪 Pescaste uma Ostra!</h3>
       <div class="card raised"><p class="tiny">Abre-a na Mochila → Consumíveis → Ostras para veres o que tem lá dentro (pode ser uma Pérola rara!).</p></div>
@@ -14848,7 +14856,7 @@ function doFish() {
   sfx.gold();
   renderHubTab();
   profJobXp(p); // v196
-  toast(`🎣 Pescaste um peixe ${chosen.name}! +${gold} ouro.${extra}`);
+  tbNote('pescar', { name: `Peixe ${chosen.name}`, row: chosen.name, gold, icon: 'coin', color: TB_FISH_COL[chosen.name] || '#b9b4a8', sub: extra.trim() }, `🎣 Pescaste um peixe ${chosen.name}! +${gold} ouro.${extra}`);
 }
 
 function doMine() {
@@ -14863,7 +14871,7 @@ function doMine() {
     saveGame();
     sfx.equip();
     renderHubTab();
-    toast(`⛏️ Encontraste uma Pedra de Alquimia: ${ALCHEMY_STONE_DEFS[stoneType].icon} ${ALCHEMY_STONE_DEFS[stoneType].name}!`);
+    tbNote('minerar', { name: `Pedra de Alquimia: ${ALCHEMY_STONE_DEFS[stoneType].name}`, row: 'Pedra de Alquimia', icon: alchIconKey(stoneType, 1), color: '#ff4d5e', tag: 'pedra', sub: 'Vai para a Mochila → Alquimia.' }, `⛏️ Encontraste uma Pedra de Alquimia: ${ALCHEMY_STONE_DEFS[stoneType].icon} ${ALCHEMY_STONE_DEFS[stoneType].name}!`);
     return;
   }
   if (Math.random() < MINE_GEM_CHANCE) {
@@ -14873,7 +14881,7 @@ function doMine() {
     saveGame();
     sfx.equip();
     renderHubTab();
-    toast(`⛏️ Encontraste uma ${GEM_DEFS[type].name} (T1)!`);
+    tbNote('minerar', { name: `${GEM_DEFS[type].name} (T1)`, row: 'Gema T1', icon: 'gema-' + type, color: '#4da3ff', tag: 'gema', sub: 'Vai para a Mochila → Gemas.' }, `⛏️ Encontraste uma ${GEM_DEFS[type].name} (T1)!`);
     return;
   }
   const r = Math.random();
@@ -14885,7 +14893,7 @@ function doMine() {
   sfx.gold();
   renderHubTab();
   profJobXp(p); // v196
-  toast(`⛏️ Minaste ${chosen.name}! +${gold} ouro.`);
+  tbNote('minerar', { name: chosen.name, row: chosen.name, gold, icon: 'coin', color: TB_ORE_COL[chosen.name] || '#c9b99c' }, `⛏️ Minaste ${chosen.name}! +${gold} ouro.`);
 }
 
 // --- Agricultura -----------------------------------------------------------
@@ -14974,63 +14982,90 @@ function tbMapSvg() {
     <g transform="translate(366 470)"><path d="M-16 0 Q0 -26 16 0 Z" fill="#d6b04a"/><path d="M-16 0 Q0 -26 16 0" stroke="#a5852f" stroke-width="2" fill="none"/></g>
   </svg>`;
 }
+const TB_ORE_COL = { Cobre: '#c58a5a', Ferro: '#9aa4ad', Prata: '#d8dde3', Ouro: '#f6dc85', Mithril: '#8ee0d0' };
+const TB_WOOD_COL = { Pinho: '#b9b4a8', Carvalho: '#c58a5a', Nogueira: '#a8763f', 'Ébano': '#9a7bff', 'Árvore Ancestral': '#f6dc85' };
+const TB_FISH_COL = { Comum: '#b9b4a8', Incomum: '#4e8fd6', Raro: '#9a5fd6', 'Muito Raro': '#c9a227', 'Lendário': '#d6822e', 'Único': '#e0485a' };
+const TB_POST = { minerar: { img: 'trabalho-mina', verb: 'Minerar', tool: '⛏️', sub: 'Minerar', desc: 'Ouro, com chance de gema ou Pedra de Alquimia.' },
+  lenhador: { img: 'trabalho-floresta', verb: 'Cortar', tool: '🪓', sub: 'Lenhador', desc: 'Madeira para vender. Árvores raras rendem mais.' },
+  pescar: { img: 'trabalho-lagoa', verb: 'Pescar', tool: '🎣', sub: 'Pescar', desc: 'Ouro, ostras e 60% de dar comida à mascote ativa.' },
+  agricultura: { img: 'trabalho-quinta', verb: null, tool: '🌾', sub: 'Agricultura', desc: `Planta sementes e colhe 1 a 3 alimentos ao fim de ${FARM_GROW_BATTLES} batalhas.` } };
+function tbJobState(p, key) { const m = { minerar: ['mineCooldown', 'mineUses', MINE_USES_PER_COOLDOWN, MINE_COOLDOWN_BATTLES], lenhador: ['woodCooldown', 'woodUses', WOOD_USES_PER_COOLDOWN, WOOD_COOLDOWN_BATTLES], pescar: ['fishCooldown', 'fishUses', FISH_USES_PER_COOLDOWN, FISH_COOLDOWN_BATTLES] }[key];
+  return { cd: p[m[0]] || 0, left: m[2] - (p[m[1]] || 0), max: m[2], cdMax: m[3] }; }
+// Tabela do que pode sair (chances reais do jogo e ouro ao teu nível).
+function tbTable(p, key) {
+  const g = x => Math.round(x * professionGoldMult(p.level)), pc = x => Math.round(x * 1000) / 10;
+  if (key === 'minerar') { const rest = (1 - MINE_ALCHEMY_CHANCE) * (1 - MINE_GEM_CHANCE);
+    return [['Pedra de Alquimia', pc(MINE_ALCHEMY_CHANCE), null, '#ff4d5e', '→ Alquimia'], ['Gema T1', pc((1 - MINE_ALCHEMY_CHANCE) * MINE_GEM_CHANCE), null, '#4da3ff', '→ Gemas']].concat(ORE_TABLE.map(o => [o.name, pc(o.chance * rest), g(o.gold), TB_ORE_COL[o.name] || '#c9b99c'])); }
+  if (key === 'lenhador') return WOOD_TABLE.map(o => [o.name, pc(o.chance), g(o.gold), TB_WOOD_COL[o.name] || '#c9b99c']);
+  return FISH_TABLE.map(o => o.isOyster ? ['Ostra', pc(o.chance), null, '#cfe0ff', '→ Ostras'] : [o.name, pc(o.chance), g(o.gold), TB_FISH_COL[o.name] || '#b9b4a8']);
+}
+function tbPostStateHtml(p, key) {
+  if (key === 'agricultura') { const r = tbFarmReady(p), f = tbFarmFree(p); return r ? `<span class="tb-stt ok">${r} pronto${r > 1 ? 's' : ''}</span>` : f ? `<span class="tb-stt">${f} livre${f > 1 ? 's' : ''}</span>` : '<span class="tb-stt">a crescer</span>'; }
+  const s = tbJobState(p, key);
+  if (s.cd > 0) return `<span class="tb-stt">🔒 ${s.cd} ${s.cd === 1 ? 'batalha' : 'batalhas'}</span><span class="tb-ring" style="--p:${Math.round((s.cdMax - s.cd) / s.cdMax * 100)};"><span>${s.cd}</span></span>`;
+  return `<span class="tb-stt ok">Pronto</span><span class="tb-uses">${Array.from({ length: s.max }, (_, i) => `<i class="${i < s.left ? '' : 'off'}"></i>`).join('')}</span>`;
+}
+function tbOpenHtml(p, key) {
+  const d = TB_POST[key], spot = TB_SPOTS.find(x => x.key === key);
+  const head = `<div class="tb-oh"><span class="ic">${(spot.img && nxIconSvg(spot.img)) || `<span class="tb-emo">${spot.emoji}</span>`}</span><div><b>${spot.name}</b><small>${d.desc}</small></div></div>`;
+  if (key === 'agricultura') return `<div class="card raised tb-open">${head}${farmCardHtml(p)}</div>`;
+  const s = tbJobState(p, key), can = s.cd <= 0, hit = App.tbLast && App.tbLast.key === key ? App.tbLast.row : null, log = (App.tbLog || {})[key] || [];
+  return `<div class="card raised tb-open">${head}
+    <div class="tb-act"><button class="btn ${can ? 'primary' : 'ghost'}" id="btn-tb-job" ${can ? '' : 'disabled'}>${can ? `${d.verb} (${s.left}/${s.max})` : `🔒 ${s.cd} ${s.cd === 1 ? 'batalha' : 'batalhas'}`}</button><span class="tiny muted">${s.max} usos seguidos; depois cada batalha (vitória ou derrota) tira 1 à recarga de ${s.cdMax}.</span></div>
+    <div class="tb-h4">O que pode sair</div><div class="tb-table">${tbTable(p, key).map(([n, ch, g, c, alt]) => `<div class="tr${hit === n ? ' hit' : ''}" style="--c:${c};"><span class="n"><i></i>${n}</span><span class="g">${g ? `+${g.toLocaleString('pt-PT')} 🪙` : alt}</span><span class="pc">${String(ch).replace('.', ',')}%</span></div>`).join('')}</div>
+    <div class="tb-h4">Achados recentes</div><div class="tb-log">${log.length ? log.map(l => `<div><span>${l[0]}</span><b>${l[1]}</b></div>`).join('') : '<p class="tiny muted">Ainda nada nesta sessão.</p>'}</div></div>`;
+}
+// Animação do trabalho (picareta, machado ou bóia) e depois o que saiu.
+function tbDoJob(key) {
+  const fn = { minerar: doMine, lenhador: doWood, pescar: doFish }[key];
+  if (!fn) return;
+  if (!fxOn()) { App.tbQuiet = false; fn(); return; }
+  const old = document.getElementById('tb-fx'); if (old) old.remove();
+  const el = document.createElement('div'); el.id = 'tb-fx'; el.className = 'tb-fx ' + key;
+  el.innerHTML = key === 'pescar' ? '<div class="tb-bob"><span class="w"></span><span class="b"></span></div>' : `<div class="tb-tool">${TB_POST[key].tool}</div>`;
+  if (key === 'minerar') for (let i = 0; i < 10; i++) el.insertAdjacentHTML('beforeend', `<span class="tb-spark" style="--dx:${Math.round(Math.random() * 120 - 60)}px; --dy:${Math.round(-Math.random() * 80)}px; animation-delay:${(0.3 + Math.random() * 0.6).toFixed(2)}s;"></span>`);
+  document.body.appendChild(el);
+  setTimeout(() => {
+    App.tbQuiet = true; App.tbLast = null;
+    try { fn(); } finally { App.tbQuiet = false; }
+    const r = App.tbLast;
+    if (!r) { el.remove(); return; }
+    el.innerHTML = `<div class="tb-res" style="--c:${r.color};"><span class="big">${nxIconSvg(r.icon) || '🪙'}</span><b>${r.name}!</b><small>${r.gold ? `+${r.gold.toLocaleString('pt-PT')} de ouro` : (r.sub || '')}${r.gold && r.sub ? ` · ${r.sub}` : ''}</small><button class="btn primary" type="button" id="tb-fx-ok">Fixe!</button></div>`;
+    const close = () => { el.remove(); };
+    $('tb-fx-ok').addEventListener('click', close);
+    el.addEventListener('click', e => { if (e.target === el) close(); });
+  }, 1100);
+}
 function renderTrabalhosBody(body, p) {
+  // v218: sem mini mapa — 4 postos ilustrados, o posto aberto com a ação, o que pode sair e os achados.
   if (!TB_SPOTS.some(s => s.key === App.tbPos)) App.tbPos = (TB_SPOTS.find(s => tbSpotState(p, s.key).ready) || TB_SPOTS[0]).key;
-  const sel = TB_SPOTS.find(s => s.key === App.tbPos);
-  const spotIc = s => (s.img && nxIconSvg(s.img)) || `<span class="tb-emo">${s.emoji}</span>`;
-  const spots = TB_SPOTS.map(s => {
-    const st = tbSpotState(p, s.key);
-    const badge = st.ready ? `<span class="ho-ready">${st.n ? st.n + ' pronto' + (st.n > 1 ? 's' : '') : 'Pronto'}</span>` : st.lock ? `<span class="ho-lock">🔒 ${st.lock}</span>` : '';
-    return `<button class="ho-st tb-st${s.key === sel.key ? ' sel' : ''}" data-tb-spot="${s.key}" style="left:${s.x}%; top:${s.y}%;">${badge}<span class="ho-st-base">${spotIc(s)}</span><span class="ho-st-lb">${s.name}</span></button>`;
-  }).join('');
-  const heroAt = s => ({ x: s.x + (s.x < 50 ? 16 : -16), y: s.y + 5 });
-  const h = heroAt(sel);
+  const posts = TB_SPOTS.map(s => { const d = TB_POST[s.key], art = NX_ICON_IMG.has(d.img);
+    return `<button type="button" class="tb-post${s.key === App.tbPos ? ' sel' : ''}${art ? ' has-art' : ''}" data-tb-spot="${s.key}"${art ? ` style="--tb-art:url('${nxImgUrl(d.img)}')"` : ''}>
+      <span class="ic">${(s.img && nxIconSvg(s.img)) || `<span class="tb-emo">${s.emoji}</span>`}</span>${tbPostStateHtml(p, s.key)}<span class="info"><b>${s.name}</b><small>${d.sub}</small></span></button>`; }).join('');
   body.innerHTML = `
-    <p class="muted" style="margin-bottom:10px;">Toca num sítio do mapa para ires lá trabalhar. Cada batalha (vitória ou derrota) reduz a recarga em 1.</p>
-    <div class="tb-map" id="tb-map">${tbMapSvg()}${spots}
-      <div class="ho-hero" id="tb-hero" style="left:${h.x}%; top:${h.y}%;">${heroAvatarHtml(p)}</div>
-    </div>
-    <div id="tb-card" style="margin-top:12px;">${tbCardHtml(p, sel.key)}</div>`;
-  const bindCard = () => {
-    const f = $('btn-fish'), m = $('btn-mine'), w = $('btn-wood');
-    if (f && (p.fishCooldown || 0) <= 0) f.addEventListener('click', doFish);
-    if (m && (p.mineCooldown || 0) <= 0) m.addEventListener('click', doMine);
-    if (w && (p.woodCooldown || 0) <= 0) w.addEventListener('click', doWood);
-    bindFarmHandlers();
-  };
-  bindCard();
-  els('[data-tb-spot]').forEach(b => b.addEventListener('click', () => {
-    const key = b.dataset.tbSpot; if (key === App.tbPos) return;
-    const from = heroAt(TB_SPOTS.find(s => s.key === App.tbPos)), to = heroAt(TB_SPOTS.find(s => s.key === key));
-    App.tbPos = key; sfx.click();
-    els('[data-tb-spot]').forEach(x => x.classList.toggle('sel', x.dataset.tbSpot === key));
-    const hero = $('tb-hero');
-    if (hero) {
-      const dur = Math.max(0.25, Math.min(0.9, Math.hypot(to.x - from.x, (to.y - from.y) * 1.25) / 70));
-      hero.style.transitionDuration = dur + 's'; hero.classList.toggle('flip', to.x < from.x); hero.classList.add('walking');
-      hero.style.left = to.x + '%'; hero.style.top = to.y + '%';
-      clearTimeout(App.tbWalkT); App.tbWalkT = setTimeout(() => hero.classList.remove('walking'), dur * 1000 + 30);
-    }
-    $('tb-card').innerHTML = tbCardHtml(p, key); bindCard();
-  }));
+    <p class="muted" style="margin-bottom:10px;">Escolhe um posto. Cada batalha (vitória ou derrota) reduz a recarga em 1.</p>
+    <div class="tb-posts">${posts}</div>
+    <div id="tb-card" style="margin-top:12px;">${tbOpenHtml(p, App.tbPos)}</div>`;
+  const job = $('btn-tb-job'); if (job) job.addEventListener('click', () => tbDoJob(App.tbPos));
+  bindFarmHandlers();
+  els('[data-tb-spot]').forEach(b => b.addEventListener('click', () => { const key = b.dataset.tbSpot; if (key === App.tbPos) return; sfx.click(); App.tbPos = key; renderTrabalhosBody(body, p); }));
 }
 
 function farmCardHtml(p) {
   const farm = ensureFarm(p);
   const seedKeys = Object.keys(CROP_DEFS).filter(k => farm.seeds[k] > 0);
-  const slotsHtml = farm.slots.map((slot, i) => {
+  // v218: canteiros de terra — semente → rebento → pronto.
+  const slotsHtml = `<div class="tb-plots">${farm.slots.map((slot, i) => {
     if (!slot) {
       const plantBtns = seedKeys.length
-        ? seedKeys.map(k => `<button class="btn small primary" data-farm-plant="${i}:${k}" style="margin:4px 4px 0 0;">${CROP_DEFS[k].icon} ${CROP_DEFS[k].plant} (${farm.seeds[k]})</button>`).join('')
-        : `<span class="tiny muted">Sem sementes. Caem de monstros e chefes de todas as regiões.</span>`;
-      return `<div class="item-row" style="display:block;"><div class="tiny" style="font-weight:700; margin-bottom:2px;">🌱 Espaço ${i + 1} — vazio</div>${plantBtns}</div>`;
+        ? `<div class="seeds">${seedKeys.map(k => `<button class="btn small primary" data-farm-plant="${i}:${k}">🌱 ${CROP_DEFS[k].name} (${farm.seeds[k]})</button>`).join('')}</div>`
+        : `<small>Sem sementes. Caem de monstros e chefes de todas as regiões.</small>`;
+      return `<div class="tb-plot"><span class="stage">🟫</span><b>Espaço ${i + 1} — vazio</b>${plantBtns}</div>`;
     }
-    const d = CROP_DEFS[slot.crop];
-    const ready = slot.left <= 0;
-    return `<div class="item-row"><div class="item-ic">${nxEnt('alimento-' + slot.crop, d.icon)}</div>
-      <div class="item-mid"><div class="item-name">${d.plant}</div><div class="tiny">${ready ? 'Pronto a colher!' : `A crescer: faltam ${slot.left} batalha(s)`}</div></div>
-      <button class="btn small ${ready ? 'primary' : 'ghost'}" data-farm-harvest="${i}" ${ready ? '' : 'disabled'}>${ready ? 'Colher' : '⏳'}</button></div>`;
-  }).join('');
+    const d = CROP_DEFS[slot.crop], ready = slot.left <= 0;
+    return `<div class="tb-plot${ready ? ' ready' : ''}"><span class="stage">${ready ? nxEnt('alimento-' + slot.crop, d.icon) : slot.left >= FARM_GROW_BATTLES ? '🌱' : '🌿'}</span><b>${ready ? `${d.name} pronto!` : `${d.name} a crescer`}</b>
+      ${ready ? `<button class="btn small primary" data-farm-harvest="${i}">Colher</button>` : `<small>Faltam ${slot.left} ${slot.left === 1 ? 'batalha' : 'batalhas'}</small><div class="pr"><i style="width:${Math.round((FARM_GROW_BATTLES - slot.left) / FARM_GROW_BATTLES * 100)}%"></i></div>`}</div>`;
+  }).join('')}</div>`;
   const cropKeys = Object.keys(CROP_DEFS).filter(k => farm.crops[k] > 0);
   const cropsHtml = cropKeys.length ? cropKeys.map(k => {
     const d = CROP_DEFS[k], n = farm.crops[k], price = cropSellPrice(p, k);
@@ -15042,9 +15077,7 @@ function farmCardHtml(p) {
       </div></div>`;
   }).join('') : `<p class="tiny muted">Ainda não tens alimentos. Planta sementes e colhe ao fim de ${FARM_GROW_BATTLES} batalhas.</p>`;
   const seedsLine = seedKeys.length ? `<p class="tiny" style="margin-bottom:6px;">Sementes: ${seedKeys.map(k => `${CROP_DEFS[k].icon} ${farm.seeds[k]}`).join(' · ')}</p>` : '';
-  return `<div class="card raised">
-    <span style="font-weight:700;">🌾 Agricultura</span>
-    <p class="tiny" style="margin:6px 0 8px;">Planta sementes (caem de monstros de todas as regiões). Ao fim de ${FARM_GROW_BATTLES} batalhas colhes 1 a 3 alimentos: vende-os ou come-os em combate.</p>
+  return `<div class="tb-farm">
     ${seedsLine}${slotsHtml}
     <div class="section-title" style="margin-top:12px;">🧺 Alimentos</div>
     ${cropsHtml}
@@ -15434,7 +15467,7 @@ function doWood() {
   sfx.gold();
   renderHubTab();
   profJobXp(p); // v196
-  toast(`🪓 Cortaste ${chosen.name}! +${gold} ouro.`);
+  tbNote('lenhador', { name: chosen.name, row: chosen.name, gold, icon: 'coin', color: TB_WOOD_COL[chosen.name] || '#c9b99c' }, `🪓 Cortaste ${chosen.name}! +${gold} ouro.`);
 }
 
 // ============================================================
@@ -18939,7 +18972,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v217</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v218</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -20095,7 +20128,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
