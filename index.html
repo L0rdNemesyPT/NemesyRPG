@@ -6422,7 +6422,7 @@ function nxWarmImages() {
   REGIONS.slice(0, ri + 1).forEach(r => rest.push('mapa-' + r.key, 'cena-' + r.key));
   Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
   if (p.profession) rest.push('prof-' + p.profession);
-  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'fundo-passivas', 'cena-soberano', 'cena-cripta', 'cena-torre');
   const queue = rest.slice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
   const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
@@ -8758,74 +8758,113 @@ function passiveUndyingSave(c, p) {
   return true;
 }
 
+// v214: ícones nos nós, caminho planeado (o mais curto até ao nó escolhido) e ramos no topo.
+const PASSIVE_ICON = { dmg: '🗡️', crit: '🎯', critdmg: '💥', hp: '❤️', def: '🛡️', dodge: '🌀', life: '🩸', boss: '👑', bossred: '🏰', regen: '💚', gold: '🪙', luck: '🍀', undying: '💀', dualwield: '⚔️', windskin: '🌬️' };
+const PASSIVE_KEY_ICON = { start: '☀️', rk: '😡', gk: '💥', bk: '💀', xak: '⭐', rdk: '⚔️', gdk: '🌬️', bdk: '🏰' };
+const PASSIVE_BRANCH_NAMES = { r: 'Fúria', g: 'Precisão', b: 'Vitalidade', x: 'Ascensão' };
+function passiveIcon(n) { return PASSIVE_KEY_ICON[n.id] || PASSIVE_ICON[(n.fx[0] || ['dmg'])[0]] || '✦'; }
+function passivePathTo(p, id) {
+  const alloc = ensurePassives(p); if (alloc.includes(id)) return [];
+  const prev = {}, q = alloc.slice(), seen = new Set(alloc);
+  while (q.length) {
+    const c = q.shift();
+    for (const n of passiveNeighbors(c)) {
+      if (seen.has(n)) continue; seen.add(n); prev[n] = c;
+      if (n === id) { const out = []; let k = id; while (!alloc.includes(k)) { out.unshift(k); k = prev[k]; } return out; }
+      q.push(n);
+    }
+  }
+  return null;
+}
+function passiveFxText(k, v) {
+  const [label, unit] = PASSIVE_LABELS[k] || [k, ''];
+  if (k === 'undying' || k === 'dualwield' || k === 'windskin') return label;
+  if (k === 'bossred') return `−${v}${unit} ${label}`;
+  return `${v > 0 ? '+' : '−'}${Math.abs(v)}${unit} ${label}`;
+}
 function renderPassivasBody() {
   const p = App.player;
   const body = $('heroi-body');
   const alloc = ensurePassives(p);
   const total = passivePointsTotal(p), left = passivePointsLeft(p);
   if (!App.passiveSel || !PASSIVE_BY_ID[App.passiveSel]) App.passiveSel = 'start';
-  const C = PASSIVE_COLORS, SZ = { start: 34, small: 22, notable: 32, key: 40 };
+  const C = PASSIVE_COLORS, SZ = { start: 36, small: 24, notable: 32, key: 38 };
   const has = id => alloc.includes(id);
+  const s = PASSIVE_BY_ID[App.passiveSel];
+  const plan = has(s.id) ? [] : (passivePathTo(p, s.id) || []);
+  const planSet = new Set(plan), pop = new Set(App.passivePop || []); App.passivePop = null;
+  const inP = id => planSet.has(id) || has(id);
 
   const links = PASSIVE_EDGES.map(([a, b]) => {
     const A = PASSIVE_BY_ID[a], B = PASSIVE_BY_ID[b];
     const dx = B.x - A.x, dy = B.y - A.y;
     const len = Math.sqrt(dx * dx + dy * dy), ang = Math.atan2(dy, dx) * 180 / Math.PI;
-    const on = has(a) && has(b), reach = (has(a) || has(b)) && !on;
-    return `<div class="pv-link${on ? ' on' : reach ? ' reach' : ''}" style="left:${A.x}px; top:${A.y - (on ? 2 : 1.5)}px; width:${len}px; transform:rotate(${ang}deg);"></div>`;
+    const on = has(a) && has(b), pl = !on && inP(a) && inP(b) && (planSet.has(a) || planSet.has(b)), reach = !on && !pl && (has(a) || has(b));
+    return `<div class="pv-link${on ? ' on' : pl ? ' plan' : reach ? ' reach' : ''}" style="left:${A.x}px; top:${A.y - (on ? 2 : 1.5)}px; width:${len}px; transform:rotate(${ang}deg);"></div>`;
   }).join('');
   const nodes = PASSIVE_NODES.map(n => {
-    const s = SZ[n.kind], on = has(n.id), avail = passiveCanAlloc(p, n.id), sel = App.passiveSel === n.id;
-    const box = Math.max(s, 44);
-    return `<button type="button" class="pv-node pv-${n.kind}${on ? ' on' : ''}${avail ? ' avail' : ''}${sel ? ' sel' : ''}" data-passive="${n.id}" aria-label="${n.name}"
-      style="left:${n.x - box / 2}px; top:${n.y - box / 2}px; width:${box}px; height:${box}px; --pv:${C[n.br]};"><span style="width:${s}px; height:${s}px;"></span></button>`;
+    const sz = SZ[n.kind], on = has(n.id), avail = passiveCanAlloc(p, n.id), sel = App.passiveSel === n.id;
+    const box = Math.max(sz, 44);
+    return `<button type="button" class="pv-node pv-${n.kind}${on ? ' on' : ''}${avail ? ' avail' : ''}${planSet.has(n.id) ? ' plan' : ''}${sel ? ' sel' : ''}${pop.has(n.id) ? ' pop' : ''}" data-passive="${n.id}" aria-label="${n.name}"
+      style="left:${n.x - box / 2}px; top:${n.y - box / 2}px; width:${box}px; height:${box}px; --pv:${C[n.br]};"><span style="width:${sz}px; height:${sz}px;"><em>${passiveIcon(n)}</em></span></button>`;
   }).join('');
+  const bursts = [...pop].filter(id => PASSIVE_BY_ID[id]).map(id => { const n = PASSIVE_BY_ID[id]; return `<i class="pv-burst" style="left:${n.x}px; top:${n.y}px; --pv:${C[n.br]};"></i>`; }).join('');
 
-  const s = PASSIVE_BY_ID[App.passiveSel];
-  const sOn = has(s.id), sCan = passiveCanAlloc(p, s.id), sFree = passiveCanFree(p, s.id);
+  const sOn = has(s.id), sCan = passiveCanAlloc(p, s.id);
   const kindLabel = { start: 'Início', small: 'Nó pequeno', notable: 'Notável', key: 'Chave-mestra' }[s.kind];
-  let hint = '';
-  if (!sOn && !sCan) hint = left <= 0 ? 'Sem pontos livres. Sobe mais 10 níveis para ganhares outro.' : 'Ainda não está ligado a nenhum nó ativo.';
+  const fxChips = s.fx.map(([k, v]) => `<span class="pv-fx${v < 0 && k !== 'bossred' ? ' neg' : ''}">${PASSIVE_ICON[k] || '✦'} ${passiveFxText(k, v)}</span>`).join('');
+  let pathHtml = '', hint = '';
+  if (!sOn && plan.length) {
+    const cost = plan.length, ok = cost <= left, g = {};
+    plan.forEach(id => PASSIVE_BY_ID[id].fx.forEach(([k, v]) => { g[k] = (g[k] || 0) + v; }));
+    pathHtml = `<div class="pv-path"><div class="pv-path-h"><span>${cost === 1 ? 'Ligado a um nó ativo' : 'Caminho até aqui'}</span><b>${cost} ${cost === 1 ? 'ponto' : 'pontos'}</b></div>
+      ${cost > 1 ? `<ol>${plan.map(id => `<li><b>${PASSIVE_BY_ID[id].name}</b> — ${PASSIVE_BY_ID[id].desc}</li>`).join('')}</ol>
+      <div class="pv-path-g">Ganhas no total: ${Object.keys(g).map(k => `${PASSIVE_ICON[k] || '✦'} ${passiveFxText(k, g[k])}`).join(' · ')}</div>` : ''}
+      ${ok ? '' : `<p class="tiny" style="margin-top:6px; color:#e98a7a;">Só tens ${left} ${left === 1 ? 'ponto livre' : 'pontos livres'}.</p>`}</div>
+      <button class="btn ${ok ? 'primary' : 'ghost'} block" data-passive-alloc ${ok ? '' : 'disabled'} style="margin-top:10px;">${cost === 1 ? 'Ativar (1 ponto)' : `Ativar caminho (${cost} pontos)`}</button>`;
+  }
+  if (!sOn && !plan.length && left <= 0) hint = 'Sem pontos livres. Sobe mais 10 níveis para ganhares outro.';
   if (sOn && s.id !== 'start') hint = 'Passiva ativa. Os pontos gastos são permanentes.';
+  const status = sOn ? 'Ativo' : sCan ? 'Disponível' : plan.length ? `a ${plan.length} pontos` : 'Bloqueado';
+
   const sum = passiveTotals(p);
-  const totalsHtml = Object.keys(PASSIVE_LABELS).filter(k => sum[k]).map(k => {
-    const v = sum[k], [label, unit] = PASSIVE_LABELS[k];
-    const neg = k !== 'bossred' && v < 0;
-    const txt = (k === 'undying' || k === 'dualwield' || k === 'windskin') ? 'Ativo' : k === 'bossred' ? `−${v}${unit}` : `${v > 0 ? '+' : '−'}${Math.abs(v)}${unit}`;
-    return `<div class="row between pv-total"><span>${label}</span><b style="color:${neg ? 'var(--blood-bright, #e07a6a)' : 'var(--gold-bright)'};">${txt}</b></div>`;
-  }).join('');
+  const chipKeys = Object.keys(PASSIVE_LABELS).filter(k => sum[k] && !['undying', 'dualwield', 'windskin'].includes(k));
+  const keysOn = alloc.filter(id => PASSIVE_BY_ID[id].kind === 'key');
+  const totalsHtml = chipKeys.length || keysOn.length ? `${chipKeys.length ? `<div class="pv-chips">${chipKeys.map(k => { const v = sum[k], neg = v < 0 && k !== 'bossred';
+      return `<div class="pv-chip"><span class="e">${PASSIVE_ICON[k]}</span><b class="${neg ? 'neg' : ''}">${k === 'bossred' ? '−' : v > 0 ? '+' : '−'}${Math.abs(v)}%</b><small>${PASSIVE_LABELS[k][0]}</small></div>`; }).join('')}</div>` : ''}
+    ${keysOn.length ? `<div class="pv-keys">${keysOn.map(id => `<span>${passiveIcon(PASSIVE_BY_ID[id])} ${PASSIVE_BY_ID[id].name}</span>`).join('')}</div>` : ''}`
+    : '<p class="tiny muted" style="margin-top:6px;">Ainda não ativaste nenhuma passiva.</p>';
   const nextLv = (Math.floor(p.level / 10) + 1) * 10;
+  const branches = ['r', 'g', 'b', 'x'].map(b => { const all = PASSIVE_NODES.filter(n => n.br === b && n.id !== 'start'), hv = all.filter(n => has(n.id)).length;
+    return `<div class="pv-br" style="--c:${C[b]};"><small>${PASSIVE_BRANCH_NAMES[b]}</small><b>${hv}/${all.length}</b><i><u style="width:${Math.round(hv / all.length * 100)}%"></u></i></div>`; }).join('');
+  const art = NX_ICON_IMG.has('fundo-passivas');
 
   body.innerHTML = `
-    <div class="row between" style="align-items:center; margin-bottom:8px;">
-      <div class="section-title" style="margin:0; flex:1;">🌳 Passivas</div>
-      <span class="pill" style="border-color:var(--gold); color:var(--gold-bright); font-weight:700;">Pontos: ${left} / ${total}</span>
-    </div>
-    <p class="tiny muted" style="margin-bottom:10px;">Ganhas 1 ponto a cada 10 níveis (máx. ${Math.floor(MAX_LEVEL / 10)} no nível ${MAX_LEVEL})${p.level < MAX_LEVEL ? ` — próximo ponto no nível ${nextLv}` : ''}. Começa no centro e toca num nó ligado ao que já tens para o ativar. Atenção: os pontos gastos são permanentes.</p>
-    <div class="pv-tree">
-      <div class="pv-zone" style="left:0; top:6px; color:${C.r};">FÚRIA</div>
-      <div class="pv-zone" style="right:0; top:6px; color:${C.g};">PRECISÃO</div>
-      <div class="pv-zone" style="left:0; bottom:8px; color:${C.b};">VITALIDADE</div>
-      ${links}${nodes}
+    <div class="pv-top"><div class="pv-pts"><b>${left}</b><span>de ${total}<br>livres</span></div><div class="pv-brs">${branches}</div></div>
+    <p class="tiny muted" style="margin:8px 0 10px;">Ganhas 1 ponto a cada 10 níveis (máx. ${Math.floor(MAX_LEVEL / 10)} no nível ${MAX_LEVEL})${p.level < MAX_LEVEL ? ` — próximo ponto no nível ${nextLv}` : ''}. Toca num nó para ver o que dá e o caminho até lá. Os pontos gastos são permanentes.</p>
+    <div class="pv-tree${art ? ' has-art' : ''}"${art ? ` style="--pv-art:url('${nxImgUrl('fundo-passivas')}')"` : ''}>
+      <div class="pv-zone" style="left:66px; top:6px; color:${C.r};">FÚRIA</div>
+      <div class="pv-zone" style="right:56px; top:6px; color:${C.g};">PRECISÃO</div>
+      <div class="pv-zone" style="left:6px; bottom:8px; color:${C.b};">VITALIDADE</div>
+      ${links}${nodes}${bursts}
     </div>
     <div class="card raised" style="margin-top:12px;">
       <div class="row" style="gap:10px; align-items:center;">
-        <span class="pv-dot pv-${s.kind}" style="--pv:${C[s.br]};"></span>
+        <span class="pv-ic${s.kind === 'key' ? ' key' : ''}" style="--pv:${C[s.br]};">${passiveIcon(s)}</span>
         <div style="flex:1; min-width:0;">
           <div style="font-family:var(--font-display); font-weight:700; font-size:16px;">${s.name}</div>
-          <div class="tiny muted" style="letter-spacing:.06em; text-transform:uppercase;">${kindLabel}</div>
+          <div class="tiny muted" style="letter-spacing:.06em; text-transform:uppercase;">${kindLabel} · ${PASSIVE_BRANCH_NAMES[s.br]}</div>
         </div>
-        <span class="pill" style="${sOn ? 'border-color:var(--gold); color:var(--gold-bright);' : sCan ? `border-color:${C[s.br]}; color:${C[s.br]};` : ''}">${sOn ? 'Ativo' : sCan ? 'Disponível' : 'Bloqueado'}</span>
+        <span class="pill" style="${sOn ? 'border-color:var(--gold); color:var(--gold-bright);' : sCan || plan.length ? `border-color:${C[s.br]}; color:${C[s.br]};` : ''}">${status}</span>
       </div>
       <p style="margin-top:8px; font-size:14px;">${s.desc}</p>
+      ${fxChips ? `<div class="pv-fxs">${fxChips}</div>` : ''}
       ${hint ? `<p class="tiny" style="margin-top:6px; color:#c9a86a;">${hint}</p>` : ''}
-      ${s.id !== 'start' && !sOn ? `<div class="row" style="gap:8px; margin-top:10px;">
-        <button class="btn ${sCan ? 'primary' : 'ghost'} block" data-passive-alloc ${sCan ? '' : 'disabled'}>Ativar (1 ponto)</button>
-      </div>` : ''}
+      ${pathHtml}
     </div>
     <div class="card raised" style="margin-top:12px;">
-      <span style="font-weight:700; font-family:var(--font-display); color:var(--gold-bright);">Bónus totais das passivas</span>
-      ${totalsHtml || '<p class="tiny muted" style="margin-top:6px;">Ainda não ativaste nenhuma passiva.</p>'}
+      <div class="row between" style="align-items:baseline;"><span style="font-weight:700; font-family:var(--font-display); color:var(--gold-bright);">Bónus das passivas</span><span class="tiny muted">${alloc.length - 1} ${alloc.length - 1 === 1 ? 'nó ativo' : 'nós ativos'}</span></div>
+      ${totalsHtml}
     </div>
   `;
   // Ecrãs mais estreitos que a árvore: encolhe-a por inteiro para caber.
@@ -8840,12 +8879,18 @@ function renderPassivasBody() {
   body.querySelectorAll('[data-passive]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.passiveSel = b.dataset.passive; renderPassivasBody(); }));
   const allocBtn = body.querySelector('[data-passive-alloc]');
   if (allocBtn) allocBtn.addEventListener('click', async () => {
-    if (!passiveCanAlloc(p, App.passiveSel)) return;
-    if (!await nxConfirm(`Ativar ${PASSIVE_BY_ID[App.passiveSel].name}? O ponto fica gasto para sempre — não é possível remover depois.`, { title: 'Ativar passiva', icon: '🌳', confirmLabel: 'Ativar' })) return;
-    if (!passiveCanAlloc(p, App.passiveSel)) return;
-    p.passives.push(App.passiveSel);
+    const target = App.passiveSel, path = passivePathTo(p, target);
+    if (!path || !path.length || path.length > passivePointsLeft(p)) return;
+    const msg = path.length === 1 ? `Ativar ${PASSIVE_BY_ID[target].name}? O ponto fica gasto para sempre — não é possível remover depois.`
+      : `Ativar o caminho até ${PASSIVE_BY_ID[target].name} (${path.length} nós: ${path.map(id => PASSIVE_BY_ID[id].name).join(', ')})? Os ${path.length} pontos ficam gastos para sempre — não é possível remover depois.`;
+    if (!await nxConfirm(msg, { title: path.length === 1 ? 'Ativar passiva' : 'Ativar caminho', icon: '🌳', confirmLabel: 'Ativar' })) return;
+    const again = passivePathTo(p, target);
+    if (!again || again.join() !== path.join() || path.length > passivePointsLeft(p)) return;
+    path.forEach(id => p.passives.push(id));
+    if (!passiveAllConnected(p.passives)) { p.passives = p.passives.slice(0, p.passives.length - path.length); return; }
+    App.passivePop = path.slice();
     saveGame(); sfx.evolve(); renderStatusBar(); renderTabHeroi();
-    toast(`🌳 ${PASSIVE_BY_ID[App.passiveSel].name} ativada!`);
+    toast(path.length === 1 ? `🌳 ${PASSIVE_BY_ID[target].name} ativada!` : `🌳 ${path.length} passivas ativadas!`);
   });
 }
 
@@ -18820,7 +18865,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v213</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v214</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19976,7 +20021,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
