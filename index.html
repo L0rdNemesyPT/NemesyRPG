@@ -2629,6 +2629,9 @@ const ALCHEMY_STONE_DEFS = {
   granada: { name: 'Granada', perfectName: 'Granada Perfeita ⭐', icon: '🟤', stat: 'hp', pct: 0.01, short: 'HP', desc: 'Aumenta o HP do herói' },
   ametista: { name: 'Ametista', perfectName: 'Ametista Perfeita ⭐', icon: '🟣', stat: 'crit', pct: 0.004, short: 'Crítico', desc: 'Aumenta a chance de crítico do herói' }
 };
+// v211: cor de cada pedra (anel do slot, linhas, bolsa e bónus): [cor, cor clara] em "r,g,b".
+const ALCH_COL = { rubi: ['255,77,94', '255,160,168'], safira: ['77,163,255', '160,205,255'], granada: ['234,122,62', '255,185,145'], ametista: ['183,124,255', '218,190,255'] };
+function alchColVars(type) { const c = ALCH_COL[type] || ['228,191,74', '246,220,133']; return `--sc:${c[0]};--sct:${c[1]};`; }
 function alchPctText(v) { const t = (Math.round(v * 1000) / 10).toFixed(1).replace('.', ','); return t.replace(/,0$/, '') + '%'; }
 function alchEffLevel(level) { return level >= ALCHEMY_PERFECT_LEVEL ? ALCHEMY_PERFECT_EFF : level; }
 function alchIsPerfect(level) { return level >= ALCHEMY_PERFECT_LEVEL; }
@@ -6419,7 +6422,7 @@ function nxWarmImages() {
   REGIONS.slice(0, ri + 1).forEach(r => rest.push('mapa-' + r.key, 'cena-' + r.key));
   Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
   if (p.profession) rest.push('prof-' + p.profession);
-  rest.push('world-map', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  rest.push('world-map', 'fundo-alquimia', 'cena-soberano', 'cena-cripta', 'cena-torre');
   const queue = rest.slice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
   const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
@@ -13070,14 +13073,14 @@ function renderAlchemyBody(body, p) {
   const tot = alchemyTotals(p);
   const withA = effectiveStats(p);
   const noA = effectiveStats(Object.assign({}, p, { alchemySlots: [] }));
-  const sumRow = (ic, label, pctV, real) => `<div class="alch-sum-cell${pctV ? '' : ' off'}"><div class="alch-sum-ic">${ic}</div><div class="alch-sum-pct">+${alchPctText(pctV)}</div><div class="alch-sum-lbl">${label}</div>${real ? `<div class="alch-sum-real">${real}</div>` : ''}</div>`;
+  const sumRow = (type, label, pctV, real) => `<div class="alch-sum-cell tinted${pctV ? '' : ' off'}" style="${alchColVars(type)}"><div class="alch-sum-ic">${nxEnt(alchIconKey(type, 1), ALCHEMY_STONE_DEFS[type].icon)}</div><div class="alch-sum-pct">+${alchPctText(pctV)}</div><div class="alch-sum-lbl">${label}</div>${real ? `<div class="alch-sum-real">${real}</div>` : ''}</div>`;
   const summaryHtml = `<div class="card raised alch-sum">
     <div class="row between"><span style="font-weight:700;">🔮 Bónus total da Alquimia</span><span class="tiny muted">${p.alchemySlots.filter(Boolean).length}/${ALCHEMY_SLOT_COUNT} slots</span></div>
     <div class="alch-sum-grid">
-      ${sumRow('⚔️', 'Dano', tot.dmg, tot.dmg ? `+${(withA.dmgMax - noA.dmgMax).toLocaleString('pt-PT')} dano` : '')}
-      ${sumRow('❤️', 'HP', tot.hp, tot.hp ? `+${(withA.hp - noA.hp).toLocaleString('pt-PT')} HP` : '')}
-      ${sumRow('🛡️', 'Defesa', tot.def, tot.def ? `+${(withA.def - noA.def).toLocaleString('pt-PT')} def` : '')}
-      ${sumRow('🎯', 'Crítico', tot.crit, '')}
+      ${sumRow('rubi', 'Dano', tot.dmg, tot.dmg ? `+${(withA.dmgMax - noA.dmgMax).toLocaleString('pt-PT')} dano` : '')}
+      ${sumRow('granada', 'HP', tot.hp, tot.hp ? `+${(withA.hp - noA.hp).toLocaleString('pt-PT')} HP` : '')}
+      ${sumRow('safira', 'Defesa', tot.def, tot.def ? `+${(withA.def - noA.def).toLocaleString('pt-PT')} def` : '')}
+      ${sumRow('ametista', 'Crítico', tot.crit, '')}
     </div>
     ${coreDef(p) ? `<div class="tiny alch-core-sum${coreIsOpen(p) ? '' : ' off'}">${nxEnt(coreDef(p).img, coreDef(p).icon)} Núcleo: <b>${coreDef(p).name}</b> · ${coreIsOpen(p) ? coreStatText(p.alchemyCore, coreBonusFor(p, p.alchemyCore)) : `inativo (${ALCHEMY_SLOT_COUNT - alchemyFilledCount(p) === 1 ? 'falta 1 pedra' : `faltam ${ALCHEMY_SLOT_COUNT - alchemyFilledCount(p)} pedras`})`}</div>` : ''}
   </div>`;
@@ -13104,16 +13107,17 @@ function renderAlchemyBody(body, p) {
     const progHtml = done ? `<div class="tiny" style="margin-top:8px; color:var(--gold-bright);">✅ Já tens ${def.perfectName}!</div>`
       : `<div class="alch-prog"><div class="tiny">Próxima: <b>${alchIsPerfect(target) ? alchStoneName(type, target) : 'Nv. ' + target}</b> (${alchStoneLabel(type, target)}) — ${units >= need ? '<b style="color:var(--gold-bright);">pronta a evoluir!</b>' : `faltam <b>${(need - units).toLocaleString('pt-PT')}</b> pedras Nv. 1`}</div>
           <div class="alch-bar"><i style="width:${pctBar}%"></i></div></div>`;
-    return `<div class="card raised">
-      <div class="row between"><span style="font-weight:700;">${def.icon} ${def.name}</span><span class="tiny muted">+${alchPctText(def.pct)} ${def.short}/nível</span></div>
+    // v211: escada com os 10 níveis — as que têm 2+ brilham e fundem-se com um toque.
+    const eqLv = new Set(p.alchemySlots.filter(s => s && s.type === type).map(s => s.level));
+    const rungs = levels.map((n, i) => { const l = i + 1, can = n >= 2 && l < ALCHEMY_MAX_LEVEL;
+      return `<div class="alch-rung${n ? ' has' : ''}${eqLv.has(l) ? ' eq' : ''}${can ? ' pair' : ''}${!done && l === target ? ' next' : ''}${alchIsPerfect(l) ? ' perf' : ''}"${can ? ` data-combine-alch="${type}" data-level="${l}" role="button" tabindex="0" aria-label="Fundir 2 ${def.name} Nv. ${l}"` : ''}>${n ? `<span class="q">${n}</span>` : ''}<span class="ri">${nxEnt(alchIconKey(type, l), def.icon)}</span><span class="k">${alchIsPerfect(l) ? '⭐' : l}</span></div>`; }).join('');
+    return `<div class="card raised alch-stone" style="${alchColVars(type)}">
+      <div class="alch-stone-h"><span class="si">${nxEnt(alchIconKey(type, Math.max(1, topLv)), def.icon)}</span><b>${def.name}</b><span class="tiny muted">+${alchPctText(def.pct)} ${def.short}/nível</span></div>
       <p class="tiny" style="margin-top:2px;">${def.desc}</p>
-      <div class="row" style="gap:10px; margin-top:8px; flex-wrap:wrap;">
-        ${owned.length ? owned.map(o => `<span class="tiny${alchIsPerfect(o.level) ? ' alch-perfect-txt' : ''}">${alchLevelShort(o.level)}: <b>${o.count}</b></span>`).join('') : '<span class="tiny">Nenhuma na bolsa</span>'}
-      </div>
+      <div class="alch-ladder">${rungs}</div>
       ${progHtml}
-      ${combinable.length ? `<div class="row" style="gap:8px; margin-top:8px; flex-wrap:wrap;">
-        <button class="btn small primary" data-combine-alch-all="${type}">⚡ Evoluir tudo</button>
-        ${combinable.map(c => `<button class="btn small" data-combine-alch="${type}" data-level="${c.level}">Combinar Nv.${c.level}→${alchIsPerfect(c.level + 1) ? '⭐' : c.level + 1}</button>`).join('')}
+      ${combinable.length ? `<div class="row" style="gap:8px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+        <button class="btn small primary" data-combine-alch-all="${type}">⚡ Evoluir tudo</button><span class="tiny muted">ou toca numa pedra a brilhar</span>
       </div>` : ''}
     </div>`;
   }).join('');
@@ -13129,13 +13133,14 @@ function renderAlchemyBody(body, p) {
       <div class="section-title" style="margin:0;">🎒 Pedras na bolsa</div>
       ${anyCombinable ? '<button class="btn small primary" id="btn-alch-all">⚡ Evoluir todas</button>' : ''}
     </div>
-    <p class="tiny muted" style="margin:4px 0 8px;">⚡ Evoluir junta as pedras 2 a 2, do nível mais baixo para o mais alto, até não dar mais (sobra no máximo 1 de cada nível).</p>
+    <p class="tiny muted" style="margin:4px 0 8px;">⚡ Evoluir junta as pedras 2 a 2, do nível mais baixo para o mais alto, até não dar mais (sobra no máximo 1 de cada nível). Toca numa pedra a brilhar para fundir só esse nível.</p>
+    <div class="alch-legend tiny muted"><span><i></i>encaixada</span><span><em></em>próxima a fazer</span></div>
     ${bagRows}
   `;
 
   els('[data-alch-slot]').forEach(el2 => el2.addEventListener('click', () => openAlchemySlotModal(parseInt(el2.dataset.alchSlot))));
   els('[data-alch-core]').forEach(el2 => el2.addEventListener('click', openAlchemyCoreModal));
-  els('[data-combine-alch]').forEach(b => b.addEventListener('click', () => combineAlchemyStone(b.dataset.combineAlch, parseInt(b.dataset.level))));
+  els('[data-combine-alch]').forEach(b => { const go = () => combineAlchemyStone(b.dataset.combineAlch, parseInt(b.dataset.level)); b.addEventListener('click', go); b.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } }); });
   els('[data-combine-alch-all]').forEach(b => b.addEventListener('click', () => combineAlchemyAll([b.dataset.combineAlchAll])));
   const allBtn = $('btn-alch-all');
   if (allBtn) allBtn.addEventListener('click', () => combineAlchemyAll(Object.keys(ALCHEMY_STONE_DEFS)));
@@ -13177,7 +13182,7 @@ function applyAlchemyBest() {
 function combineAlchemyAll(types) {
   const p = App.player;
   const before = {}, made = [];
-  let total = 0;
+  let total = 0, best = null;
   types.forEach(type => {
     const bag = p.alchemyStones[type];
     before[type] = bag.slice();
@@ -13186,19 +13191,13 @@ function combineAlchemyAll(types) {
       if (pairs > 0) { bag[i] -= pairs * 2; bag[i + 1] += pairs; total += pairs; }
     }
     // Resumo: pedras novas por nível (só as que ganhaste).
-    bag.forEach((n, i) => { const gained = n - before[type][i]; if (gained > 0) made.push(`${ALCHEMY_STONE_DEFS[type].icon} ${alchIsPerfect(i + 1) ? ALCHEMY_STONE_DEFS[type].perfectName : ALCHEMY_STONE_DEFS[type].name + ' Nv.' + (i + 1)} ×${gained}`); });
+    bag.forEach((n, i) => { const gained = n - before[type][i]; if (gained > 0) { made.push(`${nxEnt(alchIconKey(type, i + 1), ALCHEMY_STONE_DEFS[type].icon)} ${alchIsPerfect(i + 1) ? ALCHEMY_STONE_DEFS[type].perfectName : ALCHEMY_STONE_DEFS[type].name + ' Nv.' + (i + 1)} ×${gained}`); if (!best || i + 1 > best.l || (i + 1 === best.l && alchIsPerfect(i + 1))) best = { type, l: i + 1 }; } });
   });
   if (!total) { sfx.error(); toast('Não há pedras para evoluir.'); return; }
   saveGame();
   sfx.buff();
   renderMochilaBody();
-  openModal(`
-    <div style="text-align:center;"><div style="font-size:40px; line-height:1.2;">⚡</div><h3 style="margin:4px 0 10px;">Pedras evoluídas!</h3>
-    <p class="tiny muted" style="margin-bottom:10px;">${total} combinaç${total === 1 ? 'ão' : 'ões'} feita${total === 1 ? '' : 's'}. Pedras novas:</p></div>
-    ${made.map(m => `<div class="card raised" style="margin-bottom:6px; padding:9px 12px;"><span style="font-size:13px;">${m}</span></div>`).join('')}
-    <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
-  `);
-  $('btn-close-modal').addEventListener('click', closeModal);
+  alchFuseFx(best.type, best.l - 1, total, made); // v211: mostra a melhor pedra nova + a lista
 }
 
 // v155: tabuleiro da Alquimia — 6 pedras em círculo, ligadas ao Núcleo no centro.
@@ -13206,22 +13205,24 @@ function alchemyCoreBoardHtml(p) {
   const N = ALCHEMY_SLOT_COUNT, filled = alchemyFilledCount(p), open = filled >= N;
   const cd = coreDef(p), active = !!(cd && open);
   const state = active ? 'active' : open ? 'ready' : 'locked';
-  const pos = i => { const a = (-90 + i * (360 / N)) * Math.PI / 180; return { x: 50 + 36 * Math.cos(a), y: 50 + 36 * Math.sin(a) }; };
+  // v211: os 6 encaixes da imagem "fundo-alquimia" ficam a 31% do centro.
+  const R = 31, pos = i => { const a = (-90 + i * (360 / N)) * Math.PI / 180; return { x: 50 + R * Math.cos(a), y: 50 + R * Math.sin(a) }; };
   const feeds = s => !!(cd && s && s.type === cd.counts);
-  const lines = p.alchemySlots.map((s, i) => { const q = pos(i); return `<line class="ln${s ? ' on' : ''}${active && !feeds(s) ? ' dim' : ''}" x1="${q.x}%" y1="${q.y}%" x2="50%" y2="50%"/>`; }).join('');
+  const lines = p.alchemySlots.map((s, i) => { const q = pos(i); return `<line class="ln${s ? ' on' : ''}${active && !feeds(s) ? ' dim' : ''}"${s ? ` style="${alchColVars(s.type)}"` : ''} x1="${q.x}%" y1="${q.y}%" x2="50%" y2="50%"/>`; }).join('');
   const slots = p.alchemySlots.map((s, i) => {
     const q = pos(i), def = s ? ALCHEMY_STONE_DEFS[s.type] : null;
-    const glow = active && feeds(s) ? ` style="--fc:${cd.color}"` : '';
-    return `<button type="button" class="ns${s ? ' filled' : ''}${s && alchIsPerfect(s.level) ? ' perf' : ''}${glow ? ' feed' : ''}" data-alch-slot="${i}" style="left:${q.x}%; top:${q.y}%;">
-      <span class="ns-b"${glow}>${def ? nxEnt(alchIconKey(s.type, s.level), def.icon) : '<span class="ns-empty">🔮</span>'}</span>
-      <span class="ns-l">${def ? def.name : 'Vazio'}<small>${def ? alchLevelText(s.level) : 'Toca p/ encaixar'}</small></span></button>`;
+    const feed = active && feeds(s), pct = s ? (alchIsPerfect(s.level) ? 100 : Math.round(s.level / ALCHEMY_DROP_MAX_LEVEL * 100)) : 0;
+    return `<button type="button" class="ns${s ? ' filled' : ''}${s && alchIsPerfect(s.level) ? ' perf' : ''}${feed ? ' feed' : ''}" data-alch-slot="${i}" style="left:${q.x}%; top:${q.y}%;${s ? alchColVars(s.type) + `--pct:${pct};` : ''}${feed ? `--fc:${cd.color};` : ''}">
+      <span class="ns-b"><span class="ns-in">${def ? nxEnt(alchIconKey(s.type, s.level), def.icon) : '<span class="ns-empty">🔮</span>'}</span></span>
+      <span class="ns-l">${def ? (alchIsPerfect(s.level) ? def.perfectName.replace(' ⭐', '') : def.name) : 'Vazio'}<small${def ? ' class="ns-lv"' : ''}>${def ? alchLevelText(s.level) : 'Toca p/ encaixar'}</small></span></button>`;
   }).join('');
   const tag = active ? 'Ativo' : open ? (cd ? 'Ativo' : 'Pronto') : `🔒 ${filled}/${N}`;
   const inner = cd ? nxEnt(cd.img, cd.icon) : open ? '<span class="core-ic">✨</span>' : '<span class="core-ic">🔒</span>';
   const lbl = cd ? cd.name : open ? 'Encaixa uma Pedra do Núcleo' : 'Núcleo selado';
   const prog = Array.from({ length: N }, (_, i) => `<i class="${i < filled ? 'on' : ''}"></i>`).join('');
-  return `<div class="nuc ${state}${cd && !open ? ' sleeping' : ''}">
-      <svg class="nuc-lines" aria-hidden="true"><circle class="ring" cx="50%" cy="50%" r="36%"/>${lines}</svg>
+  const art = NX_ICON_IMG.has('fundo-alquimia');
+  return `<div class="nuc ${state}${cd && !open ? ' sleeping' : ''}${art ? ' has-art' : ''}"${art ? ` style="--nuc-art:url('${nxImgUrl('fundo-alquimia')}')${cd ? `;--fc:${cd.color}` : ''}"` : ''}>
+      <svg class="nuc-lines" aria-hidden="true"><circle class="ring" cx="50%" cy="50%" r="${R}%"/>${lines}</svg>
       ${slots}
       <button type="button" class="core" data-alch-core="1"><span class="core-b"><span class="core-tag">${tag}</span>${inner}</span><span class="core-l">${lbl}</span></button>
     </div>
@@ -13265,7 +13266,7 @@ function openAlchemyCoreModal() {
 function openAlchemySlotModal(slotIdx) {
   const p = App.player;
   const current = p.alchemySlots[slotIdx];
-  let html = `<h3 style="margin-bottom:12px;">🔮 Slot de Alquimia</h3>`;
+  let html = `<h3 style="margin-bottom:12px;">🔮 Slot de Alquimia ${slotIdx + 1}</h3>`;
   if (current) {
     const def = ALCHEMY_STONE_DEFS[current.type];
     html += `
@@ -13275,22 +13276,25 @@ function openAlchemySlotModal(slotIdx) {
       </div>
       <button class="btn ghost block" id="btn-unsocket-alch" style="margin:10px 0;">Remover (volta para a bolsa)</button>
     `;
+  }
+  // v211: as pedras da bolsa em grelha, com o ganho/perda em relação à encaixada; tocar troca logo.
+  const options = [];
+  Object.keys(ALCHEMY_STONE_DEFS).forEach(type => {
+    p.alchemyStones[type].forEach((count, i) => { if (count > 0) options.push({ type, level: i + 1, count }); });
+  });
+  options.sort((a, b) => b.level - a.level || Object.keys(ALCHEMY_STONE_DEFS).indexOf(a.type) - Object.keys(ALCHEMY_STONE_DEFS).indexOf(b.type));
+  if (!options.length) {
+    html += `<p class="muted">${current ? 'Não tens outras pedras na bolsa para trocar.' : 'Não tens pedras de alquimia disponíveis. Derrota monstros, mina ou explora dungeons para encontrar.'}</p>`;
   } else {
-    const options = [];
-    Object.keys(ALCHEMY_STONE_DEFS).forEach(type => {
-      p.alchemyStones[type].forEach((count, i) => { if (count > 0) options.push({ type, level: i + 1, count }); });
-    });
-    options.sort((a, b) => b.level - a.level);
-    if (!options.length) {
-      html += `<p class="muted">Não tens pedras de alquimia disponíveis. Derrota monstros, mina ou explora dungeons para encontrar.</p>`;
-    } else {
-      html += options.map(o => `
-        <div class="item-row" data-pick-alch="${o.type}" data-pick-level="${o.level}">
-          <div class="item-ic">${nxEnt(alchIconKey(o.type, o.level), ALCHEMY_STONE_DEFS[o.type].icon)}</div>
-          <div class="item-mid"><div class="item-name">${alchFullName(o.type, o.level)}</div><div class="tiny"><b style="color:var(--gold-bright);">${alchStoneLabel(o.type, o.level)}</b> · Tens ${o.count}</div></div>
-          <button class="btn small primary">Encaixar</button>
-        </div>`).join('');
-    }
+    const cv = current ? alchStoneValue(current.type, current.level) : 0;
+    html += `<div class="inv-label" style="margin-bottom:6px;">${current ? 'Trocar por' : 'Escolhe uma pedra'}</div><div class="alch-grid">` + options.map(o => {
+      const d = ALCHEMY_STONE_DEFS[o.type], v = alchStoneValue(o.type, o.level);
+      let cmp = '';
+      if (current && o.type === current.type) { const df = v - cv; cmp = df > 0.00001 ? `<span class="dl up">▲ +${alchPctText(df)}</span>` : df < -0.00001 ? `<span class="dl dn">▼ −${alchPctText(-df)}</span>` : '<span class="dl sw">igual</span>'; }
+      else if (current) cmp = `<span class="dl sw">troca ${ALCHEMY_STONE_DEFS[current.type].short} por ${d.short}</span>`;
+      return `<button type="button" class="alch-opt" style="${alchColVars(o.type)}" data-pick-alch="${o.type}" data-pick-level="${o.level}"><span class="x">×${o.count}</span>
+        <span class="oi">${nxEnt(alchIconKey(o.type, o.level), d.icon)}</span><span class="nm">${d.name} ${alchLevelShort(o.level)}</span><span class="v">${alchStoneLabel(o.type, o.level)}</span>${cmp}</button>`;
+    }).join('') + '</div>';
   }
   html += `<button class="btn ghost block" id="btn-close-modal" style="margin-top:6px;">Fechar</button>`;
   openModal(html);
@@ -13305,9 +13309,12 @@ function openAlchemySlotModal(slotIdx) {
       renderStatusBar();
       sfx.close();
     });
-  } else {
+  }
+  {
     els('[data-pick-alch]').forEach(row => row.addEventListener('click', () => {
       const type = row.dataset.pickAlch, level = parseInt(row.dataset.pickLevel);
+      if (!(p.alchemyStones[type][level - 1] > 0)) return;
+      if (current) grantAlchemyStone(p, current.type, current.level);
       p.alchemyStones[type][level - 1]--;
       p.alchemySlots[slotIdx] = { type, level };
       saveGame();
@@ -13330,8 +13337,25 @@ function combineAlchemyStone(type, level) {
   saveGame();
   sfx.buff();
   renderMochilaBody();
-  if (alchIsPerfect(level + 1)) { if (typeof fxOverlay === 'function' && fxOn()) fxOverlay('divine', `<div class="fx-rays"></div>${fxConfetti(22, ['⭐', '✦', '✧'])}<div class="fx-ov-box"><div class="fx-ov-kicker">⭐ Pedra Perfeita ⭐</div><div class="fx-ov-name">${ALCHEMY_STONE_DEFS[type].icon} ${ALCHEMY_STONE_DEFS[type].perfectName}</div><div class="fx-ov-sub">${alchStoneLabel(type, level + 1)}</div></div>`, 3000, 150); toast(`✨ Criaste ${ALCHEMY_STONE_DEFS[type].perfectName}!`); }
-  else toast(`${ALCHEMY_STONE_DEFS[type].name} combinada para o nível ${level + 1}!`);
+  alchFuseFx(type, level, 1, []);
+}
+// v211: animação de fusão — as 2 pedras chocam no centro, clarão na cor da pedra e aparece a nova.
+function alchFuseFx(type, level, total, made) {
+  const d = ALCHEMY_STONE_DEFS[type], nl = level + 1, perf = alchIsPerfect(nl);
+  const ic = l => nxIconSvg(alchIconKey(type, l)) || `<span style="font-size:44px">${d.icon}</span>`;
+  const old = document.getElementById('alch-fx'); if (old) old.remove();
+  const el = document.createElement('div'); el.id = 'alch-fx'; el.className = 'alch-fx' + (fxOn() ? '' : ' still') + (perf ? ' perf' : '');
+  el.setAttribute('style', alchColVars(type));
+  el.innerHTML = `<div class="alch-fx-stage"><div class="st a">${ic(level)}</div><div class="st b">${ic(level)}</div><div class="flash"></div><div class="res">${ic(nl)}</div></div>
+    ${perf ? '<div class="alch-fx-k">⭐ Pedra Perfeita ⭐</div>' : ''}
+    <div class="alch-fx-t">${perf ? d.perfectName : `${d.name} Nv. ${nl}`}<small>${alchStoneLabel(type, nl)}${total > 1 ? ` · ${total} fusões feitas` : ''}</small></div>
+    ${made.length > 1 ? `<div class="alch-fx-list">${made.map(m => `<span>${m}</span>`).join('')}</div>` : ''}
+    <button class="btn primary" type="button">Fixe!</button>`;
+  document.body.appendChild(el);
+  const close = () => { el.remove(); };
+  el.querySelector('button').addEventListener('click', close);
+  el.addEventListener('click', e => { if (e.target === el) close(); });
+  if (perf) toast(`✨ Criaste ${d.perfectName}!`);
 }
 
 function equipItemOffhand(itemId) {
@@ -18698,7 +18722,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v210</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v211</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19854,7 +19878,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
