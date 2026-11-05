@@ -3159,7 +3159,8 @@ body.fx-off .pv-node.avail span,body.fx-off .pv-link.plan,body.fx-off .pv-node.p
 .ab-card.mst{box-shadow:0 0 16px rgba(246,220,133,.3);}
 .ab-ch{display:flex;align-items:center;gap:11px;}
 .ab-art{position:relative;width:56px;height:56px;flex:none;border-radius:14px;display:grid;place-items:center;font-size:32px;border:1.5px solid color-mix(in srgb,var(--cc) 70%,transparent);background:radial-gradient(circle at 50% 35%,color-mix(in srgb,var(--cc) 35%,#1a120b),#0d0a07 80%);}
-.ab-art .nx-ic{width:44px;height:44px;}
+.ab-art > .nx-k .nx-ic,.ab-art > .nx-ic{width:44px;height:44px;}
+.ab-art i .nx-ic,.ab-art i img{width:11px !important;height:11px !important;vertical-align:-1px;margin:0 0 0 1px;}
 .ab-art i{position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);font-family:var(--font-display);font-style:normal;font-size:10px;font-weight:800;white-space:nowrap;padding:0 6px;border-radius:99px;background:#140d08;border:1px solid #e4bf4a;color:#f6dc85;}
 .ab-t{flex:1;min-width:0;}
 .ab-t b{display:block;font-family:var(--font-display);font-size:15px;color:#f3e7cf;}
