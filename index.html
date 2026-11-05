@@ -2466,6 +2466,18 @@ function petBonusAt(level, type) {
   };
 }
 
+// v217: imagem de cada mascote (as que não têm imagem própria usam a do monstro de onde vêm).
+const PET_IMG_FALLBACK = { wolf: 'monstro-lobo', icewolf: 'monstro-lobo-do-gelo', lizard: 'monstro-salamandra', phoenix: 'monstro-fenix-filhote', yeti: 'monstro-yeti', harpy: 'monstro-harpia', wyvern: 'monstro-wyvern', griffin: 'monstro-grifo' };
+function petImgKey(type) { const k = 'pet-' + type; return typeof NX_ICON_IMG !== 'undefined' && !NX_ICON_IMG.has(k) && PET_IMG_FALLBACK[type] ? PET_IMG_FALLBACK[type] : k; }
+function petIc(type) { return nxEnt(petImgKey(type), (PET_DEFS[type] || {}).icon || '🐾'); }
+// Onde cai cada mascote (monstros e chefes das regiões, chefes das Catacumbas e a loja da Noite das Abóboras).
+function petSourceText(type) {
+  const out = [];
+  REGIONS.forEach(r => { (r.monsters || []).forEach(m => { if (m.pet === type) out.push(`${m.name} · ${r.name}`); }); (r.bosses || []).forEach(b => { if (b.pet === type) out.push(`Chefe ${b.name} · ${r.name}`); }); });
+  (typeof CATACUMBAS !== 'undefined' ? CATACUMBAS : []).forEach(c => { if (c.bossPet === type) out.push(`Chefe ${c.bossName || ''} · ${c.name}`.replace('Chefe  ·', 'Chefe ·')); });
+  if (type === 'abobora') out.push('Loja do evento Noite das Abóboras');
+  return out;
+}
 // Texto com só os bónus que o mascote realmente dá.
 function petBonusText(b) {
   const parts = [];
@@ -6422,7 +6434,7 @@ function nxWarmImages() {
   REGIONS.slice(0, ri + 1).forEach(r => rest.push('mapa-' + r.key, 'cena-' + r.key));
   Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
   if (p.profession) rest.push('prof-' + p.profession);
-  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'fundo-passivas', 'fundo-habilidades', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'fundo-passivas', 'fundo-habilidades', 'fundo-estabulo', 'fundo-honra', 'cena-soberano', 'cena-cripta', 'cena-torre');
   const queue = rest.slice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
   const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
@@ -9140,7 +9152,7 @@ function collectExpeditionAction(idx) {
   toast(`🗺️ Recolheste: ${r.gold.toLocaleString('pt-PT')} de ouro${Object.keys(r.seeds || {}).length ? ', sementes' : ''}${r.chest ? ', Baú de Equipamento' : ''}${r.gem ? ', ' + GEM_DEFS[r.gem].name : ''}${Object.keys(r.pearls || {}).length ? ', Pérola' : ''}${r.alch ? ', Pedra de Alquimia' : ''}.`);
   renderTabHeroi();
 }
-function hoPetIcons(types) { return `<span class="ho-pets${types.length > 1 ? ' multi' : ''}">${types.map(t => `<span class="ho-pet1">${nxEnt('pet-' + t, (PET_DEFS[t] || {}).icon || '🐾')}</span>`).join('')}</span>`; }
+function hoPetIcons(types) { return `<span class="ho-pets${types.length > 1 ? ' multi' : ''}">${types.map(t => `<span class="ho-pet1">${petIc(t)}</span>`).join('')}</span>`; }
 function renderHoExpedicoes(p, h) {
   const now = hoNow();
   const running = h.exp.map((e, i) => {
@@ -9167,7 +9179,7 @@ function renderHoExpedicoes(p, h) {
     let sel = hoSelectedPets(p);
     if (!sel.length && App.hoExpPetsInit !== h.exp.length + ':' + free.length) { App.hoExpPetsInit = h.exp.length + ':' + free.length; App.hoExpPets = [(free.find(x => x.id !== p.activePet) || free[0]).id]; sel = hoSelectedPets(p); }
     send = `<div class="inv-label">Mascotes escolhidas: ${sel.length}</div>
-      <div class="tab-strip" style="padding-bottom:8px; flex-wrap:wrap;">${free.map(pet => `<button class="tab-chip${App.hoExpPets.includes(pet.id) ? ' active' : ''}" data-ho-pet="${pet.id}">${nxEnt('pet-' + pet.type, PET_DEFS[pet.type].icon)} ${PET_DEFS[pet.type].name} Nv.${pet.level}${pet.id === p.activePet ? ' · ativa' : ''}</button>`).join('')}</div>
+      <div class="tab-strip" style="padding-bottom:8px; flex-wrap:wrap;">${free.map(pet => `<button class="tab-chip${App.hoExpPets.includes(pet.id) ? ' active' : ''}" data-ho-pet="${pet.id}">${petIc(pet.type)} ${PET_DEFS[pet.type].name} Nv.${pet.level}${pet.id === p.activePet ? ' · ativa' : ''}</button>`).join('')}</div>
       <p class="tiny muted" style="margin-bottom:6px;">Toca nas mascotes para as escolher. As expedições mais longas precisam de mais mascotes. Mascotes de nível mais alto trazem um pouco mais de ouro.${sel.some(x => x.id === p.activePet) ? ' A mascote ativa deixa de dar bónus enquanto estiver fora.' : ''}</p>
       ${Object.keys(EXPEDITION_TYPES).map(k => { const d = EXPEDITION_TYPES[k]; const ok = sel.length === d.pets; const enough = free.length >= d.pets; return `<div class="ho-row${ok ? ' pick' : ''}">
         <div class="item-ic">${nxIconSvg('hourglass') || '⏳'}</div>
@@ -10145,7 +10157,7 @@ function renderCadernetaBody() {
     <div class="section-title" style="margin-top:14px;">Míticos · ${found.length}/${MYTHIC_KEYS.length}</div>
     <div class="card raised"><div class="hm-chips">${MYTHIC_KEYS.map(k => chip(found.includes(k), found.includes(k) ? nxEnt(mythicIconKey(k), MYTHIC_DEFS[k].emo) : '❔', MYTHIC_DEFS[k].name, found.includes(k) ? `de ${MYTHIC_DEFS[k].boss}` : '')).join('')}</div></div>
     <div class="section-title" style="margin-top:14px;">Mascotes · ${[...petT].filter(t => PET_DEFS[t]).length}/${Object.keys(PET_DEFS).length}</div>
-    <div class="card raised"><div class="hm-chips">${Object.keys(PET_DEFS).map(t => chip(petT.has(t), petT.has(t) ? nxEnt('pet-' + t, PET_DEFS[t].icon) : '❔', PET_DEFS[t].name, petT.has(t) ? PET_DEFS[t].role : '')).join('')}</div></div>`;
+    <div class="card raised"><div class="hm-chips">${Object.keys(PET_DEFS).map(t => chip(petT.has(t), petT.has(t) ? petIc(t) : '❔', PET_DEFS[t].name, petT.has(t) ? PET_DEFS[t].role : '')).join('')}</div></div>`;
 }
 function heroiSections(p) {
   const pvLeft = passivePointsLeft(p);
@@ -11870,22 +11882,17 @@ if (typeof document !== 'undefined') document.addEventListener('click', e => {
   if (el) showStatHelp(el.dataset.statHelp);
 });
 function statSheetRow(icon, label, valueText, current, cap, capText, color) {
+  // v217: célula compacta (grelha de 2 colunas). Os stats a 0 ficam escondidos atrás de um botão.
   color = color || 'var(--gold-bright)';
   const hasCap = cap !== undefined && cap !== null && cap > 0;
   const fillPct = hasCap ? clamp((current / cap) * 100, 0, 100) : 0;
-  return `<div class="card raised${STAT_HELP[label] ? ' st-help' : ''}" style="margin-bottom:8px;"${STAT_HELP[label] ? ` data-stat-help="${esc(label)}"` : ''}>
-    <div class="row between" style="align-items:center;">
-      <span class="tiny" style="font-weight:700;">${icon} ${label}${STAT_HELP[label] ? ' <i class="st-q">?</i>' : ''}</span>
-      <span class="tiny" style="font-weight:700; color:${color};">${valueText}</span>
-    </div>
-    ${hasCap ? `<div class="bar" style="margin-top:6px;"><div class="bar-fill" style="width:${fillPct}%; background:${color};"></div></div>
-    <p class="tiny muted" style="margin-top:4px;">Máximo possível no jogo: ${capText}</p>` : ''}
+  const zero = current !== null && current !== undefined && !(Math.abs(current) > 1e-9);
+  return `<div class="pf-sc${zero ? ' zero' : ''}${STAT_HELP[label] ? ' st-help' : ''}"${STAT_HELP[label] ? ` data-stat-help="${esc(label)}"` : ''} style="--c:${color};">
+    <div class="t"><span>${icon} ${label}</span><b>${valueText}</b></div>
+    ${hasCap ? `<div class="mb"><i style="width:${fillPct}%"></i></div><div class="cap">máx. ${capText}</div>` : ''}
   </div>`;
 }
 
-// Folha de stats completa do Herói: todos os stats de effectiveStats(), incluindo os
-// que não aparecem sempre (só ativos com o equipamento/set certo), e o teto absoluto
-// de cada um que tem um limite de segurança.
 function renderFullStatsSheet(stats) {
   const rows = [];
   rows.push(statSheetRow('💥', 'Crítico', pct(stats.crit), stats.crit, CRIT_CAP, pct(CRIT_CAP)));
@@ -11916,12 +11923,18 @@ function renderFullStatsSheet(stats) {
   if (stats.bleedImmune) badges.push('🩸🚫 Imune a Sangramento');
   if (stats.undying) badges.push('💀✨ Imortal (1× por combate)');
 
-  return `
-    <div class="section-title">📊 Todos os stats</div>
-    <p class="muted" style="margin-bottom:10px;">Cada barra mostra o teto absoluto desse stat no jogo — nenhuma combinação de equipamento consegue ir além dele. Toca num stat para saberes o que faz.</p>
-    ${badges.length ? `<div class="row" style="gap:6px; flex-wrap:wrap; margin-bottom:10px;">${badges.map(b => `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">${b}</span>`).join('')}</div>` : ''}
-    ${rows.join('')}
-  `;
+  const zeros = rows.filter(r => r.includes('pf-sc zero')).length;
+  const shown = App.pfShowZero ? rows : rows.filter(r => !r.includes('pf-sc zero'));
+  const res = stats.res || {};
+  return `<div class="card raised pf-stats">
+    <div class="row between" style="align-items:baseline;"><span style="font-weight:700;">📊 Todos os stats</span><span class="tiny muted">barra = até ao máximo do jogo</span></div>
+    <p class="tiny muted" style="margin:4px 0 0;">Toca num stat para saberes o que faz.</p>
+    ${badges.length ? `<div class="row" style="gap:6px; flex-wrap:wrap; margin-top:8px;">${badges.map(b => `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">${b}</span>`).join('')}</div>` : ''}
+    <div class="pf-sgrid">${shown.join('')}</div>
+    ${zeros ? `<button class="btn small block" data-pf-zero="1" style="margin-top:8px;">${App.pfShowZero ? 'Esconder os stats a 0' : `Mostrar os ${zeros} stats a 0`}</button>` : ''}
+    <div class="row between" style="align-items:baseline; margin-top:12px;"><span style="font-weight:700;">🛡️ Resistências</span><span class="tiny muted">máx. ${RES_CAP}%</span></div>
+    <div class="pf-res">${ELEMENT_KEYS.map(el => { const v = resFor(stats, el), I = ELEMENT_INFO[el]; return `<div class="pf-rs" style="--c:${I.color};"><span class="e">${elIc(el)}</span><b>${v}%</b><small>${I.name}</small><div class="mb"><i style="width:${Math.min(100, v / RES_CAP * 100)}%"></i></div></div>`; }).join('')}</div>
+  </div>`;
 }
 
 function renderHeroiPerfilBody(part) {
@@ -12000,28 +12013,47 @@ function renderHeroiPerfilBody(part) {
   const abMaster = abM ? `<div class="ab-master has"><span class="crown">${nxEnt('habilidade-' + abM, ABILITIES[abM].icon)}</span><div><b>👑 ${ABILITIES[abM].name} · Mestra</b><span>${abilityLevelText(abM, ABILITY_MASTER_LEVEL)}</span></div></div>`
     : `<div class="ab-master"><span class="crown">👑</span><div><b>Habilidade Mestra</b><span>${!abHeroLvOk ? `Abre no nível ${ABILITY_MASTER_MIN_HERO_LV} do herói. Só uma habilidade pode ser Mestra (V).` : abElig.length ? `Pode ser Mestra: ${abElig.map(k => ABILITIES[k].name).join(', ')}. Só uma, e é permanente.` : 'Por escolher. Sobe uma habilidade até ao IV para a poderes tornar Mestra (V).'}</span></div></div>`;
 
-  let petsHtml = `<p class="muted">Ainda não encontraste nenhum mascote. Alguns monstros deixam cair um ovo/bebé ao seres derrotado — tenta a sorte em batalha!</p>`;
-  if (p.pets.length) {
-    petsHtml = p.pets.map(pet => {
-      const def = PET_DEFS[pet.type];
-      const petIc = nxEnt('pet-' + pet.type, def.icon);
-      const bonus = petBonusAt(pet.level, pet.type);
-      const active = p.activePet === pet.id;
-      return `
-        <div class="item-row" data-pet-card="${pet.id}" style="cursor:pointer;">
-          <div class="item-ic">${petIc}</div>
-          <div class="item-mid">
-            <div class="item-name">${def.name} ${bonus.adult ? '(adulto)' : '(bebé)'} <span class="tiny" style="opacity:.75;">· ${def.role}</span></div>
-            <div class="tiny">Nível ${pet.level}/50 ${active ? '· ativo' : ''}${hoPetBusy(p, pet.id) ? ' · 🗺️ em expedição' : ''}</div>
-            <div class="tiny" style="color:var(--gold-bright); margin-top:2px;">${petBonusText(bonus)} ${active ? '· aplicado agora' : '· só quando ativo'}</div>
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button class="btn small" data-feed-pet="${pet.id}">🐟 Alimentar</button>
-            ${!active && !hoPetBusy(p, pet.id) ? `<button class="btn small primary" data-activate-pet="${pet.id}">Usar</button>` : ''}
-          </div>
-        </div>`;
-    }).join('');
+  // v217: estábulo com a ativa em destaque, as tuas mascotes, coleção das 18 e ficha com barras.
+  const petTypes = Object.keys(PET_DEFS);
+  const ownedBy = t => p.pets.find(x => x.type === t);
+  const actPet = p.pets.find(x => x.id === p.activePet) || null;
+  if (!App.petSel || !PET_DEFS[App.petSel]) App.petSel = actPet ? actPet.type : (p.pets[0] ? p.pets[0].type : petTypes[0]);
+  const petFx = App.petFx; App.petFx = null;
+  const PSTATS = [['hp', 'HP', '#e0485a', v => '+' + v], ['def', 'Defesa', '#6fa8ff', v => '+' + v], ['dmg', 'Dano', '#e8a23a', v => '+' + v], ['crit', 'Crítico', '#f6dc85', v => '+' + pct(v)], ['dodge', 'Esquiva', '#8ee0d0', v => '+' + pct(v)]];
+  const PMAX = Object.fromEntries(PSTATS.map(([k]) => [k, Math.max(1e-9, ...petTypes.map(t => petBonusAt(50, t)[k]))]));
+  const petChips = b => PSTATS.filter(([k]) => b[k]).map(([k, l, c, f]) => `<span class="pt-chip" style="--c:${c};">${f(b[k])} ${l}</span>`).join('');
+  const feedCostN = (lv, n) => { let c = 0; for (let i = 0; i < n && lv + i < 50; i++) c += 5 + lv + i; return c; };
+  const stArt = NX_ICON_IMG.has('fundo-estabulo');
+  let stable = `<div class="pt-stable${stArt ? ' has-art' : ''}"${stArt ? ` style="--pt-art:url('${nxImgUrl('fundo-estabulo')}')"` : ''}>`;
+  if (actPet) {
+    const d = PET_DEFS[actPet.type], b = petBonusAt(actPet.level, actPet.type), busy = hoPetBusy(p, actPet.id), n10 = Math.min(10, 50 - actPet.level);
+    stable += `<div class="pt-act"><div class="pt-big${petFx ? ' fed' : ''}" style="--p:${Math.round(actPet.level / 50 * 100)};"><span class="ring"></span>${petIc(actPet.type)}<span class="lv">Nv. ${actPet.level}/50</span>
+        ${petFx ? Array.from({ length: Math.min(6, 2 + petFx.n) }, (_, i) => `<i class="pt-heart" style="left:${15 + (i * 37) % 80}px; top:${20 + (i * 23) % 50}px; animation-delay:${i * 0.08}s;">♥</i>`).join('') : ''}</div>
+      <div class="pt-info"><small>● Ativa${busy ? ' · 🗺️ em expedição' : ''}</small><b>${d.name}</b><span class="role">${d.role} · ${b.adult ? '🌟 adulta' : '🥚 bebé'}</span>
+        <div class="pt-grow">${actPet.level < 15 ? 'Cresce no <b>Nv. 15</b> (os bónus quase dobram)' : actPet.level < 50 ? `Até ao Nv. 50: faltam ${50 - actPet.level} níveis` : 'Nível máximo'}<div class="gb"><i style="width:${actPet.level / 50 * 100}%"></i><s></s></div></div>
+        <div class="pt-chips">${petChips(b)}</div></div></div>
+      <div class="pt-feed"><button class="btn primary" data-feed-pet="${actPet.id}" data-feed-n="1" ${actPet.level < 50 ? '' : 'disabled'}>🐟 Alimentar · ${feedCostN(actPet.level, 1).toLocaleString('pt-PT')} 🪙</button>
+        <button class="btn" data-feed-pet="${actPet.id}" data-feed-n="10" ${actPet.level < 50 ? '' : 'disabled'}>×${n10 || 10} · ${feedCostN(actPet.level, 10).toLocaleString('pt-PT')} 🪙</button></div>
+      ${petFx && petFx.grew ? `<div class="pt-grown"><div><b>🌟 Cresceu!</b><span>${d.name} agora é adulta — os bónus quase dobram.</span></div></div>` : ''}`;
+  } else {
+    stable += `<div class="pt-empty"><b>${p.pets.length ? 'Nenhuma mascote ativa' : 'Ainda não tens mascotes'}</b><span>${p.pets.length ? 'Escolhe uma em baixo e toca em "Usar como ativa".' : `Alguns monstros deixam cair uma mascote (~${Math.round(PET_DROP_CHANCE * 100)}%, uma vez por tipo). Vê na coleção onde cai cada uma.`}</span></div>`;
   }
+  stable += '</div>';
+  const mine = p.pets.length ? `<div class="section-title" style="margin-top:12px;">🐾 As tuas mascotes · ${p.pets.length}</div><div class="pt-mine">${p.pets.map(pet => { const d = PET_DEFS[pet.type], on = pet.id === p.activePet;
+      return `<button type="button" class="pt-mp${on ? ' on' : ''}${App.petSel === pet.type ? ' sel' : ''}" data-pet-sel="${pet.type}">${on ? '<span class="st">● ativa</span>' : hoPetBusy(p, pet.id) ? '<span class="st exp">🗺️</span>' : ''}<span class="ic">${petIc(pet.type)}</span><b>${d.name}</b><small>Nv. ${pet.level} · ${pet.level >= 15 ? 'adulta' : 'bebé'}</small></button>`; }).join('')}</div>` : '';
+  const ownedN = petTypes.filter(t => ownedBy(t)).length;
+  const coll = `<div class="card raised pt-coll"><div class="row between" style="align-items:baseline;"><span style="font-weight:700;">📖 Coleção</span><span class="tiny muted">${ownedN} de ${petTypes.length}</span></div>
+    <div class="pt-cbar"><i style="width:${Math.round(ownedN / petTypes.length * 100)}%"></i></div>
+    <div class="pt-grid">${petTypes.map(t => `<button type="button" class="pt-cp ${ownedBy(t) ? 'has' : 'no'}${App.petSel === t ? ' sel' : ''}" data-pet-sel="${t}" aria-label="${ownedBy(t) ? PET_DEFS[t].name : 'Mascote por descobrir'}">${petIc(t)}</button>`).join('')}</div></div>`;
+  const sd = PET_DEFS[App.petSel], spet = ownedBy(App.petSel), slv = spet ? spet.level : 0, snow = petBonusAt(Math.max(1, slv), App.petSel), stop = petBonusAt(50, App.petSel);
+  const sbars = PSTATS.filter(([k]) => stop[k]).map(([k, l, c, f]) => `<div class="pt-br" style="--c:${c};"><span>${l}</span><div class="t"><i style="width:${stop[k] / PMAX[k] * 100}%"></i>${spet ? `<u style="width:${snow[k] / PMAX[k] * 100}%"></u>` : ''}</div><b>${spet ? f(snow[k]) : '—'}<small> / ${f(stop[k])}</small></b></div>`).join('');
+  const src = petSourceText(App.petSel);
+  const sheet = `<div class="card raised pt-sheet"><div class="pt-fh"><span class="ic${spet ? '' : ' dark'}">${petIc(App.petSel)}</span><div><b>${spet ? sd.name : '???'}</b><small>${sd.role} · ${spet ? `Nv. ${slv}/50 · ${slv >= 15 ? 'adulta' : 'bebé'}` : 'por descobrir'}</small></div>
+      <span class="stt${spet && spet.id === p.activePet ? ' on' : ''}">${spet ? (spet.id === p.activePet ? '● Ativa' : hoPetBusy(p, spet.id) ? '🗺️ Expedição' : 'Na coleção') : 'Não tens'}</span></div>
+    ${spet ? '' : `<div class="pt-src">📍 Onde encontrar: <b>${src.length ? src.join(' · ') : '—'}</b>${App.petSel === 'abobora' ? '' : ` · ~${Math.round(PET_DROP_CHANCE * 100)}% por vitória, só uma vez`}</div>`}
+    <div class="pt-bars">${sbars}</div><p class="tiny muted" style="margin-top:6px;">${spet ? 'Cor forte: o que dá agora · cor clara: o que dá no Nv. 50.' : 'O que esta mascote dá no Nv. 50.'}</p>
+    ${spet && spet.id !== p.activePet && !hoPetBusy(p, spet.id) ? `<button class="btn primary block" data-activate-pet="${spet.id}" style="margin-top:10px;">Usar como ativa</button>` : ''}</div>`;
+  const petsHtml = stable + mine + coll + sheet;
 
   const filledAlchemy = (p.alchemySlots || []).filter(Boolean);
   const hasBonuses = stats.setBonuses.length > 0 || filledAlchemy.length > 0;
@@ -12044,6 +12076,46 @@ function renderHeroiPerfilBody(part) {
       <div class="sl">${SLOT_NAMES[slot]}</div><div class="si">${slotIconHtml(slot)}</div>
       <div class="sn" ${it ? `style="color:${esc(it.rarityColor || '')}"` : ''}>${it ? esc(it.name) : 'Vazio'}</div></div>`;
   }).join('');
+  // v217: Perfil — Sala de Honra, equipamento numa fila, de onde vem o poder, stats compactos e carreira.
+  const pfEvo = p.evolution ? EVOLUTIONS[p.class].find(e => e.key === p.evolution) : null;
+  const pfArt = NX_ICON_IMG.has('fundo-honra');
+  const pfHpNow = Math.min(Math.round(Number(p.hp) || 0), stats.hp);
+  const pfMax = p.level >= MAX_LEVEL;
+  const pfHall = `<div class="pf-hall${pfArt ? ' has-art' : ''}"${pfArt ? ` style="--pf-art:url('${nxImgUrl('fundo-honra')}')"` : ''}>
+    <div class="pf-in"><div class="pf-por"><div class="frame">${heroAvatarHtml(p, 'big')}</div><span class="lv">Nv. ${p.level}</span></div>
+      <div class="pf-hi"><b class="n">${sheetName}</b><div class="cl">${classIc(p.class, cls.icon)} ${cls.name}${pfEvo ? ` · ${pfEvo.name}` : ''}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
+        <div class="pf-pow"><small>Poder</small><b>${heroPower(p).toLocaleString('pt-PT')}</b></div>
+        <div class="pf-vb"><span>Vida</span><b>${pfHpNow.toLocaleString('pt-PT')} / ${stats.hp.toLocaleString('pt-PT')}</b></div><div class="pf-bar hp"><i style="width:${Math.round(pfHpNow / Math.max(1, stats.hp) * 100)}%"></i></div>
+        <div class="pf-vb"><span>XP</span><b>${pfMax ? 'Nível máximo' : `${Number(p.xp || 0).toLocaleString('pt-PT')} / ${sheetXpNeed.toLocaleString('pt-PT')}`}</b></div><div class="pf-bar xp"><i style="width:${pfMax ? 100 : sheetXpPct}%"></i></div></div></div>
+    <div class="pf-quick"><div><b>${stats.dmgMin}–${stats.dmgMax}</b><small>Dano</small></div><div><b>${stats.hp}</b><small>HP</small></div><div><b class="st-def">${stats.def}</b><small>Defesa</small></div>${stats.es ? `<div><b class="st-es">${stats.es}</b><small>Escudo</small></div>` : ''}<div><b>${pct(stats.crit)}</b><small>Crítico</small></div></div></div>`;
+  const pfEqN = EQUIP_SLOTS.filter(s => p.equipment[s]).length;
+  const pfEqRow = `<div class="card raised pf-eq" data-eq-go="1"><div class="row between" style="align-items:baseline;"><span style="font-weight:700;">🛡️ Equipamento</span><span class="tiny muted">${pfEqN}/${EQUIP_SLOTS.length} · toca para abrir</span></div>
+    <div class="pf-eqrow">${EQUIP_SLOTS.map(sl => { const it = p.equipment[sl]; return it ? `<div class="pf-eqs" style="--rc:${it.rarityColor};">${it.upgrade ? `<i>+${it.upgrade}</i>` : ''}${itemIconHtml(it)}</div>` : `<div class="pf-eqs empty">${slotIconHtml(sl)}</div>`; }).join('')}</div></div>`;
+  // De onde vem o poder: soma por camadas (base → +equipamento → +alquimia → +passivas → +mascote → +esconderijo → +talismã).
+  const pfLayers = [['base', 'Base (nível e classe)', '#8a7a60', []], ['eq', 'Equipamento', '#d6822e', ['equipment']], ['alch', 'Alquimia', '#4da3ff', ['alchemySlots', 'alchemyCore']], ['pass', 'Passivas', '#b48cff', ['passives']], ['pet', 'Mascote', '#8ee06a', ['activePet']], ['hide', 'Esconderijo', '#e4bf4a', ['hideout']], ['tal', 'Talismã', '#5fa05f', ['talismans']]];
+  let pfSrcHtml = '';
+  try {
+    let cur = Object.assign({}, p, { equipment: {}, alchemySlots: [], alchemyCore: null, passives: ['start'], activePet: null, hideout: null, talismans: [] });
+    let prev = null; const parts = { dmg: {}, hp: {}, def: {}, crit: {} };
+    pfLayers.forEach(([k, , , keys]) => { keys.forEach(x => { cur[x] = p[x]; }); const st = effectiveStats(cur), v = { dmg: st.dmg, hp: st.hp, def: st.def, crit: st.crit * 100 };
+      Object.keys(parts).forEach(s => { parts[s][k] = Math.max(0, prev ? v[s] - prev[s] : v[s]); }); prev = v; });
+    const rows = [['Dano', 'dmg', stats.dmg, ''], ['HP', 'hp', stats.hp, ''], ['Defesa', 'def', stats.def, ''], ['Crítico', 'crit', stats.crit * 100, '%']];
+    const f = (v, u) => (u === '%' ? String(Math.round(v * 10) / 10).replace('.', ',') : Math.round(v).toLocaleString('pt-PT')) + u;
+    pfSrcHtml = `<div class="pf-src-l">${pfLayers.map(([k, l, c]) => `<span style="--c:${c};">${l}</span>`).join('')}</div>` + rows.map(([n, key, tot, u]) => { const pr = parts[key], sum = Object.values(pr).reduce((a, b) => a + b, 0) || 1;
+      return `<div class="pf-srow"><div class="h"><span>${n}</span><b>${f(tot, u)}</b></div><div class="pf-stack">${pfLayers.filter(([k]) => pr[k] > 0.05).map(([k, l, c]) => `<i style="--c:${c}; width:${pr[k] / sum * 100}%"></i>`).join('')}</div>
+        <div class="d">${pfLayers.filter(([k]) => pr[k] > 0.05).map(([k, l]) => `${l.split(' (')[0]} ${k === 'base' ? '' : '+'}${f(pr[k], u)}`).join(' · ')}</div></div>`; }).join('');
+  } catch (e) { pfSrcHtml = ''; }
+  const pfTips = [];
+  if (p.level >= 10 && typeof passivePointsLeft === 'function' && passivePointsLeft(p) > 0) pfTips.push(['🌳', `<b>${passivePointsLeft(p)} ${passivePointsLeft(p) === 1 ? 'ponto' : 'pontos'} de Passivas</b> por gastar`, 'passivas', 'Passivas']);
+  if (!p.pets.some(x => x.id === p.activePet)) pfTips.push(['🐾', p.pets.length ? '<b>Sem mascote ativa</b> — escolhe uma' : '<b>Sem mascote</b> — encontra uma em batalha', 'mascotes', 'Mascotes']);
+  if (p.skillBooks > 0) pfTips.push(['📖', `<b>${p.skillBooks} ${p.skillBooks === 1 ? 'Livro' : 'Livros'} de Habilidades</b> por usar`, 'habilidades', 'Habilidades']);
+  if ((p.alchemySlots || []).filter(Boolean).length < ALCHEMY_SLOT_COUNT) pfTips.push(['🔮', `<b>Alquimia</b> com slots vazios`, 'alquimia', 'Alquimia']);
+  const pfSrc = pfSrcHtml ? `<div class="card raised pf-srcc"><span style="font-weight:700;">📈 De onde vem o teu poder</span>${pfSrcHtml}
+    ${pfTips.length ? `<div class="pf-tips">${pfTips.slice(0, 3).map(([ic, t, go, lb]) => `<div class="pf-tip">${ic} <span>${t}</span><button class="btn small" data-pf-go="${go}">${lb}</button></div>`).join('')}</div>` : ''}</div>` : '';
+  const pfW = (p.stats && p.stats.wins) || 0, pfL = (p.stats && p.stats.losses) || 0, pfB = (p.stats && p.stats.bossesKilled) || 0, pfWR = pfW + pfL ? Math.round(pfW / (pfW + pfL) * 100) : 0;
+  const pfCareer = `<div class="card raised"><span style="font-weight:700;">🏆 Carreira</span>
+    <div class="pf-career"><div><span class="e">⚔️</span><b>${pfW.toLocaleString('pt-PT')}</b><small>Vitórias</small></div><div><span class="e">💀</span><b>${pfL.toLocaleString('pt-PT')}</b><small>Derrotas</small></div><div><span class="e">👑</span><b>${pfB.toLocaleString('pt-PT')}</b><small>Chefes vencidos</small></div></div>
+    ${pfW + pfL ? `<div class="pf-wr tiny muted">${pfWR}% de vitórias<div class="pf-bar"><i class="w" style="width:${pfWR}%"></i><i class="l" style="width:${100 - pfWR}%"></i></div></div>` : ''}</div>`;
   const heroSheetHtml = `
     <div class="hero-sheet">
       <div class="hero-plate">${sheetName}</div>
@@ -12076,34 +12148,23 @@ function renderHeroiPerfilBody(part) {
         ${romanDots(lv)}
       </div>`; }).join('')}`;
   } else if (part === 'mascotes') {
-    html = `<p class="muted" style="margin-bottom:10px;">Só o mascote ativo dá bónus. Toca num mascote para veres os detalhes.</p>
+    html = `<p class="muted" style="margin-bottom:10px;">Só a mascote ativa dá bónus. Toca numa mascote (ou numa sombra da coleção) para veres a ficha.</p>
       ${petsHtml}`;
   } else {
-    html = heroSheetHtml + `
-    <div class="section-title">${heroIconHtml(p)} ${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
-    <div class="stat-grid">
-      <div class="stat-box st-help" data-stat-help="HP máximo"><div class="v">${stats.hp}</div><div class="k">HP máximo <i class="st-q">?</i></div></div>
-      <div class="stat-box st-help" data-stat-help="Dano"><div class="v">${stats.dmgMin}–${stats.dmgMax}</div><div class="k">Dano <i class="st-q">?</i></div></div>
-      <div class="stat-box st-help" data-stat-help="Defesa"><div class="v st-def">${stats.def}</div><div class="k">Defesa <i class="st-q">?</i></div></div>
-      <div class="stat-box st-help" data-stat-help="Crítico"><div class="v">${pct(stats.crit)}</div><div class="k">Crítico <i class="st-q">?</i></div></div>
-      ${stats.es ? `<div class="stat-box es st-help" data-stat-help="Escudo Mágico"><div class="v st-es">${stats.es}</div><div class="k">Escudo Mágico <i class="st-q">?</i></div></div>` : ''}
-    </div>
-    ${evoHtml}
-    ${renderFullStatsSheet(stats)}
-    ${bonusesHtml}`;
+    void heroSheetHtml; void bonusesHtml; // v217: substituídos pela Sala de Honra e pela origem do poder
+    html = pfHall + (canEvolve ? evoHtml : '') + pfEqRow + pfSrc + renderFullStatsSheet(stats) + pfCareer;
   }
   $('heroi-body').innerHTML = html;
 
   els('[data-confirm-evolve]').forEach(b => b.addEventListener('click', () => evolveClass(b.dataset.confirmEvolve)));
   els('[data-levelup-ability]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); levelUpAbility(b.dataset.levelupAbility); }));
   els('[data-ab-open]').forEach(c => c.addEventListener('click', e => { if (e.target.closest('button')) return; sfx.click(); App.abOpen = App.abOpen === c.dataset.abOpen ? null : c.dataset.abOpen; renderTabHeroi(); })); // v215
-  els('[data-feed-pet]').forEach(b => b.addEventListener('click', () => feedPet(b.dataset.feedPet)));
+  els('[data-feed-pet]').forEach(b => b.addEventListener('click', () => feedPet(b.dataset.feedPet, parseInt(b.dataset.feedN) || 1)));
+  els('[data-pet-sel]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.petSel = b.dataset.petSel; renderTabHeroi(); })); // v217
   els('[data-activate-pet]').forEach(b => b.addEventListener('click', () => { if (hoPetBusy(p, b.dataset.activatePet)) return; p.activePet = b.dataset.activatePet; saveGame(); renderTabHeroi(); toast('Mascote ativo alterado.'); }));
-  els('[data-pet-card]').forEach(row => row.addEventListener('click', (e) => {
-    if (e.target.closest('button')) return;
-    const pet = p.pets.find(x => x.id === row.dataset.petCard);
-    if (pet) showPetInfoModal(pet, p.activePet === pet.id);
-  }));
+  els('[data-eq-go]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.invTab = 'equip'; setTab('mochila'); })); // v217
+  els('[data-pf-go]').forEach(b => b.addEventListener('click', () => { sfx.click(); const g = b.dataset.pfGo; if (g === 'alquimia') { App.invTab = 'alquimia'; setTab('mochila'); } else { App.heroiTab = g; renderTabHeroi(); window.scrollTo(0, 0); } }));
+  els('[data-pf-zero]').forEach(b => b.addEventListener('click', () => { App.pfShowZero = !App.pfShowZero; renderTabHeroi(); }));
 }
 
 function evolveClass(evoKey) {
@@ -12154,19 +12215,21 @@ async function levelUpAbility(abilityKey) {
   toast(`${ABILITIES[abilityKey].name} subiu para o nível ${ROMAN[p.abilities[abilityKey].level]}!`);
 }
 
-function feedPet(petId) {
+function feedPet(petId, n) {
   const p = App.player;
   const pet = p.pets.find(x => x.id === petId);
   if (!pet) return;
-  if (pet.level >= 50) { sfx.error(); toast('Este mascote já está no nível máximo.'); return; }
-  const cost = 5 + pet.level;
-  if (p.gold < cost) { sfx.error(); toast(`Precisas de ${cost} ouro para alimentar este mascote.`); return; }
-  p.gold -= cost;
-  pet.level++;
+  if (pet.level >= 50) { sfx.error(); toast('Esta mascote já está no nível máximo.'); return; }
+  n = Math.max(1, Math.min(n || 1, 50 - pet.level));
+  const from = pet.level;
+  let done = 0, spent = 0;
+  while (done < n && pet.level < 50 && p.gold >= 5 + pet.level) { p.gold -= 5 + pet.level; spent += 5 + pet.level; pet.level++; done++; }
+  if (!done) { sfx.error(); toast(`Precisas de ${5 + pet.level} ouro para alimentar esta mascote.`); return; }
+  App.petFx = { id: pet.id, n: done, grew: from < 15 && pet.level >= 15 }; // v217
   saveGame();
   sfx.potion();
   renderHubTab();
-  toast(`${PET_DEFS[pet.type].name} subiu para o nível ${pet.level}.`);
+  toast(`${PET_DEFS[pet.type].name} subiu para o nível ${pet.level}${done > 1 ? ` (+${done})` : ''}.`);
 }
 
 function grantXp(amount) {
@@ -18876,7 +18939,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v216</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v217</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -20032,7 +20095,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
