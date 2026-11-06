@@ -3621,10 +3621,10 @@ function effectiveStats(player) {
     if (myth.luvas_sanguessuga) lifesteal = (lifesteal + 0.05) * 2; }
   // v219: Talentos Paragon (à parte do limite de dano %).
   const pgT = paragonOf(player) ? paragonTal(player) : {};
-  if (pgT.furia) { const k = 1 + 0.06 * pgT.furia; dmg = Math.round(dmg * k); dmgMin = Math.max(1, Math.round(dmgMin * k)); dmgMax = Math.max(dmgMin, Math.round(dmgMax * k)); }
-  if (pgT.egide) { const k = 1 + 0.06 * pgT.egide; hp = Math.round(hp * k); def = Math.round(def * k); }
-  if (pgT.golpe) crit += 0.04 * pgT.golpe;
-  if (pgT.fortuna) dropLuckBonus += 0.05 * pgT.fortuna;
+  if (pgT.furia) { const k = 1 + PG_VAL.furia / 100 * pgT.furia; dmg = Math.round(dmg * k); dmgMin = Math.max(1, Math.round(dmgMin * k)); dmgMax = Math.max(dmgMin, Math.round(dmgMax * k)); }
+  if (pgT.egide) { const k = 1 + PG_VAL.egide / 100 * pgT.egide; hp = Math.round(hp * k); def = Math.round(def * k); }
+  if (pgT.golpe) crit += PG_VAL.golpeCrit / 100 * pgT.golpe;
+  if (pgT.fortuna) dropLuckBonus += PG_VAL.fortLuck / 100 * pgT.fortuna;
   // Limites de segurança: nenhuma combinação de itens/sets pode tornar o jogador
   // intocável ou o inimigo incapaz de agir.
   dodge = Math.min(dodge, DODGE_CAP);
@@ -3639,7 +3639,7 @@ function effectiveStats(player) {
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20) + Math.round(gt.skillPct * 100),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + 0.15 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + 0.10 * (pgT.fortuna || 0), pgCd: pgT.impeto || 0, undying: !!pv.undying,
+    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + PG_VAL.golpeCd / 100 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + PG_VAL.fortGold / 100 * (pgT.fortuna || 0), pgCd: pgT.impeto || 0, undying: !!pv.undying,
     defPen: gt.defPen, dmgTakenRed: gt.dmgTaken, esLeech: gt.esLeech, esRegen: gt.esRegen,
     res: playerResTotals(player), myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
@@ -4654,9 +4654,11 @@ function obState(p) {
   const o = p.obel, day = soberanoDay();
   if (o.day !== day) { o.day = day; o.count = 0; }
   o.count = clamp(Math.floor(Number(o.count) || 0), 0, OB.DAILY);
+  // v220: descarta dados com horas no futuro (relógio do aparelho errado) — evitava contadores de milhares de minutos.
+  const now = Date.now(), maxExp = now + OB.LIFE_MS + 60e3;
   o.spawns = (Array.isArray(o.spawns) ? o.spawns : []).filter(x => x && typeof x.id === 'string' && Number.isFinite(x.exp) && REGIONS[x.region]
-    && Number.isFinite(x.x) && Number.isFinite(x.y)).slice(0, OB.MAX_ACTIVE);
-  o.nextAt = Number.isFinite(o.nextAt) ? o.nextAt : 0;
+    && Number.isFinite(x.x) && Number.isFinite(x.y) && x.exp <= maxExp).slice(0, OB.MAX_ACTIVE);
+  o.nextAt = Number.isFinite(o.nextAt) && o.nextAt <= now + OB.GAP_MAX + 60e3 ? o.nextAt : 0;
   return o;
 }
 // Faz nascer obeliscos conforme o tempo passou (também quem esteve fora). Devolve true se mudou algo.
@@ -4665,7 +4667,8 @@ function obTick(p) {
   const o = obState(p), now = Date.now();
   const n0 = o.spawns.length, ids0 = o.spawns.map(x => x.id).join();
   o.spawns = o.spawns.filter(x => x.exp > now);
-  if (!o.nextAt) o.nextAt = now;
+  if (!o.nextAt || o.nextAt > now + OB.GAP_MAX + 60e3) o.nextAt = now; // v220: corrige agendamentos no futuro
+  if (o.count === 0 && o.spawns.length === 0 && (o.nextAt - now) > OB.GAP_MAX) o.nextAt = now;
   let guard = 0;
   while (o.nextAt <= now && guard++ < 20) {
     const t0 = o.nextAt;
@@ -4731,7 +4734,7 @@ function todayBind() {
     else if (k === 'temporada') go('loja', { lojaTab: 'temporada' });
   }));
 }
-function obLeftTxt(ms) { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
+function obLeftTxt(ms) { const s = Math.min(OB.LIFE_MS, Math.max(0, Math.round(ms / 1000))); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }
 function obIc(cls) { return nxIconsEnabled() && NX_ICON_IMG.has('monstro-obelisco-do-vazio') ? nxIconSvg('monstro-obelisco-do-vazio', cls) : OB.ICON; }
 // Cartão por cima do mapa: contador do dia e obeliscos ativos.
 function obCardHtml(p, ri) {
@@ -12285,12 +12288,14 @@ const PARAGON_PTS = 2;
 const PARAGON_XP_MULT = [1, 1.5, 1.25];
 const PARAGON_GOLD_PER_P = 0.25;
 const PARAGON_P2_POWER = 0.20;
+// Valores por nível de talento (em %). Afinar aqui.
+const PG_VAL = { furia: 6, egide: 6, golpeCrit: 4, golpeCd: 15, fortGold: 10, fortLuck: 5, sab: 20, impMin: 2 };
 const PARAGON_TALENTS = [
-  { key: 'furia', name: 'Fúria', img: 'talento-furia', emo: '⚔️', max: 2, txt: n => `+${6 * n}% Dano` },
-  { key: 'egide', name: 'Égide', img: 'talento-egide', emo: '🛡️', max: 2, txt: n => `+${6 * n}% HP e Defesa` },
-  { key: 'golpe', name: 'Golpe', img: 'talento-golpe', emo: '🎯', max: 2, txt: n => `+${4 * n}% Crítico e +${15 * n}% dano crítico` },
-  { key: 'fortuna', name: 'Fortuna', img: 'talento-fortuna', emo: '🍀', max: 2, txt: n => `+${10 * n}% ouro e +${5 * n}% sorte no drop` },
-  { key: 'sabedoria', name: 'Sabedoria', img: 'talento-sabedoria', emo: '📚', max: 2, txt: n => `+${20 * n}% XP` },
+  { key: 'furia', name: 'Fúria', img: 'talento-furia', emo: '⚔️', max: 2, txt: n => `+${PG_VAL.furia * n}% Dano` },
+  { key: 'egide', name: 'Égide', img: 'talento-egide', emo: '🛡️', max: 2, txt: n => `+${PG_VAL.egide * n}% HP e Defesa` },
+  { key: 'golpe', name: 'Golpe', img: 'talento-golpe', emo: '🎯', max: 2, txt: n => `+${PG_VAL.golpeCrit * n}% Crítico e +${PG_VAL.golpeCd * n}% dano crítico` },
+  { key: 'fortuna', name: 'Fortuna', img: 'talento-fortuna', emo: '🍀', max: 2, txt: n => `+${PG_VAL.fortGold * n}% ouro e +${PG_VAL.fortLuck * n}% sorte no drop` },
+  { key: 'sabedoria', name: 'Sabedoria', img: 'talento-sabedoria', emo: '📚', max: 2, txt: n => `+${PG_VAL.sab * n}% XP` },
   { key: 'impeto', name: 'Ímpeto', img: 'talento-impeto', emo: '⏳', max: 1, txt: n => `−${n} ronda de recarga nas habilidades` }
 ];
 function paragonOf(p) { return p ? clamp(Math.floor(Number(p.paragon) || 0), 0, PARAGON_MAX) : 0; }
@@ -12322,10 +12327,10 @@ function pgXp(amount) {
   const p = App.player, P = paragonOf(p);
   if (!P || !amount) return amount;
   const L = heroLv(p);
-  return Math.max(1, Math.round(amount * (10 + 2.4 * L) / (10 + 2.4 * MAX_LEVEL) * (1 + 0.2 * paragonRank(p, 'sabedoria'))));
+  return Math.max(1, Math.round(amount * (10 + 2.4 * L) / (10 + 2.4 * MAX_LEVEL) * (1 + PG_VAL.sab / 100 * paragonRank(p, 'sabedoria'))));
 }
 // XP de um monstro/chefe de região em Paragon (já ao nível do monstro): multiplicador do P + Sabedoria.
-function pgXpRegion(amount, P) { return Math.max(1, Math.round(amount * PARAGON_XP_MULT[P] * (1 + 0.2 * paragonRank(App.player, 'sabedoria')))); }
+function pgXpRegion(amount, P) { return Math.max(1, Math.round(amount * PARAGON_XP_MULT[P] * (1 + PG_VAL.sab / 100 * paragonRank(App.player, 'sabedoria')))); }
 function combatLootLv(c) { return c && c.paragon ? Math.max(Number(c.level) || 1, MAX_LEVEL) : (c && c.level); }
 
 async function paragonReborn() {
@@ -12378,7 +12383,7 @@ async function paragonResetTalents() {
 // Stats do herói divididos em nível / equipamento e resto / Paragon (para o painel de Stats Paragon).
 function paragonStatParts(p) {
   const st = effectiveStats(p), L = heroLv(p), b = statsAtLevel(p.class, L), b200 = statsAtLevel(p.class, MAX_LEVEL);
-  const f = 1 + 0.06 * paragonRank(p, 'furia'), g = 1 + 0.06 * paragonRank(p, 'egide');
+  const f = 1 + PG_VAL.furia / 100 * paragonRank(p, 'furia'), g = 1 + PG_VAL.egide / 100 * paragonRank(p, 'egide');
   const split = (tot, base, k) => { const pg = Math.round(tot - tot / k), rest = Math.max(0, tot - pg - base); return [Math.min(base, tot - pg), rest, pg]; };
   const ref = Object.assign({}, p, { paragon: 0, paragonTal: {} });
   const st0 = effectiveStats(ref); // como estaria no Nv. 200 sem Paragon
@@ -12388,7 +12393,7 @@ function paragonStatParts(p) {
       { k: 'dmg', ic: '⚔️', l: 'Dano', v: st.dmg, parts: split(st.dmg, b.dmg, f), ref: st0.dmg, b200: b200.dmg },
       { k: 'hp', ic: '❤️', l: 'HP', v: st.hp, parts: split(st.hp, b.hp, g), ref: st0.hp },
       { k: 'def', ic: '🛡️', l: 'Defesa', v: st.def, parts: split(st.def, b.def, g), ref: st0.def },
-      { k: 'crit', ic: '🎯', l: 'Crítico', v: Math.round(st.crit * 100), pct: true, parts: [0, Math.round(st.crit * 100) - 4 * paragonRank(p, 'golpe'), 4 * paragonRank(p, 'golpe')], ref: Math.round(st0.crit * 100) }
+      { k: 'crit', ic: '🎯', l: 'Crítico', v: Math.round(st.crit * 100), pct: true, parts: [0, Math.round(st.crit * 100) - PG_VAL.golpeCrit * paragonRank(p, 'golpe'), PG_VAL.golpeCrit * paragonRank(p, 'golpe')], ref: Math.round(st0.crit * 100) }
     ]
   };
 }
@@ -12422,8 +12427,8 @@ function renderParagonBody() {
       <span class="pg-sb"><i class="b" style="width:${b / mx * 100}%"></i><i class="e" style="width:${e / mx * 100}%"></i><i class="p" style="width:${g / mx * 100}%"></i><s style="left:${Math.min(99, r.ref / mx * 100)}%"></s></span></div>`;
   };
   const sab = paragonRank(p, 'sabedoria'), fo = paragonRank(p, 'fortuna'), go = paragonRank(p, 'golpe'), im = paragonRank(p, 'impeto');
-  const bon = [['💥', 'Dano crítico', go ? `+${15 * go}%` : ''], ['🪙', 'Ouro', (P ? PARAGON_GOLD_PER_P * 100 * P : 0) + fo * 10 ? `+${(P ? PARAGON_GOLD_PER_P * 100 * P : 0) + fo * 10}%` : ''], ['🍀', 'Sorte no drop', fo ? `+${5 * fo}%` : ''],
-    ['📚', 'XP', P ? `×${String(Math.round(PARAGON_XP_MULT[P] * (1 + 0.2 * sab) * 100) / 100).replace('.', ',')}` : ''], ['⏳', 'Recarga', im ? `−${im} ronda` : ''], ['💎', 'Raridade', P ? `+${P} rolo${P > 1 ? 's' : ''}` : '']];
+  const bon = [['💥', 'Dano crítico', go ? `+${PG_VAL.golpeCd * go}%` : ''], ['🪙', 'Ouro', (P ? PARAGON_GOLD_PER_P * 100 * P : 0) + fo * PG_VAL.fortGold ? `+${(P ? PARAGON_GOLD_PER_P * 100 * P : 0) + fo * PG_VAL.fortGold}%` : ''], ['🍀', 'Sorte no drop', fo ? `+${PG_VAL.fortLuck * fo}%` : ''],
+    ['📚', 'XP', P ? `×${String(Math.round(PARAGON_XP_MULT[P] * (1 + PG_VAL.sab / 100 * sab) * 100) / 100).replace('.', ',')}` : ''], ['⏳', 'Recarga', im ? `−${im} ronda` : ''], ['💎', 'Raridade', P ? `+${P} rolo${P > 1 ? 's' : ''}` : '']];
   const pw = heroPower(p), pw0 = heroPower(Object.assign({}, p, { paragon: 0, paragonTal: {} }));
   const stats = `<div class="pg-st"><div class="pg-sh"><b>Stats Paragon</b><span class="pg-seg"><button type="button" data-pg-view="total" class="${view === 'total' ? 'on' : ''}">Total</button><button type="button" data-pg-view="par" class="${view === 'par' ? 'on' : ''}">Só Paragon</button></span></div>
     ${view === 'total' ? '<div class="pg-lg"><span><i class="b"></i>Nível</span><span><i class="e"></i>Equipamento e o resto</span><span><i class="p"></i>Paragon</span><span><i class="r"></i>O teu Nv. 200</span></div>' : ''}
@@ -19199,7 +19204,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v219</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v220</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
