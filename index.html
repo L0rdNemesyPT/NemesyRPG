@@ -2088,6 +2088,7 @@ function finishTowerFight() {
   xpGain = Math.round(xpGain * (td.xpMult || 1)); goldGain = Math.round(goldGain * (td.goldMult || 1));
   if (c.isElite) { xpGain = Math.round(xpGain * 1.5); goldGain = Math.round(goldGain * 1.5); }
   if (c.isBoss) { xpGain = Math.round(xpGain * 1.5); goldGain = Math.round(goldGain * 1.5); }
+  xpGain = pgXp(xpGain); // v219
   p.gold += goldGain;
   grantXp(xpGain);
   p.stats.wins++;
@@ -3238,7 +3239,7 @@ function seasonOnEnemyDefeated(c) {
   if (!p || !c) return;
   const before = seasonReadyCount(p);
   const isBossKill = !!(c.isBoss || c.isMiniBoss);
-  const lvl = c.level || 0;
+  const lvl = combatLootLv(c) || 0; // v219
   SEASON_MISSIONS.forEach(m => {
     if (m.type === 'kills' && !isBossKill && lvl >= m.minLv) seasonAdd(p, m);
     else if (m.type === 'bosses' && isBossKill && lvl >= m.minLv) seasonAdd(p, m);
@@ -3405,7 +3406,7 @@ function dualWieldActive(p) {
   return !!off && off.slot === 'weapon' && hasDualWield(p) && dualWieldEligible(off) && dualWieldEligible(p.equipment.weapon);
 }
 function effectiveStats(player) {
-  const base = statsAtLevel(player.class, player.level);
+  const base = statsAtLevel(player.class, heroLv(player)); // v219: nível real do Paragon
   const evoBonus = getEvoBonus(player);
   let hp = base.hp + evoBonus.hp;
   const talisman = getEquippedTalisman(player);
@@ -3618,6 +3619,12 @@ function effectiveStats(player) {
     if (myth.sandalias_peregrino) dodge = Math.max(0, dodge - 0.10);
     if (myth.egide_montanha) dodge = 0;
     if (myth.luvas_sanguessuga) lifesteal = (lifesteal + 0.05) * 2; }
+  // v219: Talentos Paragon (à parte do limite de dano %).
+  const pgT = paragonOf(player) ? paragonTal(player) : {};
+  if (pgT.furia) { const k = 1 + 0.06 * pgT.furia; dmg = Math.round(dmg * k); dmgMin = Math.max(1, Math.round(dmgMin * k)); dmgMax = Math.max(dmgMin, Math.round(dmgMax * k)); }
+  if (pgT.egide) { const k = 1 + 0.06 * pgT.egide; hp = Math.round(hp * k); def = Math.round(def * k); }
+  if (pgT.golpe) crit += 0.04 * pgT.golpe;
+  if (pgT.fortuna) dropLuckBonus += 0.05 * pgT.fortuna;
   // Limites de segurança: nenhuma combinação de itens/sets pode tornar o jogador
   // intocável ou o inimigo incapaz de agir.
   dodge = Math.min(dodge, DODGE_CAP);
@@ -3632,7 +3639,7 @@ function effectiveStats(player) {
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20) + Math.round(gt.skillPct * 100),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg, goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold, undying: !!pv.undying,
+    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + 0.15 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + 0.10 * (pgT.fortuna || 0), pgCd: pgT.impeto || 0, undying: !!pv.undying,
     defPen: gt.defPen, dmgTakenRed: gt.dmgTaken, esLeech: gt.esLeech, esRegen: gt.esRegen,
     res: playerResTotals(player), myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
@@ -4005,7 +4012,7 @@ function soberanoStageCheck(c) {
 }
 function finishSoberano() {
   const c = App.combat, p = App.player, B = c.soberanoDef, r = B.rewards;
-  const xpGain = Math.round((35 + B.lv * 4.5) * r.xpMult * (1 + battleXpBonus(c)));
+  const xpGain = pgXp(Math.round((35 + B.lv * 4.5) * r.xpMult * (1 + battleXpBonus(c))));
   const goldGain = Math.round((30 + B.lv * 4) * r.goldMult * (1 + (effectiveStats(p).goldPct || 0)));
   p.gold += goldGain; grantXp(xpGain);
   p.stats.wins++; p.stats.bossesKilled = (p.stats.bossesKilled || 0) + 1;
@@ -4914,7 +4921,7 @@ function finishObelisk() {
   const diff = MONSTER_DIFFICULTY.find(d => d.key === c.difficulty) || MONSTER_DIFFICULTY[0];
   o.spawns = o.spawns.filter(x => x.id !== c.obId);
   o.count = Math.min(OB.DAILY, o.count + 1);
-  const xpGain = Math.round((35 + lvl * 4.5) * OB.XP_MULT * diff.xpMult * (1 + battleXpBonus(c)));
+  const xpGain = pgXp(Math.round((35 + lvl * 4.5) * OB.XP_MULT * diff.xpMult * (1 + battleXpBonus(c))));
   const goldGain = Math.round((30 + lvl * 4) * OB.GOLD_MULT * diff.goldMult * (1 + (pStats.goldPct || 0)));
   p.gold += goldGain; grantXp(xpGain);
   p.stats.wins++;
@@ -5001,7 +5008,7 @@ function fixedElementFor(name) {
 function elementInitEnemy(c, enemy, name, named) {
   if (!enemy || enemy._elInit) return;
   enemy._elInit = true;
-  const lv = Number(c.level) || 0;
+  const lv = Number(combatLootLv(c)) || 0; // v219: monstros Paragon têm elemento
   if (lv < ELEMENT_MIN_LV) { enemy.element = null; return; }
   enemy.element = named ? fixedElementFor(name) : ELEMENT_KEYS[Math.floor(Math.random() * 4)];
   if (enemy.element === 'terra') enemy.def = Math.round((enemy.def || 0) * 1.15);
@@ -6390,20 +6397,21 @@ async function startNewGame() {
 function renderStatusBar() {
   const p = App.player;
   const stats = effectiveStats(p);
-  const need = xpForLevel(p.level);
+  const hl = heroLv(p), pgP = paragonOf(p); // v219
+  const need = xpForLevel(hl);
   const cls = CLASSES[p.class];
   const icon = heroIcon(p);
   $('statusbar').style.setProperty('--xp', `${clamp(p.xp / need * 100, 0, 100)}%`);
   $('statusbar').innerHTML = `
-    <div class="sb-portrait has-av">${heroAvatarHtml(p)}<span class="sb-lv-badge">${p.level}</span></div>
+    <div class="sb-portrait has-av${pgP ? ' pg' + pgP : ''}">${heroAvatarHtml(p)}<span class="sb-lv-badge">${hl}</span>${pgP ? `<span class="sb-pg p${pgP}">P${pgP}</span>` : ''}</div>
     <div class="sb-mid">
       <div class="sb-row1">
         <span class="sb-name">${esc(p.name)}</span>
-        <span class="sb-lvl">Nv. ${p.level}</span>
+        <span class="sb-lvl">Nv. ${hl}${pgPill(pgP)}</span>
       </div>
       <div class="bar bar-hp"><div class="bar-fill" style="width:${clamp(p.hp / stats.hp * 100, 0, 100)}%"></div></div>
-      <div class="hp-num"><span>${Math.max(0,p.hp)}/${stats.hp}<small> HP</small></span><span>${p.level >= MAX_LEVEL && p.xp >= need ? `<b class="xp-max">MÁX</b> ${p.xp}` : `${p.xp}/${need}`}<small> XP</small></span></div>
-      <div class="bar bar-xp${p.level >= MAX_LEVEL && p.xp >= need ? ' xp-full' : ''}"><div class="bar-fill" style="width:${clamp(p.xp / need * 100, 0, 100)}%"></div></div>
+      <div class="hp-num"><span>${Math.max(0,p.hp)}/${stats.hp}<small> HP</small></span><span>${hl >= MAX_LEVEL && p.xp >= need ? `<b class="xp-max">MÁX</b> ${p.xp}` : `${p.xp}/${need}`}<small> XP</small></span></div>
+      <div class="bar bar-xp${hl >= MAX_LEVEL && p.xp >= need ? ' xp-full' : ''}"><div class="bar-fill" style="width:${clamp(p.xp / need * 100, 0, 100)}%"></div></div>
     </div>
     <div class="sb-gold">🪙 <span class="sb-gold-n">${p.gold}</span></div>
     <button class="sb-mute" id="btn-open-settings">⚙️</button>
@@ -6435,6 +6443,7 @@ function nxWarmImages() {
   Object.keys(INTERIORS).forEach(k => rest.push('interior-' + k));
   if (p.profession) rest.push('prof-' + p.profession);
   rest.push('world-map', 'fundo-alquimia', 'fundo-armaria', 'fundo-feiticos', 'fundo-passivas', 'fundo-habilidades', 'fundo-estabulo', 'fundo-honra', 'fundo-taberna', 'fundo-despensa', 'trabalho-mina', 'trabalho-floresta', 'trabalho-lagoa', 'trabalho-quinta', 'cena-soberano', 'cena-cripta', 'cena-torre');
+  if ((p.level || 1) >= MAX_LEVEL) rest.push('fundo-paragon', 'paragon-1', 'paragon-2'); // v219
   const queue = rest.slice();
   const idle = window.requestIdleCallback || (f => setTimeout(f, 300));
   const next = () => { if (!queue.length) return; nxPreload([queue.shift()]); setTimeout(() => idle(next, { timeout: 2000 }), 700); };
@@ -8245,10 +8254,10 @@ function generateQuest() {
   const kind = Math.random() < 0.75 ? 'kill' : 'gold';
   if (kind === 'kill') {
     const target = 3 + Math.floor(Math.random() * 4);
-    p.quest = { kind: 'kill', target, progress: 0, rewardGold: 15 + p.level * 4, rewardXp: 8 + p.level * 3 };
+    p.quest = { kind: 'kill', target, progress: 0, rewardGold: 15 + p.level * 4, rewardXp: pgXp(8 + p.level * 3) };
   } else {
     const target = 1;
-    p.quest = { kind: 'boss', target, progress: 0, rewardGold: 40 + p.level * 6, rewardXp: 20 + p.level * 4 };
+    p.quest = { kind: 'boss', target, progress: 0, rewardGold: 40 + p.level * 6, rewardXp: pgXp(20 + p.level * 4) };
   }
 }
 function progressQuest(isBoss) {
@@ -8301,7 +8310,7 @@ function rmCreatureImg(name, icon) {
 }
 // v201: região acima do nível máximo (Reino Submerso): os monstros têm o nível da região, não o do herói.
 function regionHighLv(r) { return !!(r && r.minLv >= MAX_LEVEL); }
-function rgLvTxt(r, p) { return regionHighLv(r) ? `${r.minLv}–${r.maxLv}` : p.level; }
+function rgLvTxt(r, p) { return (regionHighLv(r) ? `${r.minLv}–${r.maxLv}` : heroLv(p)) + pgSuf(p); }
 function regionOfCombat(c) { return c && c.regionKey ? REGIONS.find(r => r.key === c.regionKey) || null : null; }
 function rmRand(a, b) { return a + Math.random() * (b - a); }
 function regionMapTokens(p, region) {
@@ -8333,7 +8342,7 @@ function regionMapHtml(p, region, overlayHtml) {
       return `<button type="button" class="rm-tok boss${t.gate ? ' gate' : ''}${done ? ' done' : ''}" data-rm-tok="${t.id}" aria-label="${esc(t.boss.name)}" style="left:${t.x}%;top:${t.y}%;z-index:${3 + Math.round(t.y)};">
         ${t.gate ? `<span class="rm-crown">${nxIconsEnabled() && NX_ICON_IMG.has('crown') ? nxIconSvg('crown') : '👑'}</span>` : ''}${done ? '<span class="rm-done">✓</span>' : ''}<span class="rm-alert">!</span>
         <span class="rm-c">${rmCreatureImg(t.boss.name, t.boss.icon)}</span><span class="rm-lb">${esc(t.boss.name)}</span>
-        <span class="rm-btag${gap > 1.15 ? ' warn' : ''}">${t.gate ? 'GUARDIÃO' : 'CHEFE'} · Nv. ${t.boss.lv}</span></button>`;
+        <span class="rm-btag${gap > 1.15 ? ' warn' : ''}">${t.gate ? 'GUARDIÃO' : 'CHEFE'} · Nv. ${t.boss.lv}${pgSuf(p)}</span></button>`;
     }
     return `<button type="button" class="rm-tok" data-rm-tok="${t.id}" aria-label="${esc(t.mon.name)}" style="left:${t.x}%;top:${t.y}%;z-index:${3 + Math.round(t.y)};">
       <span class="rm-alert">!</span><span class="rm-c">${rmCreatureImg(t.mon.name, t.mon.icon)}</span><span class="rm-lb">${esc(t.mon.name)}</span><span class="rm-lv">Nv. ${rgLvTxt(region, p)}</span></button>`;
@@ -8374,7 +8383,7 @@ function initRegionMap(p, region, fightWild, fightBoss) {
       const b = t.boss, done = p.defeatedBosses.includes(b.name), gap = bossGapMultiplier(b.lv, p.level);
       sheet.className = 'rm-sheet on boss';
       sheet.innerHTML = `<button type="button" class="rm-sh-x" aria-label="Fechar">×</button><div class="rm-sh-ic" style="border-color:${b.isGate ? 'var(--gold-bright)' : '#C95A5A'};">${rmCreatureImg(b.name, b.icon)}</div>
-        <div class="rm-sh-mid"><b>${esc(b.name)}</b><div class="tiny">${b.isGate ? 'Chefe da região' : 'Chefe'} · Nv. ${b.lv}${done ? ' · já derrotado' : ''}</div>
+        <div class="rm-sh-mid"><b>${esc(b.name)}</b><div class="tiny">${b.isGate ? 'Chefe da região' : 'Chefe'} · Nv. ${b.lv}${pgSuf(p)}${done ? ' · já derrotado' : ''}</div>
         ${gap > 1.15 ? `<div class="tiny rm-warn">⚠️ ${b.lv - p.level} níveis acima de ti — ×${gap.toFixed(2)} mais forte</div>` : ''}</div>
         <button type="button" class="btn danger rm-atk" id="rm-atk">⚔️ Desafiar</button>`;
     } else {
@@ -8479,7 +8488,7 @@ function regionListHtml(p, region, diff, pillsHtml) {
     return `
     <button type="button" class="bl-row boss${b.isGate ? ' gate' : ''}${done ? ' done' : ''}" data-bl-boss="${i}">
       <span class="bl-ic">${b.isGate ? '<span class="bl-crown">👑</span>' : ''}${rmCreatureImg(b.name, b.icon)}${done ? '<span class="bl-ok">✓</span>' : ''}</span>
-      <span class="bl-t"><b>${esc(b.name)}</b><small>${b.isGate ? 'Guardião da região' : 'Chefe'} · Nv. ${b.lv}${done ? ' · derrotado' : ''}</small>
+      <span class="bl-t"><b>${esc(b.name)}</b><small>${b.isGate ? 'Guardião da região' : 'Chefe'} · Nv. ${b.lv}${pgSuf(p)}${done ? ' · derrotado' : ''}</small>
         ${gap > 1.15 ? `<em class="bl-warn">⚠️ ${b.lv - p.level} níveis acima de ti</em>` : ''}</span>
       <span class="bl-go">Desafiar</span>
     </button>`;
@@ -8616,7 +8625,7 @@ function renderTabBatalha() {
     if (b.classList.contains('on')) return;
     sfx.tab(); setRegionViewMode(b.dataset.btView); renderTabBatalha();
   }));
-  const fightWild = m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: p.level, category: m.category || 'outro', count: hordeSize(p), repeat: true, regionKey: region.key });
+  const fightWild = m => startCombat({ kind: 'wild', name: m.name, icon: m.icon, level: heroLv(p), category: m.category || 'outro', count: hordeSize(p), repeat: true, regionKey: region.key });
   const fightBoss = boss => startCombat({ kind: 'boss', name: boss.name, icon: boss.icon, level: boss.lv, regionIndex: App.selectedRegionIndex, isGate: boss.isGate, category: boss.category, regionKey: region.key, repeat: true });
   if (listView) {
     clearInterval(App.rmTimer);
@@ -10018,7 +10027,8 @@ const UNLOCKS = {
     amigos: { lv: 10, label: 'Amigos' },
     profissoes: { lv: 15, label: 'Profissões', alt: p => !!p.profession || (p.professionBooks || 0) > 0 },
     esconderijo: { lv: HIDEOUT_MIN_LEVEL, label: 'Esconderijo', alt: p => !!p.hideout },
-    vila: { lv: 999, label: 'Vila', need: p => vilaUnlocked(p), needTxt: `Esconderijo Nv. ${HIDEOUT_MAX_LEVEL}` } // v200: só com o Esconderijo no máximo
+    vila: { lv: 999, label: 'Vila', need: p => vilaUnlocked(p), needTxt: `Esconderijo Nv. ${HIDEOUT_MAX_LEVEL}` }, // v200: só com o Esconderijo no máximo
+    paragon: { lv: MAX_LEVEL, label: 'Paragon' } // v219
   },
   loja: {
     ferreiro: { lv: 3, label: 'Ferreiro' },
@@ -10078,6 +10088,7 @@ function heroMenuSub(p, s) {
     case 'passivas': { const n = passivePointsLeft(p); return n > 0 ? [`${pl(n, 'ponto livre', 'pontos livres')}`, 'go'] : ['Tudo distribuído']; }
     case 'mascotes': { const a = (p.pets || []).find(x => x.id === p.activePet), d = a && PET_DEFS[a.type]; return d ? [`${d.name} Nv. ${a.level}`] : (p.pets || []).length ? [`${pl(p.pets.length, 'mascote', 'mascotes')} · nenhuma ativa`, 'go'] : ['Ainda nenhuma']; }
     case 'profissoes': return p.profession && PROFESSIONS[p.profession] ? [`${PROFESSIONS[p.profession].name} Nv. ${profLevelOf(p, p.profession)}`] : p.professionBooks ? ['Por escolher · tens 📗', 'go'] : ['Por escolher'];
+    case 'paragon': return paragonCanReborn(p) ? [`Renascer · Paragon ${paragonOf(p) + 1}`, 'go'] : paragonOf(p) ? [`Nv. ${heroLv(p)} · P${paragonOf(p)}`] : ['Renasce no Nv. 200'];
     case 'caderneta': { const n = ALL_BOSSES.filter(b => (p.defeatedBosses || []).includes(b.name)).length; return [`${pl(n, 'chefe vencido', 'chefes vencidos')}`]; }
     case 'guild': { const d = typeof guildCache !== 'undefined' && guildCache && cloudUser && guildCache.userId === cloudUser.id ? guildCache.data : null;
       if (!d) return ['A tua guild']; if (!d.guild) return ['Sem guild · junta-te a uma']; return [guildBadge() ? `${esc(d.guild.name || 'Guild')} · prémio pronto` : esc(d.guild.name || 'Guild'), guildBadge() ? 'go' : '']; }
@@ -10090,6 +10101,12 @@ function heroMenuSub(p, s) {
   }
   return [s.sub || ''];
 }
+function paragonMenuTile(p) { // v219
+  const P = paragonOf(p), L = heroLv(p), need = Math.max(1, xpForLevel(L)), art = NX_ICON_IMG.has('fundo-paragon');
+  const sub = paragonCanReborn(p) ? `Podes renascer · Paragon ${P + 1}` : P ? `Nv. ${L} · P${P}${paragonPointsLeft(p) ? ` · ${paragonPointsLeft(p)} ${paragonPointsLeft(p) === 1 ? 'ponto livre' : 'pontos livres'}` : ''}` : 'Renasce e recomeça mais forte';
+  return `<button type="button" class="hm-pg${art ? ' has-art' : ''}${P ? ' p' + P : ''}${paragonCanReborn(p) ? ' ready' : ''}" data-heroitab="paragon"${art ? ` style="--pg-art:url('${nxImgUrl('fundo-paragon')}')"` : ''}>
+    <span class="em">${pgEmblem(Math.max(1, P))}</span><span class="tx"><b>Paragon${P ? ` ${P}` : ''}</b><small>${sub}</small>${P ? `<span class="bar"><i style="width:${L >= MAX_LEVEL ? 100 : clamp((p.xp || 0) / need * 100, 0, 100)}%"></i></span>` : ''}</span><span class="go">›</span></button>`;
+}
 function heroTodo(p, sections) {
   const has = k => sections.some(s => s.key === k), out = [];
   const add = (k, ic, t, sub) => out.push(`<button type="button" class="hm-td" data-heroitab="${k}"><span class="hm-td-ic">${ic}</span><span><b>${t}</b><small>${sub}</small></span></button>`);
@@ -10100,6 +10117,8 @@ function heroTodo(p, sections) {
   const v = has('vila') && p.vila; if (v && v.exp && v.exp.phase === 'fim') add('vila', nxEnt('vila', '🏰'), 'A armada voltou', 'relatório na Vila'); else if (v && Object.keys(v.broken || {}).length) add('vila', nxEnt('vila', '🏰'), 'A Vila tem estragos', 'repara os edifícios');
   if (has('guild') && guildBadge()) add('guild', nxEnt('guild', GUILD_TILE_ICON), 'Prémio da Guild', 'pronto a receber');
   const fr = has('amigos') ? friendBadgeTotal() : 0; if (fr) add('amigos', nxEnt('amigos', '👥'), `${fr} ${fr === 1 ? 'novidade' : 'novidades'} dos amigos`, 'pedidos, mensagens ou trocas');
+  if (has('paragon') && paragonCanReborn(p)) add('paragon', pgEmblem(paragonOf(p) + 1, 'td'), `Podes renascer: Paragon ${paragonOf(p) + 1}`, 'voltas ao Nv. 1 com tudo o que tens');
+  { const pl = has('paragon') ? paragonPointsLeft(p) : 0; if (pl > 0) add('paragon', pgEmblem(paragonOf(p), 'td'), `${pl} ${pl === 1 ? 'Ponto' : 'Pontos'} Paragon`, 'por gastar nos talentos'); }
   if (has('mascotes') && (p.pets || []).length && !(p.pets || []).some(x => x.id === p.activePet)) add('mascotes', nxEnt('paw', '🐾'), 'Nenhuma mascote ativa', 'escolhe uma para ter bónus');
   return out;
 }
@@ -10129,7 +10148,7 @@ function heroMenuHtml(p, sections) {
   const card = `<button type="button" class="hm-card" data-heroitab="perfil" style="--hm-art:url(icons/classe-arte-${p.class}.webp?v=${NX_ICON_VER});">
     <span class="hm-art"></span><span class="hm-open">Perfil ›</span>
     <span class="hm-in">
-      <span class="hm-top"><span class="hm-av">${heroAvatarHtml(p)}<em>${p.level}</em></span><span><b class="hm-name">${esc(p.name || 'Herói')}</b><small class="hm-cls">${evo ? `${evo.name} · ${cls.name}` : cls.name || ''}</small></span></span>
+      <span class="hm-top"><span class="hm-av${paragonOf(p) ? ' pg' + paragonOf(p) : ''}">${heroAvatarHtml(p)}<em>${heroLv(p)}</em></span><span><b class="hm-name">${esc(p.name || 'Herói')}</b><small class="hm-cls">${evo ? `${evo.name} · ${cls.name}` : cls.name || ''}${paragonOf(p) ? ` ${pgPill(paragonOf(p))}` : ''}</small></span></span>
       <span class="hm-pw"><span>Poder</span><b>${nxNum(pw)}</b>${dif ? `<em class="${dif > 0 ? 'up' : 'dn'}">${dif > 0 ? '▲' : '▼'} ${nxNum(Math.abs(dif))}</em>` : ''}</span>
       <span class="hm-mini"><span><b>${nxNum(st.hp)}</b>Vida</span><span><b>${nxNum(st.dmg)}</b>Dano</span><span><b>${nxNum(st.def)}</b>Defesa</span><span><b>${crit}%</b>Crítico</span></span>
     </span><span class="hm-gear" aria-hidden="true">${gear}</span></button>`;
@@ -10139,6 +10158,7 @@ function heroMenuHtml(p, sections) {
   const todo = heroTodo(p, sections);
   return `<div class="hm">${card}
     ${todo.length ? `<div class="hm-sec">A fazer</div><div class="hm-todo">${todo.join('')}</div>` : ''}
+    ${sections.some(s => s.key === 'paragon') ? paragonMenuTile(p) : ''}
     ${grp('O teu herói', ['habilidades', 'passivas', 'mascotes', 'profissoes', 'caderneta', 'perfil'])}
     ${grp('Social', ['guild', 'amigos'], true)}
     ${grp('A tua base', ['esconderijo', 'vila'], true)}
@@ -10172,7 +10192,8 @@ function heroiSections(p) {
     { key: 'esconderijo', label: 'Esconderijo', icon: nxEnt('esconderijo', '🏰'), locked: p.level < HIDEOUT_MIN_LEVEL, sub: p.level < HIDEOUT_MIN_LEVEL ? `🔒 Nv. ${HIDEOUT_MIN_LEVEL}` : null,
       badge: p.hideout ? (hoReadyCount(p) || null) : (p.level >= HIDEOUT_MIN_LEVEL ? 'Novo' : null) },
     { key: 'vila', label: 'Vila', icon: nxEnt('vila', '🏰'), badge: vilaBadge(p) }, // v198
-    { key: 'caderneta', label: 'Caderneta', icon: nxEnt('trofeu-vitoria', '🏆') } // v209
+    { key: 'caderneta', label: 'Caderneta', icon: nxEnt('trofeu-vitoria', '🏆') }, // v209
+    { key: 'paragon', label: 'Paragon', icon: nxEnt('paragon-' + Math.max(1, paragonOf(p)), '✨'), badge: paragonCanReborn(p) ? '✨' : (paragonPointsLeft(p) || null) } // v219
   ];
 }
 
@@ -10223,6 +10244,7 @@ function renderTabHeroi() {
   else if (current.key === 'esconderijo') renderEsconderijoBody();
   else if (current.key === 'vila') renderVilaBody(); // v198
   else if (current.key === 'caderneta') renderCadernetaBody(); // v209
+  else if (current.key === 'paragon') renderParagonBody(); // v219
   else renderHeroiPerfilBody(current.key);
 }
 
@@ -12087,7 +12109,7 @@ function renderHeroiPerfilBody(part) {
   const sheetName = esc(p.name || 'Herói');
   const sheetMaxHp = Math.max(1, Number(stats.hp) || 1);
   const sheetHpPct = Math.max(0, Math.min(100, Math.round((Number(p.hp) || 0) / sheetMaxHp * 100)));
-  const sheetXpNeed = Math.max(1, xpForLevel(p.level));
+  const sheetXpNeed = Math.max(1, xpForLevel(heroLv(p)));
   const sheetXpPct = Math.max(0, Math.min(100, Math.round((Number(p.xp) || 0) / sheetXpNeed * 100)));
   const sheetSlots = EQUIP_SLOTS.map(slot => {
     const it = p.equipment[slot];
@@ -12099,9 +12121,9 @@ function renderHeroiPerfilBody(part) {
   const pfEvo = p.evolution ? EVOLUTIONS[p.class].find(e => e.key === p.evolution) : null;
   const pfArt = NX_ICON_IMG.has('fundo-honra');
   const pfHpNow = Math.min(Math.round(Number(p.hp) || 0), stats.hp);
-  const pfMax = p.level >= MAX_LEVEL;
+  const pfMax = heroLv(p) >= MAX_LEVEL;
   const pfHall = `<div class="pf-hall${pfArt ? ' has-art' : ''}"${pfArt ? ` style="--pf-art:url('${nxImgUrl('fundo-honra')}')"` : ''}>
-    <div class="pf-in"><div class="pf-por"><div class="frame">${heroAvatarHtml(p, 'big')}</div><span class="lv">Nv. ${p.level}</span></div>
+    <div class="pf-in"><div class="pf-por${paragonOf(p) ? ' pg' + paragonOf(p) : ''}"><div class="frame">${heroAvatarHtml(p, 'big')}</div><span class="lv">Nv. ${heroLv(p)}${pgPill(paragonOf(p))}</span></div>
       <div class="pf-hi"><b class="n">${sheetName}</b><div class="cl">${classIc(p.class, cls.icon)} ${cls.name}${pfEvo ? ` · ${pfEvo.name}` : ''}${p.profession ? ` · ${PROFESSIONS[p.profession].icon} ${PROFESSIONS[p.profession].name}` : ''}</div>
         <div class="pf-pow"><small>Poder</small><b>${heroPower(p).toLocaleString('pt-PT')}</b></div>
         <div class="pf-vb"><span>Vida</span><b>${pfHpNow.toLocaleString('pt-PT')} / ${stats.hp.toLocaleString('pt-PT')}</b></div><div class="pf-bar hp"><i style="width:${Math.round(pfHpNow / Math.max(1, stats.hp) * 100)}%"></i></div>
@@ -12141,7 +12163,7 @@ function renderHeroiPerfilBody(part) {
       <div class="hero-main">
         <div class="hero-portrait has-av"><span class="hero-av-frame">${heroAvatarHtml(p, 'big')}</span><em>${p.evolution ? EVOLUTIONS[p.class].find(e=>e.key===p.evolution).name : cls.name}</em></div>
         <div class="hero-vitals">
-          <div class="hv-row"><span>Nível</span><b>${p.level}</b></div>
+          <div class="hv-row"><span>Nível</span><b>${heroLv(p)}${pgSuf(p)}</b></div>
           <div class="hv-row"><span>Vida</span><b class="hp">${Math.round(p.hp)}/${stats.hp}</b></div>
           <div class="bar bar-hp"><div class="bar-fill" style="width:${sheetHpPct}%"></div></div>
           <div class="hv-row"><span>Experiência</span><b class="xp">${p.xp}/${sheetXpNeed}</b></div>
@@ -12251,28 +12273,229 @@ function feedPet(petId, n) {
   toast(`${PET_DEFS[pet.type].name} subiu para o nível ${pet.level}${done > 1 ? ` (+${done})` : ''}.`);
 }
 
+// ============================================================
+// ✨ PARAGON (v219) — no Nv. 200 o herói pode renascer (máx. 2 vezes): volta ao Nv. 1 · P1 com tudo o que tem.
+// O save continua com level = 200 (desbloqueios, passivas, dungeons e o antibatota do servidor tratam-no como Nv. 200);
+// o nível "real" do Paragon fica em p.plv e só manda no XP, nos stats base e nos monstros das regiões.
+// Monstros e chefes das regiões mantêm o nível, mas ganham a força Paragon: 55% de um Nv. 200 no Nv. 1 até 100% no Nv. 200
+// (+20% no P2). XP das regiões ×1,5 no P1 e ×1,25 no P2. Fora das regiões o XP acompanha o nível real.
+// ============================================================
+const PARAGON_MAX = 2;
+const PARAGON_PTS = 2;
+const PARAGON_XP_MULT = [1, 1.5, 1.25];
+const PARAGON_GOLD_PER_P = 0.25;
+const PARAGON_P2_POWER = 0.20;
+const PARAGON_TALENTS = [
+  { key: 'furia', name: 'Fúria', img: 'talento-furia', emo: '⚔️', max: 2, txt: n => `+${6 * n}% Dano` },
+  { key: 'egide', name: 'Égide', img: 'talento-egide', emo: '🛡️', max: 2, txt: n => `+${6 * n}% HP e Defesa` },
+  { key: 'golpe', name: 'Golpe', img: 'talento-golpe', emo: '🎯', max: 2, txt: n => `+${4 * n}% Crítico e +${15 * n}% dano crítico` },
+  { key: 'fortuna', name: 'Fortuna', img: 'talento-fortuna', emo: '🍀', max: 2, txt: n => `+${10 * n}% ouro e +${5 * n}% sorte no drop` },
+  { key: 'sabedoria', name: 'Sabedoria', img: 'talento-sabedoria', emo: '📚', max: 2, txt: n => `+${20 * n}% XP` },
+  { key: 'impeto', name: 'Ímpeto', img: 'talento-impeto', emo: '⏳', max: 1, txt: n => `−${n} ronda de recarga nas habilidades` }
+];
+function paragonOf(p) { return p ? clamp(Math.floor(Number(p.paragon) || 0), 0, PARAGON_MAX) : 0; }
+function heroLv(p) { if (!p) return 1; return paragonOf(p) ? clamp(Math.floor(Number(p.plv) || 1), 1, MAX_LEVEL) : (p.level || 1); }
+function pgSuf(p) { const P = paragonOf(p); return P ? ` · P${P}` : ''; }
+function heroLvTxt(p) { return `Nv. ${heroLv(p)}${pgSuf(p)}`; }
+function pgEmblem(P, cls) { return NX_ICON_IMG.has('paragon-' + P) ? `<img class="pg-em${cls ? ' ' + cls : ''}" src="${nxImgUrl('paragon-' + P)}" alt="" draggable="false">` : '✨'; }
+function pgPill(P) { return P ? `<span class="pg-pill p${P}">P${P}</span>` : ''; }
+function paragonTal(p) {
+  if (!p.paragonTal || typeof p.paragonTal !== 'object') p.paragonTal = {};
+  const t = p.paragonTal, cap = paragonOf(p) * PARAGON_PTS;
+  let used = 0;
+  PARAGON_TALENTS.forEach(d => { t[d.key] = clamp(Math.floor(Number(t[d.key]) || 0), 0, d.max); used += t[d.key]; });
+  if (used > cap) PARAGON_TALENTS.forEach(d => { t[d.key] = 0; }); // save estragado: devolve os pontos
+  return t;
+}
+function paragonRank(p, k) { return paragonOf(p) ? (paragonTal(p)[k] || 0) : 0; }
+function paragonPointsLeft(p) { if (!paragonOf(p)) return 0; const t = paragonTal(p); return paragonOf(p) * PARAGON_PTS - PARAGON_TALENTS.reduce((a, d) => a + t[d.key], 0); }
+function paragonCanReborn(p) { return !!p && paragonOf(p) < PARAGON_MAX && (p.level || 1) >= MAX_LEVEL && heroLv(p) >= MAX_LEVEL; }
+// Força Paragon de um monstro/chefe de região (mantém o nível; o P dá a força).
+function paragonPowerMult(lv, P) { return (0.55 + 0.45 * Math.min(Math.max(lv, 1), MAX_LEVEL) / MAX_LEVEL) * (1 + PARAGON_P2_POWER * (P - 1)); }
+function paragonEnemyStats(lv, isBoss, P) {
+  const e = enemyStatsFor(Math.max(lv, MAX_LEVEL), isBoss), k = paragonPowerMult(lv, P);
+  e.hp = Math.round(e.hp * k); e.maxHp = e.hp; e.dmg = Math.max(1, Math.round(e.dmg * k)); e.def = Math.round(e.def * k);
+  return e;
+}
+// XP de fontes calculadas para o Nv. 200 (dungeons, torre, missões…): acompanha o nível real do Paragon.
+function pgXp(amount) {
+  const p = App.player, P = paragonOf(p);
+  if (!P || !amount) return amount;
+  const L = heroLv(p);
+  return Math.max(1, Math.round(amount * (10 + 2.4 * L) / (10 + 2.4 * MAX_LEVEL) * (1 + 0.2 * paragonRank(p, 'sabedoria'))));
+}
+// XP de um monstro/chefe de região em Paragon (já ao nível do monstro): multiplicador do P + Sabedoria.
+function pgXpRegion(amount, P) { return Math.max(1, Math.round(amount * PARAGON_XP_MULT[P] * (1 + 0.2 * paragonRank(App.player, 'sabedoria')))); }
+function combatLootLv(c) { return c && c.paragon ? Math.max(Number(c.level) || 1, MAX_LEVEL) : (c && c.level); }
+
+async function paragonReborn() {
+  const p = App.player;
+  if (!paragonCanReborn(p)) { sfx.error(); toast(`Precisas de estar no Nv. ${MAX_LEVEL} para renascer.`); return; }
+  const n = paragonOf(p) + 1;
+  const ok = await nxConfirm('', { title: `Renascer — Paragon ${n}`, icon: pgEmblem(n, 'big'), confirmLabel: '✨ Renascer', cancelLabel: 'Agora não',
+    html: `<p style="margin:0 0 8px;">Voltas ao <b>Nv. 1 · P${n}</b>. ${n === PARAGON_MAX ? 'É o último Paragon.' : 'Ainda podes fazer mais um depois.'}</p>
+      <div class="pg-keep"><div class="k"><b>✔ Fica tudo</b><span>Equipamento, ouro, materiais, habilidades, passivas, mascotes, Esconderijo, Vila e regiões abertas.</span></div>
+      <div class="r"><b>↺ Volta ao início</b><span>O nível e o XP.</span></div>
+      <div class="g"><b>✨ Ganhas</b><span>${PARAGON_PTS} Pontos Paragon, XP das regiões ×${String(PARAGON_XP_MULT[n]).replace('.', ',')} e monstros P${n}${n > 1 ? ' (+20% de força)' : ''}.</span></div></div>` });
+  if (!ok || !paragonCanReborn(App.player)) return;
+  p.paragon = n; p.plv = 1; p.xp = 0;
+  paragonTal(p);
+  p.hp = effectiveStats(p).hp;
+  if (!p.stats) p.stats = {};
+  p.stats.paragonAt = Date.now();
+  saveGame();
+  sfx.evolve(); fxVibrate([30, 60, 30, 60, 90]);
+  if (fxOn()) fxOverlay('pg', `<div class="fx-rays"></div><i class="fx-ov-beam" style="--rc:${n === 2 ? '#ffd36b' : '#9fd6ff'}"></i><i class="fx-ov-ring" style="--rc:${n === 2 ? '#ffd36b' : '#9fd6ff'}"></i>${fxConfetti(26, ['✦', '✧', '✦', '✶'])}
+    <div class="fx-ov-box"><div class="pg-fx-em">${pgEmblem(n, 'big')}</div><div class="fx-ov-kicker">Renasceste!</div><div class="fx-ov-big">Paragon ${n}</div><div class="fx-ov-sub">Nv. 1 · P${n} · +${PARAGON_PTS} Pontos Paragon</div></div>`, 3200);
+  else toast(`✨ Paragon ${n}! Estás no Nv. 1 · P${n}.`);
+  renderStatusBar(); renderHubTab();
+}
+function paragonSpend(k) {
+  const p = App.player, d = PARAGON_TALENTS.find(x => x.key === k);
+  if (!d || !paragonOf(p)) return;
+  const t = paragonTal(p);
+  if (t[k] >= d.max) { toast(`${d.name} já está no máximo.`); return; }
+  if (paragonPointsLeft(p) <= 0) { sfx.error(); toast('Não tens Pontos Paragon livres.'); return; }
+  t[k]++;
+  p.hp = Math.min(p.hp, effectiveStats(p).hp);
+  App.pgPop = k;
+  saveGame(); sfx.levelup(); renderStatusBar(); renderParagonBody();
+  toast(`${d.emo} ${d.name} ${t[k]}/${d.max}: ${d.txt(t[k])}.`);
+}
+async function paragonResetTalents() {
+  const p = App.player, t = paragonTal(p);
+  if (!PARAGON_TALENTS.some(d => t[d.key] > 0)) return;
+  if ((p.amnesiaBooks || 0) < 1) { sfx.error(); toast('Precisas de um Livro da Amnésia (Cidade → Loja).'); return; }
+  const ok = await nxConfirm('Usar 1 Livro da Amnésia para devolver todos os Pontos Paragon?', { title: 'Trocar talentos', icon: nxEnt('livro-amnesia', '📙'), confirmLabel: 'Devolver pontos' });
+  if (!ok) return;
+  p.amnesiaBooks--;
+  PARAGON_TALENTS.forEach(d => { t[d.key] = 0; });
+  p.hp = Math.min(p.hp, effectiveStats(p).hp);
+  saveGame(); sfx.potion(); renderStatusBar(); renderParagonBody();
+  toast('📙 Pontos Paragon devolvidos. Escolhe outra vez.');
+}
+
+// Stats do herói divididos em nível / equipamento e resto / Paragon (para o painel de Stats Paragon).
+function paragonStatParts(p) {
+  const st = effectiveStats(p), L = heroLv(p), b = statsAtLevel(p.class, L), b200 = statsAtLevel(p.class, MAX_LEVEL);
+  const f = 1 + 0.06 * paragonRank(p, 'furia'), g = 1 + 0.06 * paragonRank(p, 'egide');
+  const split = (tot, base, k) => { const pg = Math.round(tot - tot / k), rest = Math.max(0, tot - pg - base); return [Math.min(base, tot - pg), rest, pg]; };
+  const ref = Object.assign({}, p, { paragon: 0, paragonTal: {} });
+  const st0 = effectiveStats(ref); // como estaria no Nv. 200 sem Paragon
+  return {
+    st, st0,
+    rows: [
+      { k: 'dmg', ic: '⚔️', l: 'Dano', v: st.dmg, parts: split(st.dmg, b.dmg, f), ref: st0.dmg, b200: b200.dmg },
+      { k: 'hp', ic: '❤️', l: 'HP', v: st.hp, parts: split(st.hp, b.hp, g), ref: st0.hp },
+      { k: 'def', ic: '🛡️', l: 'Defesa', v: st.def, parts: split(st.def, b.def, g), ref: st0.def },
+      { k: 'crit', ic: '🎯', l: 'Crítico', v: Math.round(st.crit * 100), pct: true, parts: [0, Math.round(st.crit * 100) - 4 * paragonRank(p, 'golpe'), 4 * paragonRank(p, 'golpe')], ref: Math.round(st0.crit * 100) }
+    ]
+  };
+}
+function paragonDiffInfo(m, st, boss) {
+  const e = enemyStatsFor(MAX_LEVEL, boss), ref = (e.hp / Math.max(1, App.pgRef.dmg)) * (e.dmg / Math.max(1, App.pgRef.hp));
+  const i = (m.hp / Math.max(1, st.dmg)) * (m.dmg / Math.max(1, st.hp)) / ref;
+  return i < 0.6 ? ['Fácil', 'd0'] : i < 1.2 ? ['Equilibrado', 'd1'] : i < 1.8 ? ['Difícil', 'd2'] : ['Muito difícil', 'd3'];
+}
+function renderParagonBody() {
+  const p = App.player, body = $('heroi-body'); if (!body) return;
+  const P = paragonOf(p), L = heroLv(p), can = paragonCanReborn(p), art = NX_ICON_IMG.has('fundo-paragon');
+  const need = Math.max(1, xpForLevel(L)), atMax = L >= MAX_LEVEL;
+  const info = paragonStatParts(p), st = info.st;
+  App.pgRef = info.st0;
+  const view = App.pgView === 'par' ? 'par' : 'total';
+  const nd = (on, txt, gold) => `<span class="pg-nd${on ? ' on' : ''}${gold ? ' g' : ''}">${txt}</span>`;
+  const banner = `<div class="pg-ban${art ? ' has-art' : ''}${P ? ' p' + P : ''}"${art ? ` style="--pg-art:url('${nxImgUrl('fundo-paragon')}')"` : ''}>
+    <div class="pg-top"><span class="pg-av${P ? ' p' + P : ''}">${heroAvatarHtml(p)}</span><span class="pg-who"><b>${esc(p.name || 'Herói')}</b><small>${P ? (P === PARAGON_MAX && atMax ? 'Paragon Supremo' : `Paragon ${P}`) : 'Sem Paragon'}</small></span>
+      <span class="pg-lv"><b>Nv. ${L}</b>${P ? `<span class="pg-pill big p${P}">${pgEmblem(P)}P${P}</span>` : ''}</span></div>
+    <div class="pg-bot"><div class="pg-track">${nd(true, '200')}<i class="${P >= 1 ? 'on' : ''}"></i>${nd(P >= 1, P >= 1 ? pgEmblem(1) : 'P1')}<i class="${P >= 2 ? 'on' : ''}"></i>${nd(P >= 2, P >= 2 ? pgEmblem(2) : 'P2', true)}</div>
+      <div class="pg-xp"><span>XP${P ? ` · regiões ×${String(PARAGON_XP_MULT[P]).replace('.', ',')}` : ''}</span><b>${atMax ? 'Nível máximo' : `${nxNum(p.xp || 0)} / ${nxNum(need)}`}</b></div>
+      <div class="pg-bar"><i style="width:${atMax ? 100 : clamp((p.xp || 0) / need * 100, 0, 100)}%"></i></div></div></div>`;
+  const reborn = can ? `<button class="btn primary block pg-reborn${P ? ' p2' : ''}" id="btn-pg-reborn">✨ Renascer — Paragon ${P + 1}</button><p class="tiny muted pg-c">Voltas ao Nv. 1 · P${P + 1} com tudo o que tens e ganhas +${PARAGON_PTS} Pontos Paragon.</p>`
+    : P === PARAGON_MAX && atMax ? '<p class="pg-c pg-done">🏆 Chegaste ao topo: Nv. 200 · P2.</p>'
+    : `<p class="tiny muted pg-c">${P ? (P < PARAGON_MAX ? `Chega ao Nv. ${MAX_LEVEL} para o Paragon ${P + 1}.` : `Chega ao Nv. ${MAX_LEVEL} para seres Paragon Supremo.`) : `O Paragon abre no Nv. ${MAX_LEVEL}.`}</p>`;
+  // Stats Paragon
+  const rowH = r => {
+    const [b, e, g] = r.parts, mx = Math.max(r.v, r.ref) * 1.06 || 1, u = r.pct ? '%' : '';
+    if (view === 'par') return `<div class="pg-sr"><em>${r.ic}</em><span class="l">${r.l}</span><b class="v${g > 0 ? ' pg' : ' off'}">${g > 0 ? `+${nxNum(g)}${u}` : '—'}</b></div>`;
+    return `<div class="pg-sr"><em>${r.ic}</em><span class="l">${r.l}</span><b class="v">${nxNum(r.v)}${u}${g > 0 ? `<small>+${nxNum(g)}${u}</small>` : ''}</b>
+      <span class="pg-sb"><i class="b" style="width:${b / mx * 100}%"></i><i class="e" style="width:${e / mx * 100}%"></i><i class="p" style="width:${g / mx * 100}%"></i><s style="left:${Math.min(99, r.ref / mx * 100)}%"></s></span></div>`;
+  };
+  const sab = paragonRank(p, 'sabedoria'), fo = paragonRank(p, 'fortuna'), go = paragonRank(p, 'golpe'), im = paragonRank(p, 'impeto');
+  const bon = [['💥', 'Dano crítico', go ? `+${15 * go}%` : ''], ['🪙', 'Ouro', (P ? PARAGON_GOLD_PER_P * 100 * P : 0) + fo * 10 ? `+${(P ? PARAGON_GOLD_PER_P * 100 * P : 0) + fo * 10}%` : ''], ['🍀', 'Sorte no drop', fo ? `+${5 * fo}%` : ''],
+    ['📚', 'XP', P ? `×${String(Math.round(PARAGON_XP_MULT[P] * (1 + 0.2 * sab) * 100) / 100).replace('.', ',')}` : ''], ['⏳', 'Recarga', im ? `−${im} ronda` : ''], ['💎', 'Raridade', P ? `+${P} rolo${P > 1 ? 's' : ''}` : '']];
+  const pw = heroPower(p), pw0 = heroPower(Object.assign({}, p, { paragon: 0, paragonTal: {} }));
+  const stats = `<div class="pg-st"><div class="pg-sh"><b>Stats Paragon</b><span class="pg-seg"><button type="button" data-pg-view="total" class="${view === 'total' ? 'on' : ''}">Total</button><button type="button" data-pg-view="par" class="${view === 'par' ? 'on' : ''}">Só Paragon</button></span></div>
+    ${view === 'total' ? '<div class="pg-lg"><span><i class="b"></i>Nível</span><span><i class="e"></i>Equipamento e o resto</span><span><i class="p"></i>Paragon</span><span><i class="r"></i>O teu Nv. 200</span></div>' : ''}
+    ${info.rows.map(rowH).join('')}
+    <div class="pg-bon">${bon.map(([ic, l, v]) => `<div class="${v ? '' : 'off'}"><span>${ic} ${l}</span><b>${v || '—'}</b></div>`).join('')}</div>
+    <div class="pg-pow"><span>Poder<small>No Nv. 200 sem Paragon: ${nxNum(pw0)}</small></span><b>${nxNum(pw)}</b></div>
+    ${P ? '<p class="tiny muted" style="margin-top:6px;">Ouro e raridade a mais: nos monstros e chefes das regiões.</p>' : ''}</div>`;
+  // Talentos
+  const t = paragonTal(p), left = paragonPointsLeft(p), pop = App.pgPop; App.pgPop = null;
+  const tal = `<div class="pg-tal${NX_ICON_IMG.has('fundo-passivas') ? ' has-art' : ''}"${NX_ICON_IMG.has('fundo-passivas') ? ` style="--pg-tart:url('${nxImgUrl('fundo-passivas')}')"` : ''}>
+    <div class="pg-th"><b>Talentos Paragon</b><span class="pg-pts">${Array.from({ length: PARAGON_MAX * PARAGON_PTS }, (_, i) => `<i class="${i < left ? 'on' : i >= P * PARAGON_PTS ? 'lock' : ''}"></i>`).join('')}<small>${P ? `${left} livre${left === 1 ? '' : 's'}` : 'Renasce para teres pontos'}</small></span></div>
+    <div class="pg-tg">${PARAGON_TALENTS.map(d => { const r = P ? t[d.key] : 0, full = r >= d.max;
+      return `<button type="button" class="pg-tc${r ? (full ? ' max' : ' on') : ''}${!P || (!full && left <= 0 && !r) ? ' dim' : ''}${pop === d.key ? ' pop' : ''}" data-pg-tal="${d.key}"${!P ? ' disabled' : ''}>
+        <span class="ic">${NX_ICON_IMG.has(d.img) ? `<img src="${nxImgUrl(d.img)}" alt="" draggable="false">` : d.emo}</span>
+        <span class="tx"><b>${d.name}</b><span class="now">${r ? d.txt(r) : `<span class="per">${d.txt(1)}${d.max > 1 ? ' por nível' : ''}</span>`}</span>
+        <small>${full ? 'Nível máximo' : r ? `Próximo: ${d.txt(r + 1)}` : P ? (left > 0 ? 'Toca para aprender' : 'Sem pontos livres') : `Abre no Paragon 1`}</small><span class="rk">${Array.from({ length: d.max }, (_, i) => `<i class="${i < r ? 'on' : ''}"></i>`).join('')}</span></span></button>`; }).join('')}</div>
+    ${P && PARAGON_TALENTS.some(d => t[d.key] > 0) ? `<button class="btn small ghost block pg-reset" id="btn-pg-reset">📙 Trocar talentos (1 Livro da Amnésia · tens ${p.amnesiaBooks || 0})</button>` : ''}</div>`;
+  // Chefes das regiões
+  const openN = Math.min((p.regionIndex || 0) + 1, REGIONS.length);
+  const bossRows = REGIONS.slice(0, openN).flatMap(r => r.bosses.map(b => ({ b, r }))).sort((x, y) => x.b.lv - y.b.lv);
+  const PP = P || 1, showAll = !!App.pgAllBosses, list = showAll ? bossRows : bossRows.filter((x, i) => i % 3 === 0 || i >= bossRows.length - 2);
+  const bosses = `<div class="pg-bl">${list.map(({ b, r }) => { const m = paragonEnemyStats(b.lv, true, PP), d = paragonDiffInfo(m, st, true);
+      return `<div class="pg-br"><span class="ic">${nxCreature(b.name, b.icon)}</span><span class="nm"><b>${esc(b.name)}</b><small>${esc(r.name)} · HP ${nxNum(m.hp)} · Dano ${nxNum(m.dmg)}</small></span><span class="lt">Nv. ${b.lv}${pgPill(PP)}</span><span class="pg-df ${d[1]}">${d[0]}</span></div>`; }).join('')}</div>
+    ${bossRows.length > list.length || showAll ? `<button class="btn small ghost block" id="btn-pg-all" style="margin-top:8px;">${showAll ? 'Mostrar menos' : `Ver os ${bossRows.length} chefes`}</button>` : ''}`;
+  body.innerHTML = `${banner}${reborn}
+    <div class="section-title" style="margin-top:14px;">Stats Paragon</div>${stats}
+    <div class="section-title" style="margin-top:14px;">Talentos</div>${tal}
+    <div class="section-title" style="margin-top:14px;">Chefes das regiões${P ? '' : ' em Paragon 1'}</div>
+    <p class="tiny muted" style="margin:-2px 0 8px;">Mantêm o nível, mas com a força Paragon: 55% de um chefe Nv. 200 no nível 1 até 100% no nível 200${P === 2 ? ', +20% no P2' : ''}. Dificuldade contra ti no ${heroLvTxt(p)}${P ? '' : ' (estimada para o P1)'}.</p>
+    <div class="card raised pg-card">${bosses}</div>
+    <div class="section-title" style="margin-top:14px;">Como funciona</div>
+    <div class="card raised pg-card pg-how">
+      <div><span>✨</span><p>No Nv. ${MAX_LEVEL} renasces como <b>Nv. 1 · P1</b>. Máximo de ${PARAGON_MAX} Paragons.</p></div>
+      <div><span>🎒</span><p>Ficas com tudo: equipamento, ouro, habilidades, passivas, mascotes, Esconderijo, Vila e regiões abertas. Só o nível e o XP voltam ao início.</p></div>
+      <div><span>🗺️</span><p>Nas regiões, os monstros continuam ao teu nível e os chefes mantêm o seu, mas todos ganham força Paragon.</p></div>
+      <div><span>🎁</span><p>Nas regiões: itens sempre Nv. ${MAX_LEVEL} com +1 rolo de raridade por P, ouro +25% por P e XP ×1,5 no P1 (×1,25 no P2).</p></div>
+      <div><span>🏰</span><p>Dungeons, Torre, Soberanos e o resto ficam como no Nv. ${MAX_LEVEL}; o XP que dão acompanha o teu nível.</p></div>
+    </div>`;
+  const rb = $('btn-pg-reborn'); if (rb) rb.addEventListener('click', paragonReborn);
+  const rs = $('btn-pg-reset'); if (rs) rs.addEventListener('click', paragonResetTalents);
+  const al = $('btn-pg-all'); if (al) al.addEventListener('click', () => { sfx.click(); App.pgAllBosses = !App.pgAllBosses; renderParagonBody(); });
+  body.querySelectorAll('[data-pg-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.pgView = b.dataset.pgView; renderParagonBody(); }));
+  body.querySelectorAll('[data-pg-tal]').forEach(b => b.addEventListener('click', () => paragonSpend(b.dataset.pgTal)));
+}
+
 function grantXp(amount) {
   const p = App.player;
   // v157: no nível máximo o XP tem um teto (o XP do nível ${MAX_LEVEL}). Quem já estiver cheio não ganha
   // mais até doar à Guild; quem já tinha XP acima do teto (de antes) não perde nada, só deixa de subir.
-  const wasMax = p.level >= MAX_LEVEL, before = Number(p.xp) || 0;
+  // v219: em Paragon sobe o nível real (p.plv); o p.level fica no 200.
+  const isPg = paragonOf(p) > 0;
+  let lvl = heroLv(p);
+  const wasMax = lvl >= MAX_LEVEL, before = Number(p.xp) || 0;
   p.xp += amount;
   try { allyGainXp(amount); } catch (e) { /* o amigo nunca pode estragar o XP do herói */ }
   let leveled = false;
-  const lvFrom = p.level;
-  while (p.level < MAX_LEVEL && p.xp >= xpForLevel(p.level)) {
-    p.xp -= xpForLevel(p.level);
-    p.level++;
+  const lvFrom = lvl;
+  while (lvl < MAX_LEVEL && p.xp >= xpForLevel(lvl)) {
+    p.xp -= xpForLevel(lvl);
+    lvl++;
     leveled = true;
   }
-  if (p.level >= MAX_LEVEL) {
+  if (isPg) p.plv = lvl; else p.level = lvl;
+  if (lvl >= MAX_LEVEL) {
     const cap = xpForLevel(MAX_LEVEL);
     if (p.xp > cap) p.xp = wasMax && before > cap ? before : cap;
   }
   // Subir de nível enche o HP até ao máximo REAL (com equipamento, sets, passivas…).
   if (leveled) p.hp = Math.max(p.hp, effectiveStats(p).hp);
-  if (leveled) { sfx.levelup(); fxVibrate([20, 40, 20]); if (!fxLevelUp(p.level)) toast(`Subiste para o nível ${p.level}!`); }
-  if (leveled) { const nu = unlockNewlyAt(p, lvFrom, p.level); if (nu.length) setTimeout(() => toast(`🔓 Desbloqueaste: ${nu.join(', ')}!`), 2200); } // v197
+  if (leveled) { sfx.levelup(); fxVibrate([20, 40, 20]); if (!fxLevelUp(lvl)) toast(`Subiste para o nível ${lvl}${pgSuf(p)}!`); }
+  if (leveled && isPg && lvl >= MAX_LEVEL && paragonCanReborn(p)) setTimeout(() => toast(`✨ Nv. ${MAX_LEVEL}! Já podes renascer: Herói → Paragon.`), 2400);
+  if (leveled && !isPg) { const nu = unlockNewlyAt(p, lvFrom, lvl); if (nu.length) setTimeout(() => toast(`🔓 Desbloqueaste: ${nu.join(', ')}!`), 2200); } // v197
   return leveled;
 }
 
@@ -12470,7 +12693,7 @@ function equipDollHtml(p, talisman) {
     <div class="doll-mid">
       <div class="doll-hero"><div class="doll-rays"></div><div class="doll-ring"></div><span class="doll-hero-ic has-av">${heroAvatarHtml(p, 'big')}</span></div>
       <div class="doll-name">${esc(p.name || 'Herói')}</div>
-      <div class="tiny muted">Nv. ${p.level} · ${clsName}</div>
+      <div class="tiny muted">${heroLvTxt(p)} · ${clsName}</div>
       <div class="doll-stats">
         <span>⚔️ <b>${st.dmgMin}–${st.dmgMax}</b></span><span>🛡️ <b class="st-def">${st.def}</b></span>
         <span>❤️ <b>${st.hp}</b></span><span>💥 <b>${pct(st.crit)}</b></span>
@@ -15422,7 +15645,7 @@ function leaderboardRowsHtml(rows, valueFn) {
 function paintLeaderboard(body, data) {
   body.innerHTML = `
     <div class="section-title" style="margin-top:0;">🏆 Top Nível</div>
-    ${leaderboardRowsHtml(data.levels, r => `Nv. ${Number(r.level) || 1}`)}
+    ${leaderboardRowsHtml(data.levels, r => Number(r.paragon) > 0 ? `Nv. ${Number(r.plv) || 1} · P${Number(r.paragon)}` : `Nv. ${Number(r.level) || 1}`)}
     <div class="section-title">💰 Top Ouro</div>
     ${leaderboardRowsHtml(data.gold, r => `🪙 ${Number(r.gold || 0).toLocaleString('pt-PT')}`)}
     <p class="tiny muted" style="margin-top:10px;">Atualiza a cada minuto. Só aparecem o nome da personagem, a classe e o nível.</p>
@@ -15823,7 +16046,7 @@ function turnInBiologoQuest(level) {
 
   const reward = biologoRewardFor(q.level);
   p.gold += reward.gold;
-  grantXp(reward.xp);
+  grantXp(pgXp(reward.xp));
   for (let i = 0; i < reward.chestCount; i++) p.chests.push(newChest('equip', q.level, true));
   const gemType = Object.keys(GEM_DEFS)[Math.floor(Math.random() * Object.keys(GEM_DEFS).length)];
   p.gems[gemType][0] += reward.gemCount;
@@ -15857,7 +16080,7 @@ function turnInBiologoPlusQuest(level) {
 
   const reward = biologoPlusRewardFor(q.level);
   p.gold += reward.gold;
-  grantXp(reward.xp);
+  grantXp(pgXp(reward.xp));
   for (let i = 0; i < reward.chestCount; i++) p.chests.push(newChest('equip', q.level, true));
   const gemType = Object.keys(GEM_DEFS)[Math.floor(Math.random() * Object.keys(GEM_DEFS).length)];
   p.gems[gemType][0] += reward.gemCount;
@@ -16159,13 +16382,15 @@ function startCombat(opts) {
   // v201: Reino Submerso — cada monstro tem um nível entre o mínimo e o máximo da região.
   if (opts.kind === 'wild' && opts.regionKey) { const rg = REGIONS.find(r => r.key === opts.regionKey); if (regionHighLv(rg)) opts = Object.assign({}, opts, { level: rg.minLv + Math.floor(Math.random() * (rg.maxLv - rg.minLv + 1)) }); }
   const isBoss = opts.kind === 'boss';
-  const enemy = enemyStatsFor(opts.level, isBoss);
+  // v219: Paragon — monstros e chefes das regiões mantêm o nível, mas ganham a força do P.
+  const pgP = opts.regionKey && (opts.kind === 'wild' || opts.kind === 'boss') ? paragonOf(p) : 0;
+  const enemy = pgP ? paragonEnemyStats(opts.level, isBoss, pgP) : enemyStatsFor(opts.level, isBoss);
   if (opts.mult) { const m = opts.mult; enemy.hp = Math.round(enemy.hp * (m.hp || 1)); enemy.maxHp = enemy.hp; enemy.dmg = Math.round(enemy.dmg * (m.dmg || 1)); enemy.def = Math.round(enemy.def * (m.def || 1)); } // v174
   // v144: horda (1–5 monstros normais ao mesmo tempo, só no separador Batalha).
   const hordeN = !isBoss && opts.kind === 'wild' ? clamp(Math.floor(Number(opts.count) || 1), 1, HORDE_MAX) : 1;
 
   let gapMult = 1;
-  if (isBoss) {
+  if (isBoss && !pgP) {
     gapMult = bossGapMultiplier(opts.level, p.level);
     if (gapMult > 1) {
       enemy.hp = Math.round(enemy.hp * gapMult); enemy.maxHp = enemy.hp;
@@ -16209,7 +16434,7 @@ function startCombat(opts) {
   // Os restantes monstros da horda: mesmos multiplicadores (dificuldade + evento) que o primeiro.
   const hordeExtra = [];
   for (let i = 1; i < hordeN; i++) {
-    const e = enemyStatsFor(opts.level, false);
+    const e = pgP ? paragonEnemyStats(opts.level, false, pgP) : enemyStatsFor(opts.level, false);
     if (diff.statMult > 1) {
       e.hp = Math.round(e.hp * (diff.hpMult || diff.statMult)); e.maxHp = e.hp;
       e.dmg = Math.round(e.dmg * (diff.dmgMult || diff.statMult));
@@ -16229,7 +16454,7 @@ function startCombat(opts) {
   App.combat = {
     kind: opts.kind, name: opts.name, icon: opts.icon, level: opts.level, isBoss, regionKey: opts.regionKey || null,
     monsterName: isBoss ? null : opts.name,
-    regionIndexForBoss: opts.regionIndex, isGateBoss: !!opts.isGate, isDungeon: false, gapMult, difficulty: diff.key,
+    regionIndexForBoss: opts.regionIndex, isGateBoss: !!opts.isGate, isDungeon: false, gapMult, difficulty: diff.key, paragon: pgP,
     enemy: Object.assign(enemy, { element, critImmune: false, category: opts.category || 'outro' }),
     battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false },
     cooldowns: {}, log: [], eventApplied, ended: false
@@ -16444,7 +16669,7 @@ function huntOnEnemyDefeated() {
 function finishHunt() {
   const c = App.combat, p = App.player, ct = c.huntDef, h = huntState(p), t = huntTotals(ct);
   const lv = HUNT_GRAU_LV[ct.grau] + 5, pStats = effectiveStats(p);
-  const xpGain = Math.round((35 + lv * 4.5) * 2 * (1 + battleXpBonus(c)));
+  const xpGain = pgXp(Math.round((35 + lv * 4.5) * 2 * (1 + battleXpBonus(c))));
   const goldGain = Math.round((30 + lv * 4) * 2 * (1 + (pStats.goldPct || 0) + t.gold));
   p.gold += goldGain; grantXp(xpGain);
   p.stats.wins++; p.stats.bossesKilled = (p.stats.bossesKilled || 0) + 1;
@@ -16662,7 +16887,7 @@ function dgGrantMilestoneChest(c, roomNo) {
 function dgBagCashOutHalf(c) {
   if (!c || !c.bag || c.bagPaid || (!c.bag.xp && !c.bag.gold)) return null;
   c.bagPaid = true;
-  const xp = Math.round(c.bag.xp * DG_BAG_KEEP_ON_FAIL), gold = Math.round(c.bag.gold * DG_BAG_KEEP_ON_FAIL);
+  const xp = pgXp(Math.round(c.bag.xp * DG_BAG_KEEP_ON_FAIL)), gold = Math.round(c.bag.gold * DG_BAG_KEEP_ON_FAIL);
   App.player.gold += gold; grantXp(xp);
   c.bagKept = { xp, gold };
   return c.bagKept;
@@ -17029,7 +17254,7 @@ function useAbilityAction(key) {
   sfx.ability(key, hasCrit);
   if (c.enemy.hp < hpBefore) { ymirAfterHit(c, p, key); rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); gemEsLeech(c, pStats, hpBefore - Math.max(0, c.enemy.hp)); }
   else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
-  c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0));
+  c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0) - (pStats.pgCd || 0)); // v219: Ímpeto
   postPlayerAction();
 }
 
@@ -17735,9 +17960,11 @@ function wildRewardRoll(c) {
   // Dificuldade escolhida pelo jogador (raridade = dificuldade): sobe bastante o ouro
   // e a qualidade dos itens, mas só um pouco o XP, de propósito.
   const diff = MONSTER_DIFFICULTY.find(d => d.key === c.difficulty) || MONSTER_DIFFICULTY[0];
-  const xpGain = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * diff.xpMult * (1 + battleXpBonus(c)));
+  const xpRaw = Math.round((isBoss ? (35 + c.level * 4.5) : (10 + c.level * 2.4)) * diff.xpMult * (1 + battleXpBonus(c)));
+  const xpGain = c.paragon ? pgXpRegion(xpRaw, c.paragon) : pgXp(xpRaw); // v219
   const killRg = regionOfCombat(c); // v201
-  const goldGain = Math.round((isBoss ? (30 + c.level * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(c.level * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)) * ((killRg && killRg.goldMult) || 1));
+  const lootLv = combatLootLv(c); // v219: em Paragon o espólio é sempre do Nv. 200
+  const goldGain = Math.round((isBoss ? (30 + lootLv * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(lootLv * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)) * ((killRg && killRg.goldMult) || 1) * (1 + PARAGON_GOLD_PER_P * (c.paragon || 0)));
   p.gold += goldGain;
   grantXp(xpGain);
   if (isBoss) p.stats.bossesKilled++;
@@ -17752,8 +17979,8 @@ function wildRewardRoll(c) {
   if (Math.random() < dropChance) {
     // Chests de chefe usam a "qualidade melhorada" (+1 tentativa extra de raridade);
     // a dificuldade escolhida pelo jogador soma tentativas extra por cima disso.
-    const qualityBoost = (isBoss ? 1 : 0) + diff.qualityBoost + ((killRg && killRg.qualityBonus) || 0);
-    p.chests.push(newChest('equip', c.level, qualityBoost));
+    const qualityBoost = (isBoss ? 1 : 0) + diff.qualityBoost + ((killRg && killRg.qualityBonus) || 0) + (c.paragon || 0);
+    p.chests.push(newChest('equip', lootLv, qualityBoost));
     drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} (abre na Mochila)`);
     if (diff.statMult > 1) drops.push(`${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name} — qualidade deste item bem superior!`);
   }
@@ -17761,11 +17988,11 @@ function wildRewardRoll(c) {
   if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
   if (isBoss && !c.isCultBoss) mythicRollDrop(p, MYTHIC_BY_BOSS[c.name], MYTHIC_CHANCE, drops); // v184: Míticos
   if (isBoss && profTalent(p, 'mineiro') && Math.random() < 0.10) { // v196: Faro de Tesouro
-    const types = Object.keys(GEM_DEFS), t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(c.level);
+    const types = Object.keys(GEM_DEFS), t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(lootLv);
     if (!Array.isArray(p.gems[t])) p.gems[t] = Array(GEM_TIERS).fill(0);
     p.gems[t][tier]++; drops.push(`⛏️ Faro de Tesouro: ${GEM_DEFS[t].icon} ${gemFullName(t, tier)}`);
   }
-  if (isBoss && !c.isCultBoss && c.level >= PO_ESTELAR_MIN_LV && Math.random() < PO_ESTELAR_BOSS) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); } // v186
+  if (isBoss && !c.isCultBoss && lootLv >= PO_ESTELAR_MIN_LV && Math.random() < PO_ESTELAR_BOSS) { p.poEstelar = (p.poEstelar || 0) + 1; drops.push('✨ Pó Estelar! (Mochila → Gemas)'); } // v186
   // Livro das Profissões: só chefes de nível 20+.
   if (isBoss && c.level >= PROFESSION_BOOK_MIN_BOSS_LV && Math.random() < PROFESSION_BOOK_DROP_CHANCE + luck) {
     p.professionBooks = (p.professionBooks || 0) + 1;
@@ -17822,11 +18049,11 @@ function wildRewardRoll(c) {
     drops.push(`${CHEST_DEFS.ostra.icon} ${CHEST_DEFS.ostra.name} (Mochila → Consumíveis → Ostras)`);
   }
   if (Math.random() < ((isBoss ? 0.30 : 0.06) * fortuneMult) + luck) {
-    p.chests.push(newChest('pedras', c.level));
+    p.chests.push(newChest('pedras', lootLv));
     drops.push(`${CHEST_DEFS.pedras.icon} ${CHEST_DEFS.pedras.name} (abre na Mochila)`);
   }
   if (Math.random() < ((isBoss ? 0.15 : 0.03) * fortuneMult) + luck) {
-    p.chests.push(newChest('feitico', c.level));
+    p.chests.push(newChest('feitico', lootLv));
     drops.push(`${CHEST_DEFS.feitico.icon} ${CHEST_DEFS.feitico.name} (abre na Mochila)`);
   }
   if (Math.random() < (isBoss ? 0.08 : 0.015) + luck) {
@@ -17839,7 +18066,7 @@ function wildRewardRoll(c) {
   const eventFullMsg = what => drops.push(`🎒 Mochila cheia (${INVENTORY_MAX} itens): ${what} não coube. Vende alguns itens.`);
   if (c.eventApplied && c.eventApplied.key === 'praga' && Math.random() < 0.06) {
     if (eventBagFull()) eventFullMsg('a arma envenenada da Praga'); else {
-    const weapon = generateItem('weapon', c.level);
+    const weapon = generateItem('weapon', lootLv);
     const poisonDef = BONUS_PLUS_POOL.find(b => b.key === 'envenenamento');
     weapon.bonuses.push({ key: 'envenenamento', value: poisonDef.roll() });
     p.inventory.push(weapon);
@@ -17851,7 +18078,7 @@ function wildRewardRoll(c) {
   if (c.eventApplied && c.eventApplied.key === 'escuridao' && Math.random() < 0.06) {
     if (eventBagFull()) eventFullMsg('a armadura esquiva da Escuridão'); else {
     const slot = ARMOR_SLOTS[Math.floor(Math.random() * ARMOR_SLOTS.length)];
-    const armor = generateItem(slot, c.level);
+    const armor = generateItem(slot, lootLv);
     const dodgeDef = BONUS_PLUS_POOL.find(b => b.key === 'esquiva');
     armor.bonuses.push({ key: 'esquiva', value: dodgeDef.roll() });
     p.inventory.push(armor);
@@ -17863,7 +18090,7 @@ function wildRewardRoll(c) {
   // à parte dos drops normais e não obtenível de nenhuma outra forma.
   if (c.eventApplied && c.eventApplied.key === 'atormentados' && Math.random() < 0.01) {
     if (eventBagFull()) eventFullMsg('o Amuleto dos Atormentados'); else {
-    const amulet = generateItem('amulet', c.level, null, null, RARITIES.find(r => r.key === 'unico'));
+    const amulet = generateItem('amulet', lootLv, null, null, RARITIES.find(r => r.key === 'unico'));
     amulet.name = 'Amuleto dos Atormentados';
     amulet.uniqueEffect = 'bleedImmune';
     p.inventory.push(amulet);
@@ -17874,7 +18101,7 @@ function wildRewardRoll(c) {
   if (isBoss && diff.divineItemChance && Math.random() < diff.divineItemChance) {
     if (eventBagFull()) eventFullMsg('o item 💠 Divino'); else {
       const divSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
-      const divineItem = generateItem(divSlot, c.level, null, false, DIVINO_RARITY);
+      const divineItem = generateItem(divSlot, lootLv, null, false, DIVINO_RARITY);
       p.inventory.push(divineItem);
       drops.push(`💠✨ ITEM DIVINO! ${divineItem.name}!`);
     }
@@ -17921,7 +18148,7 @@ function finishCatacumba() {
   const c = App.combat, p = App.player, cat = c.catacumbaDef;
   // Recompensas de cada catacumba em cat.rewards (a T1 dá ~3,5× um chefe normal do mesmo nível).
   const rw = cat.rewards || {};
-  const xpGain = Math.round((35 + cat.bossLv * 4.5) * (rw.xpMult || 1) * (1 + battleXpBonus(c)));
+  const xpGain = pgXp(Math.round((35 + cat.bossLv * 4.5) * (rw.xpMult || 1) * (1 + battleXpBonus(c))));
   const goldGain = Math.round((40 + cat.bossLv * 6) * (rw.goldMult || 1) * (1 + (effectiveStats(p).goldPct || 0)));
   p.gold += goldGain;
   grantXp(xpGain);
@@ -17979,7 +18206,7 @@ function finishDungeon() {
   dgBagAddRoom(c);
   const bag = c.bag || { xp: 0, gold: 0, rooms: 0 };
   c.bagPaid = true;
-  const xpGain = Math.round((60 + d.minLv * 3.5) * (1 + battleXpBonus(c))) + bag.xp;
+  const xpGain = pgXp(Math.round((60 + d.minLv * 3.5) * (1 + battleXpBonus(c))) + bag.xp);
   const goldGain = Math.round((80 + d.minLv * 4) * (1 + (effectiveStats(p).goldPct || 0))) + bag.gold;
   p.gold += goldGain;
   grantXp(xpGain);
@@ -18104,9 +18331,9 @@ function showCombatEnd(won, info) {
   endEl.scrollTop = 0;
   let html;
   if (won) {
-    const pl = App.player, need = xpForLevel(pl.level), maxed = pl.level >= MAX_LEVEL;
+    const pl = App.player, plLv = heroLv(pl), need = xpForLevel(plLv), maxed = plLv >= MAX_LEVEL;
     const xpTo = maxed ? 100 : Math.min(100, Math.round(pl.xp / need * 100));
-    const lvlUp = !maxed && (c._lvlAtStart ? pl.level > c._lvlAtStart : pl.xp - (info.xpGain || 0) < 0);
+    const lvlUp = !maxed && (c._lvlAtStart ? plLv > c._lvlAtStart : pl.xp - (info.xpGain || 0) < 0);
     const xpFrom = maxed || lvlUp ? 0 : Math.round((pl.xp - info.xpGain) / need * 100);
     const anim = fxOn();
     html = `<div class="glyph${anim ? ' end-trophy' : ''}">${nxEnt('trofeu-vitoria', '🏆')}</div><h2 style="color:var(--gold-bright); font-family:var(--font-display);">Vitória!</h2>
@@ -18114,7 +18341,7 @@ function showCombatEnd(won, info) {
         <span class="pill" style="border-color:var(--arcane-bright); color:var(--arcane-bright);">✨ +<b data-count="${info.xpGain}">${anim ? 0 : info.xpGain}</b> XP</span>
         <span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">🪙 +<b data-count="${info.goldGain}">${anim ? 0 : info.goldGain}</b></span>
       </div>
-      <div class="end-xp"><div class="end-xp-top tiny"><span>Nv. ${pl.level}${lvlUp ? ' ⬆️' : ''}</span><span>${maxed ? 'Máximo' : xpTo + '%'}</span></div><div class="end-xp-bar"><i data-to="${xpTo}"${lvlUp ? ' data-lvl="1"' : ''} style="width:${xpFrom}%;"></i></div></div>
+      <div class="end-xp"><div class="end-xp-top tiny"><span>Nv. ${plLv}${pgSuf(pl)}${lvlUp ? ' ⬆️' : ''}</span><span>${maxed ? 'Máximo' : xpTo + '%'}</span></div><div class="end-xp-bar"><i data-to="${xpTo}"${lvlUp ? ' data-lvl="1"' : ''} style="width:${xpFrom}%;"></i></div></div>
       ${info.drops && info.drops.length ? `<div class="card raised${anim ? ' loot-anim' : ''}" style="text-align:left; width:100%; border-left:3px solid var(--gold-bright);"><div class="tiny muted" style="margin-bottom:6px; font-weight:700;">🎁 Espólio</div>${info.drops.map((d, i) => `<p class="tiny loot-line ${lootLineClass(d)}" style="margin-top:4px; animation-delay:${(0.55 + i * 0.16).toFixed(2)}s;">✦ ${rarLead(d)}</p>`).join('')}</div>` : ''}
       ${c.repeatOpts && !c.isTower && !c.isHunt ? (() => { const ps = effectiveStats(pl), hpPct = Math.min(100, Math.max(0, Math.round(pl.hp / Math.max(1, ps.hp) * 100)));
         return `<div class="end-actions"><button class="btn danger" id="btn-combat-repeat">⚔️ Lutar outra vez<small class="${hpPct < 35 ? 'low' : ''}">❤️ ${hpPct}% HP</small></button>
@@ -18237,7 +18464,7 @@ function fxAbility(key) {
 // Chamado no fim de cada renderCombat: compara HP/registo com o render anterior.
 function fxAfterCombatRender(c, p, pStats) {
   if (!c || !c.enemy) return;
-  if (c._lvlAtStart == null) c._lvlAtStart = p.level || 1;
+  if (c._lvlAtStart == null) c._lvlAtStart = heroLv(p);
   const glyph = document.getElementById('cb-enemy-glyph');
   const panel = document.querySelector('#screen-combat .player-panel');
   const key = `${c.name}|${c.level}|${c.waveIndex || 0}|${c.hordeIdx || 0}`;
@@ -18439,7 +18666,7 @@ function fxSlash(crit) {
 // Entrada dos chefes: faixas de cinema e o nome a entrar de lado.
 function fxBossIntro(c) {
   if (!fxOn()) return;
-  const sub = c.isSoberano ? `Chefe Soberano · Nv. ${c.level}` : `Chefe · Nv. ${c.level}`;
+  const sub = c.isSoberano ? `Chefe Soberano · Nv. ${c.level}` : `Chefe · Nv. ${c.level}${c.paragon ? ' · P' + c.paragon : ''}`;
   fxSpawn('fx-cine', 0, 0, `<i class="t"></i><i class="b"></i><div class="fx-cine-card"><b>${esc(c.name || '')}</b><span>${sub}</span></div>`, 2700);
   const g = document.getElementById('cb-enemy-glyph');
   if (g) { g.classList.remove('fx-enter', 'fx-boss-in'); void g.offsetWidth; g.classList.add('fx-boss-in'); }
@@ -18779,7 +19006,7 @@ function renderCombat() {
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.ymir && c.ymir.phase < 3 ? ` · 🧊 ${c.ymir.layers}/${YMIR.LAYERS}` : '') + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.ymir && c.ymir.phase >= 3 ? ' · Soberano · Fase 3' : c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.paragon ? ' · P' + c.paragon : '') + (c.ymir && c.ymir.phase < 3 ? ` · 🧊 ${c.ymir.layers}/${YMIR.LAYERS}` : '') + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.ymir && c.ymir.phase >= 3 ? ' · Soberano · Fase 3' : c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -18816,7 +19043,7 @@ function renderCombat() {
         box.innerHTML = `${allyImg(al.type, 'sm')}<b>${esc(d.name)}</b><small>Nv. ${al.level}${d.furyEvery ? ` · ${'🪓'.repeat(((c.allyRounds || 0) % d.furyEvery) + 1)}` : ''}</small>`; box.title = `${d.name} · ${d.cls} · ${d.short}`; } } } }
   const cbIc = $('cb-player-icon'); const avKey = `${p.class}|${p.evolution || ''}`;
   if (cbIc.dataset.av !== avKey) { cbIc.dataset.av = avKey; cbIc.innerHTML = heroAvatarHtml(p, 'tiny'); }
-  $('cb-player-lv').textContent = 'Nv. ' + p.level;
+  $('cb-player-lv').textContent = heroLvTxt(p);
   if (c._lastPlayerHp !== undefined && p.hp < c._lastPlayerHp) flashFx(document.querySelector('.player-panel'), 'fx-hurt');
   c._lastPlayerHp = p.hp;
   const potionTotal = Object.values(p.potions || {}).reduce((a, b) => a + b, 0)
@@ -18972,7 +19199,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v218</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v219</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19309,9 +19536,15 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 2.1.2';
+const APP_VERSION_LABEL = 'V 2.2.0';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v219', title: 'V 2.2.0 · Paragon! ✨', items: [
+    ['✨', 'No Nv. 200 já podes renascer em Herói → Paragon. Voltas ao Nv. 1 · P1 e ficas com tudo: equipamento, ouro, habilidades, passivas, mascotes, Esconderijo e Vila. Máximo de 2 Paragons.'],
+    ['🗺️', 'Em Paragon, os monstros e os chefes das regiões mantêm o nível, mas ganham a força do teu Paragon. No P2 ficam ainda 20% mais fortes.'],
+    ['🎁', 'Nas regiões, em Paragon, os itens caem sempre do Nv. 200, com mais raridade, mais ouro e mais XP.'],
+    ['⚔️', 'Cada Paragon dá 2 pontos para 6 Talentos Paragon: Fúria, Égide, Golpe, Fortuna, Sabedoria e Ímpeto. Vê tudo no novo painel de Stats Paragon.']
+  ] },
   { id: 'v201', title: 'V 2.1.2 · O Reino Submerso! 🌊', items: [
     ['🌊', 'Nova região: o Reino Submerso, no mar a nordeste do Pináculo. Abre ao derrotar o Imperador do Vazio.'],
     ['🦈', 'Monstros do Nv. 200 ao 250 e dois chefes novos: a Rainha das Marés (Nv. 225) e o Deus Afogado (Nv. 250).'],
@@ -20128,7 +20361,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
