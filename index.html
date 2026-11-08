@@ -4740,11 +4740,11 @@ function todayCardHtml(p) {
 }
 function todayBind() {
   els('[data-today-toggle]').forEach(b => b.addEventListener('click', () => { sfx.tab(); try { localStorage.setItem('nemesy_today', todayOpen() ? '0' : '1'); } catch (e) {} renderTabBatalha(); }));
-  const go = (tab, extra) => { Object.assign(App, extra || {}); setTab(tab); window.scrollTo(0, 0); };
+  const go = (tab, extra) => { App.btSheet = null; Object.assign(App, extra || {}); setTab(tab); window.scrollTo(0, 0); };
   els('[data-today]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.today;
     if (k === 'diaria') go('loja', { lojaTab: 'diaria' });
-    else if (k === 'obelisco') { sfx.tab(); const el = document.querySelector('.ob-card'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    else if (k === 'obelisco') { sfx.tab(); App.btSheet = 'obelisco'; renderTabBatalha(); } // v221
     else if (k === 'soberano') go('mapa', { mapaTab: 'soberano' });
     else if (k === 'contratos') go('loja', { lojaTab: 'contratos' });
     else if (k === 'expedicoes') go('heroi', { heroiTab: 'esconderijo', hoStation: 'expedicoes', guildTab: null });
@@ -4779,9 +4779,9 @@ function obMapTokensHtml(p, ri) {
     <span class="ob-tok-ic">${obIc('ob-img')}</span><b>${OB.NAME}</b><span class="ob-tok-t">NV. ${p.level} · <span data-ob-left="${x.exp}">${obLeftTxt(x.exp - Date.now())}</span></span></button>`).join('');
 }
 function obBindBatalha(p) {
-  els('[data-ob-fight]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); startObelisk(b.dataset.obFight); }));
-  els('[data-ob-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); sfx.tab(); App.selectedRegionIndex = Number(b.dataset.obGo); renderTabBatalha(); }));
-  els('[data-ob-help]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.wikiTab = 'obeliscos'; setTab('wiki'); }));
+  els('[data-ob-fight]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.btSheet = null; startObelisk(b.dataset.obFight); }));
+  els('[data-ob-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); sfx.tab(); App.btSheet = null; App.selectedRegionIndex = Number(b.dataset.obGo); renderTabBatalha(); }));
+  els('[data-ob-help]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.btSheet = null; App.wikiTab = 'obeliscos'; setTab('wiki'); }));
   clearInterval(App.obTimer);
   App.obTimer = setInterval(() => {
     if (App.tab !== 'batalha' || App.combat || !document.querySelector('#screen-hub.active')) { clearInterval(App.obTimer); return; }
@@ -6482,6 +6482,7 @@ function goHub() {
 }
 
 function setTab(tab) {
+  if (tab !== 'batalha') App.btSheet = null; // v221
   sfx.tab();
   stopGuildTimers();
   App.tab = tab;
@@ -8546,20 +8547,18 @@ function renderTabBatalha() {
   const icon = (key, emo, cls) => nxIconsEnabled() && NX_ICON_IMG.has(key) ? nxIconSvg(key, cls) : `<span class="bt-emo">${emo}</span>`;
   const listView = regionViewMode() === 'lista';
 
-  // Etiqueta + pop-up da tarefa
+  // Tarefa (v221: abre numa folha a partir da barra de atividades)
   const q = p.quest, qDone = Math.min(q.progress, q.target), qLeft = Math.max(0, q.target - q.progress);
   const qTitle = q.kind === 'kill' ? `Derrota ${q.target} monstros` : 'Derrota um chefe';
   const questHtml = `
-    <button type="button" class="bt-pill q" id="bt-pq"><span class="bt-ring" style="--p:${q.target ? qDone / q.target : 0};"></span><span>Tarefa ${qDone}/${q.target}</span></button>
-    <div class="bt-tip q" id="bt-tip-q" hidden>
-      <div class="bt-tip-h">${icon('scroll', '📜', 'bt-tip-ic')}<div><small>Tarefa</small><b>${qTitle}</b></div><button type="button" class="bt-tip-x" aria-label="Fechar">×</button></div>
+      <div class="bt-sh-lead"><b>${qTitle}</b></div>
       <div class="bt-prog"><i style="width:${q.target ? Math.round(qDone / q.target * 100) : 0}%;"></i></div>
       <div class="bt-prog-t"><span>Progresso <b>${qDone}/${q.target}</b></span><span>${qLeft ? (q.kind === 'kill' ? `Falta${qLeft > 1 ? 'm' : ''} ${qLeft} monstro${qLeft > 1 ? 's' : ''}` : 'Falta 1 chefe') : 'Concluída!'}</span></div>
       <div class="bt-rw"><span>${icon('coin', '🪙')}${q.rewardGold} ouro</span><span>${icon('sparkle', '✨')}${q.rewardXp} XP</span></div>
       <div class="bt-tip-n">${q.kind === 'kill' ? 'Contam os monstros normais que derrotares.' : 'Conta qualquer chefe que derrotares.'} Ao concluir recebes logo a recompensa e aparece uma tarefa nova.</div>
-    </div>`;
+      `;
 
-  // Etiqueta + pop-up do evento
+  // Evento (v221: abre numa folha)
   let eventHtml = '';
   const ev = p.activeEvent;
   if (ev) {
@@ -8570,9 +8569,6 @@ function renderTabBatalha() {
     };
     const left = Math.max(0, ev.battlesLeft || 0);
     eventHtml = `
-      <button type="button" class="bt-pill ev${ev.key === 'culto' && (ev.candles || 0) >= CULT_CANDLES ? ' cult-ready' : ''}" id="bt-pev"><span class="bt-ev-n">${left}</span>${esc(ev.name)}${ev.key === 'culto' ? ` · 🕯️ ${ev.candles || 0}/${CULT_CANDLES}` : ''}</button>
-      <div class="bt-tip ev" id="bt-tip-ev" hidden>
-        <div class="bt-tip-h">${nxIconsEnabled() && nxIconFor(ev.icon) ? nxIconFor(ev.icon).replace('class="nx-ic', 'class="nx-ic bt-tip-ic') : `<span class="bt-emo big">${ev.icon}</span>`}<div><small>Evento ativo</small><b>${esc(ev.name)}</b></div><button type="button" class="bt-tip-x" aria-label="Fechar">×</button></div>
         ${ev.desc ? `<div class="bt-tip-d">${esc(ev.desc)}</div>` : ''}
         <div class="bt-st3">${tile(ev.dmgMult, 'Dano', 'sword', '🗡️')}${tile(ev.hpMult, 'Vida', 'heart', '❤️')}${tile(ev.defMult, 'Defesa', 'shield', '🛡️')}</div>
         ${ev.critBonus ? `<div class="bt-special">💥 Os monstros têm <b>+${Math.round(ev.critBonus * 100)}%</b> de hipótese de crítico.</div>` : ''}
@@ -8581,11 +8577,46 @@ function renderTabBatalha() {
         ${ev.key === 'culto' ? `<div class="bt-special cult-altar"><div class="cult-altar-t"><span>Velas no altar</span><b>${ev.candles || 0}/${CULT_CANDLES}</b></div>${cultCandlesHtml(ev.candles || 0)}<div class="cult-altar-n">${(ev.candles || 0) >= CULT_CANDLES ? `🌑 <b>O ${CULT_BOSS.name} espera-te!</b> O próximo combate contra monstros é contra ele (Nv. +${CULT_BOSS.lvPlus}).` : `Cada vitória acende 1 vela. Com ${CULT_CANDLES}, o combate seguinte é contra o <b>${CULT_BOSS.name}</b>.`}</div></div>` : ''}
         <div class="bt-left"><span>Ainda ativo durante <b>${left} batalha${left === 1 ? '' : 's'}</b></span>${left <= 10 ? `<span class="bt-pips">${'<i></i>'.repeat(left)}</span>` : ''}</div>
         ${EVENT_DROPS[ev.key] ? `<div class="bt-drop">${esc(EVENT_DROPS[ev.key])}</div>` : ''}
-      </div>`;
+      `;
   }
 
   const diffPop = MONSTER_DIFFICULTY.map(d => { const lk = !difficultyUnlocked(p, d); return `
     <button type="button" class="bt-dopt${d.key === activeDiff.key ? ' on' : ''}${lk ? ' lock' : ''}" data-set-difficulty="${d.key}" style="--c:${d.color};"><i class="rar-dot">${rarIc(d.key, '')}</i><div><b>${d.name}${lk ? ' 🔒' : ''}</b><span>${diffDesc(d)}</span></div></button>`; }).join('');
+
+  // v221: barra de atividades (Hoje, Tarefa, Evento, Obelisco) + folha de detalhe por cima do mapa.
+  const tdL = todayItems(p), tdLeft = tdL.filter(x => x.state !== 'done').length;
+  const tdReady = tdL.filter(x => x.state === 'ready' && x.key !== 'obelisco');
+  const obOn = (p.level || 1) >= OB.MIN_LV, obS = obOn ? obState(p) : null, obNow = Date.now();
+  const obFirst = obOn && obS.spawns.length ? Math.min(...obS.spawns.map(x => x.exp)) : 0;
+  const acts = [
+    { k: 'hoje', ic: icon('calendar', '📅', 'bt-act-img'), label: 'Hoje', sub: tdLeft ? `${tdLeft} por fazer` : 'Tudo feito', badge: tdReady.length, cls: tdReady.length ? 'ready' : '' },
+    { k: 'tarefa', ic: icon('scroll', '📜', 'bt-act-img'), label: 'Tarefa', sub: `${qDone}/${q.target}`, cls: qLeft ? '' : 'ready' },
+    ev ? { k: 'evento', ic: nxIconsEnabled() && nxIconFor(ev.icon) ? nxIconFor(ev.icon).replace('class="nx-ic', 'class="nx-ic bt-act-img') : `<span class="bt-emo">${ev.icon}</span>`,
+      label: esc(ev.name), sub: `${Math.max(0, ev.battlesLeft || 0)} bat.`, cls: 'ev' + (ev.key === 'culto' && (ev.candles || 0) >= CULT_CANDLES ? ' ready' : '') } : null,
+    obOn ? { k: 'obelisco', ic: obIc('bt-act-img'), label: 'Obelisco',
+      sub: obFirst ? `${obS.count}/${OB.DAILY} · <span data-ob-left="${obFirst}">${obLeftTxt(obFirst - obNow)}</span>` : `${obS.count}/${OB.DAILY}`,
+      cls: 'void' + (obFirst ? ' ready' : '') } : null
+  ].filter(Boolean);
+  if (App.btSheet && !acts.some(x => x.k === App.btSheet)) App.btSheet = null;
+  const dockHtml = `<div class="bt-dock" role="toolbar" aria-label="Atividades">${acts.map(x => `
+    <button type="button" class="bt-act ${x.cls}${App.btSheet === x.k ? ' on' : ''}" data-bt-open="${x.k}">${x.badge ? `<span class="bt-act-bd">${x.badge}</span>` : ''}<span class="bt-act-ic">${x.ic}</span><b>${x.label}</b><small>${x.sub}</small></button>`).join('')}
+  </div>`;
+  const alertHtml = tdReady.length ? `<div class="bt-alert"><span class="bt-alert-ic">${icon('chest', '🎁')}</span><span class="bt-alert-t">${tdReady.map(x => `<b>${x.label}</b>`).join(', ')} ${tdReady.length > 1 ? 'prontos' : 'pronto'} a recolher</span><button type="button" class="btn small" data-bt-open="hoje">Ver</button></div>` : '';
+  const tdOrder = { ready: 0, todo: 1, done: 2 };
+  const sheetBody = {
+    hoje: () => `<div class="bt-sh-lead">${tdLeft ? `${tdLeft} por fazer hoje` : 'Já fizeste tudo hoje ✓'}</div>` + tdL.slice().sort((x, y) => tdOrder[x.state] - tdOrder[y.state]).map(x => `
+      <button type="button" class="bt-srow ${x.state}" data-today="${x.key}"><span class="bt-srow-ic">${x.ic}</span><span class="bt-srow-t"><b>${x.label}</b><small>${x.sub}</small></span>${x.state === 'done' ? '<i class="bt-srow-ok">✓</i>' : x.state === 'ready' ? '<i class="bt-srow-go">Ir ›</i>' : '<i class="bt-srow-ar">›</i>'}</button>`).join(''),
+    tarefa: () => questHtml,
+    evento: () => eventHtml,
+    obelisco: () => obCardHtml(p, ri)
+  };
+  const shAct = acts.find(x => x.k === App.btSheet);
+  const sheetHtml = `<div class="bt-shade${shAct ? ' open' : ''}" data-bt-close></div>
+    <div class="bt-sheet${shAct ? ' open' : ''}" role="dialog" aria-modal="true" aria-label="${shAct ? String(shAct.label).replace(/"/g, '') : 'Detalhe'}">
+      <div class="bt-sh-grab"></div>
+      ${shAct ? `<div class="bt-sh-h"><span class="bt-sh-ic">${shAct.ic}</span><b>${shAct.label}</b><button type="button" class="bt-sh-x" data-bt-close aria-label="Fechar">×</button></div>
+      <div class="bt-sh-b sh-${shAct.k}">${sheetBody[shAct.k]()}</div>` : ''}
+    </div>`;
 
   $('hub-content').innerHTML = `
     <div class="bt-strip">
@@ -8593,20 +8624,21 @@ function renderTabBatalha() {
       <div class="bt-reg">
         <span class="bt-reg-ic">${nxEnt('banner-' + region.key, region.icon)}</span>
         <div class="bt-reg-t"><b>${region.name}</b><span>Nv. ${region.minLv}–${region.maxLv} · Chefes ${won}/${region.bosses.length}${region.airRound ? ' · 🫧 Falta de Ar' : ''}</span></div>
+        <div class="bt-mini" role="tablist" aria-label="Vista">
+          <button type="button" class="${listView ? '' : 'on'}" data-bt-view="mapa" aria-label="Mapa" title="Mapa">${icon('map', '🗺️', 'bt-view-ic')}</button>
+          <button type="button" class="${listView ? 'on' : ''}" data-bt-view="lista" aria-label="Lista" title="Lista"><span class="bt-view-lines"><i></i><i></i><i></i></span></button>
+        </div>
       </div>
       <button type="button" class="bt-arr" id="bt-next" aria-label="Região seguinte" ${ri >= maxR ? 'disabled' : ''}>›</button>
       <div class="bt-diff">
-        <button type="button" class="bt-diff-btn" id="bt-diff-btn" style="--c:${activeDiff.color};"><i class="rar-dot">${rarIc(activeDiff.key, '')}</i><span>${activeDiff.name}</span><em>▾</em></button>
+        <button type="button" class="bt-diff-btn" id="bt-diff-btn" style="--c:${activeDiff.color};" aria-label="Dificuldade: ${activeDiff.name}" title="${activeDiff.name}"><i class="rar-dot">${rarIc(activeDiff.key, '')}</i><em>▾</em></button>
         <div class="bt-pop" id="bt-pop" hidden>${diffPop}</div>
       </div>
     </div>
-    <div class="bt-view" role="tablist">
-      <button type="button" class="${listView ? '' : 'on'}" data-bt-view="mapa">${icon('map', '🗺️', 'bt-view-ic')}Mapa</button>
-      <button type="button" class="${listView ? 'on' : ''}" data-bt-view="lista"><span class="bt-view-lines"><i></i><i></i><i></i></span>Lista</button>
-    </div>
-    ${todayCardHtml(p)}
-    ${obCardHtml(p, ri)}
-    ${listView ? regionListHtml(p, region, activeDiff, questHtml + eventHtml) : regionMapHtml(p, region, questHtml + eventHtml + obMapTokensHtml(p, ri))}
+    ${dockHtml}
+    ${alertHtml}
+    ${listView ? regionListHtml(p, region, activeDiff, '') : regionMapHtml(p, region, obMapTokensHtml(p, ri))}
+    ${sheetHtml}
   `;
   obBindBatalha(p); // v190
   todayBind(); // v195
@@ -8632,13 +8664,14 @@ function renderTabBatalha() {
     saveGame();
     renderTabBatalha();
   }));
-  // Pop-ups da tarefa e do evento
-  [['bt-pq', 'bt-tip-q'], ['bt-pev', 'bt-tip-ev']].forEach(([pill, tipId]) => {
-    const b = $(pill), t = $(tipId); if (!b || !t) return;
-    b.addEventListener('click', e => { e.stopPropagation(); const open = t.hidden; closeAll(); t.hidden = !open; if (open) sfx.click(); });
-    t.addEventListener('click', e => e.stopPropagation());
-    const x = t.querySelector('.bt-tip-x'); if (x) x.addEventListener('click', () => { t.hidden = true; });
-  });
+  // v221: folha de detalhe da barra de atividades
+  els('[data-bt-open]').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation(); closeAll();
+    const k = b.dataset.btOpen;
+    App.btSheet = App.btSheet === k ? null : k;
+    sfx.click(); renderTabBatalha();
+  }));
+  els('[data-bt-close]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.btSheet = null; sfx.click(); renderTabBatalha(); }));
   if (App.btDocClose) document.removeEventListener('click', App.btDocClose);
   App.btDocClose = e => { if (!e.target.closest || !e.target.closest('.bt-diff')) { const pp = $('bt-pop'); if (pp) pp.hidden = true; } if (!e.target.closest || !e.target.closest('.bt-tip, .bt-pill')) els('.bt-tip').forEach(t => { t.hidden = true; }); };
   document.addEventListener('click', App.btDocClose);
@@ -16395,6 +16428,7 @@ function hordeFinishVictory(c, p) {
 }
 
 function startCombat(opts) {
+  App.btSheet = null; // v221
   if (!guardAllowsFight(() => startCombat(opts))) return;
   sfx.click();
   const p = App.player;
@@ -19230,7 +19264,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v220</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v221</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
