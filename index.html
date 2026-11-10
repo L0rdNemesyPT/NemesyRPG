@@ -4744,7 +4744,7 @@ function todayBind() {
   els('[data-today]').forEach(b => b.addEventListener('click', () => {
     const k = b.dataset.today;
     if (k === 'diaria') go('loja', { lojaTab: 'diaria' });
-    else if (k === 'obelisco') { sfx.tab(); App.btSheet = 'obelisco'; renderTabBatalha(); } // v221
+    else if (k === 'obelisco') { sfx.tab(); App.btSheet = 'obelisco'; App.btSheetAnim = true; renderTabBatalha(); } // v221
     else if (k === 'soberano') go('mapa', { mapaTab: 'soberano' });
     else if (k === 'contratos') go('loja', { lojaTab: 'contratos' });
     else if (k === 'expedicoes') go('heroi', { heroiTab: 'esconderijo', hoStation: 'expedicoes', guildTab: null });
@@ -6482,7 +6482,7 @@ function goHub() {
 }
 
 function setTab(tab) {
-  if (tab !== 'batalha') App.btSheet = null; // v221
+  if (tab !== 'batalha') { App.btSheet = null; btSheetMount(''); } // v221
   sfx.tab();
   stopGuildTimers();
   App.tab = tab;
@@ -8527,6 +8527,13 @@ function regionListHtml(p, region, diff, pillsHtml) {
       <div class="bl-group">${bosses}</div>
     </div>`;
 }
+// v222: a folha do menu Batalha vive num nó próprio no <body>, fora do conteúdo que faz scroll e anima.
+function btSheetMount(html, anim) {
+  let r = document.getElementById('bt-sheet-root');
+  if (!r) { if (!html) return; r = document.createElement('div'); r.id = 'bt-sheet-root'; document.body.appendChild(r); }
+  r.innerHTML = html || '';
+  r.classList.toggle('anim', !!anim);
+}
 function renderTabBatalha() {
   const p = App.player;
   ensureQuest();
@@ -8638,8 +8645,8 @@ function renderTabBatalha() {
     ${dockHtml}
     ${alertHtml}
     ${listView ? regionListHtml(p, region, activeDiff, '') : regionMapHtml(p, region, obMapTokensHtml(p, ri))}
-    ${sheetHtml}
   `;
+  btSheetMount(sheetHtml, App.btSheetAnim); App.btSheetAnim = false; // v222: folha fora do conteúdo (não é cortada nem mexida pelas animações)
   obBindBatalha(p); // v190
   todayBind(); // v195
 
@@ -8669,6 +8676,7 @@ function renderTabBatalha() {
     e.stopPropagation(); closeAll();
     const k = b.dataset.btOpen;
     App.btSheet = App.btSheet === k ? null : k;
+    App.btSheetAnim = !!App.btSheet;
     sfx.click(); renderTabBatalha();
   }));
   els('[data-bt-close]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.btSheet = null; sfx.click(); renderTabBatalha(); }));
@@ -16428,7 +16436,7 @@ function hordeFinishVictory(c, p) {
 }
 
 function startCombat(opts) {
-  App.btSheet = null; // v221
+  App.btSheet = null; btSheetMount(''); // v221
   if (!guardAllowsFight(() => startCombat(opts))) return;
   sfx.click();
   const p = App.player;
@@ -19264,7 +19272,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v221</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v222</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
