@@ -6538,6 +6538,7 @@ function renderHubTab() {
   else if (App.tab === 'trades') renderTabTrades();
   else if (App.tab === 'wiki') renderTabWiki();
   else if (App.tab === 'criador') renderTabCriador();
+  else if (App.tab === 'arena') renderTabArena(); // v223
 }
 
 // ============================================================
@@ -8527,6 +8528,313 @@ function regionListHtml(p, region, diff, pillsHtml) {
       <div class="bl-group">${bosses}</div>
     </div>`;
 }
+// =====================================================================
+// v223: ARENA — lutas contra cópias dos heróis de outros jogadores.
+// "Arena justa": os dois heróis lutam como se fossem Nv. 100. Os pontos, as lutas
+// por dia, as Fichas, a loja e os prémios semanais são decididos no servidor
+// (supabase/arena_v223.sql); o jogo só envia a cópia do herói e o resultado.
+// =====================================================================
+const ARENA = { MIN_LV: 50, DAILY: 5, NORM_LV: 100, AI_HP: 3, AI_DMG: 0.36, REFRESH_GOLD: 500 }; // AI_HP/AI_DMG: lutas de ~7 rondas; contra a tua própria cópia ganhas ~55%
+const ARENA_LEAGUES = [
+  { key: 'bronze', name: 'Bronze', min: 0, color: '#c98b52', icon: '🥉' },
+  { key: 'prata', name: 'Prata', min: 800, color: '#cfd6de', icon: '🥈' },
+  { key: 'ouro', name: 'Ouro', min: 1200, color: '#f2c94c', icon: '🥇' },
+  { key: 'platina', name: 'Platina', min: 1600, color: '#7fe0d4', icon: '💠' },
+  { key: 'diamante', name: 'Diamante', min: 1900, color: '#8fb8ff', icon: '💎' },
+  { key: 'lenda', name: 'Lenda', min: 2200, color: '#ff8a5c', icon: '🔥' }
+];
+const ARENA_LEAGUE_FICHAS = { bronze: 10, prata: 20, ouro: 35, platina: 50, diamante: 75, lenda: 100 };
+const ARENA_SHOP = [
+  { k: 'reforco', name: 'Pergaminho de Reforço', ic: ['scroll', '🔧'], cost: 15, lim: 5 },
+  { k: 'feitico', name: 'Pergaminho de Feitiço', ic: ['scroll', '📜'], cost: 25, lim: 5 },
+  { k: 'gema1', name: 'Gema Lascada à escolha', ic: ['gem', '💎'], cost: 10, lim: 0, gem: true },
+  { k: 'gema2', name: 'Gema Polida à escolha', ic: ['gem', '💠'], cost: 30, lim: 3, gem: true },
+  { k: 'alquimia', name: 'Pedra de Alquimia Nv. 3', sub: 'Rubi, Safira, Granada ou Ametista', ic: ['alquimia', '⚗️'], cost: 30, lim: 3 },
+  { k: 'nucleo', name: 'Pedra do Núcleo', sub: 'Prisma da Safira ou Ouriço de Ametista', ic: ['nucleo-safira', '🔷'], cost: 180, lim: 1 },
+  { k: 'perola', name: 'Pérola aleatória', sub: 'Branca, Verde, Azul ou Vermelha', ic: ['perola', '🫧'], cost: 12, lim: 0 }
+];
+// O que a cópia do herói faz em vez de um ataque normal (o jogo escolhe por ela).
+const ARENA_SKILLS = {
+  guerreiro: { chance: 0.28, type: 'heavy', icon: '🐏', label: 'Investida' },
+  arqueiro: { chance: 0.28, type: 'multi', icon: '🌧️', label: 'Chuva de Flechas' },
+  mago: { chance: 0.28, type: 'burn', icon: '🔥', label: 'Bola de Fogo' }
+};
+function arenaIc(key, emo, cls) { return nxIconsEnabled() && NX_ICON_IMG.has(key) ? nxIconSvg(key, cls) : `<span class="bt-emo">${emo}</span>`; }
+function arenaLeague(points) { let L = ARENA_LEAGUES[0]; ARENA_LEAGUES.forEach(x => { if ((points || 0) >= x.min) L = x; }); return L; }
+function arenaLeagueByKey(k) { return ARENA_LEAGUES.find(x => x.key === k) || ARENA_LEAGUES[0]; }
+function arenaLeagueIc(k, cls) { const L = arenaLeagueByKey(k); return arenaIc('liga-' + L.key, L.icon, cls); }
+function arenaClassIc(cls) { const c = CLASSES[cls]; return c ? c.icon : '⚔️'; }
+
+// Cópia do herói ao Nv. 100: nível base 100, itens ajustados para Nv. 100 e sem talentos de Paragon.
+function arenaNormClone(p) {
+  const q = JSON.parse(JSON.stringify(p));
+  q.level = ARENA.NORM_LV; q.plv = ARENA.NORM_LV; q.paragon = 0; q.paragonTal = {};
+  const f = lv => (1 + ARENA.NORM_LV * 0.35) / (1 + Math.max(1, Number(lv) || 1) * 0.35);
+  EQUIP_SLOTS.forEach(s => {
+    const it = q.equipment && q.equipment[s]; if (!it) return;
+    const k = f(it.itemLevel);
+    ['stats', 'baseStats'].forEach(o => { const st = it[o]; if (!st) return; ['hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'es'].forEach(x => { if (typeof st[x] === 'number') st[x] = Math.round(st[x] * k); }); });
+    if (it.corruption && it.corruption.hpDebuff) it.corruption.hpDebuff = Math.round(it.corruption.hpDebuff * k);
+  });
+  return q;
+}
+// Resume as estatísticas num "poder" que o servidor guarda: vida efetiva, dano, defesa e crítico.
+function arenaPower(st) {
+  const hp = (st.hp + (st.es || 0)) / (1 - Math.min(0.5, st.dodge || 0)) * (1 + Math.min(0.3, st.lifesteal || 0));
+  return { hp: Math.round(hp), dmg: Math.round(st.dmg), def: Math.round(st.def), crit: Math.round(Math.min(0.6, st.crit || 0) * 1000) / 1000 };
+}
+function arenaSnapshot(p) { return arenaPower(effectiveStats(arenaNormClone(p))); }
+function arenaPowerNum(s) { return s ? Math.round(s.hp / 10 + s.dmg * 2 + s.def) : 0; }
+// Converte a cópia (Nv. 100) do adversário para o "mundo" do teu herói real, para que a luta
+// seja igual a dois heróis Nv. 100: o teu dano, a tua vida e a tua defesa contam na mesma proporção.
+function arenaEnemyStats(p, snap) {
+  const real = effectiveStats(p), norm = effectiveStats(arenaNormClone(p));
+  const kp = defMitigationK(p.level), k100 = defMitigationK(ARENA.NORM_LV);
+  const kD = Math.max(1, real.dmg) / Math.max(1, norm.dmg);
+  const mitN = k100 / (k100 + Math.max(0, norm.def)), mitR = kp / (kp + Math.max(0, real.def));
+  const ehpR = real.hp + (real.es || 0), ehpN = Math.max(1, norm.hp + (norm.es || 0));
+  return {
+    hp: Math.max(1, Math.round(snap.hp * kD * ARENA.AI_HP)),
+    dmg: Math.max(1, Math.round(snap.dmg * (mitN / mitR) * (ehpR / ehpN) * ARENA.AI_DMG)),
+    def: Math.max(0, Math.round(snap.def * kp / k100)),
+    critChance: Math.min(0.6, Number(snap.crit) || 0.05)
+  };
+}
+
+function arenaState() { if (!App.arena) App.arena = { tab: 'lutar', me: null, opps: null, ranking: null, log: null, loading: false, err: '', gemPick: null, busy: false, rewardsShown: false }; return App.arena; }
+function arenaErr(e, fallback) {
+  const msg = String((e && e.message) || '');
+  if (/could not find the function|does not exist|schema cache/i.test(msg)) return 'A Arena ainda não está ativa no servidor.';
+  return msg || fallback;
+}
+async function arenaRpc(fn, args, needSync) {
+  if (!cloudClient || !cloudUser) throw new Error('Inicia sessão na tua conta para usar a Arena.');
+  if (needSync && !await syncCloudSaveNow()) throw new Error(syncFailMsg('Não foi possível sincronizar o save.'));
+  const { data, error } = await cloudClient.rpc(fn, args || {});
+  if (error) throw error;
+  return data;
+}
+async function arenaLoad(full) {
+  const a = arenaState(), p = App.player;
+  if (a.loading || !p || (p.level || 1) < ARENA.MIN_LV) return;
+  a.loading = true; a.err = '';
+  if (App.tab === 'arena') renderTabArena();
+  try {
+    const s = await arenaRpc('arena_sync', { p_snapshot: arenaSnapshot(p) }, true);
+    a.me = s.me;
+    if (s.rewards && s.rewards.length) {
+      s.rewards.forEach(r => toast(`🏆 Arena — semana terminada: ${arenaLeagueByKey(r.league).name}, #${r.rank}. 🎟️ +${r.fichas} Fichas${r.top3 ? ' · Título "Campeão da Arena"!' : ''}`));
+    }
+    const o = await arenaRpc('arena_opponents', { p_refresh: false });
+    a.opps = o.opponents || []; a.refreshAt = o.refresh_at || 0;
+    if (full || a.tab === 'ranking') a.ranking = (await arenaRpc('arena_ranking')).top || [];
+    if (full || a.tab === 'registo') a.log = await arenaRpc('arena_log');
+  } catch (e) { a.err = arenaErr(e, 'Não foi possível abrir a Arena.'); }
+  a.loading = false;
+  if (App.tab === 'arena') renderTabArena();
+}
+function arenaTimeLeft(ms) {
+  const s = Math.max(0, Math.round(ms / 1000)), d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);
+  return d ? `${d} d ${h} h` : h ? `${h} h ${m} min` : `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function renderTabArena() {
+  const p = App.player, a = arenaState(), lv = p.level || 1;
+  const back = `<button type="button" class="btn ghost small ar-back" data-ar-back>‹ Batalha</button>`;
+  if (lv < ARENA.MIN_LV) {
+    $('hub-content').innerHTML = `${back}<div class="ar-empty">${arenaIc('arena', '🏟️', 'ar-empty-ic')}<b>A Arena abre no Nv. ${ARENA.MIN_LV}</b><span>Estás no Nv. ${lv}.</span></div>`;
+    arenaBind(); return;
+  }
+  if (!cloudClient || !cloudUser) {
+    $('hub-content').innerHTML = `${back}<div class="ar-empty">${arenaIc('arena', '🏟️', 'ar-empty-ic')}<b>Arena</b><span>Inicia sessão na tua conta (Definições → Conta) para lutar contra os heróis dos outros jogadores.</span></div>`;
+    arenaBind(); return;
+  }
+  if (!a.me && !a.loading && !a.err) { setTimeout(() => arenaLoad(true), 0); }
+  const me = a.me, L = me ? arenaLeague(me.points) : ARENA_LEAGUES[0];
+  const nextL = me ? ARENA_LEAGUES.find(x => x.min > me.points) : null;
+  const prog = me ? (nextL ? Math.max(0, Math.min(1, (me.points - L.min) / (nextL.min - L.min))) : 1) : 0;
+  const left = me ? me.fights_left : ARENA.DAILY;
+  const now = Date.now(), skew = me && me.server_now ? me.server_now - now : 0;
+  const head = `
+    <div class="ar-head">
+      <div class="ar-head-top">
+        <span class="ar-crest">${arenaLeagueIc(L.key, 'ar-crest-ic')}</span>
+        <div class="ar-head-t"><b>Arena</b><span style="color:${L.color}">Liga ${L.name}${me && me.title ? ` · 🏆 ${esc(me.title)}` : ''}</span></div>
+        <div class="ar-pts"><b>${me ? nxNum(me.points) : '—'}</b><span>pontos</span></div>
+      </div>
+      <div class="ar-bar"><i style="width:${Math.round(prog * 100)}%;background:${L.color}"></i></div>
+      <div class="ar-bar-t"><span>${L.name}</span><span>${me ? (nextL ? `faltam ${nxNum(nextL.min - me.points)} para ${nextL.name}` : 'Liga máxima') : ''}</span></div>
+      <div class="ar-meta">
+        <div><b>${me ? `${me.wins} / ${me.losses}` : '—'}</b><span>Vitórias / Derrotas</span></div>
+        <div><b>${me ? '#' + me.rank : '—'}</b><span>Ranking</span></div>
+        <div><span class="ar-tk">${Array.from({ length: ARENA.DAILY }, (_, i) => `<i class="${i < left ? '' : 'off'}"></i>`).join('')}</span><span>Lutas hoje</span></div>
+        <div><b class="ar-fichas">${arenaIc('ficha-arena', '🎟️', 'ar-fi-ic')} ${me ? me.fichas : '—'}</b><span>Fichas</span></div>
+      </div>
+    </div>`;
+  const tabs = [['lutar', 'Lutar'], ['ranking', 'Ranking'], ['registo', 'Registo'], ['loja', 'Loja']];
+  const tabsHtml = `<div class="ar-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" aria-selected="${a.tab === k}" class="${a.tab === k ? 'on' : ''}" data-ar-tab="${k}">${l}</button>`).join('')}</div>`;
+  let body = '';
+  if (a.err) body = `<div class="ar-msg err">${esc(a.err)}</div><button type="button" class="btn small" data-ar-retry>Tentar outra vez</button>`;
+  else if (!me) body = `<div class="ar-msg">A preparar a tua cópia para a Arena…</div>`;
+  else if (a.tab === 'lutar') {
+    const opps = a.opps || [];
+    body = `<p class="ar-note">⚖️ Arena justa: todos lutam como Nv. ${ARENA.NORM_LV}. Contam a raridade, os bónus, as gemas, as passivas e as habilidades, não o nível. Talentos de Paragon desligados.</p>
+      <div class="ar-sec">Escolhe o adversário${a.refreshAt ? `<em>Novos em <span data-ar-cd="${a.refreshAt - skew}">${arenaTimeLeft(a.refreshAt - skew - now)}</span></em>` : ''}</div>
+      ${opps.length ? opps.map(o => {
+        const myPow = arenaPowerNum(arenaSnapshot(p)), op = arenaPowerNum(o.snapshot);
+        const rel = op < myPow * 0.92 ? ['easy', 'Mais fraco'] : op > myPow * 1.08 ? ['hard', 'Mais forte'] : ['even', 'Equilibrado'];
+        const oL = arenaLeagueByKey(o.league);
+        return `<div class="ar-opp${o.bot ? ' bot' : ''}">
+          <span class="ar-av">${o.bot ? '👤' : arenaClassIc(o.cls)}<small>${o.bot ? 'IA' : o.paragon ? 'P' + o.paragon : o.level}</small></span>
+          <span class="ar-oi"><b>${esc(o.name)}${o.title ? ' 🏆' : ''}</b><span>${CLASSES[o.cls] ? CLASSES[o.cls].name : 'Herói'} · <span style="color:${oL.color}">${nxNum(o.points)} pts</span> · <span class="ar-pow ${rel[0]}">${rel[1]}</span></span>
+          <span class="ar-pw">Poder ${nxNum(op)}</span></span>
+          <button type="button" class="ar-go" data-ar-fight="${esc(o.id)}" ${left > 0 ? '' : 'disabled'}>Lutar<small>+${o.gain} / −${o.loss}</small></button>
+        </div>`; }).join('') : `<div class="ar-msg">Ainda não há adversários disponíveis. Volta daqui a pouco.</div>`}
+      <button type="button" class="ar-refresh" data-ar-refresh>🔄 Trocar adversários · ${nxNum(ARENA.REFRESH_GOLD)} ouro</button>
+      ${left > 0 ? '' : `<div class="ar-msg">Já fizeste as ${ARENA.DAILY} lutas de hoje. Voltam à meia-noite.</div>`}
+      <p class="ar-note">A tua cópia defende-te quando os outros te atacam. Vitória: +3 Fichas e ouro · Derrota: +1 Ficha.</p>`;
+  } else if (a.tab === 'ranking') {
+    const top = a.ranking;
+    body = !top ? `<div class="ar-msg">A carregar o ranking…</div>` : (top.length ? top.map(r => {
+      const rL = arenaLeagueByKey(r.league);
+      return `<div class="ar-rk${r.me ? ' me' : ''}"><span class="ar-rk-n g${r.rank}">${r.rank}</span><span class="ar-rk-e">${arenaClassIc(r.cls)}</span>
+        <span class="ar-rk-nm"><b>${esc(r.name)}${r.title ? ' 🏆' : ''}</b><span style="color:${rL.color}">${rL.name}</span><span> · ${r.paragon ? 'P' + r.paragon + ' ' : ''}Nv. ${r.level}</span></span>
+        <span class="ar-rk-p">${nxNum(r.points)}</span></div>`; }).join('') : `<div class="ar-msg">Ainda ninguém lutou esta semana. Sê o primeiro!</div>`)
+      + `<p class="ar-note" style="text-align:center">A semana termina em ${arenaTimeLeft(me.week_end - skew - now)}. Os pontos baixam uma liga e cada um recebe Fichas pela liga onde ficou.</p>
+      <div class="ar-leagues">${ARENA_LEAGUES.map(x => `<div>${arenaLeagueIc(x.key, 'ar-lg-ic')}<b style="color:${x.color}">${x.name}</b><span>${nxNum(x.min)}+ · 🎟️ ${ARENA_LEAGUE_FICHAS[x.key]}</span></div>`).join('')}</div>
+      <p class="ar-note" style="text-align:center">Top 3 da semana: +50 Fichas e o título <b>Campeão da Arena</b>.</p>`;
+  } else if (a.tab === 'registo') {
+    const lg = a.log;
+    body = !lg ? `<div class="ar-msg">A carregar…</div>` : (lg.length ? lg.map(x => `<div class="ar-log"><span class="ar-log-k ${x.won ? 'w' : 'l'}">${x.kind === 'ataque' ? '⚔️' : '🛡️'}</span>
+      <span class="ar-log-t">${x.kind === 'ataque' ? (x.won ? `Venceste <b>${esc(x.other)}</b>` : `Perdeste contra <b>${esc(x.other)}</b>`) : (x.won ? `<b>${esc(x.other)}</b> atacou-te e perdeu` : `<b>${esc(x.other)}</b> atacou-te e ganhou`)}
+      <small>${x.kind === 'ataque' ? 'Ataque' : 'Defesa'} · ${arenaAgo(now + skew - x.at)}</small></span>
+      <span class="ar-log-d ${x.delta >= 0 ? 'up' : 'dn'}">${x.delta >= 0 ? '+' : ''}${x.delta}</span></div>`).join('') : `<div class="ar-msg">Ainda não tens combates na Arena.</div>`);
+  } else if (a.tab === 'loja') {
+    const wk = me.buys && me.buys.week ? me.buys : {};
+    body = `<p class="ar-note">Compra com as 🎟️ Fichas que ganhas na Arena. Os limites renovam todas as semanas.</p>` + ARENA_SHOP.map(it => {
+      const used = Number(wk[it.k]) || 0, cap = it.lim > 0 && used >= it.lim, poor = me.fichas < it.cost;
+      const pick = a.gemPick === it.k ? `<div class="ar-gems">${Object.keys(GEM_DEFS).map(g => `<button type="button" data-ar-gem="${g}" title="${esc(GEM_DEFS[g].name)}">${GEM_DEFS[g].icon}<small>${esc(GEM_DEFS[g].name.replace(/^Pedra d[aeo] /, ''))}</small></button>`).join('')}</div>` : '';
+      return `<div class="ar-shop${cap ? ' cap' : ''}"><span class="ar-av">${arenaIc(it.ic[0], it.ic[1], 'ar-shop-ic')}</span>
+        <span class="ar-oi"><b>${it.name}</b><span>${it.sub ? it.sub + ' · ' : ''}${it.lim ? `${used}/${it.lim} esta semana` : 'Sem limite'}</span></span>
+        <button type="button" class="ar-buy" data-ar-buy="${it.k}" ${cap || poor || a.busy ? 'disabled' : ''}>${arenaIc('ficha-arena', '🎟️', 'ar-fi-ic')} ${it.cost}</button></div>${pick}`;
+    }).join('');
+  }
+  $('hub-content').innerHTML = `${back}${head}${tabsHtml}<div class="ar-body">${body}</div>`;
+  arenaBind();
+}
+function arenaAgo(ms) {
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return 'agora'; if (m < 60) return `há ${m} min`;
+  const h = Math.floor(m / 60); if (h < 24) return `há ${h} h`;
+  const d = Math.floor(h / 24); return d === 1 ? 'ontem' : `há ${d} dias`;
+}
+function arenaBind() {
+  const a = arenaState();
+  els('[data-ar-back]').forEach(b => b.addEventListener('click', () => { sfx.tab(); setTab('batalha'); }));
+  els('[data-ar-retry]').forEach(b => b.addEventListener('click', () => { a.err = ''; arenaLoad(true); }));
+  els('[data-ar-tab]').forEach(b => b.addEventListener('click', () => {
+    a.tab = b.dataset.arTab; a.gemPick = null; sfx.tab(); renderTabArena();
+    if (a.tab === 'ranking' || a.tab === 'registo') arenaRefreshTab();
+  }));
+  els('[data-ar-fight]').forEach(b => b.addEventListener('click', () => {
+    const o = (a.opps || []).find(x => x.id === b.dataset.arFight);
+    if (o) startArenaFight(o);
+  }));
+  els('[data-ar-refresh]').forEach(b => b.addEventListener('click', async () => {
+    if (a.busy) return;
+    if ((App.player.gold || 0) < ARENA.REFRESH_GOLD) { sfx.error(); toast(`Precisas de ${nxNum(ARENA.REFRESH_GOLD)} de ouro.`); return; }
+    a.busy = true; setTradeBusy(true, 'A procurar adversários…');
+    try {
+      const o = await arenaRpc('arena_opponents', { p_refresh: true }, true);
+      if (o.save) updateTradeSave(o.save.save_data, o.save.revision, o.save.updated_at);
+      a.opps = o.opponents || []; a.refreshAt = o.refresh_at || 0; sfx.gold();
+    } catch (e) { sfx.error(); toast(arenaErr(e, 'Não foi possível trocar de adversários.')); }
+    a.busy = false; setTradeBusy(false); renderTabArena();
+  }));
+  els('[data-ar-buy]').forEach(b => b.addEventListener('click', () => {
+    const it = ARENA_SHOP.find(x => x.k === b.dataset.arBuy); if (!it) return;
+    if (it.gem) { a.gemPick = a.gemPick === it.k ? null : it.k; sfx.click(); renderTabArena(); return; }
+    arenaBuy(it.k, null);
+  }));
+  els('[data-ar-gem]').forEach(b => b.addEventListener('click', () => { if (a.gemPick) arenaBuy(a.gemPick, b.dataset.arGem); }));
+  clearInterval(App.arenaTimer);
+  App.arenaTimer = setInterval(() => {
+    if (App.tab !== 'arena' || App.combat) { clearInterval(App.arenaTimer); return; }
+    const skew = a.me && a.me.server_now ? 0 : 0;
+    els('[data-ar-cd]').forEach(el => {
+      const ms = Number(el.dataset.arCd) - Date.now() - skew;
+      if (ms <= 0 && !a.loading) { clearInterval(App.arenaTimer); arenaLoad(false); return; }
+      el.textContent = arenaTimeLeft(ms);
+    });
+  }, 1000);
+}
+async function arenaRefreshTab() {
+  const a = arenaState();
+  try {
+    if (a.tab === 'ranking') a.ranking = (await arenaRpc('arena_ranking')).top || [];
+    if (a.tab === 'registo') a.log = await arenaRpc('arena_log');
+  } catch (e) { toast(arenaErr(e, 'Não foi possível carregar.')); }
+  if (App.tab === 'arena') renderTabArena();
+}
+async function arenaBuy(item, choice) {
+  const a = arenaState();
+  if (a.busy) return;
+  a.busy = true; setTradeBusy(true, 'A comprar…');
+  try {
+    const d = await arenaRpc('arena_buy', { p_item: item, p_choice: choice }, true);
+    updateTradeSave(d.save_data, d.revision, d.updated_at);
+    a.me = d.me; a.gemPick = null;
+    sfx.gold(); toast(`🎟️ Compraste: ${d.item}`);
+  } catch (e) { sfx.error(); toast(arenaErr(e, 'Não foi possível comprar.')); }
+  a.busy = false; setTradeBusy(false);
+  if (App.tab === 'arena') renderTabArena();
+}
+
+function startArenaFight(opp) {
+  const a = arenaState(), p = App.player;
+  if (!a.me || a.me.fights_left <= 0) { sfx.error(); toast(`Já fizeste as ${ARENA.DAILY} lutas de hoje.`); return; }
+  if (!guardAllowsFight(() => startArenaFight(opp))) return;
+  const e = enemyStatsFor(ARENA.NORM_LV, false);
+  Object.assign(e, arenaEnemyStats(p, opp.snapshot || {}));
+  e.maxHp = e.hp; e.element = null; e._elInit = true; e.critImmune = false; e.category = 'humano';
+  const hpBefore = p.hp;
+  p.hp = effectiveStats(p).hp; // na Arena começas sempre com a vida toda
+  App.btSheet = null; btSheetMount('');
+  sfx.click();
+  App.tab = 'arena';
+  App.combat = {
+    kind: 'arena', isArena: true, arena: { opp, hpBefore }, name: opp.name, icon: opp.bot ? '👤' : arenaClassIc(opp.cls),
+    level: ARENA.NORM_LV, isBoss: false, monsterName: null, difficulty: 'comum', gapMult: 1, isDungeon: false,
+    dungeonWaveSkill: ARENA_SKILLS[opp.cls] || { chance: 0.25, type: 'crit_guaranteed', icon: '🗡️', label: 'Golpe Certeiro' },
+    enemy: e,
+    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false },
+    cooldowns: {}, log: [], eventApplied: null, ended: false
+  };
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `🏟️ Arena: ${opp.name} entra na arena! Os dois lutam como Nv. ${ARENA.NORM_LV}.`, cls: 'crit' });
+  renderCombat();
+}
+function arenaFinish(won) {
+  const c = App.combat, p = App.player, a = c.arena;
+  if (won) { addCombatLog({ text: `${c.icon} ${c.name} foi derrotado!`, cls: 'crit' }); c._fxLogIdx = c.log.length; fxEnemyDie(); sfx.enemyDown(); }
+  else addCombatLog({ text: 'Foste derrotado...', cls: 'hit' });
+  p.hp = Math.max(1, Math.min(effectiveStats(p).hp, a.hpBefore || 1)); // a Arena não gasta a tua vida
+  saveGame();
+  if (won) sfx.evolve(); else sfx.defeat();
+  showCombatEnd(won, { xpGain: 0, goldGain: 0, drops: [won ? `🏟️ Venceste ${a.opp.name} na Arena!` : `🏟️ ${a.opp.name} venceu-te na Arena.`, '⏳ A registar o resultado na Arena…'] });
+  arenaReport(a.opp.id, won);
+}
+async function arenaReport(id, won) {
+  const a = arenaState();
+  try {
+    const d = await arenaRpc('arena_report', { p_opponent: id, p_win: won }, true);
+    if (d.save) updateTradeSave(d.save.save_data, d.save.revision, d.save.updated_at);
+    a.me = d.me; a.opps = (a.opps || []).filter(o => o.id !== id); a.log = null;
+    toast(`🏟️ Arena: ${d.delta >= 0 ? '+' : ''}${d.delta} pontos · 🎟️ +${d.fichas} Ficha${d.fichas > 1 ? 's' : ''}${d.gold ? ` · 🪙 +${nxNum(d.gold)} ouro` : ''}`);
+  } catch (e) { sfx.error(); toast('⚠️ ' + arenaErr(e, 'Não foi possível registar o resultado na Arena.')); }
+}
+
 // v222: a folha do menu Batalha vive num nó próprio no <body>, fora do conteúdo que faz scroll e anima.
 function btSheetMount(html, anim) {
   let r = document.getElementById('bt-sheet-root');
@@ -8602,11 +8910,13 @@ function renderTabBatalha() {
       label: esc(ev.name), sub: `${Math.max(0, ev.battlesLeft || 0)} bat.`, cls: 'ev' + (ev.key === 'culto' && (ev.candles || 0) >= CULT_CANDLES ? ' ready' : '') } : null,
     obOn ? { k: 'obelisco', ic: obIc('bt-act-img'), label: 'Obelisco',
       sub: obFirst ? `${obS.count}/${OB.DAILY} · <span data-ob-left="${obFirst}">${obLeftTxt(obFirst - obNow)}</span>` : `${obS.count}/${OB.DAILY}`,
-      cls: 'void' + (obFirst ? ' ready' : '') } : null
+      cls: 'void' + (obFirst ? ' ready' : '') } : null,
+    (p.level || 1) >= ARENA.MIN_LV ? { k: 'arena', go: 'arena', ic: icon('arena', '🏟️', 'bt-act-img'), label: 'Arena', // v223
+      sub: App.arena && App.arena.me ? `${App.arena.me.fights_left}/${ARENA.DAILY} lutas` : `${ARENA.DAILY} lutas`, cls: 'arena' + (App.arena && App.arena.me && App.arena.me.fights_left > 0 ? ' ready' : '') } : null
   ].filter(Boolean);
-  if (App.btSheet && !acts.some(x => x.k === App.btSheet)) App.btSheet = null;
+  if (App.btSheet && !acts.some(x => x.k === App.btSheet && !x.go)) App.btSheet = null;
   const dockHtml = `<div class="bt-dock" role="toolbar" aria-label="Atividades">${acts.map(x => `
-    <button type="button" class="bt-act ${x.cls}${App.btSheet === x.k ? ' on' : ''}" data-bt-open="${x.k}">${x.badge ? `<span class="bt-act-bd">${x.badge}</span>` : ''}<span class="bt-act-ic">${x.ic}</span><b>${x.label}</b><small>${x.sub}</small></button>`).join('')}
+    <button type="button" class="bt-act ${x.cls}${App.btSheet === x.k ? ' on' : ''}" ${x.go ? `data-bt-go="${x.go}"` : `data-bt-open="${x.k}"`}>${x.badge ? `<span class="bt-act-bd">${x.badge}</span>` : ''}<span class="bt-act-ic">${x.ic}</span><b>${x.label}</b><small>${x.sub}</small></button>`).join('')}
   </div>`;
   const alertHtml = tdReady.length ? `<div class="bt-alert"><span class="bt-alert-ic">${icon('chest', '🎁')}</span><span class="bt-alert-t">${tdReady.map(x => `<b>${x.label}</b>`).join(', ')} ${tdReady.length > 1 ? 'prontos' : 'pronto'} a recolher</span><button type="button" class="btn small" data-bt-open="hoje">Ver</button></div>` : '';
   const tdOrder = { ready: 0, todo: 1, done: 2 };
@@ -8680,6 +8990,7 @@ function renderTabBatalha() {
     sfx.click(); renderTabBatalha();
   }));
   els('[data-bt-close]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.btSheet = null; sfx.click(); renderTabBatalha(); }));
+  els('[data-bt-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setTab(b.dataset.btGo); })); // v223: Arena
   if (App.btDocClose) document.removeEventListener('click', App.btDocClose);
   App.btDocClose = e => { if (!e.target.closest || !e.target.closest('.bt-diff')) { const pp = $('bt-pop'); if (pp) pp.hidden = true; } if (!e.target.closest || !e.target.closest('.bt-tip, .bt-pill')) els('.bt-tip').forEach(t => { t.hidden = true; }); };
   document.addEventListener('click', App.btDocClose);
@@ -17945,6 +18256,7 @@ function resolveEnemyTurn(opts) {
 function handleEnemyDefeated() {
   const c = App.combat;
   if (c.isObelisk) { obOnDefeated(); return; } // v190
+  if (c.isArena) { arenaFinish(true); return; } // v223
   addCombatLog({ text: `${c.icon} ${hordeLabel(c)} foi derrotado!`, cls: 'crit' });
   c._fxLogIdx = c.log.length;
   fxEnemyDie();
@@ -18342,6 +18654,7 @@ function finishDungeon() {
 
 function handlePlayerDefeated() {
   const c = App.combat, p = App.player;
+  if (c.isArena) { arenaFinish(false); return; } // v223: na Arena não se perde ouro nem vida
   addCombatLog({ text: 'Foste derrotado...', cls: 'hit' });
   if (c.isTower) {
     c.towerFloorLost = endTowerRunByDefeat();
@@ -18438,10 +18751,12 @@ function showCombatEnd(won, info) {
   if (won) fxVictoryScreen(info);
   const wasTower = !!c.isTower;
   const wasHunt = !!c.isHunt;
+  const wasArena = !!c.isArena; // v223
+  if (wasArena) $('btn-combat-continue').textContent = 'Voltar à Arena';
   if (wasHunt && won) $('btn-combat-continue').textContent = 'Voltar aos Contratos';
   const towerBackKey = c.towerKey || (App.player.tower && App.player.tower.key) || TOWERS[0].key;
   if (wasTower && won) $('btn-combat-continue').textContent = App.player.tower ? (App.player.tower.maze ? 'Continuar no labirinto' : 'Continuar a subir ↑') : 'Voltar ao Mapa';
-  const rep = won && c.repeatOpts && !wasTower && !wasHunt ? c.repeatOpts : null;
+  const rep = won && c.repeatOpts && !wasTower && !wasHunt && !wasArena ? c.repeatOpts : null;
   if (rep && $('btn-combat-repeat')) $('btn-combat-repeat').addEventListener('click', () => {
     const pl = App.player, o = Object.assign({}, rep);
     if (o.kind === 'wild') { o.level = pl.level; o.count = hordeSize(pl); }
@@ -18452,6 +18767,7 @@ function showCombatEnd(won, info) {
     App.combat = null;
     if (wasTower) { App.tab = 'mapa'; App.mapaTab = 'tower:' + towerBackKey; goHub(); return; }
     if (wasHunt) { App.tab = 'loja'; App.lojaTab = 'contratos'; goHub(); return; }
+    if (wasArena) { App.tab = 'arena'; goHub(); return; }
     goHub();
   });
 }
@@ -18853,6 +19169,8 @@ const SCENES = {
   ymir:          { sky: ['#0e1a2b', '#2f4d6b', '#9fc3d9'], sun: null, layers: [['peaks', '#4f6f88', 0.50, 46], ['hills', '#dfeaf2', 0.80, 8]], fx: 'snow' }, // v210
   submerso:      { sky: ['#2a8f94', '#0c3d4e', '#03131b'], sun: '#bff7ee', layers: [['ruins', '#0e3b45', 0.52, 0], ['hills', '#0a2b34', 0.72, 12], ['hills', '#04171d', 0.86, 8]], fx: 'bubbles' }, // v201
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
+  arena:         { sky: ['#0a0503', '#2a120a', '#6a2a12'], sun: null, layers: [['arches', '#3a2618', 0.22, 0], ['floor', '#24170e', 0.80, 0]], fx: 'torches' }, // v223
+  chama:         { sky: ['#0a0403', '#2e0f08', '#7a2a10'], sun: null, layers: [['arches', '#3a1a10', 0.22, 0], ['floor', '#1e0e08', 0.80, 0]], fx: 'embers' }, // v223: a Chama Imortal usa a sua cena
   cripta:        { sky: ['#010302', '#040a07', '#08130e'], sun: null, layers: [['arches', '#24362e', 0.25, 0], ['floor', '#101a15', 0.80, 0]], fx: 'candles' },
   eclipse:       { sky: ['#05030a', '#1c1026', '#4a2a1a'], sun: null, eclipse: true, layers: [['ruins', '#2a1d2e', 0.50, 0], ['hills', '#140c18', 0.80, 10]], fx: 'motes' },
   halloween:     { sky: ['#07040f', '#2a1040', '#c4561a'], sun: '#ffb04a', layers: [['hills', '#1d0f2a', 0.55, 16], ['deadtrees', '#120818', 0.70, 0], ['graves', '#0a050f', 0.84, 0]], fx: 'bats' }, // v174
@@ -18985,7 +19303,7 @@ function sceneLayer(type, color, base, amp, R, W, H) {
 }
 const sceneCache = {};
 // v204: fundos pintados (icons/cena-<chave>.webp); sem imagem, fica o cenário desenhado em código.
-const SCENE_IMG = ['ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo', 'chama'];
+const SCENE_IMG = ['ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo', 'chama', 'arena'];
 function sceneArt(key) {
   if (SCENE_IMG.includes(key)) return `<div class="scene-img" style="background-image:url(icons/cena-${key}.webp?v=${NX_ICON_REV['cena-' + key] || NX_ICON_VER});"></div>`;
   return sceneSvg(key);
@@ -19016,6 +19334,7 @@ function sceneFxHtml(fx) {
   return `<div class="scene-fx fx-${fx}">${h}</div>`;
 }
 function combatSceneKey(c) {
+  if (c.isArena) return 'arena'; // v223
   if (c.isCultBoss) return 'eclipse';
   if (c.isTower) return 'torre';
   if (c.isSoberano) return (c.soberanoDef && c.soberanoDef.scene) || 'soberano'; // v205: arena do trono · v210: cada Soberano a sua
@@ -19272,7 +19591,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v222</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v223</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -19448,6 +19767,7 @@ function wireStaticEvents() {
       toast(kept ? `Fugiste da dungeon. 🎒 +${nxNum(kept.xp)} XP · +${nxNum(kept.gold)} 🪙` : 'Fugiste da dungeon.');
       return;
     }
+    if (c && c.isArena && !c.ended) { sfx.flee(); arenaFinish(false); return; } // v223: fugir da Arena conta como derrota
     if (c && c.isObelisk) { sfx.flee(); App.combat = null; App.tab = 'batalha'; goHub(); toast('Fugiste. O Obelisco continua no mapa, mas recupera a vida toda.'); return; } // v190
     sfx.flee(); App.combat = null; goHub(); toast('Fugiste do combate.');
   });
@@ -20434,7 +20754,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
