@@ -1,0 +1,5 @@
+-- v224: o Amuleto da Estrela (evento de Natal) mantém o +3% de XP quando é trocado.
+-- Em clean_trade_item, a linha do hwSkin passou a aceitar 'abobora' e 'estrela':
+--   if p_item->>'hwSkin' in ('abobora', 'estrela') and v_slot = 'amulet' then
+--     v_out := v_out || jsonb_build_object('hwSkin', p_item->>'hwSkin'); end if;
+-- (aplicado diretamente na função existente com a migração v224_trade_amuleto_estrela)
