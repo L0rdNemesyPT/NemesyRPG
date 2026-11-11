@@ -10733,7 +10733,7 @@ function heroMenuHtml(p, sections) {
 // ============================================================
 // 🃏 ÁLBUM DE CARTAS (v227) — uma carta por cada monstro e chefe do jogo, com a imagem
 // que já existe. Caem ao vencer (monstros 2%, chefes 15%, Soberanos 30%; os de eventos só
-// durante o evento). 5 cópias da mesma carta = carta Dourada (só visual). Pequenos bónus
+// durante o evento) — v228: monstros 5%, chefes 25%, Soberanos 50%. 5 cópias da mesma carta = carta Dourada (só visual). Pequenos bónus
 // por número de cartas diferentes, como a Sala de Troféus.
 // ============================================================
 const CARD_GOLD_COPIES = 5;
@@ -10757,15 +10757,15 @@ function cardList() {
   if (_cardList) return _cardList;
   const out = [], seen = new Set();
   const add = (name, icon, grp, tab, tier, chance) => { if (!name || seen.has(name)) return; seen.add(name); out.push({ name, icon, grp, tab, tier, chance }); };
-  REGIONS.forEach(r => { (r.monsters || []).forEach(m => add(m.name, m.icon, r.name, 'regioes', 'comum', 0.02)); });
-  DUNGEONS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.icon, d.name, 'dungeons', 'rara', 0.02)); });
-  CATACUMBAS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.icon, d.name, 'dungeons', 'rara', 0.02)); });
-  REGIONS.forEach(r => { (r.bosses || []).forEach(b => add(b.name, b.icon, r.name, 'chefes', 'epica', 0.15)); });
-  DUNGEONS.forEach(d => { (d.miniBosses || []).forEach(m => add(m.name, m.icon, d.name, 'chefes', 'epica', 0.15)); add(d.bossName, d.bossIcon, d.name, 'chefes', 'epica', 0.15); });
-  CATACUMBAS.forEach(d => { (d.miniBosses || []).forEach(m => add(m.name, m.icon, d.name, 'chefes', 'epica', 0.15)); add(d.bossName, d.bossIcon, d.name, 'chefes', 'epica', 0.15); });
-  SOBERANOS.forEach(s => add(s.name, s.icon, 'Soberanos', 'soberanos', 'lend', 0.30));
-  HW_MONSTERS.forEach(m => add(m.name, m.icon, 'Noite das Abóboras', 'eventos', 'lend', 0.04)); add(HW_BOSS.name, HW_BOSS.icon, 'Noite das Abóboras', 'eventos', 'lend', 0.15);
-  XM_MONSTERS.forEach(m => add(m.name, m.icon, 'Natal Gelado', 'eventos', 'lend', 0.04)); add(XM_BOSS.name, XM_BOSS.icon, 'Natal Gelado', 'eventos', 'lend', 0.15);
+  REGIONS.forEach(r => { (r.monsters || []).forEach(m => add(m.name, m.icon, r.name, 'regioes', 'comum', 0.05)); });
+  DUNGEONS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.icon, d.name, 'dungeons', 'rara', 0.05)); });
+  CATACUMBAS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.icon, d.name, 'dungeons', 'rara', 0.05)); });
+  REGIONS.forEach(r => { (r.bosses || []).forEach(b => add(b.name, b.icon, r.name, 'chefes', 'epica', 0.25)); });
+  DUNGEONS.forEach(d => { (d.miniBosses || []).forEach(m => add(m.name, m.icon, d.name, 'chefes', 'epica', 0.25)); add(d.bossName, d.bossIcon, d.name, 'chefes', 'epica', 0.25); });
+  CATACUMBAS.forEach(d => { (d.miniBosses || []).forEach(m => add(m.name, m.icon, d.name, 'chefes', 'epica', 0.25)); add(d.bossName, d.bossIcon, d.name, 'chefes', 'epica', 0.25); });
+  SOBERANOS.forEach(s => add(s.name, s.icon, 'Soberanos', 'soberanos', 'lend', 0.50));
+  HW_MONSTERS.forEach(m => add(m.name, m.icon, 'Noite das Abóboras', 'eventos', 'lend', 0.08)); add(HW_BOSS.name, HW_BOSS.icon, 'Noite das Abóboras', 'eventos', 'lend', 0.25);
+  XM_MONSTERS.forEach(m => add(m.name, m.icon, 'Natal Gelado', 'eventos', 'lend', 0.08)); add(XM_BOSS.name, XM_BOSS.icon, 'Natal Gelado', 'eventos', 'lend', 0.25);
   _cardList = out;
   return out;
 }
@@ -10836,7 +10836,7 @@ function renderCartasBody() {
     <div class="section-title" style="margin-top:14px;">Bónus do Álbum</div>
     <div class="cd-ms">${CARD_MILESTONES.map(m => { const need = m.n || all, ok = have >= need;
       return `<div class="${ok ? 'ok' : ''}"><b>${m.n ? `${m.n} cartas` : 'Todas'}</b>${m.txt.replace(' (álbum completo)', '')}<em>${ok ? '✓' : `${have}/${need}`}</em></div>`; }).join('')}</div>
-    <p class="tiny muted" style="margin-top:8px;">Monstros: ${Math.round(0.02 * 100)}% · Chefes: 15% · Soberanos: 30% · Eventos: só durante o evento. A Sorte de drop ajuda. Com ${CARD_GOLD_COPIES} cópias, a carta fica Dourada.</p>
+    <p class="tiny muted" style="margin-top:8px;">Monstros: 5% · Chefes: 25% · Soberanos: 50% · Eventos: 8% (monstros) e 25% (chefes), só durante o evento. A Sorte de drop ajuda. Com ${CARD_GOLD_COPIES} cópias, a carta fica Dourada.</p>
     <div class="cd-big" id="cd-big" role="dialog" aria-modal="true" aria-label="Carta" hidden></div>`;
   els('[data-cd-tab]', body).forEach(b => b.addEventListener('click', () => { App.cardTab = b.dataset.cdTab; sfx.tab(); renderCartasBody(); }));
   const big = $('cd-big');
