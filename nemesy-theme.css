@@ -3902,3 +3902,38 @@ body.ui-pergaminho .bt-act.void small{color:#6b3fb3;}
 .ar-log-d.up{color:#8ee06a;} .ar-log-d.dn{color:#ff7a6a;}
 body.ui-pergaminho .ar-pow.easy,body.ui-pergaminho .ar-log-d.up{color:#3f7a2a;}
 body.ui-pergaminho .ar-pow.hard,body.ui-pergaminho .ar-log-d.dn{color:#a8382c;}
+
+/* ======================================================================
+   v224: NATAL GELADO (evento de Natal)
+   ====================================================================== */
+.xm-banner{position:relative; overflow:hidden; text-align:center; padding:16px 12px; border-radius:14px; border:1px solid #6fa8d8; margin-bottom:10px;
+  background:radial-gradient(circle at 80% 15%, rgba(180,220,255,.28), transparent 42%), radial-gradient(120% 90% at 50% 0%, #1d3a5c 0%, #0f2036 55%, #0a1424 100%); color:#eef4fb;}
+.xm-banner > *:not(.xm-snow){position:relative;}
+.xm-snow{position:absolute; inset:0; width:100%; height:100%; pointer-events:none;}
+.xm-title{font-family:var(--font-display); font-weight:700; font-size:21px; color:#eaf6ff; text-shadow:0 0 12px rgba(140,200,255,.6);}
+.xm-banner .tiny{color:#b9cde0;}
+.xm-count{display:inline-flex; align-items:center; gap:6px; margin-top:10px; padding:5px 14px; border-radius:20px; background:rgba(0,0,0,.35); border:1px solid #6fa8d8; font-size:15px; color:#ffe39a;}
+.xm-count .nx-ic{width:22px; height:22px;}
+.xm-titlebadge{display:inline-block; margin:8px 0 0 6px; padding:3px 10px; border-radius:99px; border:1px solid #3fa66b; background:rgba(63,166,107,.18); color:#bff0cf; font-size:12px; font-weight:800;}
+.xm-adv{display:grid; grid-template-columns:repeat(6,1fr); gap:5px;}
+.xm-day{position:relative; aspect-ratio:1; max-width:100%; padding:0; border-radius:9px; border:1px solid var(--line); background:var(--bg-panel); color:var(--muted); font:800 13px var(--font-body); font-variant-numeric:tabular-nums;}
+.xm-day.big{border-color:#d7ab3c;}
+.xm-day.big::after{content:"★"; position:absolute; top:1px; right:3px; font-size:9px; color:#f2c94c;}
+.xm-day.done{background:rgba(63,166,107,.18); color:#5fd08f; border-color:rgba(63,166,107,.45);}
+.xm-day.lost{opacity:.4; text-decoration:line-through;}
+.xm-day.today{background:linear-gradient(180deg,#c43c3c,#7a1f1f); color:#fff; border-color:#f2c94c; box-shadow:0 0 12px rgba(242,201,76,.5); cursor:pointer; animation:xmPulse 1.6s ease-in-out infinite;}
+@keyframes xmPulse{0%,100%{transform:scale(1);} 50%{transform:scale(1.06);}}
+@media (prefers-reduced-motion:reduce){.xm-day.today{animation:none;}}
+.xm-mob{border-color:#2f4f6f !important; background:linear-gradient(180deg,#14263a,#0b1624) !important;}
+.xm-mob b{color:#cfe8ff !important;}
+.xm-boss{border-color:#a53434 !important; background:linear-gradient(180deg,rgba(165,52,52,.2),transparent) !important;}
+.xm-boss-ic{background:radial-gradient(circle,#4a0f0f,#140606) !important; border-color:#a53434 !important;}
+.xm-boss-n{color:#ff9a8a !important;}
+.btn.xm-btn{background:linear-gradient(180deg,#c43c3c,#7a1f1f); color:#fff3ee; border:1px solid #f2c94c; box-shadow:0 0 10px rgba(242,201,76,.3);}
+.xm-item{border-color:#2f4f6f !important;}
+.xm-txt{color:#ffe39a;}
+.ak-tag.xm-tag{border-color:#3fa66b; color:#bff0cf; background:rgba(63,166,107,.15);}
+body.ui-pergaminho .xm-day.done{color:#2f7a4a;}
+.xm-steps > div{border-color:#2f4f6f; background:#0c1724;}
+.xm-steps b{background:#a53434;}
+.xm-item .btn .nx-ic{width:16px; height:16px; vertical-align:-3px;}
