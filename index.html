@@ -3340,7 +3340,7 @@ function getEquippedTalisman(player) {
 // Bónus de XP das batalhas: Milho comido neste combate + Talismã (ex.: Sabedoria +5%).
 function battleXpBonus(c) {
   const t = getEquippedTalisman(App.player);
-  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player); // v224: Amuleto da Estrela
+  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp'); // v224: Amuleto da Estrela · v227: Cartas
 }
 function grantTalisman(player, key) {
   const definition = TALISMAN_DEFS[key];
@@ -3613,6 +3613,7 @@ function effectiveStats(player) {
   const coreT = coreTotals(player);
   hpPctTotal += alch.hp; defPctTotal += alch.def; crit += alch.crit + coreT.crit;
   const trophyPct = trophyBonusPct(player); dmgPctTotal += trophyPct; hpPctTotal += trophyPct; // v119: Sala de Troféus
+  dmgPctTotal += cardBonus(player, 'dmg'); hpPctTotal += cardBonus(player, 'hp'); crit += cardBonus(player, 'crit'); // v227: Álbum de Cartas
   hpPctTotal += mealHpPct(player); // v109: Sopa da Avó
   hp = Math.round(hp * (1 + hpPctTotal));
   dmg = Math.round(dmg * (1 + Math.min(dmgPctTotal, DMG_PCT_CAP)));
@@ -3660,8 +3661,8 @@ function effectiveStats(player) {
     dmgVsAnimaisPct: Math.min(itemDmgVsAnimais, DMG_PCT_CAP * 100), dmgVsHumanosPct: Math.min(itemDmgVsHumanos, DMG_PCT_CAP * 100),
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20) + Math.round(gt.skillPct * 100),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
-    dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + PG_VAL.golpeCd / 100 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + PG_VAL.fortGold / 100 * (pgT.fortuna || 0), pgCd: pgT.impeto || 0, undying: !!pv.undying,
+    dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck') + cardBonus(player, 'luck'),
+    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + PG_VAL.golpeCd / 100 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + PG_VAL.fortGold / 100 * (pgT.fortuna || 0) + cardBonus(player, 'gold'), pgCd: pgT.impeto || 0, undying: !!pv.undying,
     defPen: gt.defPen, dmgTakenRed: gt.dmgTaken, esLeech: gt.esLeech, esRegen: gt.esRegen,
     res: playerResTotals(player), myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
@@ -10652,6 +10653,7 @@ function heroMenuSub(p, s) {
     case 'mascotes': { const a = (p.pets || []).find(x => x.id === p.activePet), d = a && PET_DEFS[a.type]; return d ? [`${d.name} Nv. ${a.level}`] : (p.pets || []).length ? [`${pl(p.pets.length, 'mascote', 'mascotes')} · nenhuma ativa`, 'go'] : ['Ainda nenhuma']; }
     case 'profissoes': return p.profession && PROFESSIONS[p.profession] ? [`${PROFESSIONS[p.profession].name} Nv. ${profLevelOf(p, p.profession)}`] : p.professionBooks ? ['Por escolher · tens 📗', 'go'] : ['Por escolher'];
     case 'paragon': return paragonCanReborn(p) ? [`Renascer · Paragon ${paragonOf(p) + 1}`, 'go'] : paragonOf(p) ? [`Nv. ${heroLv(p)} · P${paragonOf(p)}`] : ['Renasce no Nv. 200'];
+    case 'cartas': return [`${cardCount(p)}/${cardList().length} cartas`]; // v227
     case 'caderneta': { const n = ALL_BOSSES.filter(b => (p.defeatedBosses || []).includes(b.name)).length; return [`${pl(n, 'chefe vencido', 'chefes vencidos')}`]; }
     case 'guild': { const d = typeof guildCache !== 'undefined' && guildCache && cloudUser && guildCache.userId === cloudUser.id ? guildCache.data : null;
       if (!d) return ['A tua guild']; if (!d.guild) return ['Sem guild · junta-te a uma']; return [guildBadge() ? `${esc(d.guild.name || 'Guild')} · prémio pronto` : esc(d.guild.name || 'Guild'), guildBadge() ? 'go' : '']; }
@@ -10722,11 +10724,135 @@ function heroMenuHtml(p, sections) {
   return `<div class="hm">${card}
     ${todo.length ? `<div class="hm-sec">A fazer</div><div class="hm-todo">${todo.join('')}</div>` : ''}
     ${sections.some(s => s.key === 'paragon') ? paragonMenuTile(p) : ''}
-    ${grp('O teu herói', ['habilidades', 'passivas', 'mascotes', 'profissoes', 'caderneta', 'perfil'])}
+    ${grp('O teu herói', ['habilidades', 'passivas', 'mascotes', 'profissoes', 'caderneta', 'cartas', 'perfil'])}
     ${grp('Social', ['guild', 'amigos'], true)}
     ${grp('A tua base', ['esconderijo', 'vila'], true)}
     <div class="hm-sec">Caderneta</div><button type="button" class="hm-book" data-heroitab="caderneta">${heroBookRowsHtml(p, true)}<span class="hm-more">Ver tudo ›</span></button></div>`;
 }
+
+// ============================================================
+// 🃏 ÁLBUM DE CARTAS (v227) — uma carta por cada monstro e chefe do jogo, com a imagem
+// que já existe. Caem ao vencer (monstros 2%, chefes 15%, Soberanos 30%; os de eventos só
+// durante o evento). 5 cópias da mesma carta = carta Dourada (só visual). Pequenos bónus
+// por número de cartas diferentes, como a Sala de Troféus.
+// ============================================================
+const CARD_GOLD_COPIES = 5;
+const CARD_TIERS = {
+  comum: { name: 'Comum', color: '#9a8f80' },
+  rara: { name: 'Rara', color: '#6fb3ff' },
+  epica: { name: 'Épica', color: '#b47cff' },
+  lend: { name: 'Lendária', color: '#ffb547' }
+};
+const CARD_MILESTONES = [
+  { n: 10, key: 'xp', val: 0.01, txt: '+1% XP' },
+  { n: 25, key: 'gold', val: 0.01, txt: '+1% Ouro' },
+  { n: 50, key: 'dmg', val: 0.01, txt: '+1% Dano' },
+  { n: 75, key: 'hp', val: 0.01, txt: '+1% HP' },
+  { n: 100, key: 'luck', val: 0.01, txt: '+1% Sorte de drop' },
+  { n: 0, key: 'crit', val: 0.01, txt: '+1% Crítico (álbum completo)' } // n = 0 → todas as cartas
+];
+let _cardList = null;
+// Lista de cartas, montada a partir dos próprios monstros e chefes do jogo (fica sempre em dia).
+function cardList() {
+  if (_cardList) return _cardList;
+  const out = [], seen = new Set();
+  const add = (name, icon, grp, tab, tier, chance) => { if (!name || seen.has(name)) return; seen.add(name); out.push({ name, icon, grp, tab, tier, chance }); };
+  REGIONS.forEach(r => { (r.monsters || []).forEach(m => add(m.name, m.icon, r.name, 'regioes', 'comum', 0.02)); });
+  DUNGEONS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.icon, d.name, 'dungeons', 'rara', 0.02)); });
+  CATACUMBAS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.icon, d.name, 'dungeons', 'rara', 0.02)); });
+  REGIONS.forEach(r => { (r.bosses || []).forEach(b => add(b.name, b.icon, r.name, 'chefes', 'epica', 0.15)); });
+  DUNGEONS.forEach(d => { (d.miniBosses || []).forEach(m => add(m.name, m.icon, d.name, 'chefes', 'epica', 0.15)); add(d.bossName, d.bossIcon, d.name, 'chefes', 'epica', 0.15); });
+  CATACUMBAS.forEach(d => { (d.miniBosses || []).forEach(m => add(m.name, m.icon, d.name, 'chefes', 'epica', 0.15)); add(d.bossName, d.bossIcon, d.name, 'chefes', 'epica', 0.15); });
+  SOBERANOS.forEach(s => add(s.name, s.icon, 'Soberanos', 'soberanos', 'lend', 0.30));
+  HW_MONSTERS.forEach(m => add(m.name, m.icon, 'Noite das Abóboras', 'eventos', 'lend', 0.04)); add(HW_BOSS.name, HW_BOSS.icon, 'Noite das Abóboras', 'eventos', 'lend', 0.15);
+  XM_MONSTERS.forEach(m => add(m.name, m.icon, 'Natal Gelado', 'eventos', 'lend', 0.04)); add(XM_BOSS.name, XM_BOSS.icon, 'Natal Gelado', 'eventos', 'lend', 0.15);
+  _cardList = out;
+  return out;
+}
+function cardByName(name) { return name ? cardList().find(x => x.name === name) : null; }
+function cardState(p) { p.cards = p.cards && typeof p.cards === 'object' && !Array.isArray(p.cards) ? p.cards : {}; return p.cards; }
+function cardCount(p) { const s = cardState(p); return cardList().filter(x => (s[x.name] || 0) > 0).length; }
+function cardGoldCount(p) { const s = cardState(p); return cardList().filter(x => (s[x.name] || 0) >= CARD_GOLD_COPIES).length; }
+function cardBonus(p, key) {
+  if (!p) return 0;
+  const n = cardCount(p), all = cardList().length;
+  return CARD_MILESTONES.reduce((a, m) => a + (m.key === key && n >= (m.n || all) ? m.val : 0), 0);
+}
+// Que carta corresponde ao inimigo vencido (os Soberanos mudam de nome na 2.ª fase).
+function cardForCombat(c) {
+  if (!c) return null;
+  if (c.isSoberano && c.soberanoDef) return cardByName(c.soberanoDef.name);
+  return cardByName(c.monsterName) || cardByName(c.name);
+}
+function cardOnKill(c) {
+  const p = App.player, card = cardForCombat(c);
+  if (!p || !card) return;
+  if (card.tab === 'eventos' && !(hwActive() || xmActive())) return;
+  const luck = 1 + Math.min(1, effectiveStats(p).dropLuckBonus || 0);
+  if (Math.random() >= card.chance * luck) return;
+  const s = cardState(p), before = s[card.name] || 0, nBefore = cardCount(p);
+  s[card.name] = before + 1;
+  const tier = CARD_TIERS[card.tier];
+  if (!before) {
+    addCombatLog({ text: `🃏 Nova carta: ${card.name} (${tier.name})!`, cls: 'crit' });
+    toast(`🃏 Nova carta para o Álbum: ${card.name}!`);
+    const nNow = cardCount(p), all = cardList().length;
+    const ms = CARD_MILESTONES.find(m => nBefore < (m.n || all) && nNow >= (m.n || all));
+    if (ms) toast(`🃏 ${nNow} cartas no Álbum: ${ms.txt}, para sempre!`);
+  } else if (before + 1 === CARD_GOLD_COPIES) {
+    addCombatLog({ text: `✨ A carta ${card.name} ficou Dourada!`, cls: 'crit' });
+    toast(`✨ ${card.name}: carta Dourada!`);
+  } else addCombatLog({ text: `🃏 Carta repetida: ${card.name} (${before + 1}/${CARD_GOLD_COPIES} para Dourada)`, cls: 'heal' });
+  saveGame();
+}
+function cardImg(card, cls) {
+  const k = nxSlug(card.name), key = NX_ICON_IMG.has('chefe-' + k) ? 'chefe-' + k : NX_ICON_IMG.has('monstro-' + k) ? 'monstro-' + k : null;
+  return key ? `<img class="${cls}" src="${nxImgUrl(key)}" alt="" loading="lazy">` : `<span class="${cls} cd-emo">${card.icon}</span>`;
+}
+function cardHtml(p, card, big) {
+  const s = cardState(p), n = s[card.name] || 0, t = CARD_TIERS[card.tier], gold = n >= CARD_GOLD_COPIES;
+  if (!n) return `<div class="cd off" aria-label="Carta por descobrir"><div class="cd-in"><img class="cd-back" src="${nxImgUrl('carta-verso')}" alt="" loading="lazy"><span class="cd-q">?</span></div></div>`;
+  return `<button type="button" class="cd ${card.tier}${gold ? ' gold' : ''}" style="--fc:${gold ? '#ffd86b' : t.color}" ${big ? 'tabindex="-1"' : `data-cd="${esc(card.name)}"`} aria-label="${esc(card.name)}">
+    <div class="cd-in">${cardImg(card, 'cd-img')}<div class="cd-nm"><b>${esc(card.name)}</b><small>${gold ? 'Dourada' : t.name}</small></div></div>
+    ${n > 1 && !big ? `<span class="cd-cp">×${n}</span>` : ''}</button>`;
+}
+function renderCartasBody() {
+  const p = App.player, body = $('heroi-body'); if (!body) return;
+  const list = cardList(), all = list.length, have = cardCount(p), golds = cardGoldCount(p), s = cardState(p);
+  const tab = App.cardTab || 'todas';
+  const tabs = [['todas', 'Todas'], ['regioes', 'Regiões'], ['dungeons', 'Dungeons'], ['chefes', 'Chefes'], ['soberanos', 'Soberanos'], ['eventos', 'Eventos']];
+  const shown = list.filter(x => tab === 'todas' || x.tab === tab);
+  const next = CARD_MILESTONES.find(m => have < (m.n || all));
+  body.innerHTML = `
+    <div class="cd-top">
+      <div><b>Álbum de Cartas</b><span>Vence monstros e chefes para ganhar a carta deles.</span></div>
+      <div class="cd-n"><b>${have} / ${all}</b><span>cartas${golds ? ` · ✨ ${golds} douradas` : ''}</span></div>
+    </div>
+    <div class="cd-bar"><i style="width:${Math.round(have / all * 100)}%"></i></div>
+    <div class="cd-bar-t"><span>${next ? `Próximo bónus: ${next.txt}` : 'Álbum completo!'}</span><span>${next ? `faltam ${(next.n || all) - have}` : '🏆'}</span></div>
+    <div class="cd-tabs" role="tablist">${tabs.map(([k, l]) => { const tot = list.filter(x => k === 'todas' || x.tab === k), got = tot.filter(x => (s[x.name] || 0) > 0).length;
+      return `<button type="button" role="tab" aria-selected="${tab === k}" class="${tab === k ? 'on' : ''}" data-cd-tab="${k}">${l} <small>${got}/${tot.length}</small></button>`; }).join('')}</div>
+    <div class="cd-grid">${shown.map(x => cardHtml(p, x)).join('')}</div>
+    <div class="section-title" style="margin-top:14px;">Bónus do Álbum</div>
+    <div class="cd-ms">${CARD_MILESTONES.map(m => { const need = m.n || all, ok = have >= need;
+      return `<div class="${ok ? 'ok' : ''}"><b>${m.n ? `${m.n} cartas` : 'Todas'}</b>${m.txt.replace(' (álbum completo)', '')}<em>${ok ? '✓' : `${have}/${need}`}</em></div>`; }).join('')}</div>
+    <p class="tiny muted" style="margin-top:8px;">Monstros: ${Math.round(0.02 * 100)}% · Chefes: 15% · Soberanos: 30% · Eventos: só durante o evento. A Sorte de drop ajuda. Com ${CARD_GOLD_COPIES} cópias, a carta fica Dourada.</p>
+    <div class="cd-big" id="cd-big" role="dialog" aria-modal="true" aria-label="Carta" hidden></div>`;
+  els('[data-cd-tab]', body).forEach(b => b.addEventListener('click', () => { App.cardTab = b.dataset.cdTab; sfx.tab(); renderCartasBody(); }));
+  const big = $('cd-big');
+  els('[data-cd]', body).forEach(b => b.addEventListener('click', () => {
+    const card = cardByName(b.dataset.cd); if (!card) return;
+    const n = s[card.name] || 0;
+    big.innerHTML = `<div class="cd-bw">${cardHtml(p, card, true)}
+      <div class="cd-info"><b>${esc(card.name)}</b> · ${esc(card.grp)}<br>Hipótese de carta: <b>${String(Math.round(card.chance * 1000) / 10).replace('.', ',')}%</b> por vitória<br>${n} ${n === 1 ? 'cópia' : 'cópias'}${n >= CARD_GOLD_COPIES ? ' · ✨ Dourada' : ` · faltam ${CARD_GOLD_COPIES - n} para Dourada`}</div>
+      <button type="button" class="btn small" data-cd-close>Fechar</button></div>`;
+    big.hidden = false; sfx.click();
+    const x = big.querySelector('[data-cd-close]'); x.focus();
+    x.addEventListener('click', () => { big.hidden = true; b.focus(); });
+  }));
+  big.addEventListener('click', e => { if (e.target === big) big.hidden = true; });
+}
+
 function renderCadernetaBody() {
   const p = App.player, body = $('heroi-body'); if (!body) return;
   const db = p.defeatedBosses || [], found = mythicFoundSync(p), petT = new Set((p.pets || []).map(x => x.type));
@@ -10756,6 +10882,7 @@ function heroiSections(p) {
       badge: p.hideout ? (hoReadyCount(p) || null) : (p.level >= HIDEOUT_MIN_LEVEL ? 'Novo' : null) },
     { key: 'vila', label: 'Vila', icon: nxEnt('vila', '🏰'), badge: vilaBadge(p) }, // v198
     { key: 'caderneta', label: 'Caderneta', icon: nxEnt('trofeu-vitoria', '🏆') }, // v209
+    { key: 'cartas', label: 'Cartas', icon: nxEnt('carta-verso', '🃏'), badge: (() => { const n = cardCount(p); return n ? `${n}/${cardList().length}` : null; })() }, // v227
     { key: 'paragon', label: 'Paragon', icon: nxEnt('paragon-' + Math.max(1, paragonOf(p)), '✨'), badge: paragonCanReborn(p) ? '✨' : (paragonPointsLeft(p) || null) } // v219
   ];
 }
@@ -10807,6 +10934,7 @@ function renderTabHeroi() {
   else if (current.key === 'esconderijo') renderEsconderijoBody();
   else if (current.key === 'vila') renderVilaBody(); // v198
   else if (current.key === 'caderneta') renderCadernetaBody(); // v209
+  else if (current.key === 'cartas') renderCartasBody(); // v227
   else if (current.key === 'paragon') renderParagonBody(); // v219
   else renderHeroiPerfilBody(current.key);
 }
@@ -18458,6 +18586,7 @@ function handleEnemyDefeated() {
   fxEnemyDie();
   sfx.enemyDown();
   seasonOnEnemyDefeated(c);
+  cardOnKill(c); // v227: Álbum de Cartas
   if (c.isTower) { finishTowerFight(); return; }
   if (c.isSoberano) { finishSoberano(); return; }
   if (c.isHunt) { huntOnEnemyDefeated(); return; }
@@ -19790,7 +19919,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v226</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v227</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -20953,7 +21082,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
