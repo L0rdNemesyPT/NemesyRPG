@@ -8827,7 +8827,7 @@ function arenaTimeLeft(ms) {
 
 function renderTabArena() {
   const p = App.player, a = arenaState(), lv = p.level || 1;
-  const back = `<button type="button" class="btn ghost small ar-back" data-ar-back>‹ Batalha</button>`;
+  const back = `<button type="button" class="btn ghost small ar-back" data-ar-back>‹ ${App.arenaFrom === 'loja' ? 'Cidade' : 'Batalha'}</button>`;
   if (lv < ARENA.MIN_LV) {
     $('hub-content').innerHTML = `${back}<div class="ar-empty">${arenaIc('arena', '🏟️', 'ar-empty-ic')}<b>A Arena abre no Nv. ${ARENA.MIN_LV}</b><span>Estás no Nv. ${lv}.</span></div>`;
     arenaBind(); return;
@@ -8917,7 +8917,7 @@ function arenaAgo(ms) {
 }
 function arenaBind() {
   const a = arenaState();
-  els('[data-ar-back]').forEach(b => b.addEventListener('click', () => { sfx.tab(); setTab('batalha'); }));
+  els('[data-ar-back]').forEach(b => b.addEventListener('click', () => { sfx.tab(); const from = App.arenaFrom === 'loja' ? 'loja' : 'batalha'; if (from === 'loja') App.lojaTab = null; setTab(from); }));
   els('[data-ar-retry]').forEach(b => b.addEventListener('click', () => { a.err = ''; arenaLoad(true); }));
   els('[data-ar-tab]').forEach(b => b.addEventListener('click', () => {
     a.tab = b.dataset.arTab; a.gemPick = null; sfx.tab(); renderTabArena();
@@ -9177,7 +9177,7 @@ function renderTabBatalha() {
     sfx.click(); renderTabBatalha();
   }));
   els('[data-bt-close]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.btSheet = null; sfx.click(); renderTabBatalha(); }));
-  els('[data-bt-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); setTab(b.dataset.btGo); })); // v223: Arena
+  els('[data-bt-go]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); App.arenaFrom = 'batalha'; setTab(b.dataset.btGo); })); // v223: Arena
   if (App.btDocClose) document.removeEventListener('click', App.btDocClose);
   App.btDocClose = e => { if (!e.target.closest || !e.target.closest('.bt-diff')) { const pp = $('bt-pop'); if (pp) pp.hidden = true; } if (!e.target.closest || !e.target.closest('.bt-tip, .bt-pill')) els('.bt-tip').forEach(t => { t.hidden = true; }); };
   document.addEventListener('click', App.btDocClose);
@@ -10601,7 +10601,8 @@ const UNLOCKS = {
     mercadonegro: { lv: 12, label: 'Mercado Negro' },
     cambio: { lv: 15, label: 'Câmbio' },
     contratos: { lv: 60, label: 'Contratos de Caça' }, // = HUNT_MIN_LV (definido mais abaixo)
-    bar: { lv: HIDEOUT_MIN_LEVEL, label: 'Bar', need: p => hideoutLevel(p) >= ALLY_HIDEOUT_LV, needTxt: `Esconderijo Nv. ${ALLY_HIDEOUT_LV}` }
+    bar: { lv: HIDEOUT_MIN_LEVEL, label: 'Bar', need: p => hideoutLevel(p) >= ALLY_HIDEOUT_LV, needTxt: `Esconderijo Nv. ${ALLY_HIDEOUT_LV}` },
+    arena: { lv: 50, label: 'Arena' } // v225 (= ARENA.MIN_LV)
   }
 };
 function unlockOk(p, grp, key) {
@@ -15314,7 +15315,8 @@ function interiorHtml(key) {
   return `<div class="in-hero" style="background-image:url(icons/interior-${key}.webp?v=${NX_ICON_REV['interior-' + key] || NX_ICON_VER});"><div class="in-say"><b>${d[0]}</b><span>«${d[1]}»</span></div></div>`;
 }
 // v203: Cidade ilustrada — cada sítio é um edifício do mapa (icons/mapa-cidade.webp).
-const CITY_SPOTS = { classificacao: [50, 20], cambio: [24, 24], temporada: [77, 25], loja: [22, 39], ferreiro: [80, 38], diaria: [55, 53],
+const CITY_SPOTS = { classificacao: [50, 20], cambio: [24, 24], arena: [77, 25], temporada: [61, 31], // v225: a Arena fica no ringue; a Temporada passa para a casa ao lado
+  loja: [22, 39], ferreiro: [80, 38], diaria: [55, 53],
   cozinha: [22, 57], profissao: [79, 61], bar: [30, 78], mercadonegro: [70, 76], contratos: [67, 92] };
 const CITY_LAMPS = [[45, 28], [55, 28], [44, 62], [56, 62], [42, 92], [58, 92], [30, 80], [36, 74], [24, 60], [80, 41]];
 const CITY_WALKS = [[[48, 88], [48, 62], [44, 50], [48, 40], [48, 28]], [[52, 30], [52, 42], [60, 48], [52, 56], [52, 86]], [[8, 47], [36, 47], [64, 47], [92, 47]], [[90, 49], [62, 50], [38, 50], [12, 49]]];
@@ -15355,10 +15357,12 @@ function renderTabLoja() {
     { key: 'temporada', label: 'Temporada', icon: '🎮', badge: seasonReadyCount(p) ? `🎁${seasonReadyCount(p)}` : null },
     { key: 'cambio', label: 'Câmbio', icon: '⚖️' },
     { key: 'contratos', label: 'Contratos de Caça', icon: '📜', badge: (p.level || 1) >= HUNT_MIN_LV && !huntState(p).freeUsed ? '🎁' : null },
-    { key: 'bar', label: 'Bar', icon: nxEnt('bar', '🍺'), badge: hideoutLevel(p) >= ALLY_HIDEOUT_LV && !p.ally ? 'Novo' : null }
+    { key: 'bar', label: 'Bar', icon: nxEnt('bar', '🍺'), badge: hideoutLevel(p) >= ALLY_HIDEOUT_LV && !p.ally ? 'Novo' : null },
+    { key: 'arena', label: 'Arena', icon: nxEnt('arena', '🏟️'), badge: App.arena && App.arena.me && App.arena.me.fights_left > 0 ? `⚔️${App.arena.me.fights_left}` : null } // v225
   ].filter(x => unlockOk(p, 'loja', x.key)).map(x => unlockIsNew(p, 'loja', x.key) ? Object.assign({}, x, { badge: 'Novo', isNew: true }) : x); // v197
   const current = sections.find(x => x.key === App.lojaTab);
   if (current) unlockSeen(p, 'loja', current.key);
+  if (current && current.key === 'arena') { App.lojaTab = null; App.arenaFrom = 'loja'; setTab('arena'); return; } // v225: a Arena abre a página dela
   if (!current) {
     App.lojaTab = null;
     $('hub-content').innerHTML = `
@@ -19786,7 +19790,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v224</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v225</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
