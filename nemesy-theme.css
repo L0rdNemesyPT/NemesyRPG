@@ -4067,3 +4067,24 @@ body.ui-pergaminho .ml-row{color:#f1e6cf;}
 .ab-btn.int-hit::after{content:"Interrompe!";position:absolute;top:5px;right:6px;font-size:9.5px;font-weight:800;color:#0d1a08;background:#8EE06A;padding:1px 6px;border-radius:999px;pointer-events:none;}
 @media (prefers-reduced-motion:reduce){.cb-intent{animation:none;}}
 .ab-btn.int-hit{position:relative;}
+
+/* v232 — Combate mais bonito: herói com retrato, habilidades numa linha, recarga em relógio, registo compacto */
+#screen-combat .cb-scene{height:58%;}
+#screen-combat .enemy-row .enemy-glyph{width:78px;height:78px;}
+#screen-combat .combat-log{flex:1 1 auto;max-height:215px;margin-top:auto;}
+.cb-pp{display:flex;align-items:center;gap:10px;}
+.cb-pmain{flex:1;min-width:0;}
+.cb-pav{width:54px;height:54px;flex:0 0 auto;border-radius:50%;overflow:hidden;display:grid;place-items:center;font-size:28px;border:2px solid var(--gold-bright,#e4bf4a);background:radial-gradient(circle at 50% 35%,#3a2a12,#120c06);box-shadow:0 0 0 2px rgba(0,0,0,.5),0 0 12px rgba(228,191,74,.35);}
+#cb-player-icon.cb-pav .hero-av,#cb-player-icon.cb-pav .hero-av.tiny,#cb-player-icon.cb-pav img{width:100% !important;height:100% !important;border:0 !important;border-radius:50% !important;object-fit:cover;vertical-align:0 !important;display:block;}
+#screen-combat .ability-grid,#screen-combat .ability-grid.many{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;}
+#screen-combat .ab-btn{min-height:0 !important;padding:8px 2px 6px !important;gap:3px;justify-content:center;overflow:hidden;}
+#screen-combat .ab-btn .ic .nx-ic,#screen-combat .ab-btn .ic img{width:34px !important;height:34px !important;}
+#screen-combat .ab-btn .nm{font-size:10.5px !important;line-height:1.12;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 3px;}
+#screen-combat .ab-btn .lv{font-size:8.5px !important;padding:0 5px !important;line-height:1.5;}
+#screen-combat .ab-btn.cooldown{opacity:1;}
+#screen-combat .ab-btn.cooldown > *{opacity:.5;filter:grayscale(.6);}
+#screen-combat .ab-btn.cooldown::after{background:conic-gradient(rgba(8,6,4,.78) var(--cdp,100%),rgba(8,6,4,.28) 0) !important;font-size:22px !important;color:#fff !important;text-shadow:0 0 6px #000,0 2px 0 #000;border-radius:inherit !important;font-family:var(--font-display);}
+.enemy-glyph.fx-hit{animation:hitShake .35s ease,cbHitFlash .32s ease-out;}
+@keyframes cbHitFlash{0%{filter:brightness(2.4) saturate(.2);transform:scale(.92);}100%{filter:none;transform:none;}}
+@media (prefers-reduced-motion:reduce){.enemy-glyph.fx-hit{animation:none;}}
+#screen-combat .ab-btn.int-hit::after{top:2px;right:50%;transform:translateX(50%);font-size:8.5px;padding:0 5px;white-space:nowrap;}

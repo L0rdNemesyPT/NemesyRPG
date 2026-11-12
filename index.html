@@ -468,14 +468,17 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
     </div>
     <div class="combat-log" id="cb-log"></div>
     <div class="combat-bottom">
-      <div class="player-panel">
+      <div class="player-panel cb-pp">
+        <div class="cb-pav" id="cb-player-icon">🧝</div>
+        <div class="cb-pmain">
         <div class="row between" style="margin-bottom:6px; align-items:center;">
-          <span style="font-weight:700; font-family:var(--font-display);"><span id="cb-player-icon">🧝</span> <span id="cb-player-name">Herói</span></span>
+          <span style="font-weight:700; font-family:var(--font-display);"><span id="cb-player-name">Herói</span></span>
           <span class="cb-ally" id="cb-ally" hidden></span><span class="pill" id="cb-player-lv">Nv. 1</span>
         </div>
         <div class="cb-es" id="cb-es" hidden><span class="cb-es-ic" id="cb-es-ic"></span><div class="bar bar-es"><div class="bar-fill" id="cb-es-fill" style="width:100%"></div><span class="bar-num"><span id="cb-es-num">0/0</span></span></div></div>
         <div class="bar bar-hp bar-lg"><div class="bar-fill" id="cb-player-hpfill" style="width:100%"></div><span class="bar-num"><span id="cb-player-hp">0/0</span></span></div>
         <div class="status-icons" id="cb-player-status"></div>
+        </div>
       </div>
       <button class="btn primary block" id="cb-btn-attack" style="margin-bottom:8px; padding:12px;">🗡️ Ataque Normal</button>
       <div class="ability-grid" id="cb-abilities"></div>
@@ -18012,6 +18015,7 @@ function useAbilityAction(key) {
   else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
   c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0) - (pStats.pgCd || 0)); // v219: Ímpeto
   c.battleState.roundAbility = true; // v231: interrompe feitiços
+  (c.cdMax = c.cdMax || {})[key] = c.cooldowns[key]; // v232: relógio da recarga
   postPlayerAction();
 }
 
@@ -20080,7 +20084,8 @@ function renderCombat() {
     const ab = ABILITIES[key];
     const onCd = !!c.cooldowns[key];
     const abLvl = abilityLevelOf(p, key);
-    return `<button class="ab-btn${onCd ? ' cooldown' : ''}${abLvl >= ABILITY_MASTER_LEVEL ? ' mastered' : ''}${ab.craft ? ' craft' : ''}${!onCd && c.intent && c.intent.type === 'feitico' ? ' int-hit' : ''}" data-cd="${c.cooldowns[key] || ''}" data-use-ability="${key}" ${onCd ? 'disabled' : ''}>
+    const cdMax = (c.cdMax && c.cdMax[key]) || ab.cooldown || 2, cdP = onCd ? Math.round(clamp(c.cooldowns[key] / cdMax, 0, 1) * 100) : 0;
+    return `<button style="--cdp:${cdP}%" class="ab-btn${onCd ? ' cooldown' : ''}${abLvl >= ABILITY_MASTER_LEVEL ? ' mastered' : ''}${ab.craft ? ' craft' : ''}${!onCd && c.intent && c.intent.type === 'feitico' ? ' int-hit' : ''}" data-cd="${c.cooldowns[key] || ''}" data-use-ability="${key}" ${onCd ? 'disabled' : ''}>
       <span class="ic">${nxEnt('habilidade-' + key, ab.icon)}</span><span class="nm">${ab.name}</span><span class="lv">Nv. ${ROMAN[abLvl]}</span>
     </button>`;
   }).join('');
@@ -20180,7 +20185,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v231</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v232</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
