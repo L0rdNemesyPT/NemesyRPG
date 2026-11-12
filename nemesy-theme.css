@@ -3991,3 +3991,42 @@ body.ui-pergaminho .xm-day.done{color:#2f7a4a;}
 .cd-info b{color:#fff;}
 @media (prefers-reduced-motion:reduce){.cd.gold::after{animation:none;}}
 body.ui-pergaminho .cd-ms div.ok b{color:#2f7a4a;}
+
+/* ======================================================================
+   v229: LISTA DO MAPA — filtros, caminho das regiões e cartões largos
+   ====================================================================== */
+.ml-chips{display:flex; gap:6px; margin:4px 0 10px; overflow-x:auto; scrollbar-width:none; padding-bottom:2px;}
+.ml-chips::-webkit-scrollbar{display:none;}
+.ml-chips button{flex:0 0 auto; border:1px solid var(--line-soft); background:var(--bg-panel); color:var(--muted); font:700 12.5px var(--font-body); padding:7px 12px; border-radius:99px; cursor:pointer;}
+.ml-chips button.on{color:var(--gold-bright); border-color:var(--gold-bright); background:rgba(228,191,74,.10);}
+.ml-group{margin-bottom:6px;}
+.ml-count{font-weight:600; color:var(--muted); letter-spacing:0; font-variant-numeric:tabular-nums;}
+.ml-list{display:flex; flex-direction:column; gap:8px;}
+.ml-row{position:relative; overflow:hidden; display:flex; align-items:center; gap:10px; width:100%; min-height:74px; padding:10px 12px; border-radius:14px;
+  border:1px solid var(--line); background:var(--bg-panel); color:#f1e6cf; font:inherit; text-align:left; cursor:pointer; isolation:isolate;}
+.ml-row:focus-visible{outline:2px solid var(--gold-bright); outline-offset:2px;}
+.ml-scene{position:absolute; inset:0; z-index:-1; pointer-events:none;}
+.ml-scene .scene-img,.ml-scene .scene-svg{width:100%; height:100%; display:block; background-size:cover; background-position:center 60%;}
+.ml-scene::after{content:""; position:absolute; inset:0; background:linear-gradient(90deg, rgba(8,6,4,.92) 0%, rgba(8,6,4,.72) 45%, rgba(8,6,4,.25) 100%);}
+.ml-num{flex:0 0 auto; width:24px; height:24px; border-radius:50%; display:grid; place-items:center; font:800 11.5px var(--font-body); color:#1b1305; background:linear-gradient(180deg,#f6dc85,#c99a2e); box-shadow:0 2px 6px rgba(0,0,0,.6);}
+.ml-ic{flex:0 0 auto; width:46px; height:46px; display:grid; place-items:center; font-size:28px; filter:drop-shadow(0 3px 5px rgba(0,0,0,.7));}
+.ml-ic .nx-ic{width:46px; height:46px;}
+.ml-txt{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px;}
+.ml-txt b{font:700 15px var(--font-display); color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.8); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.ml-txt small{font-size:11.5px; color:#d8c9a8; text-shadow:0 1px 4px #000;}
+.ml-prog{display:block; height:5px; max-width:160px; border-radius:3px; background:rgba(255,255,255,.15); overflow:hidden; margin-top:3px;}
+.ml-prog i{display:block; height:100%; background:linear-gradient(90deg,#b48a1e,#f6dc85);}
+.ml-meta{font-size:11px; color:#e8d7b0; text-shadow:0 1px 4px #000;}
+.ml-meta.lock{color:#c9b996;}
+.ml-st{flex:0 0 auto; padding:4px 9px; border-radius:99px; font:800 11px var(--font-body); background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.18); color:#fff;}
+.ml-st.ok{color:#8ee06a; border-color:rgba(142,224,106,.5);}
+.ml-st.here{color:#1b1305; background:linear-gradient(180deg,#f6dc85,#c99a2e); border-color:#f6dc85;}
+.ml-row.is-current{border-color:var(--gold-bright); box-shadow:0 0 0 1px rgba(228,191,74,.35), 0 0 16px rgba(228,191,74,.18);}
+.ml-row.is-locked{opacity:.62;}
+.ml-row.is-locked .ml-scene{filter:grayscale(.85);}
+.ml-row.is-locked .ml-num{background:#5a5145; color:#d8cdb8;}
+/* Regiões: um caminho numerado ligado por uma linha */
+.ml-path{position:relative; gap:10px;}
+.ml-path::before{content:""; position:absolute; left:23px; top:18px; bottom:18px; width:2px; background:linear-gradient(180deg, rgba(246,220,133,.6), rgba(246,220,133,.1)); z-index:0;}
+.ml-path .ml-row{z-index:1;}
+body.ui-pergaminho .ml-row{color:#f1e6cf;}
