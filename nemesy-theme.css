@@ -4048,3 +4048,22 @@ body.ui-pergaminho .ml-row{color:#f1e6cf;}
   .vl-house b{font-size:9px;}
   .vl-house i{font-size:8.5px;padding:0 5px;}
 }
+
+/* v231 — Intenções do inimigo e Elites */
+.cb-intent{display:flex;align-items:center;gap:9px;width:100%;margin-top:8px;padding:7px 10px 7px 7px;border-radius:12px;background:rgba(18,10,8,.86);border:1.5px solid var(--c);color:#fff;text-align:left;cursor:pointer;box-shadow:0 0 12px color-mix(in srgb,var(--c) 60%,transparent);animation:cbIntPulse 1.3s ease-in-out infinite;font:inherit;}
+.cb-int-ic{width:34px;height:34px;flex:0 0 auto;border-radius:9px;display:grid;place-items:center;font-size:19px;background:color-mix(in srgb,var(--c) 35%,#120a08);border:1px solid var(--c);}
+.cb-int-ic .nx-k,.cb-int-ic img{width:26px;height:26px;}
+.cb-int-t{min-width:0;}
+.cb-int-t b{display:block;font-size:13px;font-weight:800;}
+.cb-int-t small{display:block;font-size:11.5px;font-weight:700;color:var(--c);}
+@keyframes cbIntPulse{50%{box-shadow:0 0 22px var(--c);}}
+.cb-elite{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;}
+.cb-el-star,.cb-el-aff{display:inline-flex;align-items:center;gap:3px;font:inherit;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;background:rgba(0,0,0,.6);line-height:1.5;}
+.cb-el-star{border:1px solid #ffb547;color:#ffd27a;}
+.cb-el-aff{border:1px solid #c77dff;color:#e6c6ff;cursor:pointer;}
+.cb-el-star .nx-k,.cb-el-aff .nx-k,.cb-el-star img,.cb-el-aff img{width:18px;height:18px;}
+.enemy-glyph.elite{box-shadow:0 0 0 2px #ffb547,0 0 18px rgba(255,181,71,.8) !important;}
+.ab-btn.int-hit{border-color:#8EE06A !important;box-shadow:0 0 12px rgba(142,224,106,.55);}
+.ab-btn.int-hit::after{content:"Interrompe!";position:absolute;top:5px;right:6px;font-size:9.5px;font-weight:800;color:#0d1a08;background:#8EE06A;padding:1px 6px;border-radius:999px;pointer-events:none;}
+@media (prefers-reduced-motion:reduce){.cb-intent{animation:none;}}
+.ab-btn.int-hit{position:relative;}

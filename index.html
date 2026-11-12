@@ -457,10 +457,12 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
         <div class="enemy-glyph" id="cb-enemy-glyph">👺</div>
         <div class="enemy-info">
           <div class="enemy-name"><span id="cb-enemy-name">—</span><span class="pill" id="cb-enemy-lv">Nv. 1</span><span class="pill" id="cb-enemy-category"></span></div>
+          <div id="cb-elite-slot"></div>
           <div class="bar bar-hp bar-lg" style="margin-top:8px;"><div class="bar-fill" id="cb-enemy-hpfill" style="width:100%"></div><span class="bar-num"><span id="cb-enemy-hp">0/0</span></span></div>
           <div class="status-icons" id="cb-enemy-status"></div>
         </div>
       </div>
+      <div id="cb-intent-slot"></div>
       <div class="cb-horde" id="cb-horde" hidden></div>
       <div id="cb-event-banner"></div>
     </div>
@@ -1941,6 +1943,7 @@ function mazeStartCombat(i) {
   showScreen('screen-combat');
   addCombatLog({ text: `${T.icon} ${T.name} · Andar ${f}/${T.floors} · ${td.icon} ${td.name}`, cls: 'good' });
   addCombatLog({ text: `${icon} ${name} apareceu!${isMini ? ' Guarda a 🗝️ chave do andar.' : isElite ? ' (Elite ×1,5)' : ''}`, cls: isBoss || isMini || isElite ? 'hit' : 'good' });
+  if (isElite) eliteAffixes(App.combat, 1); // v231
   if (t.blessing) addCombatLog({ text: `✨ Bênção: +${Math.round(t.blessing * 100)}% de dano.`, cls: 'good' });
   renderCombat();
 }
@@ -2092,6 +2095,7 @@ function startTowerCombat(lane) {
   showScreen('screen-combat');
   addCombatLog({ text: `🗼 ${T.name} · Andar ${f}/${T.floors} · ${td.icon} ${td.name}`, cls: 'good' });
   addCombatLog({ text: `${icon} ${name} apareceu!${isElite ? ' (Elite ×1,5)' : ''}`, cls: isBoss || isMini || isElite ? 'hit' : 'good' });
+  if (isElite) eliteAffixes(App.combat, 1); // v231
   if (t.blessing) addCombatLog({ text: `✨ Bênção do Abismo: +${Math.round(t.blessing * 100)}% de dano.`, cls: 'good' });
   renderCombat();
 }
@@ -10789,7 +10793,7 @@ function cardOnKill(c) {
   if (!p || !card) return;
   if (card.tab === 'eventos' && !(hwActive() || xmActive())) return;
   const luck = 1 + Math.min(1, effectiveStats(p).dropLuckBonus || 0);
-  if (Math.random() >= card.chance * luck) return;
+  if (Math.random() >= card.chance * luck * (c.elite ? 2 : 1)) return; // v231: Elite = dobro
   const s = cardState(p), before = s[card.name] || 0, nBefore = cardCount(p);
   s[card.name] = before + 1;
   const tier = CARD_TIERS[card.tier];
@@ -17211,6 +17215,7 @@ function startCombat(opts) {
   showScreen('screen-combat');
   addCombatLog({ text: hordeN > 1 ? `👥 Uma horda de ${hordeN} × ${opts.name} apareceu! Todos atacam em cada ronda.` : `Um(a) ${opts.name} apareceu!`, cls: 'good' });
   setTimeout(() => { try { tutCheck('combat'); } catch (e) {} }, 300); // v188
+  if (hordeN === 1) eliteMaybe(App.combat, opts); // v231
   if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (App.combat.isCultBoss) {
@@ -18006,6 +18011,7 @@ function useAbilityAction(key) {
   if (c.enemy.hp < hpBefore) { ymirAfterHit(c, p, key); rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); gemEsLeech(c, pStats, hpBefore - Math.max(0, c.enemy.hp)); }
   else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
   c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0) - (pStats.pgCd || 0)); // v219: Ímpeto
+  c.battleState.roundAbility = true; // v231: interrompe feitiços
   postPlayerAction();
 }
 
@@ -18363,7 +18369,12 @@ function postPlayerAction() {
   }
   huntReflect(c, p);
   if (c.isObelisk && !c.horde && obAfterHits(c, p)) return; // v190: Casca de Cristal / ondas
-  if (c.enemy.hp <= 0) { handleEnemyDefeated(); return; }
+  const dealtNow = Math.max(0, (c._roundEnemy === c.enemy && c._roundHp !== undefined ? c._roundHp : c.enemy.maxHp) - Math.max(0, c.enemy.hp)); // v231
+  if (c.intent && c.intent.en !== c.enemy) c.intent = null;
+  if (c.enemy.hp <= 0) { c.intent = null; handleEnemyDefeated(); return; }
+  eliteAfterPlayer(c, p, dealtNow);
+  const countered = intentCounter(c, p, dealtNow); c.battleState.roundAbility = false;
+  if (countered) { combatRoundTail(c, p, true); return; }
   if (c.battleState.enemyStunned) {
     addCombatLog({ text: 'O inimigo está atordoado e perde a ronda.', cls: 'good' });
     c.battleState.enemyStunned = false;
@@ -18377,6 +18388,7 @@ function postPlayerAction() {
 }
 // Fim de cada ronda: buffs/debuffs descem 1, regeneração do herói e desenhar o ecrã.
 function combatRoundTail(c, p, tickEnemy) {
+  if (tickEnemy && !c.horde) eliteRoundTail(c); // v231
   if (c.isObelisk && !c.horde && c.ob) c.ob.mark = c.enemy.hp; // v190
   if (c.battleState.critBuff) {
     if (c.battleState.critBuff.fresh) c.battleState.critBuff.fresh = false;
@@ -18403,6 +18415,7 @@ function combatRoundTail(c, p, tickEnemy) {
       addCombatLog({ text: `☣️ O veneno impede a tua regeneração este turno.`, cls: 'hit' });
     }
   }
+  c._roundHp = c.enemy.hp; c._roundEnemy = c.enemy; // v231
   renderCombat();
 }
 
@@ -18460,7 +18473,7 @@ function bossPhaseCheck(c) {
   if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
   return true;
 }
-function resolveEnemyTurn(opts) {
+function resolveEnemyTurnCore(opts) {
   const c = App.combat, p = App.player;
   const pStats = effectiveStats(p);
   if (!(opts && opts.noDots)) {
@@ -18483,7 +18496,7 @@ function resolveEnemyTurn(opts) {
     addCombatLog({ text: `💢 ${cName} regenera ${nxNum(heal)} HP.`, cls: 'hit' });
   }
   const enemySkill = sobSkills ? Object.assign({ chance: c.soberanoDef.skillChance }, sobSkills[Math.floor(Math.random() * sobSkills.length)]) : isBossFight ? BOSS_SKILLS[c.name] : (c.monsterName ? MOB_SKILLS[c.monsterName] : c.dungeonWaveSkill);
-  const enemySkillTriggered = !!(enemySkill && Math.random() < enemySkill.chance);
+  const enemySkillTriggered = !!(enemySkill && !c._intentNow && !c._fastHit && Math.random() < enemySkill.chance);
 
   // Fúria: ao cair abaixo de 30% de HP, o boss entra em fúria pela primeira vez
   // e o dano dele sobe permanentemente — combates deixam de "acalmar" no fim.
@@ -18524,7 +18537,7 @@ function resolveEnemyTurn(opts) {
   // A cada 3ª ação, o boss desfere um ataque especial muito mais forte —
   // dá ritmo ao combate e obriga a gerir HP/defesa em vez de ignorar o boss.
   c.battleState.enemyTurnCount = (c.battleState.enemyTurnCount || 0) + 1;
-  const heavyAttack = isBossFight && c.battleState.enemyTurnCount % 3 === 0 && !enemySkillTriggered;
+  const heavyAttack = isBossFight && c.battleState.enemyTurnCount % 3 === 0 && !enemySkillTriggered && !intentOn(c); // v231: com Intenções, o golpe forte é anunciado
 
   elementInit(c); // v181
   const elementEffect = c.enemy.element || null;
@@ -18534,6 +18547,7 @@ function resolveEnemyTurn(opts) {
   if (elementEffect === 'eletricidade' && Math.random() < 0.15 * (1 - elRes)) { dmgMult = 1.5; addCombatLog({ text: '⚡ Descarga elétrica: +50% de dano!', cls: 'hit' }); }
   if (elementEffect === 'terra' && Math.random() < 0.12 * (1 - elRes)) { dmgMult *= 1.5; addCombatLog({ text: '🪨 Tremor: +50% de dano!', cls: 'hit' }); }
   if (heavyAttack) { dmgMult *= 1.8; addCombatLog({ text: `💥 ${cName} desfere um ataque especial devastador!`, cls: 'hit' }); }
+  dmgMult *= intentDmgMult(c); // v231
   if (enemySkillTriggered && enemySkill.type === 'heavy') dmgMult *= 1.7;
   if (enemySkillTriggered && enemySkill.type === 'defbreak') { c.battleState.elementDefShred = (c.battleState.elementDefShred || 0) + 2; }
 
@@ -18620,8 +18634,200 @@ function resolveEnemyTurn(opts) {
   }
 }
 
+// ============================================================
+// 🎯 INTENÇÕES E ELITES (v231)
+// Intenções: o inimigo anuncia o golpe seguinte e o jogador tem UMA jogada para reagir.
+//  · 💢 Golpe pesado / 💚 Recuperar → QUEBRA: faz muito dano nessa jogada (crítico ou habilidade forte).
+//  · 🌀 Feitiço → INTERROMPE: usa qualquer habilidade.
+//  Conseguir = o inimigo perde a ronda (atordoado). Falhar = leva com o golpe.
+// Elites: ~8% dos monstros normais (combates de 1 monstro) aparecem como Elite, com 1–2 afixos.
+//  Mais fortes, mas XP e ouro ×2, um Baú de Elite garantido e o dobro da hipótese de carta.
+// ============================================================
+const INT = {
+  WILD_CHANCE: 0.18, ELITE_CHANCE: 0.32, BOSS_EVERY: 3,
+  BREAK_MULT: 1.5,               // dano preciso para quebrar = 1,5× o teu ataque normal
+  HEAVY: 2.2, HEAVY_BOSS: 2.0,   // golpe pesado
+  SPELL: 1.6, SPELL_ZAP: 1.9,    // feitiço (o elétrico bate mais)
+  HEAL: 0.15, HEAL_BOSS: 0.10    // recuperar
+};
+const INT_TYPES = {
+  pesado: { icon: '💢', color: '#ff5a5a', how: 'Quebra-lhe a guarda', tip: n => `Faz pelo menos ${nxNum(n)} de dano nesta jogada (um crítico ou uma habilidade forte) para o quebrar.` },
+  feitico: { icon: '🌀', color: '#b47cff', how: 'Interrompe', tip: () => 'Usa qualquer habilidade nesta jogada para o interromper.' },
+  cura: { icon: '💚', color: '#5fd38a', how: 'Corta a cura', tip: n => `Faz pelo menos ${nxNum(n)} de dano nesta jogada para lhe cortar a cura.` }
+};
+function intentOn(c) { return !!(c && !c.horde && !c.isObelisk && !c.isArena && !c.isSoberano && !c.ymir); }
+function intentNeed(c, p) {
+  const st = effectiveStats(p);
+  const exp = applyDamage(st.dmg * elementAttackMult(p, c.enemy), c.enemy.def * (c.battleState.enemyDefDebuff ? 1 - c.battleState.enemyDefDebuff.pct : 1) * (1 - (st.defPen || 0)), p.level) + (st.bonusDmgFlat || 0);
+  return Math.max(1, Math.min(c.enemy.hp, Math.round(exp * INT.BREAK_MULT)));
+}
+function intentSpell(c) {
+  const el = c.enemy.element;
+  if (el === 'fogo') return { name: 'Bola de Fogo', fx: 'burn' };
+  if (el === 'gelo') return { name: 'Lança de Gelo', fx: 'shred' };
+  if (el === 'eletricidade') return { name: 'Descarga Trovejante', fx: 'zap' };
+  if (el === 'terra') return { name: 'Avalanche', fx: 'shred' };
+  if (c.enemy.category === 'animal') return { name: 'Cuspe Venenoso', fx: 'poison' };
+  return { name: 'Feitiço Sombrio', fx: 'curse' };
+}
+function intentDeclare(c, p, type) {
+  const boss = c.isBoss || c.isMiniBoss;
+  const name = type === 'pesado' ? (c.enemy.category === 'animal' ? 'Investida Selvagem' : 'Golpe Esmagador') : type === 'cura' ? 'Recuperar Forças' : intentSpell(c).name;
+  c.intent = { type, name, need: type === 'feitico' ? 0 : intentNeed(c, p), boss, en: c.enemy };
+  const T = INT_TYPES[type];
+  addCombatLog({ text: `${T.icon} ${hordeLabel(c)} prepara ${name}! ${type === 'feitico' ? 'Usa uma habilidade para interromper.' : `Faz ${nxNum(c.intent.need)} de dano para quebrar.`}`, cls: 'hit' });
+  try { sfx.error(); } catch (e) {}
+}
+function intentRoll(c, p) {
+  if (!intentOn(c) || c.intent || p.hp <= 0 || c.enemy.hp <= 0) return;
+  const boss = c.isBoss || c.isMiniBoss, bs = c.battleState;
+  const low = c.enemy.hp < c.enemy.maxHp * (boss ? 0.45 : 0.6);
+  if (boss) {
+    const n = bs.enemyTurnCount || 0;
+    if (n % INT.BOSS_EVERY === INT.BOSS_EVERY - 1) { intentDeclare(c, p, Math.random() < 0.55 ? 'pesado' : 'feitico'); return; }
+    if (low && (bs.intentHeals || 0) < 2 && Math.random() < 0.25) { bs.intentHeals = (bs.intentHeals || 0) + 1; intentDeclare(c, p, 'cura'); }
+    return;
+  }
+  if (Math.random() >= (c.eliteAff ? INT.ELITE_CHANCE : INT.WILD_CHANCE)) return;
+  const r = Math.random();
+  intentDeclare(c, p, low && r < 0.25 && !bs.intentHeals ? (bs.intentHeals = 1, 'cura') : r < 0.62 ? 'pesado' : 'feitico');
+}
+// Depois da jogada do herói: conseguiu reagir?
+function intentCounter(c, p, dealt) {
+  const it = c.intent; if (!it) return false;
+  if (c.battleState.enemyStunned) { c.intent = null; addCombatLog({ text: `💫 Atordoado, ${hordeLabel(c)} perde a concentração: ${it.name} falhou!`, cls: 'good' }); return false; }
+  const ok = it.type === 'feitico' ? !!c.battleState.roundAbility : dealt >= it.need;
+  if (!ok) return false;
+  c.intent = null;
+  p.stats.intentCounters = (p.stats.intentCounters || 0) + 1;
+  const word = it.type === 'feitico' ? 'INTERROMPIDO!' : 'QUEBRADO!';
+  addCombatLog({ text: it.type === 'feitico' ? `✋ Interrompeste ${it.name}! ${hordeLabel(c)} fica atordoado e perde a ronda.` : it.type === 'cura' ? `⚔️ Feriste-o a tempo: ${it.name} falhou e ${hordeLabel(c)} perde a ronda.` : `💥 Quebraste-lhe a guarda! ${it.name} falhou e ${hordeLabel(c)} perde a ronda.`, cls: 'crit' });
+  try { sfx.crit(); fxNumber($('cb-enemy-glyph'), word, 'crit'); fxShakeScreen(false); fxVibrate([25, 30, 25]); } catch (e) {}
+  return true;
+}
+// Executa a intenção que ficou por responder (chamado antes do ataque do inimigo).
+function intentFire(c, p) {
+  const it = c.intent; if (!it) return null;
+  c.intent = null;
+  const cName = hordeLabel(c);
+  if (it.type === 'cura') {
+    const heal = Math.max(1, Math.round(c.enemy.maxHp * (it.boss ? INT.HEAL_BOSS : INT.HEAL)));
+    c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + heal);
+    addCombatLog({ text: `💚 ${cName} usa ${it.name} e recupera ${nxNum(heal)} HP.`, cls: 'hit' });
+    return null;
+  }
+  addCombatLog({ text: `${INT_TYPES[it.type].icon} ${cName} desfere ${it.name}!`, cls: 'hit' });
+  try { fxShakeScreen(true); } catch (e) {}
+  return it;
+}
+function intentAfterHit(c, p, it, lost) {
+  if (!it || it.type !== 'feitico' || lost <= 0 || p.hp <= 0) return;
+  const st = effectiveStats(p), sp = intentSpell(c), bs = c.battleState, d = Math.max(1, Math.round(c.enemy.dmg * 0.22));
+  if (sp.fx === 'burn') { bs.playerBurn = { duration: 2, dmg: d }; addCombatLog({ text: '🔥 Ficaste a arder!', cls: 'hit' }); }
+  else if (sp.fx === 'shred') { bs.elementDefShred = (bs.elementDefShred || 0) + 2; addCombatLog({ text: '🧊 A tua defesa enfraquece (−10%).', cls: 'hit' }); }
+  else if (sp.fx === 'poison' && !st.poisonImmune) { bs.playerPoison = { duration: 3, dmg: Math.max(1, Math.round(c.enemy.dmg * 0.18)) }; addCombatLog({ text: '☣️ Foste envenenado!', cls: 'hit' }); }
+  else if (sp.fx === 'curse' && !st.curseImmune) { bs.playerCurse = { pct: 0.15, duration: 2 }; addCombatLog({ text: '🕯️ Amaldiçoado: −15% de dano durante 2 rondas.', cls: 'hit' }); }
+}
+function intentDmgMult(c) {
+  const it = c._intentNow;
+  let m = c._fastHit ? 0.6 : 1;
+  if (it && it.type === 'pesado') m *= it.boss ? INT.HEAVY_BOSS : INT.HEAVY;
+  if (it && it.type === 'feitico') m *= intentSpell(c).fx === 'zap' ? INT.SPELL_ZAP : INT.SPELL;
+  return m;
+}
+function resolveEnemyTurn(opts) {
+  const c = App.combat, p = App.player;
+  const main = !(opts && opts.noDots);
+  const it = main && intentOn(c) ? intentFire(c, p) : null;
+  const hp0 = p.hp;
+  c._intentNow = it;
+  try { resolveEnemyTurnCore(opts); } finally { c._intentNow = null; }
+  intentAfterHit(c, p, it, hp0 - p.hp);
+  if (main && c.eliteAff && p.hp > 0 && c.enemy.hp > 0) {
+    if (c.eliteAff.includes('veloz') && Math.random() < ELITE_AFF.veloz.chance) {
+      addCombatLog({ text: `⚡ Veloz: ${hordeLabel(c)} ataca outra vez!`, cls: 'hit' });
+      c._fastHit = true; try { resolveEnemyTurnCore({ noDots: true }); } finally { c._fastHit = false; }
+    }
+    const lost = hp0 - p.hp;
+    if (c.eliteAff.includes('vampirico') && lost > 0 && c.enemy.hp < c.enemy.maxHp) {
+      const h = Math.max(1, Math.round(lost * ELITE_AFF.vampirico.pct));
+      c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + h);
+      addCombatLog({ text: `🩸 Vampírico: ${hordeLabel(c)} bebe ${nxNum(h)} de vida.`, cls: 'hit' });
+    }
+  }
+  if (main) intentRoll(c, p);
+}
+
+// ---------- Elites ----------
+const ELITE = { CHANCE: 0.08, MIN_LV: 15, HP: 1.7, DMG: 1.15, DEF: 1.1, TWO_AFF_LV: 70 };
+const ELITE_AFF = {
+  vampirico: { icon: '🩸', name: 'Vampírico', desc: 'Bebe 35% do dano que te faz.', pct: 0.35 },
+  espinhos: { icon: '🌵', name: 'Espinhos', desc: 'Devolve-te 10% do dano que lhe fazes.', pct: 0.10 },
+  furioso: { icon: '🔥', name: 'Furioso', desc: 'Abaixo de 40% de vida, faz +40% de dano.' },
+  blindado: { icon: '🛡️', name: 'Blindado', desc: '+50% de defesa.' },
+  veloz: { icon: '⚡', name: 'Veloz', desc: '25% de hipótese de atacar duas vezes (o 2.º golpe faz 60%).', chance: 0.25 },
+  regenerador: { icon: '♻️', name: 'Regenerador', desc: 'Recupera 4% da vida por ronda. O veneno trava a regeneração.', pct: 0.04 },
+  explosivo: { icon: '💥', name: 'Explosivo', desc: 'Ao morrer, explode e tira-te 20% da vida (nunca te mata).', pct: 0.20 }
+};
+function eliteAffixes(c, n) {
+  const keys = Object.keys(ELITE_AFF).sort(() => Math.random() - 0.5).slice(0, n);
+  c.eliteAff = keys;
+  if (keys.includes('blindado')) c.enemy.def = Math.round(c.enemy.def * 1.5);
+  addCombatLog({ text: `⭐ Afixos: ${keys.map(k => `${ELITE_AFF[k].icon} ${ELITE_AFF[k].name}`).join(' · ')}. Toca nos afixos para ver o que fazem.`, cls: 'crit' });
+}
+function eliteMaybe(c, opts) {
+  if (opts.kind !== 'wild' || opts.extra || c.isCultBoss || (opts.level || 1) < ELITE.MIN_LV) return;
+  if (Math.random() >= ELITE.CHANCE) return;
+  const e = c.enemy;
+  e.hp = Math.round(e.hp * ELITE.HP); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * ELITE.DMG); e.def = Math.round(e.def * ELITE.DEF);
+  c.elite = true;
+  addCombatLog({ text: `⭐ Cuidado: é um ${c.name} ELITE! Mais forte, mas dá o dobro de XP e ouro e um Baú de Elite.`, cls: 'crit' });
+  eliteAffixes(c, (opts.level || 1) >= ELITE.TWO_AFF_LV || c.paragon ? 2 : 1);
+  try { fxPhase2Banner('⭐ Elite'); } catch (e2) {}
+}
+// Espinhos (depois da jogada do herói).
+function eliteAfterPlayer(c, p, dealt) {
+  if (!c.eliteAff || dealt <= 0 || p.hp <= 0) return;
+  if (c.eliteAff.includes('espinhos')) {
+    const st = effectiveStats(p), back = Math.min(Math.round(st.hp * 0.06), Math.max(1, Math.round(dealt * ELITE_AFF.espinhos.pct)));
+    p.hp = Math.max(1, p.hp - back);
+    addCombatLog({ text: `🌵 Espinhos: sofres ${nxNum(back)} de dano.`, cls: 'hit' });
+  }
+  if (c.eliteAff.includes('furioso') && !c.eliteRage && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.4) {
+    c.eliteRage = true; c.enemy.dmg = Math.round(c.enemy.dmg * 1.4);
+    addCombatLog({ text: `🔥 Furioso: ${hordeLabel(c)} enfurece-se! +40% de dano.`, cls: 'hit' });
+  }
+}
+function eliteRoundTail(c) {
+  if (!c.eliteAff || !c.eliteAff.includes('regenerador') || c.enemy.hp <= 0 || c.enemy.hp >= c.enemy.maxHp) return;
+  const bs = c.battleState, poisoned = (bs.enemyStatus || []).some(s => s.type === 'poison' && s.duration > 0);
+  if (poisoned || bs.enemyRegenBlocked > 0) return;
+  const h = Math.max(1, Math.round(c.enemy.maxHp * ELITE_AFF.regenerador.pct));
+  c.enemy.hp = Math.min(c.enemy.maxHp, c.enemy.hp + h);
+  addCombatLog({ text: `♻️ Regenerador: +${nxNum(h)} HP.`, cls: 'hit' });
+}
+function eliteOnDeath(c, p) {
+  if (!c.eliteAff || !c.eliteAff.includes('explosivo') || c._boom) return;
+  c._boom = true;
+  const st = effectiveStats(p), d = Math.round(st.hp * ELITE_AFF.explosivo.pct);
+  p.hp = Math.max(1, p.hp - d);
+  addCombatLog({ text: `💥 Explosivo: ${c.name} rebenta e tira-te ${nxNum(d)} de vida!`, cls: 'hit' });
+  try { fxShakeScreen(true); } catch (e) {}
+}
+function intentHtml(c) {
+  const it = c.intent; if (!it || c.ended) return '';
+  const T = INT_TYPES[it.type];
+  return `<button type="button" class="cb-intent" style="--c:${T.color}" data-intent-info="1"><span class="cb-int-ic">${nxEnt('intencao-' + it.type, T.icon)}</span>
+    <span class="cb-int-t"><b>${esc(it.name)}</b><small>${T.how}: ${it.type === 'feitico' ? 'usa uma habilidade!' : `faz ${nxNum(it.need)} de dano`}</small></span></button>`;
+}
+function eliteChipsHtml(c) {
+  if (!c.eliteAff && !c.elite) return '';
+  return `<div class="cb-elite">${c.elite ? `<span class="cb-el-star">${nxEnt('elite', '⭐')} Elite</span>` : ''}${(c.eliteAff || []).map(k => `<button type="button" class="cb-el-aff" data-elite-aff="${k}">${nxEnt('afixo-' + k, ELITE_AFF[k].icon)} ${ELITE_AFF[k].name}</button>`).join('')}</div>`;
+}
+
 function handleEnemyDefeated() {
   const c = App.combat;
+  eliteOnDeath(c, App.player); // v231
   if (c.isObelisk) { obOnDefeated(); return; } // v190
   if (c.isArena) { arenaFinish(true); return; } // v223
   addCombatLog({ text: `${c.icon} ${hordeLabel(c)} foi derrotado!`, cls: 'crit' });
@@ -18718,8 +18924,9 @@ function wildRewardRoll(c) {
   const killRg = regionOfCombat(c); // v201
   const lootLv = combatLootLv(c); // v219: em Paragon o espólio é sempre do Nv. 200
   const goldGain = Math.round((isBoss ? (30 + lootLv * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(lootLv * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)) * ((killRg && killRg.goldMult) || 1) * (1 + PARAGON_GOLD_PER_P * (c.paragon || 0)));
-  p.gold += goldGain;
-  grantXp(xpGain);
+  const eliteM = c.elite ? 2 : 1; // v231: Elite = XP e ouro ×2
+  p.gold += goldGain * eliteM;
+  grantXp(xpGain * eliteM);
   if (isBoss) p.stats.bossesKilled++;
   progressQuest(isBoss);
 
@@ -18737,6 +18944,7 @@ function wildRewardRoll(c) {
     drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} (abre na Mochila)`);
     if (diff.statMult > 1) drops.push(`${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name} — qualidade deste item bem superior!`);
   }
+  if (c.elite) { p.chests.push(newChest('equip', lootLv, 1 + diff.qualityBoost + (c.paragon || 0))); drops.push(`⭐ Baú de Elite: ${CHEST_DEFS.equip.name} de qualidade superior (abre na Mochila)`); p.stats.elitesKilled = (p.stats.elitesKilled || 0) + 1; } // v231
   if (isBoss && Math.random() < 0.40) { p.skillBooks = (p.skillBooks || 0) + 1; drops.push('📖 Livro de Habilidades'); }
   if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
   if (isBoss && !c.isCultBoss) mythicRollDrop(p, MYTHIC_BY_BOSS[c.name], MYTHIC_CHANCE, drops); // v184: Míticos
@@ -18876,7 +19084,7 @@ function wildRewardRoll(c) {
   }
   { const hw = hwPumpkinDrop(c, p, luck); if (hw) drops.push(hw); } // v174: Noite das Abóboras
   { const xm = xmGiftDrop(c, p, luck); if (xm) drops.push(xm); } // v224: Natal Gelado
-  return { xpGain, goldGain, drops };
+  return { xpGain: xpGain * eliteM, goldGain: goldGain * eliteM, drops };
 }
 
 function finishWildOrBossVictory() {
@@ -19786,6 +19994,16 @@ function renderCombat() {
     + (bs.enemyDefDebuff ? `<span class="status-chip" data-info-enemydebuff="1">🔻 Defesa -${Math.round(bs.enemyDefDebuff.pct * 100)}%</span>` : '')
     + (c.enemy.element ? `<span class="status-chip" data-info-element="${c.enemy.element}">${ELEMENT_INFO[c.enemy.element] ? elIc(c.enemy.element) + ' ' + ELEMENT_INFO[c.enemy.element].name : c.enemy.element}</span>` : '');
   $('cb-enemy-status').innerHTML = statusHtml;
+  { // v231: Intenções e Elites
+    const isl = $('cb-intent-slot'), esl = $('cb-elite-slot');
+    if (c.intent && c.intent.en !== c.enemy) c.intent = null;
+    if (isl) { const h = intentHtml(c); if (isl.dataset.h !== h) { isl.dataset.h = h; isl.innerHTML = h;
+      const ib = isl.querySelector('[data-intent-info]'); if (ib) ib.addEventListener('click', () => { const it = c.intent; if (!it) return; const T = INT_TYPES[it.type];
+        showBuffInfoModal(T.icon, it.name, `${T.tip(it.need)} Se conseguires, o inimigo perde a ronda. Se não, leva com o golpe.`); }); } }
+    if (esl) { const h = eliteChipsHtml(c); if (esl.dataset.h !== h) { esl.dataset.h = h; esl.innerHTML = h;
+      els('[data-elite-aff]', esl).forEach(b => b.addEventListener('click', () => { const a = ELITE_AFF[b.dataset.eliteAff]; showBuffInfoModal(a.icon, a.name, a.desc); })); } }
+    glyphEl.classList.toggle('elite', !!(c.elite || c.eliteAff));
+  }
   els('[data-info-status]', $('cb-enemy-status')).forEach(el2 => el2.addEventListener('click', () => {
     const s = bs.enemyStatus[parseInt(el2.dataset.infoStatus)];
     if (s) showStatusInfoModal(s.type, s.dmg, s.duration, c.name);
@@ -19862,7 +20080,7 @@ function renderCombat() {
     const ab = ABILITIES[key];
     const onCd = !!c.cooldowns[key];
     const abLvl = abilityLevelOf(p, key);
-    return `<button class="ab-btn${onCd ? ' cooldown' : ''}${abLvl >= ABILITY_MASTER_LEVEL ? ' mastered' : ''}${ab.craft ? ' craft' : ''}" data-cd="${c.cooldowns[key] || ''}" data-use-ability="${key}" ${onCd ? 'disabled' : ''}>
+    return `<button class="ab-btn${onCd ? ' cooldown' : ''}${abLvl >= ABILITY_MASTER_LEVEL ? ' mastered' : ''}${ab.craft ? ' craft' : ''}${!onCd && c.intent && c.intent.type === 'feitico' ? ' int-hit' : ''}" data-cd="${c.cooldowns[key] || ''}" data-use-ability="${key}" ${onCd ? 'disabled' : ''}>
       <span class="ic">${nxEnt('habilidade-' + key, ab.icon)}</span><span class="nm">${ab.name}</span><span class="lv">Nv. ${ROMAN[abLvl]}</span>
     </button>`;
   }).join('');
@@ -19962,7 +20180,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v230</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v231</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -21125,7 +21343,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 186;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
