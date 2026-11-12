@@ -10968,7 +10968,7 @@ const vlGrow = (base, f) => l => { const m = Math.pow(f, l - 1), o = {}; Object.
 const VL_B = {
   salao: { n: 'Salão da Vila', img: 'vila-salao', x: 50, y: 23, big: 1, max: 5, d: 'O coração da vila. Cada nível: +4 aldeões, os outros edifícios podem subir mais um nível e abrem novas aldeias inimigas.', cost: vlGrow({ gold: 15000, wood: 800, stone: 600 }, 2.5), time: l => 30 * Math.pow(2, l - 1) },
   serracao: { n: 'Serração', img: 'vila-serracao', x: 15, y: 47, d: 'Onde os lenhadores trabalham. Cada nível: +15% de madeira.', job: 'wood', cost: vlGrow({ gold: 2000, wood: 150, stone: 100 }, 2), time: l => 15 * l },
-  ferraria: { n: 'Ferraria', img: 'vila-ferraria', x: 38, y: 47, d: 'Melhora os soldados. Cada nível deixa melhorar os soldados mais um nível.', go: 'quartel', cost: vlGrow({ gold: 6000, wood: 300, stone: 500 }, 2), time: l => 30 * l },
+  ferraria: { n: 'Ferraria', img: 'vila-ferraria', x: 38, y: 47, d: 'Melhora os soldados. Cada nível deixa os soldados subir mais um nível (Ferraria Nv. 5: soldados até Nv. 7).', go: 'quartel', cost: vlGrow({ gold: 6000, wood: 300, stone: 500 }, 2), time: l => 30 * l },
   guerra: { n: 'Sala de Guerra', img: 'vila-sala-guerra', x: 62, y: 47, d: 'Planeia ataques a aldeias inimigas e segue a marcha da armada.', go: 'guerra' },
   pedreira: { n: 'Pedreira', img: 'vila-pedreira', x: 85, y: 47, d: 'Onde os pedreiros trabalham. Cada nível: +15% de pedra.', job: 'stone', cost: vlGrow({ gold: 2000, wood: 200, stone: 50 }, 2), time: l => 15 * l },
   quinta: { n: 'Quinta', img: 'vila-quinta', x: 18, y: 67, d: 'Onde os agricultores trabalham. A comida treina soldados e aldeões.', job: 'food', cost: vlGrow({ gold: 2000, wood: 200, stone: 80 }, 2), time: l => 15 * l },
@@ -11012,7 +11012,7 @@ function vilaEnsure(p) {
   v.broken = v.broken && typeof v.broken === 'object' ? v.broken : {}; Object.keys(v.broken).forEach(k => { const d = int(v.broken[k], 0, 90); if (!VL_B[k] || !d) delete v.broken[k]; else v.broken[k] = d; });
   if (v.work && !(VL_B[v.work.k] && v.work.left > 0)) v.work = null;
   v.army = v.army && typeof v.army === 'object' ? v.army : {}; VL_ORDER.forEach(k => { v.army[k] = int(v.army[k], 0, 60); });
-  v.up = v.up && typeof v.up === 'object' ? v.up : {}; VL_ORDER.forEach(k => { v.up[k] = int(v.up[k] || 1, 1, 5); });
+  v.up = v.up && typeof v.up === 'object' ? v.up : {}; VL_ORDER.forEach(k => { v.up[k] = int(v.up[k] || 1, 1, VL_UP_MAX); });
   v.train = Array.isArray(v.train) ? v.train.filter(k => VL_UNITS[k]).slice(0, 60) : []; v.tLeft = int(v.tLeft, 0, 3);
   if (v.forge && !(VL_UNITS[v.forge.k] && v.forge.left > 0)) v.forge = null;
   if (v.exp && !(VL_ENEMY[v.exp.k] && v.exp.me && v.exp.foe)) v.exp = null;
@@ -11031,6 +11031,8 @@ const vlUpM = (v, k) => 1 + 0.08 * (v.up[k] - 1);
 const vlHero = p => 1 + Math.floor((p.level || 1) / 10) / 100;
 const vlRepairCost = (v, k) => { const d = v.broken[k] || 0, l = v.b[k] || 1; return { wood: Math.round(d * 4 * l / 10) * 10, stone: Math.round(d * 6 * l / 10) * 10 }; };
 const vlRepairTime = (v, k) => Math.max(1, Math.ceil((v.broken[k] || 0) / 2));
+const VL_UP_MAX = 7;
+const vlForgeMax = v => Math.min(VL_UP_MAX, v.b.ferraria + 2);
 const vlForgeCost = l => ({ gold: 2500 * l, stone: 200 * l, wood: 150 * l });
 function vlCan(p, c) { const v = p.vila; return Object.keys(c).every(k => (k === 'gold' ? p.gold : v.r[k]) >= c[k]); }
 function vlPay(p, c) { const v = p.vila; Object.keys(c).forEach(k => { if (k === 'gold') p.gold -= c[k]; else v.r[k] -= c[k]; }); }
@@ -11078,7 +11080,7 @@ function vlMinute(p, v) {
     if (w.kind === 'repair') { delete v.broken[w.k]; if (!Object.keys(v.broken).length) v.raid = null; } else v.b[w.k] = Math.min(vlMaxLv(v, w.k), v.b[w.k] + 1); }
   if (v.hireQ > 0 && --v.hireLeft <= 0) { v.hireQ--; v.jobs.food++; v.hireLeft = v.hireQ ? VL_HIRE_MIN : 0; ev = true; }
   if (v.train.length && --v.tLeft <= 0) { const k = v.train.shift(); v.army[k]++; v.tLeft = v.train.length ? VL_UNITS[v.train[0]].t : 0; ev = true; }
-  if (v.forge && --v.forge.left <= 0) { v.up[v.forge.k] = Math.min(5, v.up[v.forge.k] + 1); v.forge = null; ev = true; }
+  if (v.forge && --v.forge.left <= 0) { v.up[v.forge.k] = Math.min(VL_UP_MAX, v.up[v.forge.k] + 1); v.forge = null; ev = true; }
   Object.keys(v.cool).forEach(k => { if (--v.cool[k] <= 0) { delete v.cool[k]; ev = true; } });
   if (v.exp && v.exp.phase !== 'fim') ev = vlExpMinute(p, v) || ev;
   return ev;
@@ -11106,7 +11108,7 @@ function vlExpMinute(p, v) {
     v.cool[x.k] = e.cool;
     if (x.won) {
       p.gold += e.loot.gold;
-      Object.keys(VL_RES).forEach(r => { v.r[r] = Math.min(vlCap(v), v.r[r] + (e.loot[r] || 0)); });
+      x.lost = 0; Object.keys(VL_RES).forEach(r => { const add = e.loot[r] || 0, room = Math.max(0, vlCap(v) - v.r[r]); x.lost += Math.max(0, add - room); v.r[r] = Math.min(vlCap(v), v.r[r] + add); });
       if (e.chest) { p.chests.push(newChest('equip', p.level || 1, e.chest)); }
       v.wins[x.k] = (v.wins[x.k] || 0) + 1;
       x.log.push(['y', '🏠 A armada voltou com o espólio.']);
@@ -11150,7 +11152,7 @@ function vilaAction(kind, a, b) {
   else if (kind === 'train') { const k = a, u = VL_UNITS[k];
     for (let i = 0; i < b; i++) { if (vlArmyUsed(v) >= vlArmyCap(v) || !vlCan(p, u.c)) break; vlPay(p, u.c); if (!v.train.length) v.tLeft = u.t; v.train.push(k); ok = true; } }
   else if (kind === 'forge') { const k = a, l = v.up[k], c = vlForgeCost(l);
-    if (!v.forge && l < Math.min(5, v.b.ferraria + 2) && vlCan(p, c)) { vlPay(p, c); v.forge = { k, left: 20 * l }; ok = true; } }
+    if (!v.forge && l < vlForgeMax(v) && vlCan(p, c)) { vlPay(p, c); v.forge = { k, left: 20 * l }; ok = true; } }
   else if (kind === 'attack') { const k = a, e = VL_ENEMY[k];
     if (e && !(v.exp && v.exp.phase !== 'fim') && !v.cool[k] && !(e.need && v.b.salao < e.need) && vlSum(v.army) > 0) {
       v.exp = { k, phase: 'marcha', left: e.march, types: VL_ORDER.filter(t => v.army[t] > 0), me: Object.assign({}, v.army), foe: Object.assign({}, e.army), cMe: {}, cFoe: {},
@@ -11182,9 +11184,9 @@ function renderVilaBody() {
   const resBar = `<div class="vl-res">${['gold', 'stone', 'wood', 'food'].map(k => k === 'gold'
       ? `<span>${vlIc('coin')}<b>${nxNum(Math.floor(p.gold))}</b><small>do herói</small></span>`
       : `<span>${vlIc(VL_RES[k].img)}<b data-vl-r="${k}">${nxNum(Math.floor(v.r[k]))}</b><small data-vl-i="${k}">${v.r[k] >= vlCap(v) ? 'cheio' : `+${nxNum(Math.round(vlRate(v, k) * 60))}/h`}</small></span>`).join('')}</div>
-    <div class="vl-sub tiny muted">Armazém: ${nxNum(vlCap(v))} de cada · Aldeões ${vlSum(v.jobs)}/${vlPopMax(v)} · Soldados ${vlArmyUsed(v)}/${vlArmyCap(v)}</div>`;
-  const tabs = `<div class="tab-strip vl-tabs">${[['vila', '🏘️ Vila', Object.keys(v.broken).length], ['aldeoes', '👷 Aldeões'], ['quartel', '🛡️ Quartel'], ['guerra', '⚔️ Guerra', v.exp && v.exp.phase === 'fim']].map(([k, l, dot]) =>
-    `<button class="tab-chip${k === tab ? ' active' : ''}" data-vl-tab="${k}">${l}${dot ? '<i class="vl-dot"></i>' : ''}</button>`).join('')}</div>`;
+    <div class="vl-sub tiny muted">Armazém: ${nxNum(vlCap(v))} de cada · Aldeões ${vlSum(v.jobs)}/${vlPopMax(v)}${v.hireQ ? ` (+${v.hireQ})` : ''} · Soldados ${vlArmyUsed(v)}/${vlArmyCap(v)}</div>`;
+  const tabs = `<div class="tab-strip vl-tabs">${[['vila', 'vila', 'Vila', Object.keys(v.broken).length], ['aldeoes', 'aldeao', 'Aldeões'], ['quartel', 'vila-quartel', 'Quartel'], ['guerra', 'vila-sala-guerra', 'Guerra', v.exp && v.exp.phase === 'fim']].map(([k, ic, l, dot]) =>
+    `<button class="tab-chip${k === tab ? ' active' : ''}" data-vl-tab="${k}">${vlImg(ic, 'vl-tab-ic')}<span>${l}</span>${dot ? '<i class="vl-dot"></i>' : ''}</button>`).join('')}</div>`;
   let main = '';
   if (tab === 'vila') main = vlVilaHtml(p, v);
   else if (tab === 'aldeoes') main = vlAldeoesHtml(p, v);
@@ -11200,7 +11202,8 @@ function renderVilaBody() {
   App.vlTimer = setInterval(() => {
     if (App.tab !== 'heroi' || App.heroiTab !== 'vila' || !document.querySelector('#screen-hub.active') || !App.player || !App.player.vila) { clearInterval(App.vlTimer); return; }
     const pl = App.player, vv = pl.vila;
-    if (vilaTick(pl)) { saveGame(); renderStatusBar(); if (!document.querySelector('#modal-overlay.active')) renderVilaBody(); return; }
+    const t0 = vv.t, evNow = vilaTick(pl);
+    if (evNow || vv.t !== t0) { if (evNow) { saveGame(); renderStatusBar(); } if (!document.querySelector('#modal-overlay.active')) { const y = window.scrollY; renderVilaBody(); window.scrollTo(0, y); } return; }
     const sec = Math.max(0, 60 - Math.floor((hoNow() - vv.t) / 1000));
     els('[data-vl-r]').forEach(el => { el.textContent = nxNum(Math.floor(vv.r[el.dataset.vlR])); });
     els('[data-vl-left]').forEach(el => { const m = Number(el.dataset.vlLeft); el.textContent = m > 1 ? vlMins(m) : `${sec} s`; });
@@ -11248,21 +11251,22 @@ function vlQuartelHtml(p, v) {
   const used = vlArmyUsed(v), cap = vlArmyCap(v), out = vlOut(v);
   const units = VL_ORDER.map(k => { const u = VL_UNITS[k], c5 = {}; Object.keys(u.c).forEach(r => { c5[r] = u.c[r] * 5; });
     return `<div class="vl-it">${vlImg(u.img, 'vl-round')}<div class="vl-t"><b>${u.n} <span class="vl-lv">Nv. ${v.up[k]}</span></b>
-      <small>⚔️ ${(Math.round(u.atk * vlUpM(v, k) * 10) / 10).toLocaleString('pt-PT')} · ❤️ ${Math.round(u.hp * vlUpM(v, k))} · ${vlMins(u.t)} cada</small>
+      <small>Ataque <b>${(Math.round(u.atk * vlUpM(v, k) * 10) / 10).toLocaleString('pt-PT')}</b> · Vida <b>${Math.round(u.hp * vlUpM(v, k))}</b> · ${vlMins(u.t)} cada</small>
       <small><span class="good">Forte vs ${VL_UNITS[VL_STRONG[k]].n}</span> · <span class="bad">fraco vs ${VL_UNITS[vlWeakTo(k)].n}</span></small>${vlCostHtml(p, u.c)}</div>
-      <span class="vl-n">${v.army[k]}</span><div class="vl-step col"><button class="btn small primary" data-vl-act="train:${k}:1"${used >= cap || !vlCan(p, u.c) ? ' disabled' : ''}>+1</button><button class="btn small ghost" data-vl-act="train:${k}:5"${used + 5 > cap || !vlCan(p, c5) ? ' disabled' : ''}>+5</button></div></div>`; }).join('');
+      <span class="vl-n">${v.army[k]}</span><div class="vl-step col"><button class="btn small primary" data-vl-act="train:${k}:1"${used >= cap || !vlCan(p, u.c) ? ' disabled' : ''}>+1</button><button class="btn small ghost" data-vl-act="train:${k}:5"${used + 1 >= cap || !vlCan(p, u.c) ? ' disabled' : ''}>+${Math.max(2, Math.min(5, cap - used))}</button></div></div>`; }).join('');
   const matrix = `<table class="vl-mx"><tr><th></th>${VL_ORDER.map(k => `<th>${vlImg(VL_UNITS[k].img, 'vl-round')}</th>`).join('')}</tr>${VL_ORDER.map(a => `<tr><th>${vlImg(VL_UNITS[a].img, 'vl-round')}</th>${VL_ORDER.map(d => { const m = vlMult(a, d); return `<td class="${a === d ? 'n' : m > 1 ? 's' : m < 1 ? 'w' : 'n'}">${a === d ? '—' : m > 1 ? '×1,5' : m < 1 ? '×0,67' : '×1'}</td>`; }).join('')}</tr>`).join('')}</table>`;
-  const fmax = Math.min(5, v.b.ferraria + 2);
-  const ups = VL_ORDER.map(k => { const u = VL_UNITS[k], l = v.up[k], c = vlForgeCost(l);
-    return `<div class="vl-it">${vlImg(u.img, 'vl-round')}<div class="vl-t"><b>${u.n} Nv. ${l}${l < 5 ? ` → ${l + 1}` : ''}</b><small>${l >= 5 ? 'Nível máximo' : l >= fmax ? `Precisa da Ferraria Nv. ${l - 1}` : `+8% ataque e vida · ${vlMins(20 * l)}`}</small>${l < fmax ? vlCostHtml(p, c) : ''}</div>
-      <button class="btn small primary" data-vl-act="forge:${k}"${l >= fmax || v.forge || !vlCan(p, c) ? ' disabled' : ''}>${l >= 5 ? 'Máx.' : '⬆'}</button></div>`; }).join('');
+  const fmax = vlForgeMax(v);
+  const ups = VL_ORDER.map(k => { const u = VL_UNITS[k], l = v.up[k], c = vlForgeCost(l), now = v.forge && v.forge.k === k;
+    const info = now ? `🔨 A melhorar · faltam ${vlLeftHtml(v.forge.left)}` : l >= VL_UP_MAX ? 'Nível máximo' : l >= fmax ? `Precisa da Ferraria Nv. ${l - 1}` : `+8% ataque e vida · ${vlMins(20 * l)}`;
+    return `<div class="vl-it${now ? ' vl-busy' : ''}">${vlImg(u.img, 'vl-round')}<div class="vl-t"><b>${u.n} Nv. ${l}${l < VL_UP_MAX ? ` → ${l + 1}` : ''}</b><small>${info}</small>${l < fmax && !now ? vlCostHtml(p, c) : ''}</div>
+      <button class="btn small primary" data-vl-act="forge:${k}"${l >= fmax || v.forge || !vlCan(p, c) ? ' disabled' : ''}>${l >= VL_UP_MAX ? 'Máx.' : now ? '🔨' : '⬆'}</button></div>`; }).join('');
   return `<div class="card raised vl-card"><div class="vl-head">${vlImg('vila-quartel')}<div><b>Quartel · ${used}/${cap} soldados</b><small>Cada tipo é forte contra um e fraco contra outro. Nv. ${v.b.quartel}: até ${cap} soldados.</small></div></div>
       <div class="vl-queue">${v.train.length ? `⏳ A treinar: <b>${v.train.slice(0, 5).map(k => VL_UNITS[k].one).join(', ')}${v.train.length > 5 ? ` +${v.train.length - 5}` : ''}</b> · próximo em ${vlLeftHtml(v.tLeft)}` : 'Fila de treino vazia.'}${out ? ` · ${out} soldados estão fora com a armada.` : ''}</div>
       <div class="vl-list">${units}</div></div>
     <div class="card raised vl-card"><b class="vl-title">Quem vence quem</b>
       <p class="tiny muted" style="margin-top:4px;">Lê a linha: o soldado da esquerda faz <b class="good">×1,5 de dano</b> ao que está forte e <b class="bad">só ×0,67</b> ao que está fraco. Também ataca primeiro quem consegue vencer.</p>
       ${matrix}
-      <div class="vl-why">${VL_ORDER.map(k => `<span>${VL_UNITS[k].emo} <b>${VL_UNITS[k].n}</b> › ${VL_UNITS[VL_STRONG[k]].n}: ${VL_WHY[k]}.</span>`).join('')}</div></div>
+      <div class="vl-why">${VL_ORDER.map(k => `<span>${vlImg(VL_UNITS[k].img, 'vl-round vl-why-ic')}<b>${VL_UNITS[k].n}</b> › ${VL_UNITS[VL_STRONG[k]].n}: ${VL_WHY[k]}.</span>`).join('')}</div></div>
     <div class="card raised vl-card"><div class="vl-head">${vlImg('vila-ferraria')}<div><b>Ferraria · Nv. ${v.b.ferraria}</b><small>Melhora um tipo de soldado de cada vez: +8% de ataque e vida por nível, até Nv. ${fmax}.</small></div></div>
       <div class="vl-queue">${v.forge ? `🔨 A melhorar <b>${VL_UNITS[v.forge.k].n}</b> para Nv. ${v.up[v.forge.k] + 1} · faltam ${vlLeftHtml(v.forge.left)}` : 'A Ferraria está livre.'}</div>
       <div class="vl-list">${ups}</div></div>`;
@@ -11274,7 +11278,7 @@ function vlGuerraHtml(p, v) {
     return `<div class="vl-tgt${locked ? ' lock' : ''}">${vlImg(e.img, 'vl-tgt-ic')}<div class="vl-t"><b>${e.n} <span class="vl-diff" style="color:${e.c};border-color:${e.c}">${e.d}</span></b>
       <small>${vlImg(e.bossImg, 'vl-mini')} ${e.boss} · ${vlSum(e.army)} soldados${e.m !== 1 ? ` (${e.m > 1 ? 'mais fortes' : 'mais fracos'} ×${String(e.m).replace('.', ',')})` : ''} · marcha ${vlMins(e.march)}</small>
       <div class="vl-comp">${Object.keys(e.army).map(t => `<span>${vlImg(e.soldier, 'vl-round')}${e.army[t]} <em>${VL_TYPE_N[t]}</em></span>`).join('')}</div>
-      <small class="vl-hint">💡 Muitos ${VL_TYPE_N[main]}: leva ${VL_UNITS[best].n}.</small>
+      <small class="vl-hint">💡 Muitos ${VL_TYPE_N[main]}${VL_TYPE_N[main] !== VL_UNITS[main].n.toLowerCase() ? ` (são como ${VL_UNITS[main].n})` : ''}: leva ${VL_UNITS[best].n}.</small>
       <small class="vl-loot">Espólio: <span>${vlIc('coin')} ${nxNum(e.loot.gold)}</span>${Object.keys(VL_RES).map(r => `<span>${vlIc(VL_RES[r].img)} ${nxNum(e.loot[r])}</span>`).join('')}${e.chest ? `<span>📦 Baú de Equipamento +${e.chest}</span>` : ''}</small>
       ${cd ? `<small class="vl-cd">⏳ A recuperar do último ataque: ${vlLeftHtml(cd)}</small>` : ''}</div>
       ${locked ? `<span class="vl-cost vl-lockt">🔒 Precisa do Salão da Vila Nv. ${e.need}</span>` : `<button class="btn small danger" data-vl-act="attack:${k}"${busy || cd || !vlSum(v.army) ? ' disabled' : ''}>Atacar</button>`}</div>`; }).join('');
@@ -11290,14 +11294,14 @@ function vlExpHtml(p, v) {
   const tl = x.phase === 'batalha' ? (VL_ROUNDS - x.round - 1) * VL_ROUND_MIN + x.left : x.left;
   const side = (a, who) => VL_ORDER.filter(t => who === 'm' ? x.types.includes(t) : e.army[t]).map(t => `<div class="vl-u${!a[t] ? ' dead' : ''}">${vlImg(who === 'm' ? VL_UNITS[t].img : e.soldier, 'vl-round')}<b>${a[t] || 0}</b><small>${who === 'm' ? VL_UNITS[t].n : VL_TYPE_N[t]}</small></div>`).join('');
   const status = { marcha: `A marchar para ${e.n}`, batalha: `Em batalha · ronda ${x.round}/${VL_ROUNDS}`, regresso: 'A regressar à vila', fim: 'Relatório de batalha' }[x.phase];
-  return `<div class="vl-march"><div class="vl-phases">${['🚶 Marcha', '⚔️ Batalha', '🏠 Regresso', '📜 Relatório'].map((l, i) => `<span class="${i === idx ? 'on' : i < idx ? 'done' : ''}">${l}</span>`).join('')}</div>
+  return `<div class="vl-march"><div class="vl-phases">${['Marcha', 'Batalha', 'Regresso', 'Relatório'].map((l, i) => `<span class="${i === idx ? 'on' : i < idx ? 'done' : ''}">${i < idx ? '✓ ' : ''}${l}</span>`).join('')}</div>
     <div class="vl-mstat"><span>${status}</span><b>${x.phase === 'fim' ? '' : vlLeftHtml(tl)}</b></div>
     <div class="vl-road">${vlImg('vila', 'home')}${vlImg('armada', 'army" style="left:' + pos + '%')}${vlImg(e.img, 'foe')}</div>
     <div class="vl-sides"><div><h4 class="good">A tua armada</h4>${side(x.me, 'm')}</div><div class="vl-vs">VS</div><div><h4 class="bad">${e.n}</h4>${side(x.foe, 'f')}</div></div>
     <div class="vl-blog">${x.log.map(([c, t]) => `<div class="${c}">${t}</div>`).join('')}</div>
     ${x.phase === 'fim' ? `<div class="vl-report"><h3 class="${x.won ? 'win' : 'lose'}">${x.won ? 'VITÓRIA!' : 'RETIRADA'}</h3>
       <p${x.won ? ' class="vl-loot vl-loot-c"' : ''}>${x.won ? `<span>${vlIc('coin')} ${nxNum(e.loot.gold)}</span>${Object.keys(VL_RES).map(r => `<span>${vlIc(VL_RES[r].img)} ${nxNum(e.loot[r])}</span>`).join('')}${e.chest ? `<span>📦 Baú de Equipamento +${e.chest}</span>` : ''}` : 'O inimigo resistiu. Treina mais soldados, melhora-os na Ferraria ou leva os que têm vantagem.'}</p>
-      <p>Soldados perdidos: <b>${x.sent - vlSum(x.me)}</b> de ${x.sent}.</p><button class="btn ghost" data-vl-act="report">Fechar relatório</button></div>` : ''}</div>`;
+      ${x.won && x.lost ? `<p class="tiny" style="color:#f08a8a;">Armazém cheio: ${nxNum(Math.round(x.lost))} recursos ficaram para trás. Melhora o Armazém.</p>` : ''}<p>Soldados perdidos: <b>${x.sent - vlSum(x.me)}</b> de ${x.sent}.</p><button class="btn ghost" data-vl-act="report">Fechar relatório</button></div>` : ''}</div>`;
 }
 
 // ============================================================
@@ -19958,7 +19962,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v229</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v230</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

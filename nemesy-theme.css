@@ -4030,3 +4030,21 @@ body.ui-pergaminho .cd-ms div.ok b{color:#2f7a4a;}
 .ml-path::before{content:""; position:absolute; left:23px; top:18px; bottom:18px; width:2px; background:linear-gradient(180deg, rgba(246,220,133,.6), rgba(246,220,133,.1)); z-index:0;}
 .ml-path .ml-row{z-index:1;}
 body.ui-pergaminho .ml-row{color:#f1e6cf;}
+
+/* v230 — Vila: ícones alinhados, ecrãs pequenos */
+.vl-tabs .tab-chip{display:flex;align-items:center;gap:3px;font-size:11.5px;}
+.vl-tab-ic{width:17px;height:17px;object-fit:contain;flex:0 0 auto;filter:drop-shadow(0 1px 1px rgba(0,0,0,.5));}
+.vl-tabs .tab-chip span{overflow:hidden;text-overflow:ellipsis;}
+.vl-t small b{display:inline;font-size:inherit;color:var(--parchment);font-weight:700;}
+.vl-why span{display:block;}
+.vl-why span b{display:inline;}
+.vl-why-ic{width:18px;height:18px;vertical-align:-4px;margin-right:5px;}
+.vl-it.vl-busy{border-color:rgba(228,191,74,.55);box-shadow:inset 0 0 0 1px rgba(228,191,74,.25);}
+@media (max-width:360px){
+  .vl-tab-ic{display:none;}
+  .vl-tabs .tab-chip{font-size:11.5px;}
+  .vl-house img{width:48px;height:48px;}
+  .vl-house.big img{width:72px;height:72px;}
+  .vl-house b{font-size:9px;}
+  .vl-house i{font-size:8.5px;padding:0 5px;}
+}
