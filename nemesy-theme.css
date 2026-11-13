@@ -4088,3 +4088,43 @@ body.ui-pergaminho .ml-row{color:#f1e6cf;}
 @keyframes cbHitFlash{0%{filter:brightness(2.4) saturate(.2);transform:scale(.92);}100%{filter:none;transform:none;}}
 @media (prefers-reduced-motion:reduce){.enemy-glyph.fx-hit{animation:none;}}
 #screen-combat .ab-btn.int-hit::after{top:2px;right:50%;transform:translateX(50%);font-size:8.5px;padding:0 5px;white-space:nowrap;}
+
+/* v233 — Venda automática e filtros da Mochila */
+.as-card{margin-bottom:10px;padding:10px 12px !important;}
+.as-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px;}
+.as-ch{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}
+.as-ch .tab-chip{margin:0;}
+.as-sold{margin:0 0 8px;padding:7px 10px;border-radius:10px;background:rgba(228,191,74,.12);border:1px solid rgba(228,191,74,.45);font-size:12.5px;}
+.inv-sellshown{margin:2px 0 8px;}
+.cb-h-c{position:relative;}
+.cb-h-el{position:absolute;top:-7px;left:-6px;font-style:normal;font-size:12px;filter:drop-shadow(0 0 3px #ffb547);}
+.cb-h-int{position:absolute;top:-8px;right:-8px;font-style:normal;font-size:12px;width:19px;height:19px;border-radius:50%;display:grid;place-items:center;background:#120a08;border:1.5px solid var(--c);box-shadow:0 0 8px var(--c);animation:cbIntPulse 1.3s ease-in-out infinite;}
+
+/* v233 — Dia e Noite reais */
+:root{--tod-stars:radial-gradient(1.2px 1.2px at 12% 18%,#fff 98%,transparent),radial-gradient(1px 1px at 28% 8%,#fff 98%,transparent),radial-gradient(1.4px 1.4px at 46% 22%,#fff 98%,transparent),radial-gradient(1px 1px at 63% 12%,#fff 98%,transparent),radial-gradient(1.2px 1.2px at 74% 30%,#fff 98%,transparent),radial-gradient(1px 1px at 88% 9%,#fff 98%,transparent),radial-gradient(1px 1px at 36% 34%,#fff 98%,transparent),radial-gradient(1.3px 1.3px at 6% 38%,#fff 98%,transparent),radial-gradient(1px 1px at 94% 40%,#fff 98%,transparent);}
+.cb-scene::after,.region-banner::after,.rm-map::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity 1.2s ease,background 1.2s ease;}
+.cb-scene::after{z-index:2;}
+.region-banner::after{z-index:1;}
+.rm-map::before{z-index:1;}
+body.tod-amanhecer .cb-scene::after,body.tod-amanhecer .region-banner::after,body.tod-amanhecer .rm-map::before{opacity:1;background:linear-gradient(180deg,rgba(255,150,130,.30),rgba(255,205,160,.12) 55%,rgba(255,220,190,.04));}
+body.tod-entardecer .cb-scene::after,body.tod-entardecer .region-banner::after,body.tod-entardecer .rm-map::before{opacity:1;background:linear-gradient(180deg,rgba(255,120,50,.34),rgba(200,70,110,.24) 60%,rgba(90,30,80,.22));}
+body.tod-noite .cb-scene::after,body.tod-noite .region-banner::after,body.tod-noite .rm-map::before{opacity:1;background:var(--tod-stars),linear-gradient(180deg,rgba(6,12,46,.70),rgba(10,18,52,.52) 55%,rgba(6,10,30,.45));}
+body.tod-noite.tod-moon .cb-scene::after,body.tod-noite.tod-moon .region-banner::after,body.tod-noite.tod-moon .rm-map::before{background:radial-gradient(circle at 84% 15%,#fffbe6 0 13px,rgba(255,250,225,.45) 14px 22px,rgba(255,250,225,.12) 23px 54px,transparent 70px),var(--tod-stars),linear-gradient(180deg,rgba(14,22,60,.58),rgba(16,24,58,.42) 55%,rgba(8,12,34,.38));}
+body.tod-noite .cb-scene .scene-svg,body.tod-noite .region-banner .scene-svg{filter:saturate(.75);}
+/* faixa no separador Batalha */
+.tod-strip{display:flex;align-items:center;gap:9px;width:100%;margin:0 0 8px;padding:6px 10px 6px 6px;border-radius:12px;border:1px solid color-mix(in srgb,var(--tc) 55%,transparent);background:linear-gradient(90deg,color-mix(in srgb,var(--tc) 22%,#120d08),rgba(18,13,8,.85));color:#f3e9d2;font:inherit;text-align:left;cursor:pointer;}
+.tod-strip .tod-ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:18px;background:rgba(0,0,0,.35);flex:0 0 auto;}
+.tod-strip .tod-t{flex:1;min-width:0;line-height:1.15;}
+.tod-strip .tod-t b{display:block;font-size:13px;}
+.tod-strip .tod-t small{display:block;font-size:11px;color:var(--tc);font-weight:700;}
+.tod-strip .tod-left{font-size:10.5px;opacity:.75;white-space:nowrap;}
+.tod-strip.moon{box-shadow:0 0 14px rgba(255,248,220,.35);}
+.tod-list{display:flex;flex-direction:column;gap:6px;}
+.tod-row{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-radius:11px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);position:relative;}
+.tod-row.on{border-color:var(--tc);background:color-mix(in srgb,var(--tc) 14%,transparent);}
+.tod-row .tod-ic{font-size:20px;line-height:1.2;}
+.tod-row b{font-size:13.5px;}
+.tod-row small{opacity:.7;font-size:11px;}
+.tod-row p{margin:2px 0 0;font-size:12px;line-height:1.35;}
+.tod-row em{position:absolute;top:7px;right:8px;font-style:normal;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--tc);color:#120d08;}
+@media (prefers-reduced-motion:reduce){.cb-scene::after,.region-banner::after,.rm-map::before{transition:none;}}

@@ -3347,7 +3347,7 @@ function getEquippedTalisman(player) {
 // Bónus de XP das batalhas: Milho comido neste combate + Talismã (ex.: Sabedoria +5%).
 function battleXpBonus(c) {
   const t = getEquippedTalisman(App.player);
-  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp'); // v224: Amuleto da Estrela · v227: Cartas
+  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp') + todXp(); // v224: Amuleto da Estrela · v227: Cartas
 }
 function grantTalisman(player, key) {
   const definition = TALISMAN_DEFS[key];
@@ -9130,7 +9130,7 @@ function renderTabBatalha() {
       <div class="bt-sh-b sh-${shAct.k}">${sheetBody[shAct.k]()}</div>` : ''}
     </div>`;
 
-  $('hub-content').innerHTML = `
+  $('hub-content').innerHTML = `${todStripHtml(p)}
     <div class="bt-strip">
       <button type="button" class="bt-arr" id="bt-prev" aria-label="Região anterior" ${ri <= 0 ? 'disabled' : ''}>‹</button>
       <div class="bt-reg">
@@ -10796,7 +10796,7 @@ function cardOnKill(c) {
   if (!p || !card) return;
   if (card.tab === 'eventos' && !(hwActive() || xmActive())) return;
   const luck = 1 + Math.min(1, effectiveStats(p).dropLuckBonus || 0);
-  if (Math.random() >= card.chance * luck * (c.elite ? 2 : 1)) return; // v231: Elite = dobro
+  if (Math.random() >= card.chance * luck * (c.elite ? 2 : 1) * todCardMult()) return; // v231: Elite = dobro · v233: noite
   const s = cardState(p), before = s[card.name] || 0, nBefore = cardCount(p);
   s[card.name] = before + 1;
   const tier = CARD_TIERS[card.tier];
@@ -13486,7 +13486,12 @@ function renderMochilaBody() {
     // ordenar
     const rarIdx = key => RARITIES.findIndex(r => r.key === key);
     const cmpOrder = { better: 0, equal: 1, worse: 2 };
-    const rows = list.map(item => ({ item, cmp: compareToEquipped(item, p), power: itemPowerScore(item) }));
+    const showKey = App.invShow || 'all'; // v233: Mostrar
+    let rows = list.map(item => ({ item, cmp: compareToEquipped(item, p), power: itemPowerScore(item) }));
+    const SHOWS = [['all', 'Todos'], ['better', '▲ Melhores'], ['worse', '▼ Piores'], ['sets', '🧩 Sets'], ['bonus', '✨ Com bónus'], ['locked', '🔒 Bloqueados']];
+    const showFn = { all: () => true, better: r => r.cmp.cls === 'better', worse: r => r.cmp.cls === 'worse', sets: r => !!r.item.setKey, bonus: r => !!((r.item.bonuses && r.item.bonuses.length) || r.item.uniqueEffect), locked: r => !!r.item.locked };
+    rows = rows.filter(showFn[showKey] || showFn.all);
+    list = rows.map(r => r.item);
     rows.sort((a, b) => {
       if (sortKey === 'rarity') return (rarIdx(b.item.rarity) - rarIdx(a.item.rarity)) || ((b.item.itemLevel || 1) - (a.item.itemLevel || 1)) || (b.power - a.power);
       if (sortKey === 'level') return ((b.item.itemLevel || 1) - (a.item.itemLevel || 1)) || (b.power - a.power);
@@ -13496,7 +13501,7 @@ function renderMochilaBody() {
     });
 
     const totalValue = list.reduce((sum, i) => sum + itemSellValue(i), 0);
-    const filtersActive = slotFilter !== 'all' || rarFilter !== 'all';
+    const filtersActive = slotFilter !== 'all' || rarFilter !== 'all' || showKey !== 'all';
 
     const summary = `<div class="card raised" style="margin-bottom:10px; border-left:3px solid var(--gold-bright);">
       <div class="row between" style="align-items:center;">
@@ -13512,6 +13517,9 @@ function renderMochilaBody() {
     const sortBar = `<div class="inv-label">Ordenar por</div>
       <div class="tab-strip" style="padding-bottom:8px;">${SORTS.map(o => `<button class="tab-chip${sortKey === o.key ? ' active' : ''}" data-inv-sort="${o.key}">${o.label}</button>`).join('')}</div>`;
 
+    const showBar = `<div class="inv-label">Mostrar</div>
+      <div class="tab-strip" style="padding-bottom:8px;">${SHOWS.map(([k, l]) => `<button class="tab-chip${showKey === k ? ' active' : ''}" data-inv-show="${k}">${l}</button>`).join('')}</div>`;
+    const sellShown = filtersActive && list.some(i => !i.locked) ? `<button class="btn small ghost block inv-sellshown" data-sell-shown>💰 Vender os ${list.filter(i => !i.locked).length} itens mostrados · ${list.filter(i => !i.locked).reduce((a, i) => a + itemSellValue(i), 0).toLocaleString('pt-PT')} 🪙</button>` : '';
     const slotBar = `<div class="inv-label">Tipo</div>
       <div class="tab-strip" style="padding-bottom:8px;">
         <button class="tab-chip${slotFilter === 'all' ? ' active' : ''}" data-item-filter="all">Todos</button>
@@ -13580,7 +13588,10 @@ function renderMochilaBody() {
         ${item.upgrade ? `<span class="ig-up${item.ascended ? ' asc' : ''}">+${item.upgrade}</span>` : ''}${item.locked ? '<span class="ig-lock">🔒</span>' : ''}
         <span class="ig-lv">${item.itemLevel || 1}</span></button>`; }).join('')}</div>
       <p class="tiny muted" style="margin-top:8px;">Toca num item para veres a ficha, comparar, equipar ou vender. ▲ melhor que o equipado · ★ espaço vazio.</p>` : cardsHtml;
-    body.innerHTML = summary + sortBar + slotBar + rarBar + sellBar + `<div style="margin-top:12px;">${invGridOn() ? gridHtml : cardsHtml}</div>`;
+    body.innerHTML = summary + autoSellCardHtml(p) + sortBar + showBar + slotBar + rarBar + sellShown + sellBar + `<div style="margin-top:12px;">${invGridOn() ? gridHtml : cardsHtml}</div>`;
+    autoSellBind(body);
+    els('[data-inv-show]', body).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invShow = b.dataset.invShow; renderMochilaBody(); }));
+    els('[data-sell-shown]', body).forEach(b => b.addEventListener('click', () => sellFilteredItems(list)));
     els('[data-inv-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); try { localStorage.setItem('nemesy_inv_view', b.dataset.invView); } catch (e) {} App.invView = b.dataset.invView; renderMochilaBody(); }));
 
     els('[data-equip-item]').forEach(b => b.addEventListener('click', () => equipItem(b.dataset.equipItem)));
@@ -13593,7 +13604,7 @@ function renderMochilaBody() {
     els('[data-item-filter]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invItemFilter = b.dataset.itemFilter; renderMochilaBody(); }));
     els('[data-inv-rarity]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invRarityFilter = b.dataset.invRarity; renderMochilaBody(); }));
     els('[data-inv-sort]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invSort = b.dataset.invSort; renderMochilaBody(); }));
-    els('[data-inv-reset]').forEach(b => b.addEventListener('click', () => { App.invItemFilter = 'all'; App.invRarityFilter = 'all'; renderMochilaBody(); }));
+    els('[data-inv-reset]').forEach(b => b.addEventListener('click', () => { App.invItemFilter = 'all'; App.invRarityFilter = 'all'; App.invShow = 'all'; renderMochilaBody(); }));
   } else if (App.invTab === 'gemas') {
     renderGemsBody(body, p);
   } else if (App.invTab === 'alquimia') {
@@ -13783,7 +13794,7 @@ function renderChestsBody(body, p) {
     </div>
   </div>`;
 
-  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Abre os teus baús gastando ouro para revelar o que contêm.</p>` + oysterHint + openAllBar + shown.map(chest => {
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Abre os teus baús gastando ouro para revelar o que contêm.</p>` + autoSellCardHtml(p) + oysterHint + openAllBar + shown.map(chest => {
     const def = CHEST_DEFS[chest.type];
     const cost = chestCost(chest.type, chest.level);
     const canAfford = p.gold >= cost;
@@ -13796,6 +13807,7 @@ function renderChestsBody(body, p) {
       <button class="btn small ${canAfford ? 'primary' : 'ghost'}" data-open-chest="${chest.id}" ${canAfford ? '' : 'disabled'}>🪙${cost}</button>
     </div>`;
   }).join('');
+  autoSellBind(body);
   els('[data-open-chest]').forEach(b => b.addEventListener('click', () => openChest(b.dataset.openChest)));
   els('.chest-batch').forEach(row => {
     const type = row.dataset.batchType;
@@ -14019,8 +14031,8 @@ function openChest(chestId) {
     const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
     const item = generateItem(slot, chest.level, null, chest.qualityBoost);
     p.inventory.push(item); revealItem = item;
-    const cmp = compareToEquipped(item, p);
-    resultHtml = `
+    const cmp = compareToEquipped(item, p), asGold = autoSellTake(p, item); // v233
+    resultHtml = (asGold ? `<p class="as-sold">🧹 Venda automática: vendido por <b>${nxNum(asGold)} 🪙</b></p>` : '') + `
       <div class="item-row" style="${rarityBoxStyle(item)}">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
@@ -14137,7 +14149,7 @@ function performOpenAllChests(type, matching, totalCost) {
   const equipFound = [];
   const stonesFound = {};
   const pearlsFound = {};
-  let feiticoFound = 0, reforcoFound = 0, pedrasFound = 0;
+  let feiticoFound = 0, reforcoFound = 0, pedrasFound = 0, asN = 0, asG = 0;
   const voidLines = [];
 
   matching.forEach(chest => {
@@ -14145,7 +14157,8 @@ function performOpenAllChests(type, matching, totalCost) {
       const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
       const item = generateItem(slot, chest.level, null, chest.qualityBoost);
       p.inventory.push(item);
-      equipFound.push(item);
+      const ag = autoSellTake(p, item); // v233
+      if (ag) { asN++; asG += ag; } else equipFound.push(item);
     } else if (chest.type === 'vazio' || chest.type === 'vazio2') { // v190
       const r = openVoidChest(p, chest);
       equipFound.push(r.item);
@@ -14174,7 +14187,7 @@ function performOpenAllChests(type, matching, totalCost) {
   saveGame();
   sfx.equip();
 
-  let resultHtml = '';
+  let resultHtml = asN ? `<p class="as-sold">🧹 Venda automática: ${asN} ite${asN === 1 ? 'm' : 'ns'} fraco${asN === 1 ? '' : 's'} vendido${asN === 1 ? '' : 's'} por <b>${nxNum(asG)} 🪙</b></p>` : '';
   resultHtml += equipFound.map(item => {
     const cmp = compareToEquipped(item, p);
     return `<p class="tiny"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name} · ${item.rarityName} <span class="item-compare ${cmp.cls}" style="display:inline;">(${cmp.label})</span></p>`;
@@ -14792,6 +14805,49 @@ function tutCheck(ctx) {
 }
 
 // v187: venda rápida — todos os Comuns e Incomuns da mochila (os 🔒 bloqueados ficam).
+// ============================================================
+// 🧹 VENDA AUTOMÁTICA (v233) — ao abrir baús, os itens fracos são vendidos logo.
+// Nunca vende: 🔒 bloqueados, Sets, itens com bónus especiais, efeitos únicos, Míticos
+// e qualquer item ▲ Melhor do que o que tens equipado.
+// ============================================================
+const AUTOSELL_OPTS = [['off', 'Desligada'], ['comum', 'Comuns'], ['incomum', 'Até Incomuns'], ['raro', 'Até Raros']];
+const AUTOSELL_RANK = { comum: 1, incomum: 2, raro: 3 };
+function autoSellWould(p, item) {
+  const lim = AUTOSELL_RANK[p.autoSell] || 0, r = AUTOSELL_RANK[item && item.rarity] || 0;
+  if (!lim || !r || r > lim) return false;
+  if (item.locked || item.setKey || (item.bonuses && item.bonuses.length) || item.uniqueEffect || item.mythic || item.hwSkin) return false;
+  return compareToEquipped(item, p).cls !== 'better';
+}
+function autoSellTake(p, item) {
+  if (!autoSellWould(p, item)) return 0;
+  const i = p.inventory.indexOf(item); if (i < 0) return 0;
+  p.inventory.splice(i, 1);
+  const g = itemSellValue(item);
+  p.gold += g; p.stats.autoSold = (p.stats.autoSold || 0) + 1;
+  return g;
+}
+function autoSellCardHtml(p) {
+  const cur = AUTOSELL_RANK[p.autoSell] ? p.autoSell : 'off';
+  return `<div class="card raised as-card"><div class="as-top"><b>🧹 Venda automática</b><span class="tiny muted">ao abrir baús</span></div>
+    <div class="as-ch">${AUTOSELL_OPTS.map(([k, l]) => `<button type="button" class="tab-chip${cur === k ? ' active' : ''}" data-autosell="${k}">${k === 'off' ? l : `${rarIc(k === 'comum' ? 'comum' : k, '')} ${l}`}</button>`).join('')}</div>
+    <p class="tiny muted">Nunca vende: 🔒 bloqueados, Sets, itens com bónus especiais e itens ▲ Melhores do que os teus.${p.stats && p.stats.autoSold ? ` · Já vendeu ${nxNum(p.stats.autoSold)} itens.` : ''}</p></div>`;
+}
+function autoSellBind(root) {
+  els('[data-autosell]', root).forEach(b => b.addEventListener('click', () => { const p = App.player; p.autoSell = b.dataset.autosell; sfx.tab(); saveGame();
+    toast(p.autoSell === 'off' ? '🧹 Venda automática desligada.' : `🧹 Venda automática: ${AUTOSELL_OPTS.find(x => x[0] === p.autoSell)[1]}.`); renderMochilaBody(); }));
+}
+// Vender os itens que estão a ser mostrados com os filtros (sem os bloqueados).
+async function sellFilteredItems(list) {
+  const p = App.player, sell = list.filter(i => !i.locked);
+  if (!sell.length) { sfx.error(); toast('Não há itens para vender (os 🔒 bloqueados ficam).'); return; }
+  const total = sell.reduce((a, i) => a + itemSellValue(i), 0), better = sell.filter(i => compareToEquipped(i, p).cls === 'better').length;
+  if (!await nxConfirm(`Vender os ${sell.length} itens mostrados por ${total.toLocaleString('pt-PT')} ouro?${better ? `\n⚠️ ${better} são ▲ Melhores do que o teu equipamento!` : ''}${list.length - sell.length ? `\n🔒 ${list.length - sell.length} bloqueado(s) ficam.` : ''}`, { title: 'Vender filtrados', icon: '💰' })) return;
+  const ids = new Set(sell.map(i => i.id)), g0 = p.gold;
+  p.inventory = p.inventory.filter(i => !ids.has(i.id));
+  p.gold += total; saveGame(); sfx.gold(); renderMochilaBody(); renderStatusBar(); fxGoldGain(g0, p.gold);
+  toast(`💰 Vendidos ${sell.length} itens por ${total.toLocaleString('pt-PT')} ouro.`);
+}
+
 async function sellWeakItems() {
   const p = App.player;
   const list = p.inventory.filter(i => (i.rarity === 'comum' || i.rarity === 'incomum') && !i.locked);
@@ -15459,7 +15515,84 @@ const CITY_SPOTS = { classificacao: [50, 20], cambio: [24, 24], arena: [77, 25],
   cozinha: [22, 57], profissao: [79, 61], bar: [30, 78], mercadonegro: [70, 76], contratos: [67, 92] };
 const CITY_LAMPS = [[45, 28], [55, 28], [44, 62], [56, 62], [42, 92], [58, 92], [30, 80], [36, 74], [24, 60], [80, 41]];
 const CITY_WALKS = [[[48, 88], [48, 62], [44, 50], [48, 40], [48, 28]], [[52, 30], [52, 42], [60, 48], [52, 56], [52, 86]], [[8, 47], [36, 47], [64, 47], [92, 47]], [[90, 49], [62, 50], [38, 50], [12, 49]]];
-function cityIsNight() { const h = new Date().getHours(); return h >= 20 || h < 7; }
+// ============================================================
+// 🌗 DIA E NOITE REAIS (v233) — pela hora do teu telemóvel.
+//  🌅 Amanhecer 06–09 · +10% XP
+//  ☀️ Dia 09–18       · +10% ouro
+//  🌇 Entardecer 18–21 · +10% de hipótese de baú
+//  🌙 Noite 21–06     · monstros +10% (mortos-vivos e demónios +20%), Elites ×2, +20% XP, cartas +10%
+//  🌕 Lua Cheia (a lua verdadeira, ~3 noites por mês) · Elites ×3, +35% XP, cartas +50%
+// Pode ser desligado nas Definições (aí não há bónus nem desvantagens).
+// ============================================================
+const TOD = {
+  amanhecer: { name: 'Amanhecer', icon: '🌅', from: 6, to: 9, color: '#ffb38a', short: '+10% XP', desc: 'O orvalho da manhã dá ânimo: <b>+10% de XP</b>.' },
+  dia: { name: 'Dia', icon: '☀️', from: 9, to: 18, color: '#ffd76a', short: '+10% ouro', desc: 'Os mercados estão abertos: <b>+10% de ouro</b> nos combates.' },
+  entardecer: { name: 'Entardecer', icon: '🌇', from: 18, to: 21, color: '#ff9a5a', short: '+10% baús', desc: 'A hora dourada: <b>+10% de hipótese de baú</b> nos combates.' },
+  noite: { name: 'Noite', icon: '🌙', from: 21, to: 6, color: '#8fa8ff', short: '+20% XP · monstros +10%', desc: 'As criaturas da noite saem: monstros <b>+10% mais fortes</b> (mortos-vivos e demónios <b>+20%</b>) e <b>Elites ×2</b>, mas <b>+20% de XP</b> e <b>+10% de hipótese de carta</b>.' }
+};
+const TOD_ORDER = ['amanhecer', 'dia', 'entardecer', 'noite'];
+const TOD_MOON = { name: 'Lua Cheia', icon: '🌕', short: '+35% XP · Elites ×3', desc: 'Noite de <b>Lua Cheia</b> (a lua verdadeira): <b>Elites ×3</b>, <b>+35% de XP</b> e <b>+50% de hipótese de carta</b>. Os monstros continuam +10% mais fortes.' };
+const MOON_SYNODIC = 29.530588853, MOON_REF = Date.UTC(2000, 0, 6, 18, 14);
+function moonAge(t) { const d = ((t || Date.now()) - MOON_REF) / 86400000; return ((d % MOON_SYNODIC) + MOON_SYNODIC) % MOON_SYNODIC; }
+function moonIsFull(t) { const a = moonAge(t); return a >= 13.8 && a <= 15.8; }
+function moonNextFull(t) { const now = t || Date.now(); let a = moonAge(now), d = 13.8 - a; if (d < 0) d += MOON_SYNODIC; return now + d * 86400000; }
+function moonIcon(t) { const a = moonAge(t) / MOON_SYNODIC; return ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'][Math.floor(a * 8 + 0.5) % 8]; }
+function todOn(p) { p = p || App.player; return !(p && p.todOff); }
+function todPhaseAt(h) { return h >= 6 && h < 9 ? 'amanhecer' : h >= 9 && h < 18 ? 'dia' : h >= 18 && h < 21 ? 'entardecer' : 'noite'; }
+function todPhase(p) { return todOn(p) ? todPhaseAt(new Date().getHours()) : null; }
+function todMoon(p) { return todPhase(p) === 'noite' && moonIsFull(); }
+function todLeftMin() { const d = new Date(), h = d.getHours(), k = todPhaseAt(h), end = TOD[k].to; let left = ((end - h + 24) % 24) * 60 - d.getMinutes(); if (left <= 0) left += 1440; return left; }
+// Bónus usados pelo jogo
+function todXp() { const k = todPhase(); return k === 'amanhecer' ? 0.10 : k === 'noite' ? (todMoon() ? 0.35 : 0.20) : 0; }
+function todGold() { return todPhase() === 'dia' ? 0.10 : 0; }
+function todChest() { return todPhase() === 'entardecer' ? 0.10 : 0; }
+function todEliteMult() { return todPhase() === 'noite' ? (todMoon() ? 3 : 2) : 1; }
+function todCardMult() { return todPhase() === 'noite' ? (todMoon() ? 1.5 : 1.1) : 1; }
+function todEnemyMult(cat) { return todPhase() === 'noite' ? (cat === 'morto_vivo' || cat === 'demonio' ? 1.2 : 1.1) : 1; }
+function todApplyEnemies(c) {
+  if (!c || c.isObelisk || c.isArena || todPhase() !== 'noite') return;
+  (c.horde ? c.horde.map(m => m.enemy) : [c.enemy]).forEach(e => { const m = todEnemyMult(e.category); e.hp = Math.round(e.hp * m); e.maxHp = Math.round(e.maxHp * m); e.dmg = Math.round(e.dmg * m); });
+  addCombatLog({ text: todMoon() ? '🌕 Noite de Lua Cheia: monstros +10% mais fortes, Elites ×3 e +35% de XP!' : `🌙 É de noite: monstros +10% mais fortes${['morto_vivo', 'demonio'].includes(c.enemy.category) ? ' (este, +20%)' : ''}, mas +20% de XP.`, cls: 'hit' });
+}
+function todHm(min) { const h = Math.floor(min / 60), m = min % 60; return h ? `${h}h${m ? String(m).padStart(2, '0') : ''}` : `${m} min`; }
+function todStripHtml(p) {
+  const k = todPhase(p);
+  if (!k) return '';
+  const T = TOD[k], moon = todMoon(p);
+  return `<button type="button" class="tod-strip tod-${k}${moon ? ' moon' : ''}" data-tod-info style="--tc:${T.color}">
+    <span class="tod-ic">${moon ? TOD_MOON.icon : T.icon}</span><span class="tod-t"><b>${moon ? TOD_MOON.name : T.name}</b><small>${moon ? TOD_MOON.short : T.short}</small></span>
+    <span class="tod-left">muda daqui a ${todHm(todLeftMin())}</span></button>`;
+}
+function todOpenInfo() {
+  const p = App.player, k = todPhase(p), moon = todMoon(p), nf = new Date(moonNextFull());
+  const rows = TOD_ORDER.map(key => { const T = TOD[key];
+    return `<div class="tod-row${key === k ? ' on' : ''}" style="--tc:${T.color}"><span class="tod-ic">${T.icon}</span><div><b>${T.name}</b> <small>${String(T.from).padStart(2, '0')}h–${String(T.to).padStart(2, '0')}h</small><p>${T.desc}</p></div>${key === k ? '<em>Agora</em>' : ''}</div>`; }).join('');
+  openModal(`<h3 style="margin-bottom:4px;">🌗 Dia e Noite</h3>
+    <p class="tiny muted" style="margin-bottom:10px;">O mundo segue a hora do teu telemóvel (agora ${new Date().toTimeString().slice(0, 5)}).${k ? ` Fase atual: <b>${moon ? TOD_MOON.name : TOD[k].name}</b>, muda daqui a ${todHm(todLeftMin())}.` : ' Está desligado nas Definições.'}</p>
+    <div class="tod-list">${rows}
+      <div class="tod-row moon${moon ? ' on' : ''}" style="--tc:#e8e2c8"><span class="tod-ic">🌕</span><div><b>Lua Cheia</b> <small>só de noite</small><p>${TOD_MOON.desc}</p>
+        <p class="tiny muted">Lua de hoje: ${moonIcon()} · ${moon ? 'é hoje!' : `próxima a ${nf.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long' })}`}</p></div>${moon ? '<em>Agora</em>' : ''}</div>
+    </div>
+    <p class="tiny muted" style="margin-top:8px;">Podes desligar o ciclo em ⚙️ Definições: aí fica sempre de dia, sem bónus nem desvantagens.</p>
+    <button class="btn primary block" id="btn-close-modal" style="margin-top:10px;">Fechar</button>`);
+  $('btn-close-modal').addEventListener('click', closeModal);
+}
+// Aplica a luz da fase ao ecrã (cenários, banners, cidade). Corre ao abrir e a cada minuto.
+function todApplyBody() {
+  if (typeof document === 'undefined' || !document.body) return;
+  const k = todPhase(), b = document.body;
+  TOD_ORDER.forEach(x => b.classList.toggle('tod-' + x, x === k));
+  b.classList.toggle('tod-moon', !!todMoon());
+  const map = document.getElementById('ct-map'); if (map) map.classList.toggle('night', k === 'noite');
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('click', e => { const t = e.target && e.target.closest && e.target.closest('[data-tod-info]'); if (t) { e.preventDefault(); try { sfx.click(); } catch (er) {} todOpenInfo(); } });
+  let _todLast = '';
+  setInterval(() => { try { const k = (todPhase() || '') + (todMoon() ? 'm' : ''); todApplyBody(); if (k !== _todLast) { const was = _todLast; _todLast = k; if (was && App.player && App.tab === 'batalha' && !App.combat) renderHubTab(); } } catch (e) {} }, 30000);
+  setTimeout(() => { try { todApplyBody(); } catch (e) {} }, 500);
+}
+
+function cityIsNight() { return todPhase() === 'noite'; } // v233: segue o ciclo de dia e noite
 function cityMapHtml(sections) {
   const spots = sections.map(x => { const q = CITY_SPOTS[x.key] || [50, 50];
     return `<button type="button" class="ct-spot${x.key === 'mercadonegro' ? ' dark' : ''}" data-lojatab="${x.key}" style="left:${q[0]}%;top:${q[1]}%;" aria-label="${esc(x.label)}">
@@ -17003,6 +17136,7 @@ const HORDE_BONUS = { 1: 0, 2: 0.10, 3: 0.20, 4: 0.35, 5: 0.50 };
 const HORDE_AOE = ['rotativa', 'chuva', 'terramoto'];
 const HORDE_AOE_MULT = 0.6;
 const HORDE_EKEYS = ['enemyStatus', 'enemyStunned', 'enemyDefDebuff', 'enemyRegenBlocked'];
+const HORDE_CKEYS = ['elite', 'eliteAff', 'eliteRage', '_boom']; // v233: Elites por membro
 function hordeSize(p) { return clamp(Math.floor(Number(p && p.hordeSize) || 1), 1, HORDE_MAX); }
 function hordeInit(c, extraEnemies) {
   const mk = (enemy, i) => ({ letter: String.fromCharCode(65 + i), label: `${c.name} ${String.fromCharCode(65 + i)}`, enemy, dead: false,
@@ -17011,8 +17145,8 @@ function hordeInit(c, extraEnemies) {
   c.hordeIdx = 0;
   c.hordeLoot = { xp: 0, gold: 0, drops: [], kills: 0 };
 }
-function hordeSave(c) { const m = c.horde[c.hordeIdx]; HORDE_EKEYS.forEach(k => { m.st[k] = c.battleState[k]; }); }
-function hordeLoad(c, i) { c.hordeIdx = i; const m = c.horde[i]; HORDE_EKEYS.forEach(k => { c.battleState[k] = m.st[k]; }); c.enemy = m.enemy; }
+function hordeSave(c) { const m = c.horde[c.hordeIdx]; HORDE_EKEYS.forEach(k => { m.st[k] = c.battleState[k]; }); m.cx = m.cx || {}; HORDE_CKEYS.forEach(k => { m.cx[k] = c[k]; }); }
+function hordeLoad(c, i) { c.hordeIdx = i; const m = c.horde[i]; HORDE_EKEYS.forEach(k => { c.battleState[k] = m.st[k]; }); HORDE_CKEYS.forEach(k => { c[k] = (m.cx || {})[k]; }); c.enemy = m.enemy; }
 function hordeSwitch(c, i) { if (!c.horde || i < 0 || i === c.hordeIdx) return; hordeSave(c); hordeLoad(c, i); }
 function hordeLabel(c) { return c && c.horde ? c.horde[c.hordeIdx].label : (c ? c.name : ''); }
 function hordeAddLoot(c, r) {
@@ -17028,6 +17162,7 @@ function hordeCompactDrops(list) {
 function hordeKill(c, m) {
   const cur = c.hordeIdx, idx = c.horde.indexOf(m);
   hordeSwitch(c, idx);
+  eliteOnDeath(c, App.player); // v233
   m.dead = true; m.enemy.hp = 0;
   seasonOnEnemyDefeated(c);
   const r = c.isObelisk ? { xpGain: 0, goldGain: 0, drops: [] } : wildRewardRoll(c); // v190: as ondas do Obelisco não dão espólio
@@ -17049,9 +17184,25 @@ function hordeResolveDeaths(c) {
   saveGame();
   return false;
 }
+// v233: depois da jogada, numa horda — quem foi atingido, quebras/interrupções, Espinhos e Furioso.
+function hordeIntentCheck(c, p) {
+  const cur = c.hordeIdx, bs = c.battleState, ab = !!bs.roundAbility, aoe = !!bs.roundAoe;
+  bs.roundAbility = false; bs.roundAoe = false;
+  if (c.intent && (!c.intent.en || c.intent.en.hp <= 0)) c.intent = null;
+  c.horde.forEach((m, i) => {
+    if (m.dead || m.enemy.hp <= 0) return;
+    const dealt = Math.max(0, (m._rhp !== undefined ? m._rhp : m.enemy.maxHp) - m.enemy.hp), mine = c.intent && c.intent.en === m.enemy;
+    if (!dealt && !mine) return;
+    hordeSwitch(c, i);
+    eliteAfterPlayer(c, p, dealt);
+    if (mine && intentCounter(c, p, dealt, ab && (aoe || i === cur))) c.battleState.enemyStunned = true;
+  });
+  hordeSwitch(c, cur);
+}
 function hordePostPlayerAction() {
   const c = App.combat, p = App.player;
   hordeSave(c);
+  if (intentOn(c)) hordeIntentCheck(c, p);
   // 1) estados (sangramento, veneno…) em cada inimigo
   c.horde.forEach(m => {
     if (m.dead || !m.st.enemyStatus || !m.st.enemyStatus.length) return;
@@ -17078,9 +17229,10 @@ function hordePostPlayerAction() {
     if (c.battleState.enemyStunned) {
       addCombatLog({ text: `💫 ${m.label} está atordoado e perde a ronda.`, cls: 'good' });
       c.battleState.enemyStunned = false;
+      if (c.intent && c.intent.en === m.enemy) c.intent = null; // v233
       continue;
     }
-    resolveEnemyTurn({ noDots: true });
+    resolveEnemyTurn({ noDots: true, horde: true });
     if (p.hp <= 0 && !passiveUndyingSave(c, p)) { hordeSwitch(c, target); handlePlayerDefeated(); return; }
   }
   hordeSwitch(c, target);
@@ -17096,6 +17248,7 @@ function hordePostPlayerAction() {
 // Rotativa / Chuva / Terramoto numa horda: atingem todos os vivos com 60% do dano.
 function hordeAoe(key, p, pStats) {
   const c = App.combat, ab = ABILITIES[key], cur = c.hordeIdx;
+  c.battleState.roundAoe = true; // v233: uma habilidade em área interrompe todos
   const parts = []; let extra = null, anyCrit = false;
   c.horde.forEach((m, i) => {
     if (m.dead || m.enemy.hp <= 0) return;
@@ -17218,7 +17371,9 @@ function startCombat(opts) {
   showScreen('screen-combat');
   addCombatLog({ text: hordeN > 1 ? `👥 Uma horda de ${hordeN} × ${opts.name} apareceu! Todos atacam em cada ronda.` : `Um(a) ${opts.name} apareceu!`, cls: 'good' });
   setTimeout(() => { try { tutCheck('combat'); } catch (e) {} }, 300); // v188
+  if (opts.kind === 'wild' && !opts.extra) todApplyEnemies(App.combat); // v233: 🌙 noite
   if (hordeN === 1) eliteMaybe(App.combat, opts); // v231
+  else { const c0 = App.combat; c0.horde.forEach((m, i) => { hordeSwitch(c0, i); eliteMaybe(c0, opts, 0.6); }); hordeSwitch(c0, 0); } // v233
   if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (App.combat.isCultBoss) {
@@ -18374,7 +18529,7 @@ function postPlayerAction() {
   huntReflect(c, p);
   if (c.isObelisk && !c.horde && obAfterHits(c, p)) return; // v190: Casca de Cristal / ondas
   const dealtNow = Math.max(0, (c._roundEnemy === c.enemy && c._roundHp !== undefined ? c._roundHp : c.enemy.maxHp) - Math.max(0, c.enemy.hp)); // v231
-  if (c.intent && c.intent.en !== c.enemy) c.intent = null;
+  if (c.intent && (!c.intent.en || c.intent.en.hp <= 0)) c.intent = null;
   if (c.enemy.hp <= 0) { c.intent = null; handleEnemyDefeated(); return; }
   eliteAfterPlayer(c, p, dealtNow);
   const countered = intentCounter(c, p, dealtNow); c.battleState.roundAbility = false;
@@ -18393,6 +18548,12 @@ function postPlayerAction() {
 // Fim de cada ronda: buffs/debuffs descem 1, regeneração do herói e desenhar o ecrã.
 function combatRoundTail(c, p, tickEnemy) {
   if (tickEnemy && !c.horde) eliteRoundTail(c); // v231
+  if (c.horde && !c.ended) { // v233: Regenerador e marca de vida por membro
+    const cur = c.hordeIdx;
+    c.horde.forEach((m, i) => { if (m.dead || !(m.cx && m.cx.eliteAff) && i !== cur) return; hordeSwitch(c, i); eliteRoundTail(c); });
+    hordeSwitch(c, cur);
+    c.horde.forEach(m => { m._rhp = m.enemy.hp; });
+  }
   if (c.isObelisk && !c.horde && c.ob) c.ob.mark = c.enemy.hp; // v190
   if (c.battleState.critBuff) {
     if (c.battleState.critBuff.fresh) c.battleState.critBuff.fresh = false;
@@ -18659,7 +18820,7 @@ const INT_TYPES = {
   feitico: { icon: '🌀', color: '#b47cff', how: 'Interrompe', tip: () => 'Usa qualquer habilidade nesta jogada para o interromper.' },
   cura: { icon: '💚', color: '#5fd38a', how: 'Corta a cura', tip: n => `Faz pelo menos ${nxNum(n)} de dano nesta jogada para lhe cortar a cura.` }
 };
-function intentOn(c) { return !!(c && !c.horde && !c.isObelisk && !c.isArena && !c.isSoberano && !c.ymir); }
+function intentOn(c) { return !!(c && !c.isObelisk && !c.isArena && !c.isSoberano && !c.ymir); } // v233: também nas Hordas
 function intentNeed(c, p) {
   const st = effectiveStats(p);
   const exp = applyDamage(st.dmg * elementAttackMult(p, c.enemy), c.enemy.def * (c.battleState.enemyDefDebuff ? 1 - c.battleState.enemyDefDebuff.pct : 1) * (1 - (st.defPen || 0)), p.level) + (st.bonusDmgFlat || 0);
@@ -18677,7 +18838,7 @@ function intentSpell(c) {
 function intentDeclare(c, p, type) {
   const boss = c.isBoss || c.isMiniBoss;
   const name = type === 'pesado' ? (c.enemy.category === 'animal' ? 'Investida Selvagem' : 'Golpe Esmagador') : type === 'cura' ? 'Recuperar Forças' : intentSpell(c).name;
-  c.intent = { type, name, need: type === 'feitico' ? 0 : intentNeed(c, p), boss, en: c.enemy };
+  c.intent = { type, name, need: type === 'feitico' ? 0 : intentNeed(c, p), boss, en: c.enemy, who: c.horde ? hordeLabel(c) : '' };
   const T = INT_TYPES[type];
   addCombatLog({ text: `${T.icon} ${hordeLabel(c)} prepara ${name}! ${type === 'feitico' ? 'Usa uma habilidade para interromper.' : `Faz ${nxNum(c.intent.need)} de dano para quebrar.`}`, cls: 'hit' });
   try { sfx.error(); } catch (e) {}
@@ -18692,15 +18853,17 @@ function intentRoll(c, p) {
     if (low && (bs.intentHeals || 0) < 2 && Math.random() < 0.25) { bs.intentHeals = (bs.intentHeals || 0) + 1; intentDeclare(c, p, 'cura'); }
     return;
   }
-  if (Math.random() >= (c.eliteAff ? INT.ELITE_CHANCE : INT.WILD_CHANCE)) return;
+  const alive = c.horde ? c.horde.filter(m => !m.dead && m.enemy.hp > 0).length : 1; // v233: numa horda, só um anuncia de cada vez
+  if (Math.random() >= (c.eliteAff ? INT.ELITE_CHANCE : INT.WILD_CHANCE) * (alive > 1 ? Math.min(1, 1.6 / alive) : 1)) return;
   const r = Math.random();
   intentDeclare(c, p, low && r < 0.25 && !bs.intentHeals ? (bs.intentHeals = 1, 'cura') : r < 0.62 ? 'pesado' : 'feitico');
 }
 // Depois da jogada do herói: conseguiu reagir?
-function intentCounter(c, p, dealt) {
+function intentCounter(c, p, dealt, abOk) {
   const it = c.intent; if (!it) return false;
+  if (abOk === undefined) abOk = !!c.battleState.roundAbility;
   if (c.battleState.enemyStunned) { c.intent = null; addCombatLog({ text: `💫 Atordoado, ${hordeLabel(c)} perde a concentração: ${it.name} falhou!`, cls: 'good' }); return false; }
-  const ok = it.type === 'feitico' ? !!c.battleState.roundAbility : dealt >= it.need;
+  const ok = it.type === 'feitico' ? abOk : dealt >= it.need;
   if (!ok) return false;
   c.intent = null;
   p.stats.intentCounters = (p.stats.intentCounters || 0) + 1;
@@ -18741,13 +18904,13 @@ function intentDmgMult(c) {
 }
 function resolveEnemyTurn(opts) {
   const c = App.combat, p = App.player;
-  const main = !(opts && opts.noDots);
-  const it = main && intentOn(c) ? intentFire(c, p) : null;
+  const main = !(opts && opts.noDots), act = main || !!(opts && opts.horde); // v233: membros da horda também
+  const it = act && intentOn(c) && c.intent && c.intent.en === c.enemy ? intentFire(c, p) : null;
   const hp0 = p.hp;
   c._intentNow = it;
   try { resolveEnemyTurnCore(opts); } finally { c._intentNow = null; }
   intentAfterHit(c, p, it, hp0 - p.hp);
-  if (main && c.eliteAff && p.hp > 0 && c.enemy.hp > 0) {
+  if (act && c.eliteAff && p.hp > 0 && c.enemy.hp > 0) {
     if (c.eliteAff.includes('veloz') && Math.random() < ELITE_AFF.veloz.chance) {
       addCombatLog({ text: `⚡ Veloz: ${hordeLabel(c)} ataca outra vez!`, cls: 'hit' });
       c._fastHit = true; try { resolveEnemyTurnCore({ noDots: true }); } finally { c._fastHit = false; }
@@ -18759,7 +18922,7 @@ function resolveEnemyTurn(opts) {
       addCombatLog({ text: `🩸 Vampírico: ${hordeLabel(c)} bebe ${nxNum(h)} de vida.`, cls: 'hit' });
     }
   }
-  if (main) intentRoll(c, p);
+  if (act) intentRoll(c, p);
 }
 
 // ---------- Elites ----------
@@ -18779,15 +18942,15 @@ function eliteAffixes(c, n) {
   if (keys.includes('blindado')) c.enemy.def = Math.round(c.enemy.def * 1.5);
   addCombatLog({ text: `⭐ Afixos: ${keys.map(k => `${ELITE_AFF[k].icon} ${ELITE_AFF[k].name}`).join(' · ')}. Toca nos afixos para ver o que fazem.`, cls: 'crit' });
 }
-function eliteMaybe(c, opts) {
+function eliteMaybe(c, opts, chanceMult) {
   if (opts.kind !== 'wild' || opts.extra || c.isCultBoss || (opts.level || 1) < ELITE.MIN_LV) return;
-  if (Math.random() >= ELITE.CHANCE) return;
+  if (Math.random() >= ELITE.CHANCE * (chanceMult || 1) * todEliteMult()) return; // v233: de noite há mais
   const e = c.enemy;
   e.hp = Math.round(e.hp * ELITE.HP); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * ELITE.DMG); e.def = Math.round(e.def * ELITE.DEF);
   c.elite = true;
-  addCombatLog({ text: `⭐ Cuidado: é um ${c.name} ELITE! Mais forte, mas dá o dobro de XP e ouro e um Baú de Elite.`, cls: 'crit' });
+  addCombatLog({ text: `⭐ Cuidado: ${c.horde ? `${hordeLabel(c)} é` : `é um ${c.name}`} ELITE! Mais forte, mas dá o dobro de XP e ouro e um Baú de Elite.`, cls: 'crit' });
   eliteAffixes(c, (opts.level || 1) >= ELITE.TWO_AFF_LV || c.paragon ? 2 : 1);
-  try { fxPhase2Banner('⭐ Elite'); } catch (e2) {}
+  if (!c._eliteFx) { c._eliteFx = true; try { fxPhase2Banner('⭐ Elite'); } catch (e2) {} }
 }
 // Espinhos (depois da jogada do herói).
 function eliteAfterPlayer(c, p, dealt) {
@@ -18822,7 +18985,7 @@ function intentHtml(c) {
   const it = c.intent; if (!it || c.ended) return '';
   const T = INT_TYPES[it.type];
   return `<button type="button" class="cb-intent" style="--c:${T.color}" data-intent-info="1"><span class="cb-int-ic">${nxEnt('intencao-' + it.type, T.icon)}</span>
-    <span class="cb-int-t"><b>${esc(it.name)}</b><small>${T.how}: ${it.type === 'feitico' ? 'usa uma habilidade!' : `faz ${nxNum(it.need)} de dano`}</small></span></button>`;
+    <span class="cb-int-t"><b>${it.who ? `${esc(it.who)} · ` : ''}${esc(it.name)}</b><small>${T.how}: ${it.type === 'feitico' ? 'usa uma habilidade!' : `faz ${nxNum(it.need)} de dano`}</small></span></button>`;
 }
 function eliteChipsHtml(c) {
   if (!c.eliteAff && !c.elite) return '';
@@ -18929,7 +19092,8 @@ function wildRewardRoll(c) {
   const lootLv = combatLootLv(c); // v219: em Paragon o espólio é sempre do Nv. 200
   const goldGain = Math.round((isBoss ? (30 + lootLv * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(lootLv * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)) * ((killRg && killRg.goldMult) || 1) * (1 + PARAGON_GOLD_PER_P * (c.paragon || 0)));
   const eliteM = c.elite ? 2 : 1; // v231: Elite = XP e ouro ×2
-  p.gold += goldGain * eliteM;
+  const todGm = 1 + todGold(); // v233: ☀️ Dia
+  p.gold += Math.round(goldGain * eliteM * todGm);
   grantXp(xpGain * eliteM);
   if (isBoss) p.stats.bossesKilled++;
   progressQuest(isBoss);
@@ -18939,7 +19103,7 @@ function wildRewardRoll(c) {
   // Dificuldade escolhida também sobe a própria chance de cair algo (não só a
   // qualidade quando cai) — um monstro mais difícil tem de valer mesmo a pena.
   const diffDropBonus = diff.qualityBoost * 0.05;
-  const dropChance = ((isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus) * (pStats.mythDropMult || 1);
+  const dropChance = ((isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus) * (pStats.mythDropMult || 1) * (1 + todChest()); // v233: 🌇
   if (Math.random() < dropChance) {
     // Chests de chefe usam a "qualidade melhorada" (+1 tentativa extra de raridade);
     // a dificuldade escolhida pelo jogador soma tentativas extra por cima disso.
@@ -19088,7 +19252,7 @@ function wildRewardRoll(c) {
   }
   { const hw = hwPumpkinDrop(c, p, luck); if (hw) drops.push(hw); } // v174: Noite das Abóboras
   { const xm = xmGiftDrop(c, p, luck); if (xm) drops.push(xm); } // v224: Natal Gelado
-  return { xpGain: xpGain * eliteM, goldGain: goldGain * eliteM, drops };
+  return { xpGain: xpGain * eliteM, goldGain: Math.round(goldGain * eliteM * todGm), drops };
 }
 
 function finishWildOrBossVictory() {
@@ -19958,7 +20122,7 @@ function renderHordeRow(c) {
   el.innerHTML = `<span class="cb-h-l">Horda</span>` + c.horde.map((m, i) => {
     const pct = m.dead ? 0 : clamp(m.enemy.hp / m.enemy.maxHp * 100, 0, 100);
     return `<button type="button" class="cb-hchip${i === c.hordeIdx ? ' on' : ''}${m.dead ? ' dead' : ''}" data-horde-i="${i}"${m.dead ? ' disabled' : ''} aria-label="${esc(m.label)}">
-      <span class="cb-h-c">${rmCreatureImg(c.monsterName || c.name, c.icon)}<b>${m.letter}</b></span><span class="cb-h-b"><i style="width:${pct}%"></i></span></button>`;
+      <span class="cb-h-c">${rmCreatureImg(c.monsterName || c.name, c.icon)}<b>${m.letter}</b>${(i === c.hordeIdx ? c.elite : m.cx && m.cx.elite) ? '<em class="cb-h-el">⭐</em>' : ''}${c.intent && c.intent.en === m.enemy ? `<em class="cb-h-int" style="--c:${INT_TYPES[c.intent.type].color}">${INT_TYPES[c.intent.type].icon}</em>` : ''}</span><span class="cb-h-b"><i style="width:${pct}%"></i></span></button>`;
   }).join('');
   els('[data-horde-i]', el).forEach(b => b.addEventListener('click', () => {
     const i = Number(b.dataset.hordeI);
@@ -20000,7 +20164,7 @@ function renderCombat() {
   $('cb-enemy-status').innerHTML = statusHtml;
   { // v231: Intenções e Elites
     const isl = $('cb-intent-slot'), esl = $('cb-elite-slot');
-    if (c.intent && c.intent.en !== c.enemy) c.intent = null;
+    if (c.intent && (!c.intent.en || c.intent.en.hp <= 0)) c.intent = null;
     if (isl) { const h = intentHtml(c); if (isl.dataset.h !== h) { isl.dataset.h = h; isl.innerHTML = h;
       const ib = isl.querySelector('[data-intent-info]'); if (ib) ib.addEventListener('click', () => { const it = c.intent; if (!it) return; const T = INT_TYPES[it.type];
         showBuffInfoModal(T.icon, it.name, `${T.tip(it.need)} Se conseguires, o inimigo perde a ronda. Se não, leva com o golpe.`); }); } }
@@ -20185,7 +20349,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v232</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v233</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -20196,6 +20360,11 @@ function openSettingsModal() {
         <button class="btn small ${Audio8.sfxOff ? 'ghost' : 'primary'}" id="btn-toggle-sfx">${Audio8.sfxOff ? 'Desligados' : 'Ligados'}</button>
       </div>
       <p class="tiny muted" style="margin-top:6px;">Sons de ataques, habilidades, críticos, dor, poções e menus.</p>
+      <div class="row" style="justify-content:space-between; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft);">
+        <span style="font-weight:700;">🌗 Dia e noite reais</span>
+        <button class="btn small ${App.player && App.player.todOff ? 'ghost' : 'primary'}" id="btn-toggle-tod">${App.player && App.player.todOff ? 'Desligado' : 'Ligado'}</button>
+      </div>
+      <p class="tiny muted" style="margin-top:6px;">O mundo segue a hora do telemóvel, com bónus em cada fase. <a href="#" data-tod-info>Ver as fases</a></p>
     </div>
     <div class="card raised" style="margin-bottom:12px;">
       <span style="font-weight:700;">✨ Animações</span>
@@ -20288,6 +20457,7 @@ function openSettingsModal() {
   const fsBtn = $('btn-toggle-fullscreen');
   if (fsBtn) fsBtn.addEventListener('click', async () => { await toggleFullscreen(); openSettingsModal(); });
   $('btn-toggle-music').addEventListener('click', () => { initAudioOnce(); setMusicOff(!Audio8.musicOff); openSettingsModal(); });
+  { const tb = $('btn-toggle-tod'); if (tb) tb.addEventListener('click', () => { const p = App.player; if (!p) return; p.todOff = !p.todOff; saveGame(); todApplyBody(); openSettingsModal(); }); } // v233
   $('btn-toggle-sfx').addEventListener('click', () => { initAudioOnce(); setSfxOff(!Audio8.sfxOff); if (!Audio8.sfxOff) sfx.attack(); openSettingsModal(); });
   els('[data-music-key]').forEach(b => b.addEventListener('click', () => { setMusicTheme(b.dataset.musicKey); openSettingsModal(); }));
   els('[data-theme-key]').forEach(b => b.addEventListener('click', () => { setTheme(b.dataset.themeKey); openSettingsModal(); }));
@@ -20523,9 +20693,21 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 2.2.0';
+const APP_VERSION_LABEL = 'V 2.8.1';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v233', title: 'V 2.8.1 · Dia e Noite! 🌗', items: [
+    ['🌗', 'O mundo segue agora a hora do teu telemóvel: Amanhecer (+10% XP), Dia (+10% ouro), Entardecer (+10% baús) e Noite. Toca na faixa do separador Batalha para veres tudo.'],
+    ['🌙', 'De noite os monstros ficam mais fortes, mas há o dobro dos Elites e +20% de XP. Nas noites de Lua Cheia verdadeira: Elites ×3 e +35% de XP!'],
+    ['👥', 'As Hordas também têm Elites e Intenções. Muda o alvo para quebrar o golpe certo: as habilidades em área interrompem todos.'],
+    ['🧹', 'Mochila: Venda automática ao abrir baús (nunca vende Sets, bloqueados nem itens melhores do que os teus), novo filtro "Mostrar" e botão para vender os itens mostrados.'],
+    ['⚙️', 'Podes desligar o ciclo de dia e noite nas Definições.']
+  ] },
+  { id: 'v231', title: 'V 2.8.0 · Batalhas com vida! ⚔️', items: [
+    ['💢', 'Intenções: os monstros avisam o golpe seguinte. Quebra-lhes a guarda com muito dano, ou interrompe os feitiços com uma habilidade, e eles perdem a ronda!'],
+    ['⭐', 'Monstros Elite com afixos (Vampírico, Espinhos, Furioso, Blindado, Veloz, Regenerador, Explosivo): mais fortes, mas XP e ouro ×2 e um Baú de Elite.'],
+    ['🎨', 'Ecrã de combate renovado: retrato do herói, habilidades numa linha com a recarga em relógio e o cenário mais à vista.']
+  ] },
   { id: 'v219', title: 'V 2.2.0 · Paragon! ✨', items: [
     ['✨', 'No Nv. 200 já podes renascer em Herói → Paragon. Voltas ao Nv. 1 · P1 e ficas com tudo: equipamento, ouro, habilidades, passivas, mascotes, Esconderijo e Vila. Máximo de 2 Paragons.'],
     ['🗺️', 'Em Paragon, os monstros e os chefes das regiões mantêm o nível, mas ganham a força do teu Paragon. No P2 ficam ainda 20% mais fortes.'],
