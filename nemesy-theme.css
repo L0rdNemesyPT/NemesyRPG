@@ -4147,3 +4147,4 @@ body.tod-noite .cb-scene .scene-svg,body.tod-noite .region-banner .scene-svg{fil
 .cd-el-bar i{display:block;height:100%;background:var(--ec);}
 .cd-el em{font-style:normal;font-size:11.5px;font-weight:800;opacity:.85;}
 .cd-el.ok em{color:var(--ec);opacity:1;}
+.cmp-actions{flex-wrap:wrap;} .cmp-actions .btn{min-width:calc(50% - 4px);} /* v239 */

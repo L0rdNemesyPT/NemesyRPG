@@ -14726,7 +14726,7 @@ function itemSellValue(item) {
 }
 
 // v90: bloquear itens — um item bloqueado não pode ser vendido (nem em massa, nem no Trades).
-function toggleItemLock(itemId) {
+function toggleItemLock(itemId, after) {
   const p = App.player;
   const item = p.inventory.find(i => i.id === itemId) || EQUIP_SLOTS.map(s => p.equipment[s]).find(i => i && i.id === itemId);
   if (!item) return;
@@ -14734,7 +14734,8 @@ function toggleItemLock(itemId) {
   if (!item.locked) delete item.locked;
   saveGame();
   sfx.click();
-  renderMochilaBody();
+  if (App.tab === 'mochila') renderMochilaBody();
+  if (typeof after === 'function') after(); // v239: a ficha volta a abrir já com o novo estado
   toast(item.locked ? `🔒 ${item.name} bloqueado — não pode ser vendido.` : `🔓 ${item.name} desbloqueado.`);
 }
 
@@ -15292,7 +15293,8 @@ function openEquipSlotModal(slot) {
     html += `
       ${itemSheetHtml(item, slot, p)}
       ${slot === 'weapon' && !item.nephalemBonus && (item.upgrade || 0) >= 9 ? renderNephalemSection(item, p) : ''}
-      <button class="btn ghost block" id="btn-unequip" style="margin-bottom:8px;">Desequipar</button>
+      <div class="row" style="gap:8px; margin-bottom:8px;"><button class="btn ghost" id="btn-unequip" style="flex:1;">Desequipar</button>
+        <button class="btn ${item.locked ? 'lock-on' : 'ghost'}" id="btn-eq-lock" style="flex:1;">${item.locked ? '🔓 Desbloquear' : '🔒 Bloquear'}</button></div>
     `;
   } else {
     html += `<p class="muted">Nada equipado neste espaço. Equipa um item a partir da Mochila.</p>`;
@@ -15314,6 +15316,8 @@ function openEquipSlotModal(slot) {
   if (item) {
     const unequipBtn = $('btn-unequip');
     if (unequipBtn) unequipBtn.addEventListener('click', () => { unequipItem(slot); closeModal(); });
+    const lockBtn = $('btn-eq-lock'); // v239: também dá para bloquear o que tens vestido
+    if (lockBtn) lockBtn.addEventListener('click', () => toggleItemLock(item.id, () => openEquipSlotModal(slot)));
     const nephalemBtn = $('btn-use-nephalem');
     if (nephalemBtn) nephalemBtn.addEventListener('click', () => useNephalemStone(slot));
     const addSocketBtn = $('btn-add-socket');
@@ -15361,8 +15365,10 @@ function openItemCompareModal(itemId, tab) {
       <button class="btn primary" id="btn-cmp-equip">Equipar</button>
       ${dualOk ? `<button class="btn" id="btn-cmp-off">⚔️ 2.ª arma</button>` : ''}
       <button class="btn ghost" id="btn-cmp-sell"${item.locked ? ' disabled' : ''}>${item.locked ? '🔒 Bloqueado' : `🪙 ${itemSellValue(item)}`}</button>
+      <button class="btn ${item.locked ? 'lock-on' : 'ghost'}" id="btn-cmp-lock" aria-label="${item.locked ? 'Desbloquear item' : 'Bloquear item'}">${item.locked ? '🔓 Desbloquear' : '🔒 Bloquear'}</button>
     </div>
     <button class="btn ghost block" id="btn-close-modal" style="margin-top:8px;">Fechar</button>`);
+  $('btn-cmp-lock').addEventListener('click', () => toggleItemLock(itemId, () => openItemCompareModal(itemId, tab))); // v239
   els('[data-cmp-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); openItemCompareModal(itemId, b.dataset.cmpTab); }));
   $('btn-close-modal').addEventListener('click', closeModal);
   $('btn-cmp-equip').addEventListener('click', () => { closeModal(); equipItem(itemId); });
@@ -20414,7 +20420,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v238</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v239</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
