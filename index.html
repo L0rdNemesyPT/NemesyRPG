@@ -5222,7 +5222,7 @@ const ELEMENT_DEF_SHARE = 2 / 3; // parte da defesa que conta contra a parte ele
 const RES_CAP = 75;            // % máximo de resistência que conta
 const ELEMENT_POTION_RES = 25; // Poção Elemental: +25% a todas (v234: era 20)
 // v234: 🔥 Fúria Elemental — no Paragon os golpes são mais elementais e as resistências valem menos.
-const PARAGON_ELEM = [{ share: 0.30, pen: 0 }, { share: 0.45, pen: 15 }, { share: 0.55, pen: 30 }];
+const PARAGON_ELEM = [{ share: 0.30, pen: 0 }, { share: 0.40, pen: 10 }, { share: 0.50, pen: 25 }]; // v238: mais suave (era 45%/−15 e 55%/−30)
 const RES_FLOOR = -25; // com penalização, a resistência pode ficar negativa (levas mais dano)
 function paragonElem(p) { return PARAGON_ELEM[Math.min(PARAGON_ELEM.length - 1, paragonOf(p))] || PARAGON_ELEM[0]; }
 const ELEMENT_ABILITY = { boladefogo: 'fogo', relampago: 'eletricidade', terramoto: 'terra' };
@@ -5299,7 +5299,7 @@ function enemyHitDamage(c, p, pStats, raw, defEff) {
 const RES_RARITY_MULT = { comum: 1, incomum: 1, raro: 1.1, lendario: 1.2, unico: 1.3, demoniaco: 1.3, set: 1.3, temporada: 1.3, mitico: 1.3, divino: 1.4 };
 const RES_TWO_ROLLS = ['lendario', 'unico', 'demoniaco', 'set', 'temporada', 'mitico', 'divino'];
 const _itemResCache = new Map();
-function itemResRange(lv) { return lv >= 170 ? [5, 9] : lv >= 130 ? [4, 7] : [3, 5]; }
+function itemResRange(lv) { return lv >= 200 ? [10, 15] : lv >= 170 ? [8, 12] : lv >= 130 ? [6, 10] : [4, 7]; } // v238: subiu (era 3–5 / 4–7 / 5–9)
 // Devolve { fogo, gelo, eletricidade, terra } (só os que o item tem) ou null.
 function itemRes(item) {
   if (!item || (item.itemLevel || 0) < ELEMENT_MIN_LV || !EQUIP_SLOTS.includes(item.slot)) return null;
@@ -5311,7 +5311,7 @@ function itemRes(item) {
   const roll = (a, b) => Math.max(1, Math.round((a + Math.floor(R() * (b - a + 1))) * mult));
   const out = {};
   if (item.slot === 'amulet' && R() < 0.35) {
-    const v = roll(3, 6); ELEMENT_KEYS.forEach(el => { out[el] = v; }); out.all = true; // v234: era 2–4
+    const v = roll(2, 4); ELEMENT_KEYS.forEach(el => { out[el] = v; }); out.all = true; // v238: voltou a 2–4 (não mexer nos itens que os jogadores já têm)
   } else {
     const pool = ELEMENT_KEYS.slice();
     const n = RES_TWO_ROLLS.includes(item.rarity) ? 2 : 1;
@@ -7423,14 +7423,14 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">💥 Como funciona o dano</span>
         <p class="tiny" style="margin-top:6px;">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe de um monstro com elemento é desse elemento; os outros ${100 - Math.round(ELEMENT_HIT_SHARE * 100)}% são físicos e a tua Defesa trava-os como sempre.</p>
         <p class="tiny" style="margin-top:4px;">Na parte elemental contam 2/3 da tua Defesa e depois a <b>Resistência</b> a esse elemento. Sem resistências levas um pouco mais de dano do que antes; com ${RES_CAP}% levas bastante menos.</p>
-        <p class="tiny" style="margin-top:4px;">🔥 <b>Fúria Elemental (Paragon):</b> no P1, 45% do golpe é elemental e as resistências contam −15%; no P2, 55% e −30%. Com a penalização a resistência pode ficar negativa (até ${RES_FLOOR}%) e aí levas mais dano e sofres mais Queimaduras, Congelamentos, Descargas e Tremores.</p></div>
+        <p class="tiny" style="margin-top:4px;">🔥 <b>Fúria Elemental (Paragon):</b> no P1, 40% do golpe é elemental e as resistências contam −10%; no P2, 50% e −25%. Com a penalização a resistência pode ficar negativa (até ${RES_FLOOR}%) e aí levas mais dano e sofres mais Queimaduras, Congelamentos, Descargas e Tremores.</p></div>
       <div class="card raised"><span style="font-weight:700;">${nxEnt('resistencias', '🛡️')} Resistências</span>
         <p class="tiny" style="margin-top:6px;">Máximo: <b>${RES_CAP}% em cada elemento</b> (o que passar não conta, mas aparece entre parênteses). Vê as tuas em Mochila → Equipamento.</p>
         <p class="tiny" style="margin-top:4px;">As tuas agora: ${ELEMENT_KEYS.map(el => `${elIc(el)} ${resFor(st, el)}%`).join(' · ')}${we ? ` · Arma: ${elIc(we)} ${ELEMENT_INFO[we].name}` : ' · Arma sem elemento'}.</p></div>
       <div class="card raised"><span style="font-weight:700;">🎒 Resistências nos itens</span>
         <p class="tiny" style="margin-top:6px;">Todas as peças de Nv. ${ELEMENT_MIN_LV}+ (incluindo armas e os itens que já tinhas antes deste update) têm resistências próprias, que nunca mudam:</p>
-        <p class="tiny" style="margin-top:4px;">• <b>Comum, Incomum e Raro:</b> 1 resistência.<br>• <b>Lendário, Único, Demoníaco, Set, Temporada e Divino:</b> 2 resistências de elementos diferentes (a 2.ª vale metade).<br>• <b>Amuletos:</b> 35% de hipótese de terem "+X% a todas as Resistências" (3–6%, vezes a raridade) em vez disso.</p>
-        <table class="wiki-table" style="margin-top:6px;"><tr><th>Nível do item</th><th>1.ª resistência</th></tr><tr><td>Nv. 100–129</td><td>3–5%</td></tr><tr><td>Nv. 130–169</td><td>4–7%</td></tr><tr><td>Nv. 170–200</td><td>5–9%</td></tr></table>
+        <p class="tiny" style="margin-top:4px;">• <b>Comum, Incomum e Raro:</b> 1 resistência.<br>• <b>Lendário, Único, Demoníaco, Set, Temporada e Divino:</b> 2 resistências de elementos diferentes (a 2.ª vale metade).<br>• <b>Amuletos:</b> 35% de hipótese de terem "+X% a todas as Resistências" (2–4%, vezes a raridade) em vez disso.</p>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Nível do item</th><th>1.ª resistência</th></tr><tr><td>Nv. 100–129</td><td>4–7%</td></tr><tr><td>Nv. 130–169</td><td>6–10%</td></tr><tr><td>Nv. 170–199</td><td>8–12%</td></tr><tr><td>Nv. 200 (Paragon)</td><td>10–15%</td></tr></table>
         <p class="tiny" style="margin-top:6px;">Vezes a raridade: Comum/Incomum ×${rm('comum')} · Raro ×${rm('raro')} · Lendário ×${rm('lendario')} · Único/Demoníaco/Set/Temporada ×${rm('unico')} · Divino ×${rm('divino')}.</p>
         <p class="tiny" style="margin-top:4px;">O Ferreiro (+1 a +9) não muda as resistências.</p></div>
       <div class="card raised"><span style="font-weight:700;">📜 Mais resistência</span>
@@ -13924,16 +13924,18 @@ function chestOpenLimitReason(p, type, max) {
 // ============================================================
 // v213: Feitiços — mesa com os pergaminhos, peças em grelha, força de cada bónus, o que pode sair e animações.
 function ftBonusDef(b, plus) { return (plus ? BONUS_PLUS2_POOL : BONUS_PLUS_POOL).find(x => x.key === b.key); }
-function ftQuality(b, plus) {
+function ftQuality(b, plus, item) {
   const d = ftBonusDef(b, plus); if (!d || d.min == null || d.max == null) return { q: 1, t: '—', c: '#a8987f' };
-  const q = d.max === d.min ? 1 : clamp((b.value - d.min) / (d.max - d.min), 0, 1);
+  // v238: a resistência mede-se pela faixa do nível do item (um 12 num item Nv. 150 continua a ser Máximo ★)
+  const [mn, mx] = !plus && RES_BONUS_EL[b.key] ? resBonusRange((item && item.itemLevel) || 100) : [d.min, d.max];
+  const q = mx === mn ? 1 : clamp((b.value - mn) / (mx - mn), 0, 1);
   if (q >= 1) return { q, t: 'Máximo ★', c: '#f6dc85' };
   if (q >= 0.67) return { q, t: 'Forte', c: '#8ee06a' };
   if (q >= 0.34) return { q, t: 'Médio', c: '#e8a23a' };
   return { q, t: 'Fraco', c: '#e0485a' };
 }
-function ftBonusRowHtml(b, plus) {
-  const d = ftBonusDef(b, plus), Q = ftQuality(b, plus);
+function ftBonusRowHtml(b, plus, item) {
+  const d = ftBonusDef(b, plus), Q = ftQuality(b, plus, item);
   const lbl = plus ? plus2Label(b) : `${d ? d.icon : '✨'} ${bonusPlusLabel(b)}`;
   return `<div class="ft-b${plus ? ' pl' : ''}" style="--qc:${Q.c};"><div class="t"><b>${plus ? '➕ ' : ''}${lbl}</b>
     ${d && d.min != null ? `<div class="qbar"><i style="width:${Math.max(4, Math.round(Q.q * 100))}%"></i></div><div class="qr"><span>mín. ${d.min}</span><span>máx. ${d.max}</span></div>` : ''}</div><span class="q">${Q.t}</span></div>`;
@@ -13955,20 +13957,20 @@ function renderFeiticosBody(body, p) {
   const freeP = equippedSlots.filter(s => !p.equipment[s].plusBonus).length;
   const grid = equippedSlots.map(slot => {
     const it = p.equipment[slot], bs = it.bonuses || [];
-    const socks = Array.from({ length: ITEM_BONUS_MAX_SLOTS }, (_, j) => { const b = bs[j], d = b && ftBonusDef(b); return b ? `<span class="sk on" style="--qc:${ftQuality(b).c};">${d ? d.icon : '✨'}</span>` : '<span class="sk"></span>'; }).join('')
+    const socks = Array.from({ length: ITEM_BONUS_MAX_SLOTS }, (_, j) => { const b = bs[j], d = b && ftBonusDef(b); return b ? `<span class="sk on" style="--qc:${ftQuality(b, false, it).c};">${d ? d.icon : '✨'}</span>` : '<span class="sk"></span>'; }).join('')
       + (it.plusBonus ? `<span class="sk pl on">${(ftBonusDef(it.plusBonus, true) || {}).icon || '➕'}</span>` : '<span class="sk pl"></span>');
     return `<button type="button" class="ft-tile${slot === App.ftSel ? ' sel' : ''}" data-ft-sel="${slot}" style="--rc:${it.rarityColor};"><span class="ic">${itemIconHtml(it)}</span><span class="socks">${socks}</span><span class="nm">${SLOT_NAMES[slot]}</span></button>`;
   }).join('');
   const slot = App.ftSel, item = p.equipment[slot], bonuses = item.bonuses || [], full = bonuses.length >= ITEM_BONUS_MAX_SLOTS;
   const pool = ftPoolFor(item), have = bonuses.map(b => b.key), resP = pool.filter(b => RES_BONUS_EL[b.key]);
   const poolList = pool.filter(b => !RES_BONUS_EL[b.key]).map(d => `<span class="${have.includes(d.key) ? 'has' : ''}">${d.icon} ${d.name}</span><span>${d.min}–${d.max}%</span>`).join('')
-    + (resP.length ? `<span>🛡️ Resistência a um elemento (ao acaso)</span><span>${resP[0].min}–${resP[0].max}%</span>` : '');
+    + (resP.length ? `<span>🛡️ Resistência a um elemento (ao acaso)</span><span>${resBonusRange(item.itemLevel || 100).join('–')}%</span>` : '');
   const plusPool = plus2Pool(slot).map(d => `${d.icon} ${d.name} ${d.min}–${d.max}${d.key === 'pp_hp' ? '' : '%'}`).join(' · ');
-  const weak = bonuses.some(b => ftQuality(b).q < 0.34);
+  const weak = bonuses.some(b => ftQuality(b, false, item).q < 0.34);
   const panel = `<div class="card raised ft-panel">
     <div class="ft-ph"><span class="ic">${itemIconHtml(item)}</span><div><b style="color:${item.rarityColor};">${esc(item.name)}</b><span class="tiny muted">${item.rarityName || ''} · Nv. ${item.itemLevel || 1} · ${SLOT_NAMES[slot]}</span></div></div>
     <div class="ft-lab"><span>Bónus+</span><span>${bonuses.length}/${ITEM_BONUS_MAX_SLOTS}</span></div>
-    <div class="ft-bon">${bonuses.map(b => ftBonusRowHtml(b)).join('')}${Array.from({ length: Math.max(0, ITEM_BONUS_MAX_SLOTS - bonuses.length) }, () => '<div class="ft-b empty"><span>🔮 Encaixe livre — usa um Feitiço</span></div>').join('')}</div>
+    <div class="ft-bon">${bonuses.map(b => ftBonusRowHtml(b, false, item)).join('')}${Array.from({ length: Math.max(0, ITEM_BONUS_MAX_SLOTS - bonuses.length) }, () => '<div class="ft-b empty"><span>🔮 Encaixe livre — usa um Feitiço</span></div>').join('')}</div>
     <div class="ft-acts">
       <button class="btn ${p.scrolls.feitico > 0 && !full ? 'primary' : 'ghost'}" data-cast-feitico="${slot}" ${p.scrolls.feitico > 0 && !full ? '' : 'disabled'}>📜 Feitiço <small>${p.scrolls.feitico}</small></button>
       <button class="btn ${p.scrolls.reforco > 0 && bonuses.length ? 'danger' : 'ghost'}" data-cast-reforco="${slot}" ${p.scrolls.reforco > 0 && bonuses.length ? '' : 'disabled'}>🔧 Reforço <small>${p.scrolls.reforco}</small></button>
@@ -14000,14 +14002,14 @@ function ftFx(opts) {
   document.body.appendChild(el);
   const anim = fxOn();
   const done = () => { el.remove(); renderMochilaBody(); renderStatusBar(); };
-  const avg = a => a.reduce((x, b) => x + ftQuality(b, plus).q, 0) / Math.max(1, a.length);
+  const avg = a => a.reduce((x, b) => x + ftQuality(b, plus, item).q, 0) / Math.max(1, a.length);
   const result = () => {
     let title;
     if (kind === 'cast') title = plus ? '➕ Bónus ➕ novo!' : '📜 Bónus novo!';
     else { const d = avg(after) - avg(before); title = d > 0.05 ? '🎲 Saiu melhor!' : d < -0.05 ? '🎲 Saiu pior…' : '🎲 Ficou parecido'; }
     el.innerHTML = `<div class="ft-fx-box"><h4>${title}</h4><div class="tiny" style="color:${item.rarityColor};font-weight:700;">${esc(item.name)}</div>
-      ${kind === 'reroll' ? `<div class="ft-fx-lb">Antes</div>${before.map(b => `<div class="ft-fx-old">${plus ? '➕ ' + plus2Label(b) : `${(ftBonusDef(b) || {}).icon || '✨'} ${bonusPlusLabel(b)}`} · ${ftQuality(b, plus).t}</div>`).join('')}<div class="ft-fx-lb">Agora</div>` : ''}
-      <div class="ft-fx-res">${after.map(b => ftBonusRowHtml(b, plus)).join('')}</div>
+      ${kind === 'reroll' ? `<div class="ft-fx-lb">Antes</div>${before.map(b => `<div class="ft-fx-old">${plus ? '➕ ' + plus2Label(b) : `${(ftBonusDef(b) || {}).icon || '✨'} ${bonusPlusLabel(b)}`} · ${ftQuality(b, plus, item).t}</div>`).join('')}<div class="ft-fx-lb">Agora</div>` : ''}
+      <div class="ft-fx-res">${after.map(b => ftBonusRowHtml(b, plus, item)).join('')}</div>
       <button class="btn primary block" type="button" id="ft-fx-ok">Fixe!</button></div>`;
     $('ft-fx-ok').addEventListener('click', done);
   };
@@ -20412,7 +20414,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v237</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v238</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
