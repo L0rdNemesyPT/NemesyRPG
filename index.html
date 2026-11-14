@@ -2838,11 +2838,16 @@ const BONUS_PLUS_POOL = [
   { key: 'vs_mortos', name: 'Contra Mortos-Vivos', icon: '💀', min: 8, max: 20, cap: 40, roll: () => 8 + Math.floor(Math.random() * 13), label: v => `+${v}% Dano vs. Mortos-Vivos`, slots: ['weapon'] },
   { key: 'dano_habilidade', name: 'Dano de Habilidade', icon: '🌟', min: 1, max: 10, cap: 20, roll: () => 1 + Math.floor(Math.random() * 10), label: v => `+${v}% Dano das Habilidades`, slots: ['weapon'] },
   // v181: resistências elementais — só em peças de Nv. 100+ (não armas).
-  { key: 'res_fogo', name: 'Resistência ao Fogo', icon: '🔥', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência ao Fogo`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
-  { key: 'res_gelo', name: 'Resistência ao Gelo', icon: '🧊', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência ao Gelo`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
-  { key: 'res_eletricidade', name: 'Resistência à Eletricidade', icon: '⚡', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência à Eletricidade`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
-  { key: 'res_terra', name: 'Resistência à Terra', icon: '🪨', min: 6, max: 12, cap: 12, roll: () => 6 + Math.floor(Math.random() * 7), label: v => `+${v}% Resistência à Terra`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 }
+  { key: 'res_fogo', name: 'Resistência ao Fogo', icon: '🔥', min: 6, max: 16, cap: 16, roll: item => resBonusRoll(item), label: v => `+${v}% Resistência ao Fogo`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
+  { key: 'res_gelo', name: 'Resistência ao Gelo', icon: '🧊', min: 6, max: 16, cap: 16, roll: item => resBonusRoll(item), label: v => `+${v}% Resistência ao Gelo`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
+  { key: 'res_eletricidade', name: 'Resistência à Eletricidade', icon: '⚡', min: 6, max: 16, cap: 16, roll: item => resBonusRoll(item), label: v => `+${v}% Resistência à Eletricidade`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 },
+  { key: 'res_tudo', name: 'Resistência a Tudo', icon: '🌈', min: 3, max: 6, cap: 6, rare: true, roll: () => 3 + Math.floor(Math.random() * 4), label: v => `+${v}% a todas as Resistências`, slots: ['amulet', 'artifact', 'cape'], minLv: 150 }, // v234
+  { key: 'res_terra', name: 'Resistência à Terra', icon: '🪨', min: 6, max: 16, cap: 16, roll: item => resBonusRoll(item), label: v => `+${v}% Resistência à Terra`, slots: ARMOR_SLOTS.concat(['amulet', 'artifact']), minLv: 100 }
 ];
+
+// v234: o Bónus+ de resistência sobe com o nível do item (Nv. 100–169: 6–12 · 170+: 8–14 · Paragon/200: 10–16).
+function resBonusRange(lv) { return lv >= 200 ? [10, 16] : lv >= 170 ? [8, 14] : [6, 12]; }
+function resBonusRoll(item) { const [a, b] = resBonusRange((item && item.itemLevel) || 100); return a + Math.floor(Math.random() * (b - a + 1)); }
 
 // v86: Bónus ➕ (amarelo-claro). Um só por item, à parte dos Bónus+ normais: só os
 // Pergaminhos ➕ (drop raro da Torre) mexem nele, e os pergaminhos normais não lhe tocam.
@@ -2908,9 +2913,13 @@ function rollNewBonusForItem(item) {
   // tornarem mais raros os outros bónus das armaduras.
   const resOpts = finalPool.filter(b => RES_BONUS_EL[b.key]);
   const others = finalPool.filter(b => !RES_BONUS_EL[b.key]);
-  const pickIdx = Math.floor(Math.random() * (others.length + (resOpts.length ? 1 : 0)));
-  const chosen = pickIdx < others.length ? others[pickIdx] : resOpts[Math.floor(Math.random() * resOpts.length)];
-  return { key: chosen.key, value: chosen.roll() };
+  let chosen;
+  for (let t = 0; t < 3; t++) { // v234: os bónus "raros" (Resistência a Tudo) saem metade das vezes
+    const pickIdx = Math.floor(Math.random() * (others.length + (resOpts.length ? 1 : 0)));
+    chosen = pickIdx < others.length ? others[pickIdx] : resOpts[Math.floor(Math.random() * resOpts.length)];
+    if (!chosen.rare || Math.random() < 0.5) break;
+  }
+  return { key: chosen.key, value: chosen.roll(item) };
 }
 function applyFeitico(item) {
   if (!item.bonuses) item.bonuses = [];
@@ -3671,7 +3680,7 @@ function effectiveStats(player) {
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck') + cardBonus(player, 'luck'),
     critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + PG_VAL.golpeCd / 100 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + PG_VAL.fortGold / 100 * (pgT.fortuna || 0) + cardBonus(player, 'gold'), pgCd: pgT.impeto || 0, undying: !!pv.undying,
     defPen: gt.defPen, dmgTakenRed: gt.dmgTaken, esLeech: gt.esLeech, esRegen: gt.esRegen,
-    res: playerResTotals(player), myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
+    res: playerResTotals(player), resPen: paragonElem(player).pen, elShare: paragonElem(player).share, myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
 }
 
@@ -3684,7 +3693,7 @@ function playerResTotals(player) {
     if (slot === 'offhand' && offWeapon && !dualWieldActive(player)) return;
     const r = itemRes(item);
     if (r) ELEMENT_KEYS.forEach(el => { out[el] += r[el] || 0; });
-    (item.bonuses || []).forEach(b => { const el = RES_BONUS_EL[b.key]; if (el) out[el] += Number(b.value) || 0; });
+    (item.bonuses || []).forEach(b => { const el = RES_BONUS_EL[b.key]; if (el) out[el] += Number(b.value) || 0; if (b.key === 'res_tudo') ELEMENT_KEYS.forEach(k => { out[k] += Number(b.value) || 0; }); });
     const cbr = craftBonusDef(item); if (cbr && cbr.resAll) ELEMENT_KEYS.forEach(el => { out[el] += cbr.resAll; }); // v191
   });
   if ((player.elemPotionBattles || 0) > 0) ELEMENT_KEYS.forEach(el => { out[el] += ELEMENT_POTION_RES; });
@@ -3702,7 +3711,7 @@ const RES_BONUS_EL = { res_fogo: 'fogo', res_gelo: 'gelo', res_eletricidade: 'el
 const BONUS_SCORE_WEIGHTS = {
   dano_pct: 15, vs_animais: 8, vs_humanos: 8, vs_demonios: 6, vs_mortos: 6, dano_habilidade: 10, atordoamento: 10,
   esquiva: 30, regeneracao: 30, envenenamento: 6,
-  res_fogo: 4, res_gelo: 4, res_eletricidade: 4, res_terra: 4
+  res_fogo: 7, res_gelo: 7, res_eletricidade: 7, res_terra: 7, res_tudo: 24 // v234: valem mais
 };
 // v173: Ascensão — um item +9 pode ser "Ascendido" com um Coração do Soberano. Continua a +9,
 // mas conta como mais ASCEND_EXTRA_LEVELS níveis de melhoria (+20% dos stats base) e mostra "✦ Ascendido".
@@ -5203,7 +5212,11 @@ const ELEMENT_ADV = 0.20, ELEMENT_DISADV = 0.10;
 const ELEMENT_HIT_SHARE = 0.30;
 const ELEMENT_DEF_SHARE = 2 / 3; // parte da defesa que conta contra a parte elemental
 const RES_CAP = 75;            // % máximo de resistência que conta
-const ELEMENT_POTION_RES = 20; // Poção Elemental: +20% a todas
+const ELEMENT_POTION_RES = 25; // Poção Elemental: +25% a todas (v234: era 20)
+// v234: 🔥 Fúria Elemental — no Paragon os golpes são mais elementais e as resistências valem menos.
+const PARAGON_ELEM = [{ share: 0.30, pen: 0 }, { share: 0.45, pen: 15 }, { share: 0.55, pen: 30 }];
+const RES_FLOOR = -25; // com penalização, a resistência pode ficar negativa (levas mais dano)
+function paragonElem(p) { return PARAGON_ELEM[Math.min(PARAGON_ELEM.length - 1, paragonOf(p))] || PARAGON_ELEM[0]; }
 const ELEMENT_ABILITY = { boladefogo: 'fogo', relampago: 'eletricidade', terramoto: 'terra' };
 function normTxt(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, ''); }
 const ELEMENT_NAME_HINTS = [
@@ -5241,7 +5254,7 @@ function elementInit(c) {
     e._elLogged = true;
     const info = ELEMENT_INFO[e.element], p = App.player, st = effectiveStats(p);
     const we = mythicSet(p).prisma_errante ? (ELEMENT_KEYS.find(k => ELEMENT_BEATS[k] === e.element) || playerAttackElement(p)) : playerAttackElement(p);
-    addCombatLog({ text: `${info.icon} ${hordeLabel(c)} é de ${info.name}: ${info.effect}. A tua resistência: ${resFor(st, e.element)}%.`, cls: 'hit' });
+    addCombatLog({ text: `${info.icon} ${hordeLabel(c)} é de ${info.name}: ${info.effect}. A tua resistência: ${resFor(st, e.element)}%${resPenTxt(st)}.`, cls: 'hit' });
     const m = elementMatchup(we, e.element);
     if (we && m !== 1) addCombatLog({ text: m > 1 ? `${ELEMENT_INFO[we].icon} A tua arma de ${ELEMENT_INFO[we].name} vence ${info.name === 'Terra' || info.name === 'Eletricidade' ? 'a' : 'o'} ${info.name}: +${Math.round(ELEMENT_ADV * 100)}% de dano.` : `${ELEMENT_INFO[we].icon} A tua arma de ${ELEMENT_INFO[we].name} é fraca contra ${info.name === 'Terra' || info.name === 'Eletricidade' ? 'a' : 'o'} ${info.name}: −${Math.round(ELEMENT_DISADV * 100)}% de dano.`, cls: m > 1 ? 'good' : 'hit' });
   }
@@ -5262,14 +5275,15 @@ function elementAttackMult(p, enemy, abilityKey) {
   if (p && mythicSet(p).prisma_errante) return 1 + ELEMENT_ADV; // v184: Prisma Errante
   return elementMatchup(playerAttackElement(p, abilityKey), enemy.element);
 }
-function resFor(pStats, el) { return Math.min(RES_CAP, Math.max(0, Math.round((pStats && pStats.res && pStats.res[el]) || 0))); }
+function resFor(pStats, el) { const pen = (pStats && pStats.resPen) || 0; return Math.min(RES_CAP, Math.max(pen ? RES_FLOOR : 0, Math.round(((pStats && pStats.res && pStats.res[el]) || 0) - pen))); }
+function resPenTxt(pStats) { return pStats && pStats.resPen ? ` (−${pStats.resPen}% Paragon)` : ''; }
 // Golpe de um inimigo: 70% físico (defesa normal) + 30% elemental (2/3 da defesa, depois resistência).
 function enemyHitDamage(c, p, pStats, raw, defEff) {
   const el = c.enemy && c.enemy.element;
   if (!el || !ELEMENT_INFO[el]) return { dmg: applyDamage(raw, defEff, p.level), el: 0 };
-  const res = resFor(pStats, el) / 100;
-  const phys = applyDamage(raw * (1 - ELEMENT_HIT_SHARE), defEff, p.level);
-  const elem = Math.round(applyDamage(raw * ELEMENT_HIT_SHARE, defEff * ELEMENT_DEF_SHARE, p.level) * (1 - res));
+  const res = resFor(pStats, el) / 100, share = pStats.elShare || ELEMENT_HIT_SHARE; // v234: Fúria Elemental
+  const phys = applyDamage(raw * (1 - share), defEff, p.level);
+  const elem = Math.round(applyDamage(raw * share, defEff * ELEMENT_DEF_SHARE, p.level) * (1 - res));
   return { dmg: Math.max(1, phys + elem), el: elem };
 }
 // ---------- Resistências e elemento nos itens (derivados do id do item: não se guardam no save) ----------
@@ -5288,7 +5302,7 @@ function itemRes(item) {
   const roll = (a, b) => Math.max(1, Math.round((a + Math.floor(R() * (b - a + 1))) * mult));
   const out = {};
   if (item.slot === 'amulet' && R() < 0.35) {
-    const v = roll(2, 4); ELEMENT_KEYS.forEach(el => { out[el] = v; }); out.all = true;
+    const v = roll(3, 6); ELEMENT_KEYS.forEach(el => { out[el] = v; }); out.all = true; // v234: era 2–4
   } else {
     const pool = ELEMENT_KEYS.slice();
     const n = RES_TWO_ROLLS.includes(item.rarity) ? 2 : 1;
@@ -6206,7 +6220,7 @@ function showElementInfoModal(elementKey) {
   const p = App.player, st = effectiveStats(p), we = playerAttackElement(p), m = elementMatchup(we, elementKey);
   showInfoModal(elIc(elementKey), `Elemento: ${info.name}`, `<p class="tiny"><b>${info.effect}</b> — ${info.desc}</p>
     <div class="divider"></div>
-    <p class="tiny">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe deste monstro é de ${info.name}. A tua Resistência ${info.ao}: <b>${resFor(st, elementKey)}%</b> (máx. ${RES_CAP}%).</p>
+    <p class="tiny">${Math.round((st.elShare || ELEMENT_HIT_SHARE) * 100)}% de cada golpe deste monstro é de ${info.name}. A tua Resistência ${info.ao}: <b>${resFor(st, elementKey)}%</b>${resPenTxt(st)} (máx. ${RES_CAP}%).</p>
     <p class="tiny" style="margin-top:4px;">${we ? `A tua arma é de ${elIc(we)} ${ELEMENT_INFO[we].name}: ${m > 1 ? `<b style="color:var(--success);">+${Math.round(ELEMENT_ADV * 100)}% de dano</b> contra este monstro.` : m < 1 ? `<b style="color:var(--blood-bright);">−${Math.round(ELEMENT_DISADV * 100)}% de dano</b> contra este monstro.` : 'dano normal contra este monstro.'}` : 'A tua arma não tem elemento.'}</p>
     <p class="tiny muted" style="margin-top:4px;">Ciclo: 🔥 Fogo vence 🧊 Gelo · 🧊 Gelo vence 🪨 Terra · 🪨 Terra vence ⚡ Eletricidade · ⚡ Eletricidade vence 🔥 Fogo.</p>`);
 }
@@ -7399,18 +7413,19 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">⚔️ Efeitos de cada elemento</span>${ELEMENT_KEYS.map(el => `<p class="tiny" style="margin-top:6px;">${elIc(el)} <b>${ELEMENT_INFO[el].name} — ${ELEMENT_INFO[el].effect}</b>: ${ELEMENT_INFO[el].desc}</p>`).join('')}</div>
       <div class="card raised"><span style="font-weight:700;">💥 Como funciona o dano</span>
         <p class="tiny" style="margin-top:6px;">${Math.round(ELEMENT_HIT_SHARE * 100)}% de cada golpe de um monstro com elemento é desse elemento; os outros ${100 - Math.round(ELEMENT_HIT_SHARE * 100)}% são físicos e a tua Defesa trava-os como sempre.</p>
-        <p class="tiny" style="margin-top:4px;">Na parte elemental contam 2/3 da tua Defesa e depois a <b>Resistência</b> a esse elemento. Sem resistências levas um pouco mais de dano do que antes; com ${RES_CAP}% levas bastante menos.</p></div>
+        <p class="tiny" style="margin-top:4px;">Na parte elemental contam 2/3 da tua Defesa e depois a <b>Resistência</b> a esse elemento. Sem resistências levas um pouco mais de dano do que antes; com ${RES_CAP}% levas bastante menos.</p>
+        <p class="tiny" style="margin-top:4px;">🔥 <b>Fúria Elemental (Paragon):</b> no P1, 45% do golpe é elemental e as resistências contam −15%; no P2, 55% e −30%. Com a penalização a resistência pode ficar negativa (até ${RES_FLOOR}%) e aí levas mais dano e sofres mais Queimaduras, Congelamentos, Descargas e Tremores.</p></div>
       <div class="card raised"><span style="font-weight:700;">${nxEnt('resistencias', '🛡️')} Resistências</span>
         <p class="tiny" style="margin-top:6px;">Máximo: <b>${RES_CAP}% em cada elemento</b> (o que passar não conta, mas aparece entre parênteses). Vê as tuas em Mochila → Equipamento.</p>
         <p class="tiny" style="margin-top:4px;">As tuas agora: ${ELEMENT_KEYS.map(el => `${elIc(el)} ${resFor(st, el)}%`).join(' · ')}${we ? ` · Arma: ${elIc(we)} ${ELEMENT_INFO[we].name}` : ' · Arma sem elemento'}.</p></div>
       <div class="card raised"><span style="font-weight:700;">🎒 Resistências nos itens</span>
         <p class="tiny" style="margin-top:6px;">Todas as peças de Nv. ${ELEMENT_MIN_LV}+ (incluindo armas e os itens que já tinhas antes deste update) têm resistências próprias, que nunca mudam:</p>
-        <p class="tiny" style="margin-top:4px;">• <b>Comum, Incomum e Raro:</b> 1 resistência.<br>• <b>Lendário, Único, Demoníaco, Set, Temporada e Divino:</b> 2 resistências de elementos diferentes (a 2.ª vale metade).<br>• <b>Amuletos:</b> 35% de hipótese de terem "+X% a todas as Resistências" (2–4%, vezes a raridade) em vez disso.</p>
+        <p class="tiny" style="margin-top:4px;">• <b>Comum, Incomum e Raro:</b> 1 resistência.<br>• <b>Lendário, Único, Demoníaco, Set, Temporada e Divino:</b> 2 resistências de elementos diferentes (a 2.ª vale metade).<br>• <b>Amuletos:</b> 35% de hipótese de terem "+X% a todas as Resistências" (3–6%, vezes a raridade) em vez disso.</p>
         <table class="wiki-table" style="margin-top:6px;"><tr><th>Nível do item</th><th>1.ª resistência</th></tr><tr><td>Nv. 100–129</td><td>3–5%</td></tr><tr><td>Nv. 130–169</td><td>4–7%</td></tr><tr><td>Nv. 170–200</td><td>5–9%</td></tr></table>
         <p class="tiny" style="margin-top:6px;">Vezes a raridade: Comum/Incomum ×${rm('comum')} · Raro ×${rm('raro')} · Lendário ×${rm('lendario')} · Único/Demoníaco/Set/Temporada ×${rm('unico')} · Divino ×${rm('divino')}.</p>
         <p class="tiny" style="margin-top:4px;">O Ferreiro (+1 a +9) não muda as resistências.</p></div>
       <div class="card raised"><span style="font-weight:700;">📜 Mais resistência</span>
-        <p class="tiny" style="margin-top:6px;"><b>Bónus+ de Resistência</b> (Feitiço/Reforço): +6% a +12% num elemento, só em peças de Nv. ${ELEMENT_MIN_LV}+ e nunca em armas. As 4 Resistências contam como <b>uma só opção</b> no Feitiço (o elemento sai ao acaso).</p>
+        <p class="tiny" style="margin-top:6px;"><b>Bónus+ de Resistência</b> (Feitiço/Reforço): num elemento, só em peças de Nv. ${ELEMENT_MIN_LV}+ e nunca em armas: Nv. 100–169 +6% a +12% · Nv. 170+ +8% a +14% · Nv. 200 (Paragon) +10% a +16%. <b>🌈 Resistência a Tudo</b> (+3% a +6% em todas): só Amuleto, Artefacto e Capa de Nv. 150+, mais rara. As 4 Resistências contam como <b>uma só opção</b> no Feitiço (o elemento sai ao acaso).</p>
         <table class="wiki-table" style="margin-top:6px;"><tr><th>Peça</th><th>Próprias</th><th>Bónus+</th><th>Máx.</th></tr><tr><td>Armadura/capa/secundária/artefacto Lendário+</td><td>2</td><td>2</td><td>4</td></tr><tr><td>Mesmas peças Comum a Raro</td><td>1</td><td>2</td><td>3</td></tr><tr><td>Amuleto "todas"</td><td>4 elementos</td><td>2</td><td>4 + 2</td></tr><tr><td>Arma</td><td>1–2</td><td>0</td><td>2</td></tr></table>
         <p class="tiny" style="margin-top:6px;">${nxEnt('pocao-elem', '🔮')} <b>Poção Elemental</b> (Loja, ${POTION_DEFS.elem.cost} de ouro): +${ELEMENT_POTION_RES}% a todas as Resistências durante 3 batalhas. Pode ser bebida antes do combate ou durante.</p></div>`;
   } else if (t === 'contratos') {
@@ -13416,12 +13431,14 @@ function equipDollHtml(p, talisman) {
 // v181: cartão das Resistências e do elemento da arma (Mochila → Equipamento).
 function resistCardHtml(p) {
   const st = effectiveStats(p), we = playerAttackElement(p);
-  const rows = ELEMENT_KEYS.map(el => { const raw = Math.round(st.res[el] || 0), v = Math.min(RES_CAP, raw), I = ELEMENT_INFO[el];
-    return `<div class="res-row"><span>${elIc(el)} ${I.name}</span><span class="res-bar"><i style="width:${Math.min(100, raw)}%; background:${I.color};"></i></span><b>${v}%${raw > RES_CAP ? `<small>(${raw}%)</small>` : ''}</b></div>`; }).join('');
+  const pen = st.resPen || 0; // v234: Fúria Elemental no Paragon
+  const rows = ELEMENT_KEYS.map(el => { const raw = Math.round(st.res[el] || 0), v = resFor(st, el), I = ELEMENT_INFO[el], over = raw - pen > RES_CAP;
+    return `<div class="res-row"><span>${elIc(el)} ${I.name}</span><span class="res-bar"><i style="width:${Math.max(0, Math.min(100, v))}%; background:${I.color};"></i></span><b class="${v < 0 ? 'res-neg' : ''}">${v}%${pen || over ? `<small>(${raw}%${pen ? ` −${pen}` : ''})</small>` : ''}</b></div>`; }).join('');
   return `<div class="card raised res-card"><div class="row between" style="align-items:center; gap:8px;"><span style="font-weight:700;">${nxEnt('resistencias', '🛡️')} Resistências <span class="tiny muted">(máx. ${RES_CAP}%)</span></span>
       <span class="pill">${we ? `${elIc(we)} Arma: ${ELEMENT_INFO[we].name}` : 'Arma sem elemento'}</span></div>
     ${rows}
-    <p class="tiny muted" style="margin-top:6px;">Os monstros de Nv. ${ELEMENT_MIN_LV}+ têm um elemento e ${Math.round(ELEMENT_HIT_SHARE * 100)}% do seu golpe é desse elemento. ${we ? `A tua arma vence ${ELEMENT_INFO[ELEMENT_BEATS[we]].icon} ${ELEMENT_INFO[ELEMENT_BEATS[we]].name} (+${Math.round(ELEMENT_ADV * 100)}%).` : 'As armas de Nv. 100+ têm um elemento.'}${(p.elemPotionBattles || 0) > 0 ? ` 🔮 Poção Elemental ativa: ${p.elemPotionBattles} batalha${p.elemPotionBattles > 1 ? 's' : ''}.` : ''}</p></div>`;
+    ${pen ? `<p class="res-fury">🔥 <b>Fúria Elemental (Paragon ${paragonOf(p)}):</b> ${Math.round(st.elShare * 100)}% do golpe dos monstros é elemental e as tuas resistências contam −${pen}% (podem ficar negativas: levas mais dano). Para chegar a ${RES_CAP}% precisas de ${RES_CAP + pen}%.</p>` : ''}
+    <p class="tiny muted" style="margin-top:6px;">Os monstros de Nv. ${ELEMENT_MIN_LV}+ têm um elemento e ${Math.round((st.elShare || ELEMENT_HIT_SHARE) * 100)}% do seu golpe é desse elemento. ${we ? `A tua arma vence ${ELEMENT_INFO[ELEMENT_BEATS[we]].icon} ${ELEMENT_INFO[ELEMENT_BEATS[we]].name} (+${Math.round(ELEMENT_ADV * 100)}%).` : 'As armas de Nv. 100+ têm um elemento.'}${(p.elemPotionBattles || 0) > 0 ? ` 🔮 Poção Elemental ativa: ${p.elemPotionBattles} batalha${p.elemPotionBattles > 1 ? 's' : ''}.` : ''}</p></div>`;
 }
 
 function renderMochilaBody() {
@@ -20349,7 +20366,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v233</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v234</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

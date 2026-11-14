@@ -4128,3 +4128,8 @@ body.tod-noite .cb-scene .scene-svg,body.tod-noite .region-banner .scene-svg{fil
 .tod-row p{margin:2px 0 0;font-size:12px;line-height:1.35;}
 .tod-row em{position:absolute;top:7px;right:8px;font-style:normal;font-size:10px;font-weight:800;padding:1px 7px;border-radius:999px;background:var(--tc);color:#120d08;}
 @media (prefers-reduced-motion:reduce){.cb-scene::after,.region-banner::after,.rm-map::before{transition:none;}}
+
+/* v234 — Fúria Elemental */
+.res-row b.res-neg{color:#ff6b6b;}
+.res-row b small{margin-left:4px;opacity:.7;font-weight:600;}
+.res-fury{margin:8px 0 0;padding:7px 10px;border-radius:10px;font-size:12px;line-height:1.35;background:rgba(255,106,43,.12);border:1px solid rgba(255,122,58,.45);}
