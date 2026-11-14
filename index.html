@@ -1677,7 +1677,7 @@ function towerTreasure(p, lv, quality) {
       out.push(`🪙 ${g} ouro (mochila cheia — ${item.name} vendido)`);
     }
   } else if (r < 0.80) {
-    const gemTypes = Object.keys(GEM_DEFS);
+    const gemTypes = GEM_BASIC;
     const pool = [
       [22, () => { p.scrolls.feitico++; return '📜 Pergaminho de Feitiço'; }],
       [18, () => { p.scrolls.reforco++; return '🔧 Pergaminho de Reforço'; }],
@@ -2584,8 +2584,12 @@ const GEM_DEFS = {
   // v104: +1/2/3% de dano contra chefes e mini-chefes (soma ao Dano vs. Chefes dos itens).
   chefes: { name: 'Pedra do Caça-Chefes', icon: '👑', stat: 'bossPct', base: 0.01, color: '#c88bff' },
   // v150: +1/2/3% do Escudo Mágico total do herói.
-  escudo: { name: 'Pedra do Escudo Mágico', icon: '🔷', stat: 'esPct', base: 0.01, color: '#59a8ff' }
+  escudo: { name: 'Pedra do Escudo Mágico', icon: '🔷', stat: 'esPct', base: 0.01, color: '#59a8ff' },
+  // v235: 🌈 Pedra Prismática — todas as resistências na armadura e nas joias, dano contra monstros com elemento na arma.
+  prisma: { name: 'Pedra Prismática', icon: '🌈', color: '#c9a6ff' }
 };
+// As gemas "de sempre" (as que saem ao acaso em baús, minas, obelisco…). A Prismática só cai de monstros com elemento.
+const GEM_BASIC = ['defesa', 'dano', 'vida', 'critico', 'chefes', 'escudo'];
 // v186: REWORK DAS GEMAS — 5 níveis (Lascada → Radiante) e efeitos em % que mudam conforme a peça:
 // Arma (mão principal; a 2.ª arma só com as Lâminas Gémeas), Armadura (Secundária, Cabeça, Peitoral,
 // Capa, Botas, Luvas) e Joia (Amuleto e Artefacto). Valor = base × nível × (×2 do Craft da arma).
@@ -2602,10 +2606,12 @@ const GEM_FX = {
   defesa:  { arma: ['defPen', 0.03], armadura: ['defPct', 0.01], joia: ['dmgTaken', 0.005] },
   critico: { arma: ['crit', 0.015], armadura: ['crit', 0.01], joia: ['critDmg', 0.04] },
   chefes:  { arma: ['bossPct', 0.02], armadura: ['bossRed', 0.01], joia: ['goldPct', 0.02] },
-  escudo:  { arma: ['esLeech', 0.01], armadura: ['esPct', 0.01], joia: ['esRegen', 0.005] }
+  escudo:  { arma: ['esLeech', 0.01], armadura: ['esPct', 0.01], joia: ['esRegen', 0.005] },
+  prisma:   { arma: ['vsElem', 0.02], armadura: ['resAll', 0.015], joia: ['resAll', 0.012] }
 };
 const GEM_CAPS = { dmgPct: 0.40, skillPct: 0.30, lifesteal: 0.05, hpPct: 0.40, regen: 3, defPen: 0.30, defPct: 0.40, dmgTaken: 0.10,
-  crit: 0.25, critDmg: 0.40, bossPct: 0.30, bossRed: 0.15, goldPct: 0.30, esLeech: 0.10, esPct: 0.40, esRegen: 0.06 };
+  crit: 0.25, critDmg: 0.40, bossPct: 0.30, bossRed: 0.15, goldPct: 0.30, esLeech: 0.10, esPct: 0.40, esRegen: 0.06,
+  resAll: 0.25, vsElem: 0.25 }; // v235: Pedra Prismática
 function gemPctTxt(v) { return `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`; }
 const GEM_FX_LABEL = {
   dmgPct: v => `+${gemPctTxt(v)} Dano`, skillPct: v => `+${gemPctTxt(v)} Dano das Habilidades`, lifesteal: v => `+${gemPctTxt(v)} Roubo de vida`,
@@ -2614,7 +2620,8 @@ const GEM_FX_LABEL = {
   crit: v => `+${gemPctTxt(v)} Crítico`, critDmg: v => `+${gemPctTxt(v)} Dano Crítico`, bossPct: v => `+${gemPctTxt(v)} Dano vs. Chefes`,
   bossRed: v => `−${gemPctTxt(v)} dano de Chefes`, goldPct: v => `+${gemPctTxt(v)} Ouro`,
   esLeech: v => `Escudo Mágico: +${gemPctTxt(v)} do dano feito`, esPct: v => `+${gemPctTxt(v)} Escudo Mágico`,
-  esRegen: v => `Escudo Mágico: +${gemPctTxt(v)} por ronda`
+  esRegen: v => `Escudo Mágico: +${gemPctTxt(v)} por ronda`,
+  resAll: v => `+${gemPctTxt(v)} a todas as Resistências`, vsElem: v => `+${gemPctTxt(v)} Dano vs. monstros com elemento`
 };
 function gemCapTxt(k) { const c = GEM_CAPS[k]; return k === 'regen' ? `${c}%` : gemPctTxt(c); }
 function gemZoneOf(item, slot) {
@@ -3696,6 +3703,7 @@ function playerResTotals(player) {
     (item.bonuses || []).forEach(b => { const el = RES_BONUS_EL[b.key]; if (el) out[el] += Number(b.value) || 0; if (b.key === 'res_tudo') ELEMENT_KEYS.forEach(k => { out[k] += Number(b.value) || 0; }); });
     const cbr = craftBonusDef(item); if (cbr && cbr.resAll) ELEMENT_KEYS.forEach(el => { out[el] += cbr.resAll; }); // v191
   });
+  { const gr = Math.round((gemTotals(player).resAll || 0) * 1000) / 10, cr = cardResBonus(player); ELEMENT_KEYS.forEach(el => { out[el] += gr + (cr[el] || 0); }); } // v235: Pedra Prismática e Coleções de cartas
   if ((player.elemPotionBattles || 0) > 0) ELEMENT_KEYS.forEach(el => { out[el] += ELEMENT_POTION_RES; });
   if (mythicSet(player).prisma_errante) ELEMENT_KEYS.forEach(el => { out[el] -= 10; }); // v184: Prisma Errante
   return out;
@@ -4302,7 +4310,7 @@ function xmOpenAdvent() {
   else if (r.kind === 'reforco') p.scrolls.reforco = (p.scrolls.reforco || 0) + 1;
   else if (r.kind === 'fortune') p.potions.fortune = (p.potions.fortune || 0) + 2;
   else if (r.kind === 'gold') p.gold = (p.gold || 0) + 1000 + lv * 20;
-  else if (r.kind === 'gem') { const keys = Object.keys(GEM_DEFS), k = keys[Math.floor(Math.random() * keys.length)]; p.gems = p.gems || {}; p.gems[k] = Array.isArray(p.gems[k]) ? p.gems[k] : []; p.gems[k][0] = (p.gems[k][0] || 0) + 1; }
+  else if (r.kind === 'gem') { const keys = GEM_BASIC, k = keys[Math.floor(Math.random() * keys.length)]; p.gems = p.gems || {}; p.gems[k] = Array.isArray(p.gems[k]) ? p.gems[k] : []; p.gems[k][0] = (p.gems[k][0] || 0) + 1; }
   else if (r.kind === 'equip') p.chests.push(newChest('equip', lv, 2));
   else if (r.kind === 'pearl') { p.pearls = p.pearls || {}; p.pearls.branca = (p.pearls.branca || 0) + 1; }
   else if (r.kind === 'final') h.title = true;
@@ -4397,7 +4405,7 @@ const DAILY_REWARDS = [
   { icon: '🪙', img: 'coin', label: p => `${nxNum(dailyGold(p))} Ouro`, give: p => { p.gold += dailyGold(p); } },
   { icon: '⚗️', img: 'pocao-hp2', label: () => '3× Poção de HP Maior', give: p => { p.potions.hp2 = (p.potions.hp2 || 0) + 3; } },
   { icon: '✨', img: 'bau-feitico', label: () => 'Baú de Feitiço', give: p => { p.chests.push(newChest('feitico', p.level || 1)); } },
-  { icon: '💠', img: 'gem', label: () => 'Gema T2 aleatória', give: p => { const ks = Object.keys(GEM_DEFS), k = ks[Math.floor(Math.random() * ks.length)]; p.gems[k] = p.gems[k] || [0, 0, 0]; p.gems[k][1] = (p.gems[k][1] || 0) + 1; return `${GEM_DEFS[k].name} (T2)`; } },
+  { icon: '💠', img: 'gem', label: () => 'Gema T2 aleatória', give: p => { const ks = GEM_BASIC, k = ks[Math.floor(Math.random() * ks.length)]; p.gems[k] = p.gems[k] || [0, 0, 0]; p.gems[k][1] = (p.gems[k][1] || 0) + 1; return `${GEM_DEFS[k].name} (T2)`; } },
   { icon: '🪙', img: 'coin', label: p => `${nxNum(dailyGold(p) * 2)} Ouro`, give: p => { p.gold += dailyGold(p) * 2; } },
   { icon: '🔵', img: 'perola-azul', label: () => 'Pérola Azul', give: p => { p.pearls = p.pearls || {}; p.pearls.azul = (p.pearls.azul || 0) + 1; } },
   { icon: '🎁', img: 'bau-equip', label: () => 'Baú de Equipamento (+2 rolos) + Livro de Habilidades', big: true, give: p => { p.chests.push(newChest('equip', p.level || 1, 2)); p.skillBooks = (p.skillBooks || 0) + 1; } }
@@ -5155,7 +5163,7 @@ function finishObelisk() {
   const drops = [`🔮 Obelisco do Vazio destruído! (${o.count}/${OB.DAILY} hoje)`];
   const n = 2 + (Math.random() < 0.5 ? 1 : 0), gotG = {};
   for (let i = 0; i < n; i++) {
-    const types = Object.keys(GEM_DEFS), t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(lvl);
+    const types = GEM_BASIC, t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(lvl);
     if (!Array.isArray(p.gems[t])) p.gems[t] = Array(GEM_TIERS).fill(0);
     p.gems[t][tier]++; const k = t + ':' + tier; gotG[k] = (gotG[k] || 0) + 1;
   }
@@ -5272,8 +5280,9 @@ function playerAttackElement(p, abilityKey) {
 }
 function elementAttackMult(p, enemy, abilityKey) {
   if (!(enemy && enemy.element)) return 1;
-  if (p && mythicSet(p).prisma_errante) return 1 + ELEMENT_ADV; // v184: Prisma Errante
-  return elementMatchup(playerAttackElement(p, abilityKey), enemy.element);
+  const gv = p ? 1 + (gemTotals(p).vsElem || 0) : 1; // v235: Pedra Prismática na arma
+  if (p && mythicSet(p).prisma_errante) return (1 + ELEMENT_ADV) * gv; // v184: Prisma Errante
+  return elementMatchup(playerAttackElement(p, abilityKey), enemy.element) * gv;
 }
 function resFor(pStats, el) { const pen = (pStats && pStats.resPen) || 0; return Math.min(RES_CAP, Math.max(pen ? RES_FLOOR : 0, Math.round(((pStats && pStats.res && pStats.res[el]) || 0) - pen))); }
 function resPenTxt(pStats) { return pStats && pStats.resPen ? ` (−${pStats.resPen}% Paragon)` : ''; }
@@ -8923,7 +8932,7 @@ function renderTabArena() {
     const wk = me.buys && me.buys.week ? me.buys : {};
     body = `<p class="ar-note">Compra com as 🎟️ Fichas que ganhas na Arena. Os limites renovam todas as semanas.</p>` + ARENA_SHOP.map(it => {
       const used = Number(wk[it.k]) || 0, cap = it.lim > 0 && used >= it.lim, poor = me.fichas < it.cost;
-      const pick = a.gemPick === it.k ? `<div class="ar-gems">${Object.keys(GEM_DEFS).map(g => `<button type="button" data-ar-gem="${g}" title="${esc(GEM_DEFS[g].name)}">${GEM_DEFS[g].icon}<small>${esc(GEM_DEFS[g].name.replace(/^Pedra d[aeo] /, ''))}</small></button>`).join('')}</div>` : '';
+      const pick = a.gemPick === it.k ? `<div class="ar-gems">${GEM_BASIC.map(g => `<button type="button" data-ar-gem="${g}" title="${esc(GEM_DEFS[g].name)}">${GEM_DEFS[g].icon}<small>${esc(GEM_DEFS[g].name.replace(/^Pedra d[aeo] /, ''))}</small></button>`).join('')}</div>` : '';
       return `<div class="ar-shop${cap ? ' cap' : ''}"><span class="ar-av">${arenaIc(it.ic[0], it.ic[1], 'ar-shop-ic')}</span>
         <span class="ar-oi"><b>${it.name}</b><span>${it.sub ? it.sub + ' · ' : ''}${it.lim ? `${used}/${it.lim} esta semana` : 'Sem limite'}</span></span>
         <button type="button" class="ar-buy" data-ar-buy="${it.k}" ${cap || poor || a.busy ? 'disabled' : ''}>${arenaIc('ficha-arena', '🎟️', 'ar-fi-ic')} ${it.cost}</button></div>${pick}`;
@@ -9680,7 +9689,7 @@ function rollExpeditionRewards(p, type, pets) {
   for (let i = rnd(d.seeds[0], d.seeds[1]); i > 0; i--) { const k = cropKeys[Math.floor(Math.random() * cropKeys.length)]; r.seeds[k] = (r.seeds[k] || 0) + 1; }
   if (Math.random() < d.extraChance) {
     const kind = Math.floor(Math.random() * 3);
-    if (kind === 0) { const gk = Object.keys(GEM_DEFS); r.gem = gk[Math.floor(Math.random() * gk.length)]; }
+    if (kind === 0) { const gk = GEM_BASIC; r.gem = gk[Math.floor(Math.random() * gk.length)]; }
     else if (kind === 1) {
       let x = Math.random(), k = 'verde';
       for (const [pk, ch] of EXPEDITION_PEARLS) { if (x < ch) { k = pk; break; } x -= ch; }
@@ -10773,6 +10782,30 @@ const CARD_MILESTONES = [
   { n: 100, key: 'luck', val: 0.01, txt: '+1% Sorte de drop' },
   { n: 0, key: 'crit', val: 0.01, txt: '+1% Crítico (álbum completo)' } // n = 0 → todas as cartas
 ];
+// v235: 🃏 Coleções Elementais — completar todas as cartas de uma região dá resistência para sempre.
+const CARD_EL_SETS = [
+  { region: 'montanhas', el: 'fogo', val: 4 },
+  { region: 'tundra', el: 'gelo', val: 4 },
+  { region: 'planalto', el: 'eletricidade', val: 4 },
+  { region: 'florestanegra', el: 'terra', val: 4 },
+  { region: 'submerso', el: 'all', val: 2 }
+];
+function cardElSetInfo(p, set) {
+  const r = REGIONS.find(x => x.key === set.region); if (!r) return null;
+  const s = cardState(p), list = cardList().filter(x => x.grp === r.name), have = list.filter(x => (s[x.name] || 0) > 0).length;
+  return { r, list, have, total: list.length, done: list.length > 0 && have >= list.length };
+}
+function cardResBonus(p) {
+  const out = { fogo: 0, gelo: 0, eletricidade: 0, terra: 0 };
+  if (!p || !p.cards) return out;
+  const key = Object.keys(p.cards).length; // só muda quando entra uma carta nova
+  if (p._crbKey === key && p._crb) return p._crb;
+  CARD_EL_SETS.forEach(set => { const i = cardElSetInfo(p, set); if (!i || !i.done) return;
+    if (set.el === 'all') ELEMENT_KEYS.forEach(k => { out[k] += set.val; }); else out[set.el] += set.val; });
+  Object.defineProperty(p, '_crb', { value: out, writable: true, configurable: true, enumerable: false });
+  Object.defineProperty(p, '_crbKey', { value: key, writable: true, configurable: true, enumerable: false });
+  return out;
+}
 let _cardList = null;
 // Lista de cartas, montada a partir dos próprios monstros e chefes do jogo (fica sempre em dia).
 function cardList() {
@@ -10855,6 +10888,12 @@ function renderCartasBody() {
     <div class="cd-tabs" role="tablist">${tabs.map(([k, l]) => { const tot = list.filter(x => k === 'todas' || x.tab === k), got = tot.filter(x => (s[x.name] || 0) > 0).length;
       return `<button type="button" role="tab" aria-selected="${tab === k}" class="${tab === k ? 'on' : ''}" data-cd-tab="${k}">${l} <small>${got}/${tot.length}</small></button>`; }).join('')}</div>
     <div class="cd-grid">${shown.map(x => cardHtml(p, x)).join('')}</div>
+    <div class="section-title" style="margin-top:14px;">Coleções Elementais</div>
+    <div class="cd-els">${CARD_EL_SETS.map(set => { const i = cardElSetInfo(p, set); if (!i) return ''; const I = set.el === 'all' ? null : ELEMENT_INFO[set.el];
+      return `<div class="cd-el${i.done ? ' ok' : ''}" style="--ec:${I ? I.color : '#9fe3ff'}"><span class="cd-el-ic">${nxEnt('banner-' + i.r.key, i.r.icon)}</span>
+        <div class="cd-el-t"><b>${esc(i.r.name)}</b><small>${I ? `${elIc(set.el)} +${set.val}% Resistência ${I.ao}` : `🌈 +${set.val}% a todas as Resistências`}</small>
+        <span class="cd-el-bar"><i style="width:${Math.round(i.have / Math.max(1, i.total) * 100)}%"></i></span></div><em>${i.done ? '✓' : `${i.have}/${i.total}`}</em></div>`; }).join('')}</div>
+    <p class="tiny muted" style="margin-top:4px;">Junta todas as cartas (monstros e chefes) dessa região para ganhar a resistência para sempre.</p>
     <div class="section-title" style="margin-top:14px;">Bónus do Álbum</div>
     <div class="cd-ms">${CARD_MILESTONES.map(m => { const need = m.n || all, ok = have >= need;
       return `<div class="${ok ? 'ok' : ''}"><b>${m.n ? `${m.n} cartas` : 'Todas'}</b>${m.txt.replace(' (álbum completo)', '')}<em>${ok ? '✓' : `${have}/${need}`}</em></div>`; }).join('')}</div>
@@ -15958,7 +15997,7 @@ function doMine() {
     return;
   }
   if (Math.random() < MINE_GEM_CHANCE) {
-    const types = Object.keys(GEM_DEFS);
+    const types = GEM_BASIC;
     const type = types[Math.floor(Math.random() * types.length)];
     p.gems[type][0]++;
     saveGame();
@@ -16360,7 +16399,7 @@ function blackMarketStock(slot) {
     const def = PEARL_TABLE.find(x => x.key === key);
     if (def) offers.push({ id: 'pearl:' + key, cat: 'pearl', key, name: def.name, icon: def.icon, desc: `Usada para melhorar um item para +${lvl}.`, price: BLACK_MARKET_PEARL_PRICES[key] });
   });
-  Object.keys(GEM_DEFS).forEach(key => {
+  GEM_BASIC.forEach(key => { // v235: as Elementais só caem de monstros
     const d = GEM_DEFS[key];
     offers.push({ id: 'gem:' + key, cat: 'gem', key, name: `${d.name} (T1)`, icon: d.icon, desc: 'Gema de nível 1, para encaixar em equipamento.', price: range(1000, 3000, 100) });
   });
@@ -16949,7 +16988,7 @@ function turnInBiologoQuest(level) {
   p.gold += reward.gold;
   grantXp(pgXp(reward.xp));
   for (let i = 0; i < reward.chestCount; i++) p.chests.push(newChest('equip', q.level, true));
-  const gemType = Object.keys(GEM_DEFS)[Math.floor(Math.random() * Object.keys(GEM_DEFS).length)];
+  const gemType = GEM_BASIC[Math.floor(Math.random() * GEM_BASIC.length)];
   p.gems[gemType][0] += reward.gemCount;
 
   saveGame();
@@ -16983,7 +17022,7 @@ function turnInBiologoPlusQuest(level) {
   p.gold += reward.gold;
   grantXp(pgXp(reward.xp));
   for (let i = 0; i < reward.chestCount; i++) p.chests.push(newChest('equip', q.level, true));
-  const gemType = Object.keys(GEM_DEFS)[Math.floor(Math.random() * Object.keys(GEM_DEFS).length)];
+  const gemType = GEM_BASIC[Math.floor(Math.random() * GEM_BASIC.length)];
   p.gems[gemType][0] += reward.gemCount;
 
   saveGame();
@@ -19134,7 +19173,7 @@ function wildRewardRoll(c) {
   if (isBoss) { const hd = huntRollBossDrop(p, c.level, luck); if (hd) drops.push(hd); } // v180
   if (isBoss && !c.isCultBoss) mythicRollDrop(p, MYTHIC_BY_BOSS[c.name], MYTHIC_CHANCE, drops); // v184: Míticos
   if (isBoss && profTalent(p, 'mineiro') && Math.random() < 0.10) { // v196: Faro de Tesouro
-    const types = Object.keys(GEM_DEFS), t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(lootLv);
+    const types = GEM_BASIC, t = types[Math.floor(Math.random() * types.length)], tier = obGemTier(lootLv);
     if (!Array.isArray(p.gems[t])) p.gems[t] = Array(GEM_TIERS).fill(0);
     p.gems[t][tier]++; drops.push(`⛏️ Faro de Tesouro: ${GEM_DEFS[t].icon} ${gemFullName(t, tier)}`);
   }
@@ -19185,11 +19224,17 @@ function wildRewardRoll(c) {
     if (bossPartMsg) drops.push(bossPartMsg);
   }
   if (Math.random() < (isBoss ? 0.20 : 0.04) + luck) {
-    const types = Object.keys(GEM_DEFS);
+    const types = GEM_BASIC;
     const type = types[Math.floor(Math.random() * types.length)];
     p.gems[type][0]++;
     drops.push(`${GEM_DEFS[type].icon} Encontraste uma ${GEM_DEFS[type].name}!`);
   }
+  { const gk = c.enemy && c.enemy.element ? 'prisma' : null; // v235: Pedra Prismática (só de monstros com elemento)
+    if (gk && Math.random() < (isBoss ? 0.15 : 0.03) * fortuneMult + luck / 2) {
+      const tier = isBoss || (c.paragon && Math.random() < 0.4) ? 1 : 0;
+      p.gems[gk] = Array.isArray(p.gems[gk]) ? p.gems[gk] : Array(GEM_TIERS).fill(0); p.gems[gk][tier]++;
+      drops.push(`${GEM_DEFS[gk].icon} ${gemFullName(gk, tier)} (Mochila → Gemas)`);
+    } }
   if (killRg && killRg.oyster && Math.random() < killRg.oyster[isBoss ? 1 : 0] * fortuneMult + luck) { // v201: Ostras Abissais
     p.chests.push(newChest('ostra', p.level));
     drops.push(`${CHEST_DEFS.ostra.icon} ${CHEST_DEFS.ostra.name} (Mochila → Consumíveis → Ostras)`);
@@ -20366,7 +20411,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v234</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v235</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
