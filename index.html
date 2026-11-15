@@ -1176,15 +1176,25 @@ function esIconHtml(cls) { return nxIconsEnabled() && NX_ICON_IMG.has('escudo-ma
 
 const STAT_VARIANCE = 0.15; // ±15% à volta do valor médio nos stats guaranteed/possible escaláveis por poder.
 const POSSIBLE_STAT_CHANCE = 0.35; // hipótese de cada stat "pode ter" aparecer no item, rolada de forma independente.
+// v244: Rolo Perfeito — cada rolo guarda em _lastRollQ a sua "qualidade" (0–1, onde no intervalo caiu);
+// generateItem marca com ⭐ os stats que caíram nos 10% de cima.
+let _lastRollQ = null;
+const PERFECT_ROLL_Q = 0.9, IMMACULATE_MULT = 1.10;
 function rollInRange(mid, variance) {
   if (mid <= 0) return 0;
-  const lo = mid * (1 - variance), hi = mid * (1 + variance);
-  return Math.max(1, Math.round(lo + Math.random() * (hi - lo)));
+  const lo = mid * (1 - variance), hi = mid * (1 + variance), r = Math.random();
+  _lastRollQ = r;
+  return Math.max(1, Math.round(lo + r * (hi - lo)));
 }
 function rollCritInRange(mid, variance) {
-  const lo = mid * (1 - variance), hi = mid * (1 + variance);
-  return +(lo + Math.random() * (hi - lo)).toFixed(3);
+  const lo = mid * (1 - variance), hi = mid * (1 + variance), r = Math.random();
+  _lastRollQ = r;
+  return +(lo + r * (hi - lo)).toFixed(3);
 }
+function rollPctRange(lo, hi) { const r = Math.random(); _lastRollQ = r; return +(lo + r * (hi - lo)).toFixed(3); }
+// v244: novos stats simples — Saque (Ouro/XP) e Bloqueio.
+const ITEM_GOLD_RANGE = [0.05, 0.12], ITEM_XP_RANGE = [0.03, 0.08], ITEM_BLOCK_RANGE = [0.03, 0.08];
+const BLOCK_CAP = 0.30, BLOCK_DMG_MULT = 0.5;
 // Crítico dos itens: NÃO escala com o "poder" do item como o Dano/Defesa (isso dava
 // 60%+ de Crítico num só item de nível 100). Vai de 1% (nível 1) a 4% (nível 150) e
 // 5% (nível 200, v66), multiplicado por um fator de raridade — máximo ~14% num Divino de nível 200.
@@ -1227,20 +1237,30 @@ const ITEM_STAT_RULES = {
     guaranteed: [{ stat: 'def', roll: p => rollInRange(p * 0.9, STAT_VARIANCE) }],
     possible: [
       { stat: 'dmg', chance: POSSIBLE_STAT_CHANCE, roll: p => rollInRange(p * 0.8, STAT_VARIANCE) },
-      { stat: 'crit', chance: POSSIBLE_STAT_CHANCE, roll: (p, rar, lvl) => rollCritInRange(itemCritMid(lvl, rar && rar.key), STAT_VARIANCE) }
+      { stat: 'crit', chance: POSSIBLE_STAT_CHANCE, roll: (p, rar, lvl) => rollCritInRange(itemCritMid(lvl, rar && rar.key), STAT_VARIANCE) },
+      { stat: 'blockPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(...ITEM_BLOCK_RANGE) }
     ]
   },
   head: {
     guaranteed: [{ stat: 'def', roll: p => rollInRange(p * 1.1, STAT_VARIANCE) }],
-    possible: [{ stat: 'hp', chance: POSSIBLE_STAT_CHANCE, roll: p => rollInRange(p * 0.8, STAT_VARIANCE) }]
+    possible: [
+      { stat: 'hp', chance: POSSIBLE_STAT_CHANCE, roll: p => rollInRange(p * 0.8, STAT_VARIANCE) },
+      { stat: 'xpPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(...ITEM_XP_RANGE) }
+    ]
   },
   chest: {
     guaranteed: [{ stat: 'def', roll: p => rollInRange(p * 1.1, STAT_VARIANCE) }],
-    possible: [{ stat: 'dmgReducedFromBossPct', chance: POSSIBLE_STAT_CHANCE, roll: () => +(0.02 + Math.random() * 0.06).toFixed(3) }]
+    possible: [
+      { stat: 'dmgReducedFromBossPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(0.02, 0.08) },
+      { stat: 'blockPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(...ITEM_BLOCK_RANGE) }
+    ]
   },
   cape: {
     guaranteed: [{ stat: 'def', roll: p => rollInRange(p * 0.7, STAT_VARIANCE) }],
-    possible: [{ stat: 'hp', chance: POSSIBLE_STAT_CHANCE, roll: p => rollInRange(p * 0.4, STAT_VARIANCE) }]
+    possible: [
+      { stat: 'hp', chance: POSSIBLE_STAT_CHANCE, roll: p => rollInRange(p * 0.4, STAT_VARIANCE) },
+      { stat: 'blockPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(...ITEM_BLOCK_RANGE) }
+    ]
   },
   boots: {
     guaranteed: [{ stat: 'def', roll: p => rollInRange(p * 0.7, STAT_VARIANCE) }],
@@ -1248,14 +1268,17 @@ const ITEM_STAT_RULES = {
   },
   gloves: {
     guaranteed: [{ stat: 'def', roll: p => rollInRange(p * 0.7, STAT_VARIANCE) }],
-    possible: [{ stat: 'crit', chance: POSSIBLE_STAT_CHANCE, roll: (p, rar, lvl) => rollCritInRange(itemCritMid(lvl, rar && rar.key), STAT_VARIANCE) }]
+    possible: [
+      { stat: 'crit', chance: POSSIBLE_STAT_CHANCE, roll: (p, rar, lvl) => rollCritInRange(itemCritMid(lvl, rar && rar.key), STAT_VARIANCE) },
+      { stat: 'goldPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(...ITEM_GOLD_RANGE) }
+    ]
   },
   amulet: {
     guaranteed: [{ stat: 'hp', roll: p => rollInRange(p * 1.0, STAT_VARIANCE) }],
     possible: [
       { stat: 'regenPct', chance: POSSIBLE_STAT_CHANCE, roll: () => 1 + Math.floor(Math.random() * 3) },
       { stat: 'crit', chance: POSSIBLE_STAT_CHANCE, roll: (p, rar, lvl) => rollCritInRange(itemCritMid(lvl, rar && rar.key), STAT_VARIANCE) },
-      { stat: 'dmgReducedFromBossPct', chance: POSSIBLE_STAT_CHANCE, roll: () => +(0.02 + Math.random() * 0.06).toFixed(3) }
+      { stat: 'dmgReducedFromBossPct', chance: POSSIBLE_STAT_CHANCE, roll: () => rollPctRange(0.02, 0.08) }
     ]
   },
   artifact: {
@@ -3365,7 +3388,7 @@ function getEquippedTalisman(player) {
 // Bónus de XP das batalhas: Milho comido neste combate + Talismã (ex.: Sabedoria +5%).
 function battleXpBonus(c) {
   const t = getEquippedTalisman(App.player);
-  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp') + todXp(); // v224: Amuleto da Estrela · v227: Cartas
+  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp') + todXp() + (effectiveStats(App.player).itemXpPct || 0); // v244: Saque (Elmo) · v224: Amuleto da Estrela · v227: Cartas
 }
 function grantTalisman(player, key) {
   const definition = TALISMAN_DEFS[key];
@@ -3519,7 +3542,7 @@ function effectiveStats(player) {
   });
 
   let itemDmgPct = 0, itemDmgVsAnimais = 0, itemDmgVsHumanos = 0, itemDmgVsDemonios = 0, itemDmgVsMortos = 0, itemSkillDmg = 0, itemStunChance = 0, itemRegenPct = 0, itemPoisonChance = 0;
-  let itemDmgVsBossPct = gemBossPct, itemDmgReducedFromBossPct = 0, itemPlus2DefPct = 0, itemCraftLuck = 0;
+  let itemDmgVsBossPct = gemBossPct, itemDmgReducedFromBossPct = 0, itemGoldPct = 0, itemXpPct = 0, itemBlockPct = 0, itemPlus2DefPct = 0, itemCraftLuck = 0;
   let craftHpPct = 0, craftCritDmg = 0, craftGold = 0; // v191
   EQUIP_SLOTS.forEach(slot => {
     const item = player.equipment[slot];
@@ -3531,6 +3554,7 @@ function effectiveStats(player) {
     const up = itemUpLv(item);
     if (item.stats.regenPct) itemRegenPct += item.stats.regenPct + Math.round((item.baseStats.regenPct || 0) * 0.10 * up);
     if (item.stats.dmgReducedFromBossPct) itemDmgReducedFromBossPct += item.stats.dmgReducedFromBossPct + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up;
+    itemGoldPct += Number(item.stats.goldPct) || 0; itemXpPct += Number(item.stats.xpPct) || 0; itemBlockPct += Number(item.stats.blockPct) || 0; // v244
     if (item.plusBonus) {
       const pb = item.plusBonus, v = Number(pb.value) || 0;
       if (pb.key === 'pp_dano') itemDmgPct += v;
@@ -3687,7 +3711,7 @@ function effectiveStats(player) {
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20) + Math.round(gt.skillPct * 100),
     stunOnHitChance, regenPct, poisonOnHitChance: itemPoisonChance,
     dmgVsBossPct: itemDmgVsBossPct, dmgReducedFromBossPct: itemDmgReducedFromBossPct, dropLuckBonus: dropLuckBonus + shrineBonus(player, 'luck') + cardBonus(player, 'luck'),
-    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + PG_VAL.golpeCd / 100 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + PG_VAL.fortGold / 100 * (pgT.fortuna || 0) + cardBonus(player, 'gold'), pgCd: pgT.impeto || 0, undying: !!pv.undying,
+    critDmgBonus: (pv.critdmg || 0) / 100 + (myth.olho_ciclope ? 1.2 : 0) + gt.critDmg + craftCritDmg + PG_VAL.golpeCd / 100 * (pgT.golpe || 0), goldPct: (pv.gold || 0) / 100 + shrineBonus(player, 'gold') + (myth.coroa_avarento ? 0.5 : 0) + gt.goldPct + craftGold + PG_VAL.fortGold / 100 * (pgT.fortuna || 0) + cardBonus(player, 'gold') + itemGoldPct, itemGoldPct, itemXpPct, blockPct: Math.min(itemBlockPct, BLOCK_CAP), pgCd: pgT.impeto || 0, undying: !!pv.undying,
     defPen: gt.defPen, dmgTakenRed: gt.dmgTaken, esLeech: gt.esLeech, esRegen: gt.esRegen,
     res: playerResTotals(player), resPen: paragonElem(player).pen, elShare: paragonElem(player).share, myth, curseImmune: !!myth.peitoral_eclipse, mythDropMult: myth.coroa_avarento ? 1.2 : 1
   };
@@ -3783,7 +3807,8 @@ function itemPowerScore(item) {
   const dmgReducedFromBossPct = (item.stats.dmgReducedFromBossPct || 0) + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up;
   const es = (item.stats.es || 0) + Math.round((item.baseStats.es || 0) * 0.10 * up);
   // v147: o Escudo vale 0,65× a Defesa da peça, por isso pesa 3/0,65 ≈ 4,6 (peça só Escudo ≈ peça só Defesa).
-  return hp * 1 + dmg * 3 + def * 3 + es * 4.6 + crit * 300 + regenPct * 30 + dmgReducedFromBossPct * 600 + itemBonusScore(item);
+  const sq = (Number(item.stats.goldPct) || 0) * 250 + (Number(item.stats.xpPct) || 0) * 300 + (Number(item.stats.blockPct) || 0) * 700; // v244
+  return hp * 1 + dmg * 3 + def * 3 + es * 4.6 + crit * 300 + regenPct * 30 + dmgReducedFromBossPct * 600 + sq + itemBonusScore(item);
 }
 function compareToEquipped(item, player) {
   const equipped = player.equipment[item.slot];
@@ -3829,9 +3854,14 @@ function generateItem(slot, playerLevel, forcedSetKey, boosted, forcedRarity, go
   const power = (1 + playerLevel * 0.35) * rarity.mult;
   const rules = ITEM_STAT_RULES[slot];
   const stats = {};
-  rules.guaranteed.forEach(g => { stats[g.stat] = g.roll(power); });
-  rules.possible.forEach(p => { if (Math.random() < p.chance) stats[p.stat] = p.roll(power, rarity, playerLevel); });
+  let perfect = [], eligible = 0; // v244: Rolo Perfeito
+  const doRoll = (r, ...a) => { _lastRollQ = null; const v = r.roll(...a); if (_lastRollQ !== null) { eligible++; if (_lastRollQ >= PERFECT_ROLL_Q) perfect.push(r.stat); } return v; };
+  rules.guaranteed.forEach(g => { stats[g.stat] = doRoll(g, power); });
+  rules.possible.forEach(p => { if (Math.random() < p.chance) stats[p.stat] = doRoll(p, power, rarity, playerLevel); });
+  const immaculate = eligible >= 2 && perfect.length === eligible;
+  if (immaculate) Object.keys(stats).forEach(k => { const v = stats[k]; stats[k] = Number.isInteger(v) && v >= 1 ? Math.round(v * IMMACULATE_MULT) : +(v * IMMACULATE_MULT).toFixed(4); });
   if (armorKind) applyArmorKind(stats, armorKind);
+  if (perfect.includes('def') && stats.es !== undefined) { perfect.push('es'); if (stats.def === undefined) perfect = perfect.filter(k => k !== 'def'); }
 
   // Armas: o Dano deixa de ser um número fixo e passa a ser um intervalo (mín–máx),
   // para os combates terem variação e o Feitiço "Dano Médio +X%" fazer sentido a
@@ -3853,7 +3883,8 @@ function generateItem(slot, playerLevel, forcedSetKey, boosted, forcedRarity, go
     itemLevel: playerLevel, stats: Object.assign({}, stats), baseStats: Object.assign({}, stats),
     upgrade: 0, socketSlots: 1, sockets: [null], bonuses: [], nephalemBonus: null, altarBonus: null, corruption,
     setKey: forcedSetKey || null,
-    ...(armorKind && armorKind !== 'def' ? { armorKind } : {})
+    ...(armorKind && armorKind !== 'def' ? { armorKind } : {}),
+    ...(perfect.length ? { perfect } : {}), ...(immaculate ? { immaculate: true } : {})
   };
 }
 
@@ -7329,9 +7360,17 @@ function renderWikiBody() {
       </div>
 
       <div class="wiki-group-title">Espaços</div>
-      ${EQUIP_SLOTS.map(s => { const r = ITEM_STAT_RULES[s]; const nm = { dmg: 'Dano', def: 'Defesa', hp: 'HP', crit: 'Crítico', regenPct: 'Regeneração 1–3%', dmgReducedFromBossPct: 'Redução de dano de chefes 2–8%' };
+      ${EQUIP_SLOTS.map(s => { const r = ITEM_STAT_RULES[s]; const nm = { dmg: 'Dano', def: 'Defesa', hp: 'HP', crit: 'Crítico', regenPct: 'Regeneração 1–3%', dmgReducedFromBossPct: 'Redução de dano de chefes 2–8%', blockPct: 'Bloqueio 3–8%', goldPct: 'Ouro 5–12%', xpPct: 'XP 3–8%' };
         return `<div class="card raised"><span style="font-weight:700;">${SLOT_NAMES[s]}</span>
           <p class="tiny" style="margin-top:6px;">Garantido: ${r.guaranteed.map(g => nm[g.stat]).join(', ')}${s === 'weapon' ? ' (cada golpe varia ±30%)' : ''} · Pode ter: ${r.possible.map(x => nm[x.stat]).join(', ') || '—'}</p></div>`; }).join('')}
+
+      <div class="wiki-group-title">Bloqueio, Saque e Rolo Perfeito</div>
+      <div class="card raised"><p class="tiny" style="line-height:1.55;">
+        🛡️ <b>Bloqueio</b> (Secundária, Peitoral e Capa, 3–8% cada): hipótese de o golpe do inimigo fazer só <b>metade do dano</b>. Soma das peças até ${Math.round(BLOCK_CAP * 100)}%.<br>
+        🪙 <b>Ouro</b> (Luvas, 5–12%) e 📘 <b>XP</b> (Elmo, 3–8%): ganhas mais Ouro e XP em todos os combates.<br>
+        Estes três não sobem com o Ferreiro.<br>
+        ⭐ <b>Rolo Perfeito</b>: um stat que saiu nos 10% de cima do seu intervalo ganha uma estrela.<br>
+        ✦ <b>Imaculado</b>: item com 2 ou mais stats e <b>todos</b> com ⭐ — ganha +10% nesses stats e uma moldura própria. A Regeneração não conta para isto.</p></div>
 
       <div class="wiki-group-title">Calculadora de stats</div>
       <div class="card raised">
@@ -7357,6 +7396,9 @@ function renderWikiBody() {
         if (stat === 'crit') { const m = itemCritMid(lv, rk); const a = m * (1 - STAT_VARIANCE), b = m * (1 + STAT_VARIANCE); return `<tr><td>Crítico${tag}</td><td>${pc(a)}–${pc(b)}</td><td>${pc(a * 1.9)}–${pc(b * 1.9)}</td></tr>`; }
         if (stat === 'regenPct') return `<tr><td>Regeneração${tag}</td><td>1–3%</td><td>2–6%</td></tr>`;
         if (stat === 'dmgReducedFromBossPct') return `<tr><td>Red. dano de chefes${tag}</td><td>2%–8%</td><td>${pc(0.038)}–${pc(0.152)}</td></tr>`;
+        if (stat === 'blockPct') return `<tr><td>🛡️ Bloqueio${tag}</td><td>3%–8%</td><td>3%–8%</td></tr>`;
+        if (stat === 'goldPct') return `<tr><td>🪙 Ouro${tag}</td><td>5%–12%</td><td>5%–12%</td></tr>`;
+        if (stat === 'xpPct') return `<tr><td>📘 XP${tag}</td><td>3%–8%</td><td>3%–8%</td></tr>`;
         const [a, b] = rng(power * mults[stat]);
         const nm = { dmg: slot === 'weapon' ? 'Dano médio' : 'Dano', def: 'Defesa', hp: 'HP' }[stat];
         return `<tr><td>${nm}${tag}</td><td>${a}–${b}</td><td>${up9(a)}–${up9(b)}</td></tr>`;
@@ -8017,7 +8059,7 @@ const TRADE_RARITY_ORDER = Object.fromEntries(RARITIES.map((r, i) => [r.key, i])
 function tradeItemStats(item) {
   const rawStats = item.stats && typeof item.stats === 'object' ? item.stats : {};
   const rawBaseStats = item.baseStats && typeof item.baseStats === 'object' ? item.baseStats : {};
-  const statKeys = ['hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'es', 'crit', 'regenPct', 'dmgReducedFromBossPct'];
+  const statKeys = ['hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'es', 'crit', 'regenPct', 'dmgReducedFromBossPct', 'goldPct', 'xpPct', 'blockPct'];
   const stats = Object.fromEntries(statKeys.map(key => [key, Number.isFinite(Number(rawStats[key])) ? Number(rawStats[key]) : 0]));
   const baseStats = Object.fromEntries(statKeys.map(key => [key, Number.isFinite(Number(rawBaseStats[key])) ? Number(rawBaseStats[key]) : 0]));
   if (rawStats.dmgMin === undefined || rawStats.dmgMax === undefined) {
@@ -8042,7 +8084,10 @@ function tradeCompareHtml(item) {
     ['Escudo Mágico', (a.es || 0) - (b.es || 0), v => Math.round(v)],
     ['Crítico', (a.crit || 0) - (b.crit || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
     ['Regeneração', (a.regenPct || 0) - (b.regenPct || 0), v => `${Math.round(v)}%`],
-    ['dano de Bosses', (a.dmgReducedFromBossPct || 0) - (b.dmgReducedFromBossPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`]
+    ['dano de Bosses', (a.dmgReducedFromBossPct || 0) - (b.dmgReducedFromBossPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
+    ['Bloqueio', (a.blockPct || 0) - (b.blockPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
+    ['Ouro', (a.goldPct || 0) - (b.goldPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
+    ['XP', (a.xpPct || 0) - (b.xpPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`]
   ];
   const parts = rows.filter(([, d, f]) => Math.abs(d) > 0.0005 && String(f(Math.abs(d))) !== '0' && String(f(Math.abs(d))) !== '0%')
     .map(([label, d, f]) => `<span class="${d > 0 ? 'trade-up' : 'trade-down'}">${d > 0 ? '▲ +' : '▼ −'}${f(Math.abs(d))} ${label}</span>`);
@@ -12752,6 +12797,8 @@ function renderFullStatsSheet(stats) {
   rows.push(statSheetRow('🌟', 'Dano das Habilidades', pct(stats.skillDmgPct / 100), stats.skillDmgPct / 100, 0.20, pct(0.20)));
   if (stats.dmgVsBossPct) rows.push(statSheetRow('🏆', 'Dano vs. Bosses e Mini-Chefes', pct(stats.dmgVsBossPct), stats.dmgVsBossPct));
   if (stats.dmgReducedFromBossPct) rows.push(statSheetRow('🛡️', 'Redução de dano de Bosses', pct(stats.dmgReducedFromBossPct), stats.dmgReducedFromBossPct));
+  if (stats.blockPct) rows.push(statSheetRow('🛡️', 'Bloqueio (metade do dano)', pct(stats.blockPct), stats.blockPct, BLOCK_CAP, pct(BLOCK_CAP))); // v244
+  if (stats.itemXpPct) rows.push(statSheetRow('📘', 'XP extra (itens)', pct(stats.itemXpPct), null));
   if (stats.lifesteal) rows.push(statSheetRow('🩸', 'Roubo de vida', pct(stats.lifesteal), stats.lifesteal));
   if (stats.bonusDmgFlat) rows.push(statSheetRow('➕', 'Dano fixo vs. monstros', '+' + stats.bonusDmgFlat, null));
   if (stats.poisonOnHitChance) rows.push(statSheetRow('🧪', 'Envenenar ao atacar (arma)', pct(stats.poisonOnHitChance / 100), null));
@@ -13339,7 +13386,8 @@ function itemStatsAtUpgrade(item, upgradeLevel) {
     es: (item.stats.es || 0) + Math.round((item.baseStats.es || 0) * 0.10 * up),
     crit: (item.stats.crit || 0) + (item.baseStats.crit || 0) * 0.10 * up,
     regenPct: (item.stats.regenPct || 0) + Math.round((item.baseStats.regenPct || 0) * 0.10 * up),
-    dmgReducedFromBossPct: (item.stats.dmgReducedFromBossPct || 0) + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up
+    dmgReducedFromBossPct: (item.stats.dmgReducedFromBossPct || 0) + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up,
+    goldPct: item.stats.goldPct || 0, xpPct: item.stats.xpPct || 0, blockPct: item.stats.blockPct || 0 // v244: não sobem com o Reforço
   };
 }
 // html = true: a Defesa sai a branco e o Escudo Mágico a azul-claro (v147).
@@ -13353,6 +13401,9 @@ function formatStatTotals(s, html) {
   if (s.crit) parts.push(`+${pct(s.crit)} Crítico`);
   if (s.regenPct) parts.push(`Regenera ${s.regenPct}% HP/ronda`);
   if (s.dmgReducedFromBossPct) parts.push(`-${pct(s.dmgReducedFromBossPct)} dano de Bosses`);
+  if (s.blockPct) parts.push(`${pct(s.blockPct)} Bloqueio`);
+  if (s.goldPct) parts.push(`+${pct(s.goldPct)} Ouro`);
+  if (s.xpPct) parts.push(`+${pct(s.xpPct)} XP`);
   return parts.join(' · ') || '—';
 }
 function formatStatDeltas(cur, next) {
@@ -13638,11 +13689,11 @@ function renderMochilaBody() {
 
     const rowHtml = r => { const { item, cmp } = r, d = delta(r), isNew = cmp.label.startsWith('Novo');
       const dTxt = isNew ? '★ Novo' : d > 0 ? `▲ +${nxNum(d)}` : d < 0 ? `▼ −${nxNum(-d)}` : '＝';
-      const extras = [item.setKey ? `<span class="iv-x set">${setIc(item.setKey)}</span>` : '', (item.bonuses && item.bonuses.length) || item.plusBonus ? '<span class="iv-x bon">✨</span>' : '', item.locked ? '<span class="iv-x">🔒</span>' : ''].join('');
+      const extras = [item.immaculate ? '' : Array.isArray(item.perfect) && item.perfect.length ? `<span class="iv-x pf">⭐${item.perfect.length > 1 ? '×' + item.perfect.length : ''}</span>` : '', item.setKey ? `<span class="iv-x set">${setIc(item.setKey)}</span>` : '', (item.bonuses && item.bonuses.length) || item.plusBonus ? '<span class="iv-x bon">✨</span>' : '', item.locked ? '<span class="iv-x">🔒</span>' : ''].join('');
       return `<div class="iv-row" style="--rc:${item.rarityColor || '#888'}">
         <button type="button" class="iv-main" data-cmp-item="${item.id}" aria-label="${esc(item.name)}">
           <span class="iv-ic">${itemIconHtml(item)}${item.upgrade ? `<i class="iv-plus${item.ascended ? ' asc' : ''}">+${item.upgrade}</i>` : ''}</span>
-          <span class="iv-t"><b>${esc(item.name)}</b><small>${rarIc(item.rarity, item.rarityIcon)} ${item.rarityName} · Nv. ${item.itemLevel || 1}${extras ? ' ' + extras : ''}</small><span class="iv-st">${itemStatsLine(item)}</span></span>
+          <span class="iv-t"><b>${item.immaculate ? '<span class="imm-mk">✦</span> ' : ''}${esc(item.name)}</b><small>${rarIc(item.rarity, item.rarityIcon)} ${item.rarityName} · Nv. ${item.itemLevel || 1}${extras ? ' ' + extras : ''}</small><span class="iv-st">${itemStatsLine(item)}</span></span>
           <span class="iv-d ${isNew || d > 0 ? 'up' : d < 0 ? 'down' : 'eq'}">${dTxt}<small>Poder</small></span>
         </button>
         ${cmp.cls === 'better' || isNew ? `<button type="button" class="btn small primary iv-eq" data-equip-item="${item.id}">Equipar</button>` : ''}
@@ -14662,7 +14713,7 @@ function migrateWeaponDmgRange(item) {
 // simples (sem < > " ' & ` \), cor/ícone/nome da raridade sempre tirados da tabela
 // oficial, stats só numéricos e só os que existem no jogo, bónus/gemas/sets válidos.
 // Assim nenhum texto de um item pode correr código no jogo de quem o recebe.
-const SAFE_ITEM_STAT_KEYS = ['hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'es', 'crit', 'regenPct', 'dmgReducedFromBossPct'];
+const SAFE_ITEM_STAT_KEYS = ['hp', 'dmg', 'dmgMin', 'dmgMax', 'def', 'es', 'crit', 'regenPct', 'dmgReducedFromBossPct', 'goldPct', 'xpPct', 'blockPct'];
 function cleanItemText(s, max) {
   return String(s === undefined || s === null ? '' : s).replace(/[<>"'`&\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -14698,6 +14749,8 @@ function sanitizeItem(item) {
     .slice(0, ITEM_BONUS_MAX_SLOTS)
     .map(b => ({ key: b.key, value: Number(b.value) }));
   if (item.locked !== true) delete item.locked;
+  if (item.perfect !== undefined) { const pf = (Array.isArray(item.perfect) ? item.perfect : []).filter((k, i, a) => SAFE_ITEM_STAT_KEYS.includes(k) && a.indexOf(k) === i).slice(0, 6); if (pf.length) item.perfect = pf; else delete item.perfect; } // v244
+  if (item.immaculate !== true) delete item.immaculate;
   const pb = item.plusBonus;
   const pbDef = pb && BONUS_PLUS2_POOL.find(x => x.key === pb.key && x.slots.includes(item.slot));
   item.plusBonus = pbDef && Number.isFinite(Number(pb.value)) ? { key: pb.key, value: clamp(Math.round(Number(pb.value)), pbDef.min, pbDef.max) } : null;
@@ -15227,21 +15280,23 @@ function itemSheetHtml(item, slot, p, ro) {
   const int = v => Math.round(v).toLocaleString('pt-PT');
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
   const smithPart = (t, b, fmt) => t - b > 0.00001 ? ` <span class="tt-upn">(+${fmt(t - b)} Ferreiro)</span>` : '';
+  const pfSet = new Set(Array.isArray(item.perfect) ? item.perfect : []); // v244: Rolo Perfeito
+  const star = k => pfSet.has(k) ? ' <span class="pf-star" title="Rolo Perfeito (topo do intervalo)">⭐</span>' : '';
   const isW = tot.dmgMin !== undefined && tot.dmgMax !== undefined;
   // Número grande: Dano médio nas armas, senão Defesa, Escudo Mágico ou HP.
   let bigKey = null, big = '';
   if (isW) {
     const avgT = (tot.dmgMin + tot.dmgMax) / 2, avgB = (base.dmgMin + base.dmgMax) / 2;
-    big = `<div class="tt-big">${int(avgT)}<small>Dano médio</small></div><div class="tt-sub">${int(tot.dmgMin)}–${int(tot.dmgMax)} Dano${smithPart(avgT, avgB, int)}</div>`;
+    big = `<div class="tt-big">${int(avgT)}${star('dmg')}<small>Dano médio</small></div><div class="tt-sub">${int(tot.dmgMin)}–${int(tot.dmgMax)} Dano${smithPart(avgT, avgB, int)}</div>`;
   } else {
     bigKey = tot.def ? 'def' : tot.es ? 'es' : tot.hp ? 'hp' : tot.dmg ? 'dmg' : null;
     const lbl = { def: 'Defesa', es: 'Escudo Mágico', hp: 'HP', dmg: 'Dano' }[bigKey];
-    big = bigKey ? `<div class="tt-big${bigKey === 'es' ? ' es' : ''}">${int(tot[bigKey])}<small>${lbl}</small></div>${smithPart(tot[bigKey], base[bigKey] || 0, int) ? `<div class="tt-sub">${smithPart(tot[bigKey], base[bigKey] || 0, int).trim()}</div>` : ''}`
+    big = bigKey ? `<div class="tt-big${bigKey === 'es' ? ' es' : ''}">${int(tot[bigKey])}${star(bigKey)}<small>${lbl}</small></div>${smithPart(tot[bigKey], base[bigKey] || 0, int) ? `<div class="tt-sub">${smithPart(tot[bigKey], base[bigKey] || 0, int).trim()}</div>` : ''}`
       : `<div class="tt-big">${item.itemLevel || 1}<small>Nível do item</small></div>`;
   }
   // Primários (azul)
   const prim = [];
-  const addP = (key, fmtTxt, fmt) => { if (key === bigKey) return; const t = tot[key] || 0, b = base[key] || 0; if (!t && !b) return; prim.push(`<div class="tt-af">${fmtTxt(fmt(t))}${smithPart(t, b, fmt)}</div>`); };
+  const addP = (key, fmtTxt, fmt) => { if (key === bigKey) return; const t = tot[key] || 0, b = base[key] || 0; if (!t && !b) return; prim.push(`<div class="tt-af">${fmtTxt(fmt(t))}${star(key)}${smithPart(t, b, fmt)}</div>`); };
   if (!isW) addP('dmg', v => `+${v} Dano`, int);
   addP('def', v => `+${v} <span class="st-def">Defesa</span>`, int);
   addP('es', v => `+${v} <span class="st-es">Escudo Mágico</span>`, int);
@@ -15249,6 +15304,9 @@ function itemSheetHtml(item, slot, p, ro) {
   addP('crit', v => `+${v} Crítico`, pc1);
   addP('regenPct', v => `+${v} Regeneração`, v => `${Math.round(v)}%`);
   addP('dmgReducedFromBossPct', v => `${v} menos dano de chefes`, pc1);
+  addP('blockPct', v => `${v} Bloqueio`, pc1); // v244
+  addP('goldPct', v => `+${v} Ouro`, pc1);
+  addP('xpPct', v => `+${v} XP`, pc1);
   itemResLines(item).forEach(t => prim.push(`<div class="tt-af tt-res">${t}</div>`)); // v181
   // Bónus+ (azul)
   const bonuses = item.bonuses || [];
@@ -15301,6 +15359,7 @@ function itemSheetHtml(item, slot, p, ro) {
     ? `<div class="tt-note good">⚔️ 2.ª arma (Lâminas Gémeas): conta ${Math.round(DUAL_WIELD_DMG * 100)}% do Dano, mais Bónus, gemas e Crítico.</div>`
     : `<div class="tt-note warn">⚠️ Esta 2.ª arma não está a contar: precisa da passiva Lâminas Gémeas e de a arma principal ser Espada, Machado ou Varinha.</div>`) : '';
   const tags = [
+    item.immaculate ? '<span class="ak-tag imm-tag" title="Todos os stats com Rolo Perfeito: +10% nos stats do item">✦ Imaculado</span>' : '',
     ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : '',
     itemInnateMedio(item) ? '<span class="ak-tag crypt-tag">🌀 Arma da Cripta</span>' : '',
     hwAmuletLuck(item) ? '<span class="ak-tag hw-tag">🎃 Halloween</span>' : '',
@@ -15308,8 +15367,8 @@ function itemSheetHtml(item, slot, p, ro) {
     itemElement(item) ? `<span class="ak-tag el-tag" style="--ec:${ELEMENT_INFO[itemElement(item)].color};">${elIc(itemElement(item))} ${ELEMENT_INFO[itemElement(item)].name} · vence ${ELEMENT_INFO[ELEMENT_BEATS[itemElement(item)]].icon}</span>` : ''
   ].join('');
   const bonusSlots = `${bonuses.length}/${ITEM_BONUS_MAX_SLOTS}`;
-  return `<div class="tt${item.ascended ? ' asc' : ''}" style="--c:${item.rarityColor || '#B9B4A8'};">
-    <div class="tt-head"><div class="tt-name">${esc(item.name)}</div></div>
+  return `<div class="tt${item.ascended ? ' asc' : ''}${item.immaculate ? ' imm' : ''}" style="--c:${item.rarityColor || '#B9B4A8'};">
+    <div class="tt-head"><div class="tt-name">${item.immaculate ? '<span class="imm-mk">✦</span> ' : ''}${esc(item.name)}</div></div>
     <div class="tt-body">
       <div class="tt-top"><div class="tt-ic">${itemIconHtml(item)}</div>
         <div style="min-width:0;"><div class="tt-type"><b>${itemTypeLine(item)}</b><span>${SLOT_NAMES[item.slot] || ''}</span></div>${big}${tags ? `<div class="tt-tags">${tags}</div>` : ''}</div></div>
@@ -15380,7 +15439,8 @@ function itemCompareHtml(item, eq, p) {
   // v179: resumo do que muda no herói + as duas fichas (a da mochila e a equipada).
   const pc1 = v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`, int = v => Math.round(v).toLocaleString('pt-PT');
   const s0 = effectiveStats(p), s1 = heroStatsIfEquipped(p, item);
-  const list = [['⚔️', 'Dano', s0.dmg, s1.dmg, int], ['🛡️', 'Defesa', s0.def, s1.def, int], [esIconHtml(), 'Escudo Mágico', s0.es || 0, s1.es || 0, int], ['❤️', 'HP', s0.hp, s1.hp, int], ['💥', 'Crítico', s0.crit, s1.crit, pc1], ['🏆', 'Dano vs. Chefes', s0.dmgVsBossPct || 0, s1.dmgVsBossPct || 0, pc1]]
+  const list = [['⚔️', 'Dano', s0.dmg, s1.dmg, int], ['🛡️', 'Defesa', s0.def, s1.def, int], [esIconHtml(), 'Escudo Mágico', s0.es || 0, s1.es || 0, int], ['❤️', 'HP', s0.hp, s1.hp, int], ['💥', 'Crítico', s0.crit, s1.crit, pc1], ['🏆', 'Dano vs. Chefes', s0.dmgVsBossPct || 0, s1.dmgVsBossPct || 0, pc1],
+    ['🛡️', 'Bloqueio', s0.blockPct || 0, s1.blockPct || 0, pc1], ['🪙', 'Ouro', s0.itemGoldPct || 0, s1.itemGoldPct || 0, pc1], ['📘', 'XP', s0.itemXpPct || 0, s1.itemXpPct || 0, pc1]] // v244
     .concat(ELEMENT_KEYS.map(el => [elIc(el), `Resist. ${ELEMENT_INFO[el].name}`, resFor(s0, el), resFor(s1, el), v => `${v}%`]))
     .filter(r => r[2] || r[3]);
   const chips = list.filter(r => Math.abs(r[3] - r[2]) > 1e-6).map(([ic, l, x, y, f]) => { const d = y - x; return `<span class="${d > 0 ? 'up' : 'down'}">${d > 0 ? '+' : '−'}${f(Math.abs(d))} ${l}</span>`; }).join('');
@@ -18862,6 +18922,7 @@ function resolveEnemyTurnCore(opts) {
   if (pStats.dmgTakenRed) dmgMult *= (1 - pStats.dmgTakenRed); // v186: Pedra da Defesa na joia
   if (profTalent(p, 'ferreiro') && !c.profHitTaken) { c.profHitTaken = true; dmgMult *= 0.5; addCombatLog({ text: '🔨 Pele de Aço: o primeiro golpe faz metade do dano.', cls: 'good' }); } // v196
 
+  if (pStats.blockPct && Math.random() < pStats.blockPct) { dmgMult *= BLOCK_DMG_MULT; addCombatLog({ text: '🛡️ Bloqueaste! O golpe faz metade do dano.', cls: 'good' }); } // v244: Bloqueio
   const defMult = getPlayerDefMultiplier(c.battleState);
   let dmg;
   if (enemySkillTriggered && enemySkill.type === 'multi') {
@@ -20496,7 +20557,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v243</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v244</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

@@ -4282,3 +4282,11 @@ body.tod-noite .cb-scene .scene-svg,body.tod-noite .region-banner .scene-svg{fil
 .iv-opts{display:flex;flex-wrap:wrap;gap:6px;}
 .iv-opts .tab-chip{margin:0;}
 @media (max-width:360px){.iv-sl{width:56px;}.iv-tb{padding:6px 7px;font-size:11px;}.iv-st{display:none;}}
+/* v244: Rolo Perfeito / Imaculado */
+.pf-star{font-size:.72em;vertical-align:.18em;filter:drop-shadow(0 0 4px rgba(255,210,80,.7));}
+.imm-mk{color:#bff3ff;text-shadow:0 0 8px rgba(140,230,255,.9);}
+.ak-tag.imm-tag{background:linear-gradient(90deg,rgba(120,220,255,.22),rgba(255,255,255,.10),rgba(120,220,255,.22));border-color:#9fe6ff;color:#e6fbff;text-shadow:0 0 6px rgba(140,230,255,.6);}
+.tt.imm{box-shadow:0 0 0 1px #9fe6ff, 0 0 20px rgba(120,220,255,.35), 0 8px 24px rgba(0,0,0,.7);}
+.tt.imm.asc{box-shadow:0 0 0 1px #9fe6ff, 0 0 0 3px rgba(255,179,90,.6), 0 0 22px rgba(120,220,255,.35), 0 8px 24px rgba(0,0,0,.7);}
+.iv-x.imm{color:#cdf5ff;border:1px solid #7fd8f5;border-radius:6px;padding:0 5px;font-size:10px;font-weight:700;text-shadow:0 0 6px rgba(140,230,255,.6);}
+.iv-x.pf{color:#ffd76a;}
