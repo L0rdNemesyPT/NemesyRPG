@@ -13605,111 +13605,106 @@ function renderMochilaBody() {
       return (cmpOrder[a.cmp.cls] - cmpOrder[b.cmp.cls]) || (b.power - a.power);
     });
 
+    // ============================================================
+    // v243: Itens — barra compacta (tipos com ícones), Ordenar/Filtros/Vender em janelas,
+    // linhas mais pequenas com a diferença de Poder, agrupadas por tipo.
+    // ============================================================
     const totalValue = list.reduce((sum, i) => sum + itemSellValue(i), 0);
-    const filtersActive = slotFilter !== 'all' || rarFilter !== 'all' || showKey !== 'all';
-
-    const summary = `<div class="card raised" style="margin-bottom:10px; border-left:3px solid var(--gold-bright);">
-      <div class="row between" style="align-items:center;">
-        <div>
-          <div style="font-weight:700; font-family:var(--font-display);">🎒 ${list.length}${filtersActive ? ` de ${p.inventory.length}` : ''} ite${list.length === 1 ? 'm' : 'ns'}</div>
-          <div class="tiny muted" style="margin-top:2px;">Valor de venda: 🪙 ${totalValue}</div>
-        </div>
-        <div class="inv-view">${filtersActive ? `<button class="btn small ghost" data-inv-reset="1">✖ Filtros</button>` : ''}
-          <button class="inv-view-b${invGridOn() ? '' : ' on'}" data-inv-view="lista" aria-label="Ver em lista" title="Lista">☰</button><button class="inv-view-b${invGridOn() ? ' on' : ''}" data-inv-view="grelha" aria-label="Ver em grelha" title="Grelha">▦</button></div>
-      </div>
-    </div>`;
-
-    const sortBar = `<div class="inv-label">Ordenar por</div>
-      <div class="tab-strip" style="padding-bottom:8px;">${SORTS.map(o => `<button class="tab-chip${sortKey === o.key ? ' active' : ''}" data-inv-sort="${o.key}">${o.label}</button>`).join('')}</div>`;
-
-    const showBar = `<div class="inv-label">Mostrar</div>
-      <div class="tab-strip" style="padding-bottom:8px;">${SHOWS.map(([k, l]) => `<button class="tab-chip${showKey === k ? ' active' : ''}" data-inv-show="${k}">${l}</button>`).join('')}</div>`;
-    const sellShown = filtersActive && list.some(i => !i.locked) ? `<button class="btn small ghost block inv-sellshown" data-sell-shown>💰 Vender os ${list.filter(i => !i.locked).length} itens mostrados · ${list.filter(i => !i.locked).reduce((a, i) => a + itemSellValue(i), 0).toLocaleString('pt-PT')} 🪙</button>` : '';
-    const slotBar = `<div class="inv-label">Tipo</div>
-      <div class="tab-strip" style="padding-bottom:8px;">
-        <button class="tab-chip${slotFilter === 'all' ? ' active' : ''}" data-item-filter="all">Todos</button>
-        ${presentSlots.map(slot => `<button class="tab-chip${slotFilter === slot ? ' active' : ''}" data-item-filter="${slot}">${SLOT_ICONS[slot]} ${p.inventory.filter(i => i.slot === slot).length}</button>`).join('')}
-      </div>`;
-
-    const rarBar = `<div class="inv-label">Raridade</div>
-      <div class="tab-strip" style="padding-bottom:8px;">
-        <button class="tab-chip${rarFilter === 'all' ? ' active' : ''}" data-inv-rarity="all">Todas</button>
-        ${rarityGroups.map(g => `<button class="tab-chip${rarFilter === g.r.key ? ' active' : ''}" data-inv-rarity="${g.r.key}" style="${rarFilter === g.r.key ? '' : `border-color:${g.r.color};`}">${rarIc(g.r.key, g.r.icon)} ${g.count}</button>`).join('')}
-      </div>`;
-
-    const weak = p.inventory.filter(i => (i.rarity === 'comum' || i.rarity === 'incomum') && !i.locked);
-    const weakGold = weak.reduce((a, i) => a + itemSellValue(i), 0);
+    const nFilt = (rarFilter !== 'all' ? 1 : 0) + (showKey !== 'all' ? 1 : 0);
+    const filtersActive = slotFilter !== 'all' || nFilt > 0;
     const invN = p.inventory.length;
+    const eqPow = {}; EQUIP_SLOTS.forEach(sl => { eqPow[sl] = p.equipment[sl] ? itemPowerScore(p.equipment[sl]) : 0; });
+    const delta = r => Math.round(r.power - (eqPow[r.item.slot] || 0));
+    const betterIn = sl => p.inventory.filter(i => i.slot === sl && compareToEquipped(i, p).cls === 'better').length;
+    const sortLabel = (SORTS.find(o => o.key === sortKey) || SORTS[0]).label;
+
+    const head = `<div class="iv-head">
+      <div class="iv-h-t"><b>${list.length}${filtersActive ? ` <small>de ${invN}</small>` : ''} ite${list.length === 1 ? 'm' : 'ns'}</b><span>🪙 ${nxNum(totalValue)}${filtersActive ? ' (mostrados)' : ''}</span></div>
+      <div class="iv-cap" title="Espaço na mochila"><i style="width:${Math.min(100, invN / INVENTORY_MAX * 100)}%"></i></div>
+      <div class="inv-view"><button class="inv-view-b${invGridOn() ? '' : ' on'}" data-inv-view="lista" aria-label="Ver em lista">☰</button><button class="inv-view-b${invGridOn() ? ' on' : ''}" data-inv-view="grelha" aria-label="Ver em grelha">▦</button></div>
+    </div>`;
+    const slots = `<div class="iv-slots" role="tablist">
+      <button type="button" class="iv-sl${slotFilter === 'all' ? ' on' : ''}" data-item-filter="all"><span class="iv-sl-ic">🎒</span><b>Todos</b><em>${invN}</em></button>
+      ${presentSlots.map(sl => { const bt = betterIn(sl); return `<button type="button" class="iv-sl${slotFilter === sl ? ' on' : ''}" data-item-filter="${sl}"><span class="iv-sl-ic">${slotIconHtml(sl)}</span><b>${SLOT_NAMES[sl]}</b><em>${p.inventory.filter(i => i.slot === sl).length}</em>${bt ? `<i class="iv-up">▲${bt}</i>` : ''}</button>`; }).join('')}
+    </div>`;
+    const weak = p.inventory.filter(i => (i.rarity === 'comum' || i.rarity === 'incomum') && !i.locked);
+    const tools = `<div class="iv-tools">
+      <button type="button" class="iv-tb" data-iv-open="sort"><small>Ordenar</small>${sortLabel} ▾</button>
+      <button type="button" class="iv-tb${nFilt ? ' on' : ''}" data-iv-open="filt"><small>Filtros</small>⚙️ ${nFilt ? `${nFilt} ativo${nFilt > 1 ? 's' : ''}` : 'Nenhum'}</button>
+      <button type="button" class="iv-tb sell" data-iv-open="sell"><small>Vender</small>🧹 ${weak.length ? `${weak.length} fracos` : 'Opções'}</button>
+    </div>`;
+    const chips = filtersActive ? `<div class="iv-chips">${slotFilter !== 'all' ? `<button type="button" data-iv-clear="slot">${SLOT_NAMES[slotFilter]} ✕</button>` : ''}${rarFilter !== 'all' ? `<button type="button" data-iv-clear="rar">${rarIc(rarFilter, '')} ${(RARITIES.find(r => r.key === rarFilter) || {}).name || ''} ✕</button>` : ''}${showKey !== 'all' ? `<button type="button" data-iv-clear="show">${(SHOWS.find(x => x[0] === showKey) || ['', ''])[1]} ✕</button>` : ''}<button type="button" class="all" data-inv-reset="1">Limpar tudo</button></div>` : '';
     const invWarn = invN >= INVENTORY_WARN ? `<div class="inv-warn">⚠️ Mochila quase cheia: <b>${invN}/${INVENTORY_MAX}</b> itens. Quando encher, os drops de equipamento perdem-se.</div>` : '';
-    const quickSell = weak.length ? `<button class="btn small primary block inv-quick" data-sell-weak>🧹 Venda rápida: ${weak.length} Comu${weak.length > 1 ? 'ns' : 'm'} e Incomu${weak.length > 1 ? 'ns' : 'm'} · ${weakGold.toLocaleString('pt-PT')} 🪙</button>` : '';
-    const sellBar = invWarn + quickSell + `<details class="inv-sell">
-      <summary>💰 Vender em massa por raridade</summary>
-      <p class="tiny muted" style="margin-top:6px;">Os itens 🔒 bloqueados nunca são vendidos.${p.inventory.some(i => i.locked) ? ` (${p.inventory.filter(i => i.locked).length} bloqueados)` : ''}</p>
-      <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;">
-        ${rarityGroups.map(g => `<button class="btn small ghost" data-sell-rarity="${g.r.key}" style="border-color:${g.r.color};">${rarIc(g.r.key, g.r.icon)} ${g.r.name} (${g.count}) · ${g.total}🪙</button>`).join('')}
-      </div>
-    </details>`;
 
-    const badge = cmp => {
-      if (cmp.label.startsWith('Novo')) return `<span class="cmp-pill better">★ Novo</span>`;
-      if (cmp.cls === 'better') return `<span class="cmp-pill better">▲ Melhor</span>`;
-      if (cmp.cls === 'worse') return `<span class="cmp-pill worse">▼ Pior</span>`;
-      return `<span class="cmp-pill equal">＝ Igual</span>`;
-    };
-
-    const dualOk = hasDualWield(p);
-    const cardsHtml = rows.length ? rows.map(({ item, cmp }) => {
-      const bonusChips = (item.bonuses || []).map(b => `<span class="pill" style="border-color:var(--arcane-bright); color:var(--arcane-bright);">${(BONUS_PLUS_POOL.find(x => x.key === b.key) || {}).icon || '✦'} ${bonusPlusLabel(b)}</span>`).join('') + (item.plusBonus ? plus2Chip(item.plusBonus) : '') + craftBonusChip(item);
-      return `
-      <div class="item-row" data-item-id="${item.id}" style="${rarityBoxStyle(item)} border-left:3px solid ${item.rarityColor};">
-        <button type="button" class="item-ic item-ic-btn" data-cmp-item="${item.id}" aria-label="Ver e comparar">${itemIconHtml(item)}<span class="item-ic-zoom">🔍</span></button>
-        <div class="item-mid">
-          <div class="row between" style="align-items:flex-start; gap:6px;">
-            <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.locked ? '🔒 ' : ''}${item.name}${upBadge(item)}</div>
-            ${badge(cmp)}
-          </div>
-          <div class="item-sub tiny" style="color:${item.rarityColor}">${SLOT_NAMES[item.slot]} · Nv.${item.itemLevel || 1} · ${item.rarityName}${item.setKey ? ` · <span style="color:var(--gold-bright);">${setIc(item.setKey)} ${SET_DEFS[item.setKey].name}</span>` : ''}</div>
-          <div class="item-stats">${itemStatsLine(item)}</div>
-          ${bonusChips ? `<div class="row" style="gap:4px; flex-wrap:wrap; margin-top:5px;">${bonusChips}</div>` : ''}
-        </div>
-        <div style="display:flex; flex-direction:column; gap:5px;">
-          <button class="btn small primary" data-equip-item="${item.id}">Equipar</button>
-          ${dualOk && dualWieldEligible(item) ? `<button class="btn small" data-equip-off="${item.id}" title="Equipar como 2.ª arma (Lâminas Gémeas)">⚔️ 2.ª arma</button>` : ''}
-          <div style="display:flex; gap:5px;">
-            <button class="btn small ghost" data-sell-item="${item.id}" style="flex:1;"${item.locked ? ' disabled title="Bloqueado"' : ''}>${item.locked ? '🔒' : `🪙 ${itemSellValue(item)}`}</button>
-            <button class="btn small ${item.locked ? 'lock-on' : 'ghost'}" data-lock-item="${item.id}" title="${item.locked ? 'Desbloquear' : 'Bloquear (não pode ser vendido)'}" aria-label="${item.locked ? 'Desbloquear item' : 'Bloquear item'}">${item.locked ? '🔒' : '🔓'}</button>
-          </div>
-        </div>
-      </div>`;
-    }).join('') : `<div class="empty-hint">Nenhum item com estes filtros.<br><button class="btn small ghost" style="margin-top:10px;" data-inv-reset="1">Limpar filtros</button></div>`;
-
-    // v188: vista em grelha — quadrados com a cor da raridade; tocar abre a ficha (Comparar / Equipar / Vender).
-    const gridHtml = rows.length ? `<div class="inv-grid">${rows.map(({ item, cmp }) => {
-      const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
+    const rowHtml = r => { const { item, cmp } = r, d = delta(r), isNew = cmp.label.startsWith('Novo');
+      const dTxt = isNew ? '★ Novo' : d > 0 ? `▲ +${nxNum(d)}` : d < 0 ? `▼ −${nxNum(-d)}` : '＝';
+      const extras = [item.setKey ? `<span class="iv-x set">${setIc(item.setKey)}</span>` : '', (item.bonuses && item.bonuses.length) || item.plusBonus ? '<span class="iv-x bon">✨</span>' : '', item.locked ? '<span class="iv-x">🔒</span>' : ''].join('');
+      return `<div class="iv-row" style="--rc:${item.rarityColor || '#888'}">
+        <button type="button" class="iv-main" data-cmp-item="${item.id}" aria-label="${esc(item.name)}">
+          <span class="iv-ic">${itemIconHtml(item)}${item.upgrade ? `<i class="iv-plus${item.ascended ? ' asc' : ''}">+${item.upgrade}</i>` : ''}</span>
+          <span class="iv-t"><b>${esc(item.name)}</b><small>${rarIc(item.rarity, item.rarityIcon)} ${item.rarityName} · Nv. ${item.itemLevel || 1}${extras ? ' ' + extras : ''}</small><span class="iv-st">${itemStatsLine(item)}</span></span>
+          <span class="iv-d ${isNew || d > 0 ? 'up' : d < 0 ? 'down' : 'eq'}">${dTxt}<small>Poder</small></span>
+        </button>
+        ${cmp.cls === 'better' || isNew ? `<button type="button" class="btn small primary iv-eq" data-equip-item="${item.id}">Equipar</button>` : ''}
+      </div>`; };
+    const cellHtml = ({ item, cmp }) => { const socks = Array.from({ length: item.socketSlots || 1 }, (_, i) => (item.sockets || [])[i] || null);
       const mark = cmp.label.startsWith('Novo') ? '<span class="ig-mk new">★</span>' : cmp.cls === 'better' ? '<span class="ig-mk up">▲</span>' : '';
       return `<button type="button" class="ig-cell" data-cmp-item="${item.id}" style="--c:${item.rarityColor || '#888'};" aria-label="${esc(item.name)}">
         <span class="ig-ic">${itemIconHtml(item)}</span>${mark}
         ${item.mythic === 'coracao_tita' ? '' : `<span class="ig-gems">${socks.map(g => `<i${g ? ` class="on" style="--gc:${(GEM_DEFS[g.type] || {}).color || '#fff'};"` : ''}></i>`).join('')}</span>`}
         ${item.upgrade ? `<span class="ig-up${item.ascended ? ' asc' : ''}">+${item.upgrade}</span>` : ''}${item.locked ? '<span class="ig-lock">🔒</span>' : ''}
-        <span class="ig-lv">${item.itemLevel || 1}</span></button>`; }).join('')}</div>
-      <p class="tiny muted" style="margin-top:8px;">Toca num item para veres a ficha, comparar, equipar ou vender. ▲ melhor que o equipado · ★ espaço vazio.</p>` : cardsHtml;
-    body.innerHTML = summary + autoSellCardHtml(p) + sortBar + showBar + slotBar + rarBar + sellShown + sellBar + `<div style="margin-top:12px;">${invGridOn() ? gridHtml : cardsHtml}</div>`;
-    autoSellBind(body);
-    els('[data-inv-show]', body).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invShow = b.dataset.invShow; renderMochilaBody(); }));
-    els('[data-sell-shown]', body).forEach(b => b.addEventListener('click', () => sellFilteredItems(list)));
-    els('[data-inv-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); try { localStorage.setItem('nemesy_inv_view', b.dataset.invView); } catch (e) {} App.invView = b.dataset.invView; renderMochilaBody(); }));
+        <span class="ig-lv">${item.itemLevel || 1}</span></button>`; };
+    // Agrupa por tipo quando se veem todos (cada grupo já vem ordenado).
+    const groups = slotFilter === 'all' ? EQUIP_SLOTS.map(sl => ({ sl, rows: rows.filter(r => r.item.slot === sl) })).filter(g => g.rows.length) : [{ sl: null, rows }];
+    const grid = invGridOn();
+    const listHtml = rows.length ? groups.map(g => `${g.sl ? `<div class="iv-gh"><span>${slotIconHtml(g.sl)} ${SLOT_NAMES[g.sl]}</span><em>${g.rows.length}${g.rows.some(r => r.cmp.cls === 'better') ? ` · <b>▲ ${g.rows.filter(r => r.cmp.cls === 'better').length} melhor${g.rows.filter(r => r.cmp.cls === 'better').length > 1 ? 'es' : ''}</b>` : ''}</em></div>` : ''}
+      ${grid ? `<div class="inv-grid">${g.rows.map(cellHtml).join('')}</div>` : `<div class="iv-list">${g.rows.map(rowHtml).join('')}</div>`}`).join('')
+      + `<p class="tiny muted" style="margin-top:10px;">Toca num item para veres a ficha: comparar, equipar, vender, bloquear e encaixar gemas. ▲ = mais Poder do que o que tens vestido.</p>`
+      : `<div class="empty-hint">Nenhum item com estes filtros.<br><button class="btn small ghost" style="margin-top:10px;" data-inv-reset="1">Limpar filtros</button></div>`;
+    body.innerHTML = head + slots + tools + chips + invWarn + `<div class="iv-body">${listHtml}</div>`;
 
-    els('[data-equip-item]').forEach(b => b.addEventListener('click', () => equipItem(b.dataset.equipItem)));
-    els('[data-cmp-item]').forEach(b => b.addEventListener('click', () => { sfx.click(); openItemCompareModal(b.dataset.cmpItem); }));
-    els('[data-equip-off]').forEach(b => b.addEventListener('click', () => equipItemOffhand(b.dataset.equipOff)));
-    els('[data-sell-item]').forEach(b => b.addEventListener('click', () => sellItem(b.dataset.sellItem)));
-    els('[data-lock-item]').forEach(b => b.addEventListener('click', () => toggleItemLock(b.dataset.lockItem)));
-    els('[data-sell-rarity]').forEach(b => b.addEventListener('click', () => sellAllByRarity(b.dataset.sellRarity)));
-    els('[data-sell-weak]').forEach(b => b.addEventListener('click', () => sellWeakItems()));
-    els('[data-item-filter]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invItemFilter = b.dataset.itemFilter; renderMochilaBody(); }));
-    els('[data-inv-rarity]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invRarityFilter = b.dataset.invRarity; renderMochilaBody(); }));
-    els('[data-inv-sort]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invSort = b.dataset.invSort; renderMochilaBody(); }));
-    els('[data-inv-reset]').forEach(b => b.addEventListener('click', () => { App.invItemFilter = 'all'; App.invRarityFilter = 'all'; App.invShow = 'all'; renderMochilaBody(); }));
+    els('[data-inv-view]').forEach(b => b.addEventListener('click', () => { sfx.tab(); try { localStorage.setItem('nemesy_inv_view', b.dataset.invView); } catch (e) {} App.invView = b.dataset.invView; renderMochilaBody(); }));
+    els('[data-equip-item]', body).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); equipItem(b.dataset.equipItem); }));
+    els('[data-cmp-item]', body).forEach(b => b.addEventListener('click', () => { sfx.click(); openItemCompareModal(b.dataset.cmpItem); }));
+    els('[data-item-filter]', body).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invItemFilter = b.dataset.itemFilter; renderMochilaBody(); }));
+    els('[data-iv-clear]', body).forEach(b => b.addEventListener('click', () => { sfx.tab(); const k = b.dataset.ivClear; if (k === 'slot') App.invItemFilter = 'all'; if (k === 'rar') App.invRarityFilter = 'all'; if (k === 'show') App.invShow = 'all'; renderMochilaBody(); }));
+    { const sel = body.querySelector('.iv-sl.on'); if (sel && sel.scrollIntoView) { const strip = sel.parentElement; strip.scrollLeft = sel.offsetLeft - strip.clientWidth / 2 + sel.clientWidth / 2; } }
+    // Janelas: Ordenar, Filtros e Vender
+    const optRow = (attr, opts, cur) => `<div class="iv-opts">${opts.map(([k, l]) => `<button type="button" class="tab-chip${cur === k ? ' active' : ''}" ${attr}="${k}">${l}</button>`).join('')}</div>`;
+    const openSheet = kind => {
+      if (kind === 'sort') {
+        openModal(`<h3 style="margin-bottom:10px;">↕️ Ordenar por</h3>${optRow('data-inv-sort', SORTS.map(o => [o.key, o.label]), sortKey)}<button class="btn ghost block" id="btn-close-modal" style="margin-top:12px;">Fechar</button>`);
+      } else if (kind === 'filt') {
+        openModal(`<h3 style="margin-bottom:10px;">⚙️ Filtros</h3>
+          <div class="inv-label">Mostrar</div>${optRow('data-inv-show', SHOWS, showKey)}
+          <div class="inv-label" style="margin-top:10px;">Raridade</div>${optRow('data-inv-rarity', [['all', 'Todas']].concat(RARITIES.filter(r => p.inventory.some(i => i.rarity === r.key)).map(r => [r.key, `${rarIc(r.key, r.icon)} ${r.name} (${p.inventory.filter(i => i.rarity === r.key).length})`])), rarFilter)}
+          <div class="row" style="gap:8px; margin-top:14px;"><button class="btn ghost" style="flex:1;" data-inv-reset="1">Limpar</button><button class="btn primary" style="flex:1;" id="btn-close-modal">Ver ${list.length} ite${list.length === 1 ? 'm' : 'ns'}</button></div>`);
+      } else {
+        const rg = RARITIES.map(r => { const it = p.inventory.filter(i => i.rarity === r.key && !i.locked); return { r, count: it.length, total: it.reduce((a, i) => a + itemSellValue(i), 0) }; }).filter(g => g.count);
+        const shownSell = list.filter(i => !i.locked), lockedN = p.inventory.filter(i => i.locked).length;
+        openModal(`<h3 style="margin-bottom:10px;">🧹 Vender</h3>
+          ${weak.length ? `<button class="btn primary block" data-sell-weak>Venda rápida: ${weak.length} Comuns e Incomuns · 🪙 ${nxNum(weak.reduce((a, i) => a + itemSellValue(i), 0))}</button>` : '<p class="tiny muted">Não tens itens Comuns nem Incomuns para vender.</p>'}
+          ${filtersActive && shownSell.length ? `<button class="btn block" style="margin-top:8px;" data-sell-shown>Vender os ${shownSell.length} itens mostrados · 🪙 ${nxNum(shownSell.reduce((a, i) => a + itemSellValue(i), 0))}</button>` : ''}
+          <div class="inv-label" style="margin-top:12px;">Por raridade</div>
+          <div class="iv-opts">${rg.map(g => `<button class="btn small ghost" data-sell-rarity="${g.r.key}" style="border-color:${g.r.color};">${rarIc(g.r.key, g.r.icon)} ${g.r.name} (${g.count}) · ${nxNum(g.total)}🪙</button>`).join('')}</div>
+          <p class="tiny muted" style="margin-top:6px;">Os itens 🔒 bloqueados nunca são vendidos${lockedN ? ` (tens ${lockedN})` : ''}.</p>
+          <div style="margin-top:12px;">${autoSellCardHtml(p)}</div>
+          <button class="btn ghost block" id="btn-close-modal" style="margin-top:8px;">Fechar</button>`);
+      }
+      const mc = $('modal-content');
+      const again = () => { renderMochilaBody(); };
+      els('[data-inv-sort]', mc).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invSort = b.dataset.invSort; closeModal(); again(); }));
+      els('[data-inv-show]', mc).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invShow = b.dataset.invShow; again(); document.querySelector('[data-iv-open="filt"]').click(); }));
+      els('[data-inv-rarity]', mc).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.invRarityFilter = b.dataset.invRarity; again(); document.querySelector('[data-iv-open="filt"]').click(); }));
+      els('[data-inv-reset]', mc).forEach(b => b.addEventListener('click', () => { App.invItemFilter = 'all'; App.invRarityFilter = 'all'; App.invShow = 'all'; closeModal(); again(); }));
+      els('[data-sell-weak]', mc).forEach(b => b.addEventListener('click', () => { closeModal(); sellWeakItems(); }));
+      els('[data-sell-shown]', mc).forEach(b => b.addEventListener('click', () => { closeModal(); sellFilteredItems(list); }));
+      els('[data-sell-rarity]', mc).forEach(b => b.addEventListener('click', () => { closeModal(); sellAllByRarity(b.dataset.sellRarity); }));
+      els('[data-autosell]', mc).forEach(b => b.addEventListener('click', () => { p.autoSell = b.dataset.autosell; sfx.tab(); saveGame(); again(); document.querySelector('[data-iv-open="sell"]').click(); }));
+      const x = $('btn-close-modal'); if (x) x.addEventListener('click', closeModal);
+    };
+    els('[data-iv-open]', body).forEach(b => b.addEventListener('click', () => { sfx.click(); openSheet(b.dataset.ivOpen); }));
+    els('[data-inv-reset]', body).forEach(b => b.addEventListener('click', () => { App.invItemFilter = 'all'; App.invRarityFilter = 'all'; App.invShow = 'all'; renderMochilaBody(); }));
   } else if (App.invTab === 'gemas') {
     renderGemsBody(body, p);
   } else if (App.invTab === 'alquimia') {
@@ -20501,7 +20496,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v242</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v243</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
