@@ -451,19 +451,20 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
 
   <!-- COMBAT -->
   <div class="screen" id="screen-dgpath"></div>
-  <div class="screen" id="screen-combat">
+  <div class="screen cbx" id="screen-combat">
     <div class="combat-top">
-      <div class="enemy-row">
-        <div class="enemy-glyph" id="cb-enemy-glyph">👺</div>
-        <div class="enemy-info">
-          <div class="enemy-name"><span id="cb-enemy-name">—</span><span class="pill" id="cb-enemy-lv">Nv. 1</span><span class="pill" id="cb-enemy-category"></span></div>
-          <div id="cb-elite-slot"></div>
-          <div class="bar bar-hp bar-lg" style="margin-top:8px;"><div class="bar-fill" id="cb-enemy-hpfill" style="width:100%"></div><span class="bar-num"><span id="cb-enemy-hp">0/0</span></span></div>
-          <div class="status-icons" id="cb-enemy-status"></div>
-        </div>
+      <div class="cbx-head">
+        <div class="enemy-name"><span id="cb-enemy-name">—</span></div>
+        <div class="cbx-chips"><span class="pill" id="cb-enemy-lv">Nv. 1</span><span class="pill" id="cb-enemy-category"></span></div>
+        <div id="cb-elite-slot"></div>
       </div>
-      <div id="cb-intent-slot"></div>
       <div class="cb-horde" id="cb-horde" hidden></div>
+      <div class="cbx-foe">
+        <div class="enemy-glyph" id="cb-enemy-glyph">👺</div>
+        <div class="cbx-hp"><div class="bar bar-hp bar-lg"><div class="bar-fill" id="cb-enemy-hpfill" style="width:100%"></div><i class="cbx-seg"></i><span class="bar-num"><span id="cb-enemy-hp">0/0</span></span></div></div>
+        <div class="status-icons" id="cb-enemy-status"></div>
+        <div id="cb-intent-slot"></div>
+      </div>
       <div id="cb-event-banner"></div>
     </div>
     <div class="combat-log" id="cb-log"></div>
@@ -479,11 +480,12 @@ button{font-family:var(--font-body); border:none; cursor:pointer; -webkit-appear
         <div class="bar bar-hp bar-lg"><div class="bar-fill" id="cb-player-hpfill" style="width:100%"></div><span class="bar-num"><span id="cb-player-hp">0/0</span></span></div>
         <div class="status-icons" id="cb-player-status"></div>
         </div>
+        <button type="button" class="cbx-pot" id="cb-btn-potion" aria-label="Poções">🧪</button>
       </div>
-      <button class="btn primary block" id="cb-btn-attack" style="margin-bottom:8px; padding:12px;">🗡️ Ataque Normal</button>
+      <button class="btn primary block" id="cb-btn-attack">⚔️ Atacar</button>
       <div class="ability-grid" id="cb-abilities"></div>
       <div class="combat-actions">
-        <button class="btn ghost" id="cb-btn-potion" style="flex:1;">🧪 Poção</button>
+        <button class="btn ghost" id="cb-btn-log" style="flex:1;">📜 Registo</button>
         <button class="btn ghost" id="cb-btn-flee" style="flex:1;">🏃 Fugir</button>
       </div>
     </div>
@@ -17083,8 +17085,22 @@ function combatLogHtml(c) {
   }).join('');
   return `<button type="button" class="log-mode" data-log-mode aria-label="Mudar o tipo de registo">${compact ? '📜 Resumo' : '📜 Detalhe'}</button>${body}`;
 }
+// v241: na batalha nova o registo mostra só as últimas 3 linhas; o registo completo abre numa janela.
+function combatFeedHtml(c) {
+  const lines = (c.log || []).filter(m => m && m.text && logMinorChip(m) === null).slice(-3);
+  return lines.map((m, i) => `<div class="log-line ${m.cls || ''}${i < lines.length - 1 ? ' old' : ''}">${m.text}</div>`).join('');
+}
+function openCombatLogModal() {
+  const c = App.combat; if (!c) return;
+  openModal(`<h3 style="margin-bottom:8px;">📜 Registo do combate</h3><div class="combat-log cbx-logfull">${combatLogHtml(c)}</div>
+    <button class="btn ghost block" id="btn-close-modal" style="margin-top:10px;">Fechar</button>`);
+  const box = document.querySelector('.cbx-logfull'); if (box) { box.scrollTop = box.scrollHeight;
+    const b = box.querySelector('[data-log-mode]'); if (b) b.addEventListener('click', e => { e.stopPropagation(); try { localStorage.setItem('nemesy_log', logCompact() ? 'full' : 'compact'); } catch (er) {} sfx.tab(); openCombatLogModal(); }); }
+  $('btn-close-modal').addEventListener('click', closeModal);
+}
 function renderCombatLog() {
   const c = App.combat, logEl = $('cb-log'); if (!c || !logEl) return;
+  if ($('screen-combat').classList.contains('cbx')) { logEl.innerHTML = combatFeedHtml(c); return; }
   logEl.innerHTML = combatLogHtml(c);
   logEl.scrollTop = logEl.scrollHeight;
   const b = logEl.querySelector('[data-log-mode]');
@@ -19706,11 +19722,13 @@ function fxAfterCombatRender(c, p, pStats) {
   if (eDiff > 0) {
     const kind = crit ? 'crit' : '';
     fxNumber(glyph, crit ? `${eDiff}!` : `${eDiff}`, kind);
-    if (crit) { fxShakeScreen(false); fxVibrate(25); fxBurst(glyph, '✦', 7, 40); }
+    if (crit) { fxShakeScreen(false); fxVibrate(25); fxBurst(glyph, '✦', 7, 40); if (fxFull()) { fxSpawn('fx-flash cbx-wf', 0, 0, '', 360); const sc = $('cb-scene'); if (sc) { sc.classList.remove('cbx-zoom'); void sc.offsetWidth; sc.classList.add('cbx-zoom'); } } }
+    else if (fxFull()) fxBurst(glyph, '✦', 4, 34); // v241
   } else if (eDiff < 0) fxNumber(glyph, `+${-eDiff}`, 'heal');
   if (Math.abs(pDiff) > pStats.hp) { /* HP corrigido (ex.: mudança de equipamento) — sem número */ }
   else if (pDiff < 0) {
     fxNumber(panel, `${pDiff}`, 'hurt');
+    if (glyph && fxOn()) { glyph.classList.remove('fx-lunge'); void glyph.offsetWidth; glyph.classList.add('fx-lunge'); fxSpawn('fx-vig', 0, 0, '', 600); } // v241: o inimigo avança e as bordas ficam vermelhas
     if (-pDiff >= pStats.hp * 0.18) { fxShakeScreen(true); fxVibrate(45); }
   } else if (pDiff > 0) fxNumber(panel, `+${pDiff}`, 'heal');
   if (glyph) glyph.classList.toggle('enraged', !!(c.battleState && c.battleState.bossEnraged));
@@ -20284,7 +20302,7 @@ function renderCombat() {
   const potionTotal = Object.values(p.potions || {}).reduce((a, b) => a + b, 0)
     + Object.values(ensureFarm(p).crops).reduce((a, b) => a + b, 0)
     + Object.values(ensureMeals(p)).reduce((a, b) => a + b, 0);
-  $('cb-btn-potion').textContent = `🧪 Poção (${potionTotal})`;
+  { const pb = $('cb-btn-potion'), ph = `${nxEnt('pocao-hp', '🧪')}<em>${potionTotal}</em>`; if (pb.dataset.h !== ph) { pb.dataset.h = ph; pb.innerHTML = ph; } pb.classList.toggle('empty', !potionTotal); } // v241
   $('cb-player-hp').textContent = `${Math.max(0, p.hp)}/${pStats.hp}`;
   { const ebs = esEnsure(c), box = $('cb-es');
     if (box) { box.hidden = !(ebs && ebs.esMax > 0);
@@ -20293,6 +20311,7 @@ function renderCombat() {
   $('cb-player-hpfill').style.width = clamp(p.hp / pStats.hp * 100, 0, 100) + '%';
   fxGhostBar('cb-player-hpfill', clamp(p.hp / pStats.hp * 100, 0, 100));
   sceneUpdate(c); sceneRaceClass($('cb-enemy-glyph'), c);
+  { const bt = document.querySelector('#screen-combat .combat-bottom'); if (bt) $('screen-combat').style.setProperty('--cbx-bh', bt.offsetHeight + 'px'); } // v241
   fxAfterCombatRender(c, p, pStats);
 
   const playerStatusChips = [];
@@ -20435,7 +20454,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v240</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v241</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -20591,6 +20610,8 @@ function wireStaticEvents() {
   els('[data-nav-more]').forEach(b => b.addEventListener('click', openNavMore));
   uiApply();
   $('cb-btn-potion').addEventListener('click', () => { sfx.click(); openPotionModal(); });
+  $('cb-btn-log').addEventListener('click', () => { sfx.click(); openCombatLogModal(); }); // v241
+  $('cb-log').addEventListener('click', () => { if (App.combat && !App.combat.ended) { sfx.click(); openCombatLogModal(); } });
   $('cb-btn-attack').addEventListener('click', useNormalAttackAction);
   $('cb-btn-flee').addEventListener('click', async () => {
     const c = App.combat;
