@@ -16822,7 +16822,9 @@ function renderMapaBody(tile) {
         <div class="boss-line">${nxCreature(d.bossName, d.bossIcon)} ${d.bossName}${cleared ? ' — já derrotado' : ''}</div>
         ${d.monsters ? `<div class="monster-strip">${d.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>` : ''}
         ${eligible
-          ? `<button class="btn small danger" style="margin-top:10px;" data-enter-dungeon="${d.key}">Entrar na dungeon</button>`
+          ? (dgDailyLeft(p) > 0
+            ? `<button class="btn small danger" style="margin-top:10px;" data-enter-dungeon="${d.key}">Entrar na dungeon</button><p class="tiny muted" style="margin-top:6px;">⏳ Hoje: ${dgDaily(p).n}/${DG_DAILY_MAX} entradas (todas as Dungeons)</p>`
+            : `<button class="btn small" style="margin-top:10px;" disabled>⏳ Volta amanhã</button><p class="tiny muted" style="margin-top:6px;">Já fizeste as ${DG_DAILY_MAX} Dungeons de hoje. Recomeça daqui a ${dgMidnightTxt()}.</p>`)
           : `<p class="tiny muted" style="margin-top:10px;">Disponível a partir do nível ${d.minLv}.</p>`}
       </div>
     `;
@@ -17981,6 +17983,14 @@ function dungeonPathBeginWave(c) {
   renderCombat();
 }
 
+// v240: ⏳ limite diário de Dungeons — 30 entradas por dia (todas somadas; as Catacumbas não contam).
+// Conta ao entrar, para não se poder contornar saindo a meio. Recomeça à meia-noite.
+const DG_DAILY_MAX = 30;
+function dgDayKey() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+function dgDaily(p) { const k = dgDayKey(); if (!p.dgDaily || p.dgDaily.day !== k) p.dgDaily = { day: k, n: 0 }; return p.dgDaily; }
+function dgDailyLeft(p) { return Math.max(0, DG_DAILY_MAX - dgDaily(p).n); }
+function dgMidnightTxt() { const n = new Date(), m = new Date(n); m.setHours(24, 0, 0, 0); const min = Math.max(1, Math.round((m - n) / 60000)); return min >= 60 ? `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}` : `${min} min`; }
+
 // v220: requisitos de entrada numa dungeon (nível e, se existir, Paragon mínimo).
 function dungeonGate(p, d) {
   if ((p.level || 1) < d.minLv) return `Precisas de Nv. ${d.minLv}`;
@@ -17994,14 +18004,19 @@ function startDungeon(key) {
   if (!d) return;
   // v107: o nível mínimo também é verificado aqui (não só no botão).
   { const gate = dungeonGate(App.player, d); if (gate) { sfx.error(); toast(`${gate} para entrar em ${d.name}.`); return; } }
+  const p = App.player, day = dgDaily(p);
+  if (day.n >= DG_DAILY_MAX) { sfx.error(); toast(`⏳ Já fizeste as ${DG_DAILY_MAX} Dungeons de hoje. Volta daqui a ${dgMidnightTxt()}.`); return; }
+  day.n++; saveGame(); // v240: conta ao entrar
   App.combat = {
     kind: 'dungeon', isDungeon: true, dungeonDef: d, waveIndex: 0, totalWaves: d.waves,
     battleState: {}, cooldowns: {}, log: [], eventApplied: null, ended: false
   };
   resetCombatScreenChrome();
-  addCombatLog({ text: `Entraste em ${d.name}. Prepara-te para ${d.waves} onda(s).`, cls: 'good' });
-  // v137: primeiro o caminho de salas; o combate da sala 1 abre ao tocar em "Começar".
-  showDungeonPath('start');
+  showScreen('screen-combat');
+  addCombatLog({ text: `Entraste em ${d.name}. Prepara-te para ${d.waves} sala(s). (Hoje: ${day.n}/${DG_DAILY_MAX})`, cls: 'good' });
+  // v240: as salas são seguidas, sem passar pelo mapa (como era antes da v137).
+  spawnDungeonWave();
+  renderCombat();
 }
 
 function spawnDungeonWave() {
@@ -19105,12 +19120,11 @@ function handleEnemyDefeated() {
         renderCombat();
         return;
       }
-      // v137: dungeons — volta ao caminho por um instante e a sala seguinte abre sozinha.
-      addCombatLog({ text: `Sala ${c.waveIndex + 1} de ${c.totalWaves} aproxima-se...`, cls: 'good' });
+      // v240: dungeons — a sala seguinte começa logo, sem esperas.
+      spawnDungeonWave();
+      addCombatLog({ text: `Sala ${c.waveIndex + 1} de ${c.totalWaves} aproxima-se... (+25% HP)`, cls: 'good' });
       sfx.questdone();
       renderCombat();
-      $('screen-combat').classList.add('dg-transit');
-      setTimeout(() => { if (App.combat === c && !c.ended) showDungeonPath('next'); }, 450);
       return;
     }
     if (c.isCatacumba) finishCatacumba(); else finishDungeon();
@@ -19680,6 +19694,7 @@ function fxAfterCombatRender(c, p, pStats) {
   fxBodySync();
   if (glyph && c._fxDead) glyph.classList.add('fx-die');
   if (c._fxKey !== key) {
+    if (c._fxKey && c._fxDead && c.enemy.hp > 0) { c._fxDead = false; if (glyph) glyph.classList.remove('fx-die'); } // v240: inimigo novo na sala seguinte volta a aparecer
     c._fxKey = key; c._fxEnemyHp = c.enemy.hp; c._fxPlayerHp = p.hp;
     if (fxOn() && glyph) { glyph.classList.remove('fx-enter'); void glyph.offsetWidth; glyph.classList.add('fx-enter'); }
     fxCombatExtras(c, p, pStats, true, txt);
@@ -20420,7 +20435,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v239</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v240</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
