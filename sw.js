@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nemesy-rpg-v245';
+const CACHE_NAME = 'nemesy-rpg-v246';
 // v189: as imagens (ícones, mapas, avatares) ficam numa cache própria que NÃO é apagada nos updates.
 // Cada imagem é guardada com o endereço completo (incluindo ?v=…): só se descarrega outra vez quando
 // a versão dessa imagem muda, e a versão antiga é apagada nessa altura.
@@ -50,6 +50,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+  // v246: música (mp3) vai direto à rede — o leitor pede bocados (Range) que a cache não guarda.
+  if (/\.(mp3|ogg|m4a|wav)$/i.test(new URL(request.url).pathname)) return;
 
   const imgUrl = new URL(request.url);
   if (IMG_RE.test(imgUrl.pathname)) {

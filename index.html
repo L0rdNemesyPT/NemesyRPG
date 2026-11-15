@@ -6388,7 +6388,7 @@ function setMusicOff(off) {
   saveAudioPrefs();
   if (!Audio8.ctx) return;
   Audio8.musicGain.gain.setTargetAtTime(Audio8.musicOff ? 0 : MUSIC_VOLUME, Audio8.ctx.currentTime, 0.02);
-  if (Audio8.musicOff) { clearTimeout(Audio8.musicTimer); Audio8.musicTimer = null; }
+  if (Audio8.musicOff) { clearTimeout(Audio8.musicTimer); Audio8.musicTimer = null; stopFileMusic(); }
   else { if (Audio8.ctx.state === 'suspended') Audio8.ctx.resume(); if (!Audio8.musicTimer) scheduleMusicLoop(); }
 }
 function setSfxOff(off) {
@@ -6557,21 +6557,9 @@ const MUSIC_THEMES = {
       523.25, 466.16, 415.30, 349.23
     ]
   },
-  // Uma valsa serena e um pouco hipnótica, em Ré maior — ambiente quente e
-  // embalado, inspirada no humor calmo de temas tipo "valsa antiga", mas com
-  // melodia e progressão inteiramente originais.
+  // v246: Areias Douradas passou a ser uma música em ficheiro (enviada pelo dono do jogo).
   areias: {
-    name: 'Areias Douradas', icon: '🏜️', tempo: 100,
-    bass: [
-      146.83, 146.83, 146.83,   196.00, 196.00, 196.00,
-      220.00, 220.00, 220.00,   146.83, 146.83, 146.83
-    ],
-    lead: [
-      293.66, 369.99, 440.00, 392.00, 369.99, 329.63,
-      392.00, 493.88, 587.33, 554.37, 493.88, 440.00,
-      440.00, 554.37, 659.25, 587.33, 554.37, 493.88,
-      587.33, 0, 440.00, 369.99, 329.63, 293.66
-    ]
+    name: 'Areias Douradas', icon: '🏜️', file: 'music/areias-douradas.mp3?v=1', fileGain: 0.85
   }
 };
 function loadMusicThemePref() {
@@ -6587,11 +6575,35 @@ function setMusicTheme(key) {
   saveMusicThemePref(key);
   if (Audio8.ctx) scheduleMusicLoop(); // reinicia o loop já com o novo tema
 }
+// v246: temas em ficheiro (mp3) — tocam num <audio> ligado ao mesmo volume da música.
+function stopFileMusic() { if (Audio8.musicEl) { try { Audio8.musicEl.pause(); } catch (e) {} } }
+function playFileMusic(theme) {
+  if (!Audio8.musicEl) {
+    const a = new Audio(); a.loop = true; a.preload = 'auto'; a.setAttribute('playsinline', '');
+    Audio8.musicEl = a;
+    try { const src = Audio8.ctx.createMediaElementSource(a); Audio8.musicFileGain = Audio8.ctx.createGain(); src.connect(Audio8.musicFileGain).connect(Audio8.musicGain); }
+    catch (e) { Audio8.musicFileGain = null; }
+  }
+  const a = Audio8.musicEl;
+  if (Audio8.musicFileGain) Audio8.musicFileGain.gain.value = theme.fileGain || 1; else a.volume = Math.min(1, MUSIC_VOLUME * (theme.fileGain || 1));
+  if (a.dataset.src !== theme.file) { a.src = theme.file; a.dataset.src = theme.file; }
+  if (document.visibilityState === 'hidden') return;
+  if (Audio8.ctx.state === 'suspended') Audio8.ctx.resume();
+  const pr = a.play(); if (pr && pr.catch) pr.catch(() => {});
+}
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => {
+  if (!Audio8.musicEl) return;
+  const theme = MUSIC_THEMES[App.musicTheme];
+  if (document.visibilityState === 'hidden') stopFileMusic();
+  else if (Audio8.ctx && !Audio8.musicOff && theme && theme.file) playFileMusic(theme);
+});
 function scheduleMusicLoop() {
   if (!Audio8.ctx) return;
   clearTimeout(Audio8.musicTimer);
-  if (Audio8.musicOff) { Audio8.musicTimer = null; return; }
+  if (Audio8.musicOff) { Audio8.musicTimer = null; stopFileMusic(); return; }
   const theme = MUSIC_THEMES[App.musicTheme] || MUSIC_THEMES.nemesy;
+  if (theme.file) { Audio8.musicTimer = null; playFileMusic(theme); return; }
+  stopFileMusic();
   const quarter = 60 / theme.tempo;
   const eighth = quarter / 2;
   const startTime = Audio8.ctx.currentTime + 0.05;
@@ -20681,7 +20693,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v245</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v246</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
