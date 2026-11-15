@@ -15782,6 +15782,120 @@ function cityMapStart() {
   setTimeout(move, 60);
   App.ctTimer = setInterval(move, 4000);
 }
+// ============================================================
+// ⚗️ FUSÃO (v245) — Ferreiro → Fundir. Juntas 4 itens da mesma raridade e recebes 1 da
+// raridade acima (Comum → Incomum → Raro → Lendário → Único). Nível = média dos usados
+// (arredondada para baixo); tipo = o dos itens se forem todos iguais, senão um deles à sorte.
+// 5% de Fusão Perfeita: sobe duas raridades (nunca acima do Único).
+// ============================================================
+const FUSE_NEED = 4, FUSE_PERFECT_CHANCE = 0.05;
+const FUSE_LADDER = ['comum', 'incomum', 'raro', 'lendario', 'unico'];
+function fuseNextRarity(key, steps) { const i = FUSE_LADDER.indexOf(key); return i < 0 ? null : FUSE_LADDER[Math.min(FUSE_LADDER.length - 1, i + (steps || 1))]; }
+function fuseEligible(p, rarKey) {
+  return (p.inventory || []).filter(i => i.rarity === rarKey && !i.locked && !i.setKey && !i.mythic && !i.season && !i.hwSkin && !i.uniqueEffect);
+}
+function fuseCost(items) { return Math.max(50, Math.round(items.reduce((a, it) => a + itemSellValue(it), 0) * 0.5)); }
+function fuseLosses(items) {
+  const out = [];
+  if (items.some(i => (i.upgrade || 0) > 0)) out.push('o Reforço do Ferreiro (+N)');
+  if (items.some(i => (i.bonuses && i.bonuses.length) || i.plusBonus || i.nephalemBonus || i.altarBonus || i.craftBonus)) out.push('os Bónus (Bónus+, ➕, Nephalen, Altar ou Craft)');
+  if (items.some(i => i.immaculate || (Array.isArray(i.perfect) && i.perfect.length))) out.push('as estrelas ⭐ / ✦ Imaculado');
+  if (items.some(i => i.skin)) out.push('o Dano Médio das Armas da Cripta');
+  return out;
+}
+function fuseSelected(p) {
+  const rk = App.fuseRar, el = fuseEligible(p, rk);
+  App.fuseSel = (App.fuseSel || []).filter(id => el.some(i => i.id === id)).slice(0, FUSE_NEED);
+  return App.fuseSel.map(id => el.find(i => i.id === id));
+}
+function renderFuseBody(body) {
+  const p = App.player;
+  const rars = FUSE_LADDER.slice(0, -1).map(k => ({ r: RARITIES.find(x => x.key === k), n: fuseEligible(p, k).length }));
+  if (!App.fuseRar || !FUSE_LADDER.slice(0, -1).includes(App.fuseRar)) App.fuseRar = (rars.find(x => x.n >= FUSE_NEED) || rars[0]).r.key;
+  const rar = RARITIES.find(x => x.key === App.fuseRar), next = RARITIES.find(x => x.key === fuseNextRarity(rar.key)), next2 = RARITIES.find(x => x.key === fuseNextRarity(rar.key, 2));
+  const list = fuseEligible(p, rar.key).sort((a, b) => itemPowerScore(a) - itemPowerScore(b));
+  const sel = fuseSelected(p), full = sel.length === FUSE_NEED;
+  const lv = sel.length ? Math.floor(sel.reduce((a, i) => a + (i.itemLevel || 1), 0) / sel.length) : 0;
+  const slots = [...new Set(sel.map(i => i.slot))];
+  const cost = sel.length ? fuseCost(sel) : 0, goldOk = p.gold >= cost;
+  const losses = fuseLosses(sel);
+  const slotHtml = Array.from({ length: FUSE_NEED }, (_, i) => { const it = sel[i];
+    return it ? `<button type="button" class="fz-slot on" style="--rc:${it.rarityColor}" data-fz-toggle="${it.id}" title="Tirar">${itemIconHtml(it)}<i>Nv.${it.itemLevel || 1}</i></button>`
+      : `<div class="fz-slot"><span>${i + 1}</span></div>`; }).join('');
+  body.innerHTML = `
+    <div class="fz-rars">${rars.map(({ r, n }) => `<button type="button" class="fz-rar${r.key === rar.key ? ' on' : ''}" style="--rc:${r.color}" data-fz-rar="${r.key}">${rarIc(r.key, r.icon)}<b>${r.name}</b><small>${n} ${n === 1 ? 'item' : 'itens'}</small></button>`).join('')}</div>
+    <div class="fz-forge" style="--rc:${rar.color}; --nc:${next.color};">
+      <div class="fz-row">
+        <div class="fz-slots">${slotHtml}</div>
+        <div class="fz-arrow${full ? ' ready' : ''}">➜</div>
+        <div class="fz-res${full ? ' ready' : ''}"><div class="fz-res-ic">${rarIc(next.key, next.icon)}</div><b>${next.name}</b><small>${full ? `${SLOT_NAMES[slots[0]] && slots.length === 1 ? SLOT_NAMES[slots[0]] : 'Tipo à sorte'} · Nv.${lv}` : `${sel.length}/${FUSE_NEED}`}</small></div>
+      </div>
+      ${full && slots.length > 1 ? `<p class="tiny muted fz-note">Tipos misturados: sai um destes à sorte — ${slots.map(s => SLOT_NAMES[s]).join(', ')}.</p>` : ''}
+      <p class="tiny fz-note fz-lucky">🍀 ${Math.round(FUSE_PERFECT_CHANCE * 100)}% de <b>Fusão Perfeita</b>: ${next2.key !== next.key ? `sai ${rarIc(next2.key, next2.icon)} <b>${next2.name}</b> em vez de ${next.name}` : `sai ${rarIc(next.key, next.icon)} ${next.name} com um stat ⭐ garantido no topo`}.</p>
+      ${losses.length ? `<p class="tiny fz-warn">⚠️ Perdes ${losses.join(', ')}. As gemas voltam para a bolsa.</p>` : ''}
+      <div class="fz-acts">
+        <button type="button" class="btn small ghost" id="fz-auto"${list.length >= FUSE_NEED ? '' : ' disabled'}>🎯 Os ${FUSE_NEED} mais fracos</button>
+        <button type="button" class="btn ${full && goldOk ? 'primary' : 'ghost'} fz-go" id="fz-go"${full && goldOk ? '' : ' disabled'}>⚗️ Fundir${full ? ` · ${cost.toLocaleString('pt-PT')} 🪙` : ''}</button>
+      </div>
+      ${full && !goldOk ? `<p class="tiny fz-warn" style="text-align:center;">Precisas de ${cost.toLocaleString('pt-PT')} ouro.</p>` : ''}
+    </div>
+    <div class="inv-label" style="margin:14px 0 6px;">${rarIc(rar.key, rar.icon)} ${rar.name} na mochila · toca para escolher</div>
+    ${list.length ? `<div class="fz-list">${list.map(it => { const on = sel.some(x => x.id === it.id);
+      return `<button type="button" class="fz-item${on ? ' on' : ''}" style="--rc:${it.rarityColor}" data-fz-toggle="${it.id}">
+        <span class="fz-item-ic">${itemIconHtml(it)}${it.upgrade ? `<i>+${it.upgrade}</i>` : ''}</span>
+        <span class="fz-item-t"><b>${it.immaculate ? '<span class="imm-mk">✦</span> ' : ''}${esc(it.name)}</b><small>${SLOT_NAMES[it.slot]} · Nv. ${it.itemLevel || 1} · Poder ${Math.round(itemPowerScore(it)).toLocaleString('pt-PT')}</small></span>
+        <span class="fz-check">${on ? '✓' : ''}</span></button>`; }).join('')}</div>`
+      : `<div class="empty-hint">Não tens itens ${rar.name} livres na mochila. Os equipados, os bloqueados 🔒 e os especiais (Set, Mítico, Temporada, eventos) não entram.</div>`}
+    <p class="tiny muted" style="margin-top:10px;">Junta ${FUSE_NEED} itens da mesma raridade para criar 1 da raridade acima (até ao Único). O nível é a média dos itens usados; o item novo é gerado do zero e pode sair com ⭐ ou ✦ Imaculado.</p>`;
+  els('[data-fz-rar]', body).forEach(b => b.addEventListener('click', () => { sfx.tab(); App.fuseRar = b.dataset.fzRar; App.fuseSel = []; renderFuseBody(body); }));
+  els('[data-fz-toggle]', body).forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.fzToggle, cur = App.fuseSel || [];
+    if (cur.includes(id)) App.fuseSel = cur.filter(x => x !== id);
+    else if (cur.length < FUSE_NEED) App.fuseSel = cur.concat(id);
+    else { sfx.error(); toast(`Só podes juntar ${FUSE_NEED} itens de cada vez.`); return; }
+    sfx.click(); renderFuseBody(body);
+  }));
+  const auto = $('fz-auto'); if (auto) auto.addEventListener('click', () => { sfx.click(); App.fuseSel = list.slice(0, FUSE_NEED).map(i => i.id); renderFuseBody(body); });
+  const go = $('fz-go'); if (go) go.addEventListener('click', () => doFuse(body));
+}
+async function doFuse(body) {
+  const p = App.player;
+  const sel = fuseSelected(p);
+  if (sel.length !== FUSE_NEED) return;
+  const cost = fuseCost(sel);
+  if (p.gold < cost) { sfx.error(); toast(`Precisas de ${cost.toLocaleString('pt-PT')} ouro.`); return; }
+  const losses = fuseLosses(sel), rar = RARITIES.find(x => x.key === App.fuseRar), next = RARITIES.find(x => x.key === fuseNextRarity(rar.key));
+  if (!await nxConfirm('', { title: 'Fundir itens', icon: '⚗️', confirmLabel: 'Fundir',
+    html: `Juntar ${FUSE_NEED} itens ${rar.name} num item <b style="color:${next.color}">${next.name}</b> por ${cost.toLocaleString('pt-PT')} 🪙?${losses.length ? `<br><br>⚠️ Perdes ${losses.join(', ')}.` : ''}${sel.some(i => (i.sockets || []).some(Boolean)) ? '<br>💎 As gemas voltam para a bolsa.' : ''}` })) return;
+  const now = fuseSelected(p);
+  if (now.length !== FUSE_NEED || p.gold < cost) return;
+  const ids = new Set(now.map(i => i.id));
+  now.forEach(it => (it.sockets || []).forEach(g => { if (g && GEM_DEFS[g.type]) { if (!Array.isArray(p.gems[g.type])) p.gems[g.type] = Array(GEM_TIERS).fill(0); p.gems[g.type][g.tier] = (p.gems[g.type][g.tier] || 0) + 1; } }));
+  const lv = Math.max(1, Math.floor(now.reduce((a, i) => a + (i.itemLevel || 1), 0) / now.length));
+  const slots = now.map(i => i.slot), slot = slots[Math.floor(Math.random() * slots.length)];
+  const perfect = Math.random() < FUSE_PERFECT_CHANCE;
+  const outRar = RARITIES.find(x => x.key === fuseNextRarity(rar.key, perfect ? 2 : 1));
+  let item = generateItem(slot, lv, null, false, outRar);
+  if (perfect && outRar.key === next.key) { // Lendário → Único: não há mais acima, garante um ⭐
+    for (let t = 0; t < 200 && !(item.perfect && item.perfect.length); t++) item = generateItem(slot, lv, null, false, outRar);
+  }
+  p.gold -= cost;
+  p.inventory = p.inventory.filter(i => !ids.has(i.id));
+  p.inventory.push(item);
+  p.stats = p.stats || {}; p.stats.fusions = (p.stats.fusions || 0) + 1;
+  App.fuseSel = [];
+  saveGame();
+  if (perfect) sfx.levelup(); else sfx.evolve();
+  renderStatusBar();
+  openModal(`<div class="fz-done${perfect ? ' perfect' : ''}" style="--rc:${item.rarityColor}">
+      <div class="fz-done-h">${perfect ? '🍀 Fusão Perfeita!' : '⚗️ Fusão concluída'}</div>
+      <p class="tiny muted" style="text-align:center; margin:-4px 0 10px;">${perfect && outRar.key !== next.key ? `Subiu duas raridades: ${rar.name} → ${outRar.name}!` : `${FUSE_NEED}× ${rar.name} → 1× ${outRar.name}`}</p>
+      ${itemSheetHtml(item, item.slot, p, true)}
+    </div>
+    <button class="btn primary block" id="btn-close-modal" style="margin-top:10px;">Fechar</button>`);
+  $('btn-close-modal').addEventListener('click', () => { closeModal(); renderFuseBody(body); });
+}
+
 function renderTabLoja() {
   clearInterval(App.ctTimer);
   if (blackMarketTimer) { clearInterval(blackMarketTimer); blackMarketTimer = null; }
@@ -15888,6 +16002,10 @@ function renderLojaBody() {
     renderCambioBody(body);
   } else if (App.lojaTab === 'classificacao') {
     renderLeaderboardBody(body);
+  } else if (App.lojaTab === 'ferreiro' && App.smithTab === 'fundir') {
+    body.innerHTML = smithTabsHtml() + '<div id="fz-body"></div>';
+    wireSmithTabs();
+    renderFuseBody($('fz-body'));
   } else if (App.lojaTab === 'ferreiro') {
     const equippedItems = EQUIP_SLOTS.filter(s => p.equipment[s]);
     const maxedCount = equippedItems.filter(s => p.equipment[s].upgrade >= 9).length;
@@ -15962,7 +16080,7 @@ function renderLojaBody() {
       </div>`;
     }).join('') : `<div class="empty-hint">⚒️ Equipa um item para o poderes melhorar aqui.</div>`;
 
-    body.innerHTML = `
+    body.innerHTML = smithTabsHtml() + `
       <div class="card raised" style="margin-bottom:14px; border-left:3px solid var(--blood-bright);">
         <div class="row" style="gap:12px; align-items:center;">
           <div style="font-size:30px;">⚒️</div>
@@ -15984,8 +16102,14 @@ function renderLojaBody() {
     if (smithToggle) smithToggle.addEventListener('change', () => { App.useSmithBook = smithToggle.checked; sfx.tab(); renderHubTab(); });
     els('[data-upgrade-item]').forEach(b => b.addEventListener('click', () => upgradeItem(b.dataset.upgradeItem)));
     els('[data-ascend-item]').forEach(b => b.addEventListener('click', () => ascendItemAction(b.dataset.ascendItem)));
+    wireSmithTabs();
   }
 }
+function smithTabsHtml() {
+  const t = App.smithTab === 'fundir' ? 'fundir' : 'melhorar';
+  return `<div class="fz-tabs"><button type="button" class="fz-tab${t === 'melhorar' ? ' on' : ''}" data-smith-tab="melhorar">🔨 Melhorar</button><button type="button" class="fz-tab${t === 'fundir' ? ' on' : ''}" data-smith-tab="fundir">⚗️ Fundir</button></div>`;
+}
+function wireSmithTabs() { els('[data-smith-tab]').forEach(b => b.addEventListener('click', () => { if (App.smithTab === b.dataset.smithTab) return; sfx.tab(); App.smithTab = b.dataset.smithTab; renderHubTab(); })); }
 
 function buyPotion(key) {
   const p = App.player;
@@ -20557,7 +20681,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v244</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v245</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -20906,9 +21030,15 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 2.8.1';
+const APP_VERSION_LABEL = 'V 2.9.0';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v245', title: 'V 2.9.0 · A Forja do Ferreiro! ⚗️', items: [
+    ['⚗️', 'Nova aba Fundir no Ferreiro: junta 4 itens da mesma raridade e cria 1 da raridade acima (Comum → Incomum → Raro → Lendário → Único).'],
+    ['🍀', 'Fusão Perfeita: 5% de hipótese de o item subir duas raridades!'],
+    ['💎', 'As gemas dos itens fundidos voltam para a bolsa. Os itens equipados e bloqueados 🔒 nunca entram.'],
+    ['🐞', 'Foram corrigidos vários bugs.']
+  ] },
   { id: 'v233', title: 'V 2.8.1 · Dia e Noite! 🌗', items: [
     ['🌗', 'O mundo segue agora a hora do teu telemóvel: Amanhecer (+10% XP), Dia (+10% ouro), Entardecer (+10% baús) e Noite. Toca na faixa do separador Batalha para veres tudo.'],
     ['🌙', 'De noite os monstros ficam mais fortes, mas há o dobro dos Elites e +20% de XP. Nas noites de Lua Cheia verdadeira: Elites ×3 e +35% de XP!'],
