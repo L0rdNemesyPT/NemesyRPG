@@ -4326,8 +4326,8 @@ body.tod-noite .cb-scene .scene-svg,body.tod-noite .region-banner .scene-svg{fil
 .fx-hitn.el-blood{color:#FF5A5A; text-shadow:0 2px 0 #3a0808, 0 0 12px rgba(230,40,40,.9);}
 .fx-hitn.el-holy{color:#FFF6C8; text-shadow:0 2px 0 #4a3a00, 0 0 16px rgba(255,230,140,1);}
 .fx-hitn.el-soul,.fx-hitn.el-arcane{color:#C9A6FF; text-shadow:0 2px 0 #24104a, 0 0 14px rgba(160,110,255,.95);}
-@keyframes fxHitArc{0%{opacity:0; transform:translate(-50%,-30%) scale(.6);} 10%{opacity:1; transform:translate(-50%,-80%) scale(1.15);} 45%{transform:translate(calc(-50% + var(--dx,20px) * .6),-210%) scale(1);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx,20px)),-120%) scale(.9);}}
-@keyframes fxHitCrit{0%{opacity:0; transform:translate(-50%,-40%) scale(.3) rotate(-10deg);} 12%{opacity:1; transform:translate(-50%,-80%) scale(1.55) rotate(5deg);} 24%{transform:translate(-50%,-110%) scale(1.15) rotate(0);} 55%{transform:translate(calc(-50% + var(--dx,20px) * .5),-200%) scale(1.1);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx,20px)),-140%) scale(1);}}
+@keyframes fxHitArc{0%{opacity:0; transform:translate(-50%,-30%) scale(.6);} 10%{opacity:1; transform:translate(-50%,-80%) scale(1.15);} 45%{transform:translate(calc(-50% + var(--dx,20px) * .6),-165%) scale(1);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx,20px)),-95%) scale(.9);}}
+@keyframes fxHitCrit{0%{opacity:0; transform:translate(-50%,-40%) scale(.3) rotate(-10deg);} 12%{opacity:1; transform:translate(-50%,-80%) scale(1.55) rotate(5deg);} 24%{transform:translate(-50%,-110%) scale(1.15) rotate(0);} 55%{transform:translate(calc(-50% + var(--dx,20px) * .5),-160%) scale(1.1);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx,20px)),-105%) scale(1);}}
 /* rasto da barra mais visível */
 .bar-ghost{background:linear-gradient(180deg,#FFF6D8,#FFD98A) !important; box-shadow:0 0 8px rgba(255,220,140,.6);}
 /* Combo */
@@ -4413,3 +4413,10 @@ body.fx-lite #fx-combo b{animation:none !important;}
 #screen-combat .enemy-glyph.fx-gone{opacity:.28; filter:grayscale(1) brightness(.6); transition:opacity .3s;}
 #screen-combat .enemy-glyph.fx-gone > i.fx-cracks{display:none;}
 #screen-combat .enemy-glyph.fx-shattered{opacity:0 !important; transition:opacity .08s;}
+/* v249: palavras grandes (Interrompido, Quebrado, Fúria, Fase 2) — uma de cada vez, por cima do retrato */
+.fx-call{position:absolute; transform:translate(-50%,-50%); font-family:var(--font-display); font-weight:800; font-size:22px; letter-spacing:.14em; white-space:nowrap; color:#FFE08A; z-index:12; pointer-events:none;
+  text-shadow:0 2px 0 #000, 0 0 3px #000, 0 0 16px rgba(255,190,60,.9); animation:fxCall 1.3s ease-out forwards;}
+.fx-call.fury{color:#FF5A3A; text-shadow:0 2px 0 #000, 0 0 3px #000, 0 0 18px rgba(255,40,20,1);}
+.fx-call.big{font-size:18px; letter-spacing:.1em;}
+@keyframes fxCall{0%{opacity:0; transform:translate(-50%,-50%) scale(1.9);} 14%{opacity:1; transform:translate(-50%,-50%) scale(1);} 72%{opacity:1; transform:translate(-50%,-50%) scale(1);} 100%{opacity:0; transform:translate(-50%,-80%) scale(.96);}}
+.fx-hitn{z-index:11;}

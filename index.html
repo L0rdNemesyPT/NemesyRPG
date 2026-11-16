@@ -19206,7 +19206,7 @@ function intentCounter(c, p, dealt, abOk) {
   p.stats.intentCounters = (p.stats.intentCounters || 0) + 1;
   const word = it.type === 'feitico' ? 'INTERROMPIDO!' : 'QUEBRADO!';
   addCombatLog({ text: it.type === 'feitico' ? `✋ Interrompeste ${it.name}! ${hordeLabel(c)} fica atordoado e perde a ronda.` : it.type === 'cura' ? `⚔️ Feriste-o a tempo: ${it.name} falhou e ${hordeLabel(c)} perde a ronda.` : `💥 Quebraste-lhe a guarda! ${it.name} falhou e ${hordeLabel(c)} perde a ronda.`, cls: 'crit' });
-  try { sfx.crit(); fxNumber($('cb-enemy-glyph'), word, 'crit'); fxShakeScreen(false); fxVibrate([25, 30, 25]); } catch (e) {}
+  try { sfx.crit(); fxCallout(word, 'gold'); fxShakeScreen(false); fxVibrate([25, 30, 25]); } catch (e) {}
   return true;
 }
 // Executa a intenção que ficou por responder (chamado antes do ataque do inimigo).
@@ -19906,10 +19906,35 @@ function fxSpawn(cls, x, y, html, ms) {
   setTimeout(() => d.remove(), ms || 1200);
   return d;
 }
+// v249: "faixas" para os textos não ficarem uns por cima dos outros — cada número novo
+// enquanto o anterior ainda está no ar sobe um degrau; as palavras grandes fazem fila.
+const FX_LANES = {};
+function fxLaneSlot(key, ms) {
+  const now = performance.now(), L = (FX_LANES[key] = (FX_LANES[key] || []).filter(t => now - t.t < ms));
+  let slot = 0; while (L.some(t => t.s === slot)) slot++;
+  L.push({ t: now, s: slot }); return slot;
+}
 function fxNumber(el, text, kind) {
   if (!fxOn() || !el) return;
-  const p = fxPoint(el, (Math.random() - 0.5) * 34, -10);
+  const slot = fxLaneSlot(el.id || el.className || 'x', 700);
+  const p = fxPoint(el, (slot % 2 ? 18 : -18) + (Math.random() - 0.5) * 10, -10 - slot * 24);
   fxSpawn('fx-num ' + (kind || ''), p.x, p.y, text, 1300);
+}
+const fxCallQ = []; let fxCallBusy = false;
+function fxCallout(text, cls, ms) {
+  if (!fxOn()) return;
+  if (fxCallQ.length >= 3) fxCallQ.shift();
+  fxCallQ.push({ text, cls, ms: ms || 1050 });
+  if (!fxCallBusy) fxCallNext();
+}
+function fxCallNext() {
+  const it = fxCallQ.shift(); if (!it) { fxCallBusy = false; return; }
+  fxCallBusy = true;
+  const g = document.getElementById('cb-enemy-glyph');
+  if (!g) { fxCallBusy = false; fxCallQ.length = 0; return; }
+  const pt = fxPoint(g), r = g.getBoundingClientRect();
+  fxSpawn('fx-call ' + (it.cls || ''), pt.x, pt.y - r.height / 2 - 26, esc(it.text), it.ms + 300);
+  setTimeout(fxCallNext, it.ms * 0.8);
 }
 // ============================================================
 // 💥 PACOTE "IMPACTO" (v248) — números à ARPG (arco, crítico, cor do elemento), rachas no
@@ -19919,11 +19944,12 @@ function fxNumber(el, text, kind) {
 const FX_AB_ELEM = { boladefogo: 'fire', relampago: 'elec', terramoto: 'earth', flechavenenosa: 'poison', serrada: 'blood', divino: 'holy', roubaralma: 'soul', vortex: 'arcane' };
 function fxHitNumber(el, n, crit, elem) {
   if (!fxOn() || !el) return;
-  const side = Math.random() < 0.5 ? -1 : 1;
-  const p = fxPoint(el, side * (8 + Math.random() * 22), -18);
+  const slot = fxLaneSlot('enemy-dmg', 500), side = slot % 2 ? 0 : -1; // v249: degraus (esquerda/centro), longe do Combo à direita
+  const r = el.getBoundingClientRect();
+  const p = fxPoint(el, side * (r.width * 0.28 + Math.random() * 8), r.height * 0.12 - slot * 28);
   const txt = Number(n).toLocaleString('pt-PT');
   const d = fxSpawn('fx-hitn' + (crit ? ' crit' : '') + (elem ? ' el-' + elem : ''), p.x, p.y, crit ? `<small>CRÍTICO!</small>${txt}` : txt, 1250);
-  if (d) d.style.setProperty('--dx', (side * (26 + Math.random() * 30)) + 'px');
+  if (d) d.style.setProperty('--dx', (side ? -(24 + Math.random() * 24) : (Math.random() - 0.5) * 24) + 'px');
 }
 function fxCombo(c, hit) {
   if (!c) return;
@@ -19961,7 +19987,7 @@ function fxCracks(c, glyph) {
 function fxFury(c) {
   const s = document.getElementById('screen-combat'); if (!s || !c || !c.enemy) return;
   const on = fxOn() && !c.ended && c.enemy.hp > 0 && (c.isBoss || c.isMiniBoss || c.isSoberano) && c.enemy.hp / Math.max(1, c.enemy.maxHp) <= 0.30;
-  if (on && !s.classList.contains('fx-fury')) { const g = document.getElementById('cb-enemy-glyph'); if (g && fxFull()) { const pt = fxPoint(g); fxSpawn('fx-fury-tag', pt.x, pt.y - 70, 'FÚRIA!', 1400); fxVibrate([30, 40, 30]); } }
+  if (on && !s.classList.contains('fx-fury')) { fxCallout('FÚRIA!', 'fury', 1200); fxVibrate([30, 40, 30]); }
   s.classList.toggle('fx-fury', on);
 }
 // Golpe final: câmara lenta, clarão e o retrato a estilhaçar em pedaços.
@@ -20279,7 +20305,7 @@ function fxPhase2Banner(name) {
   if (!fxOn()) return;
   const s = document.getElementById('screen-combat'); if (!s) return;
   const r = s.getBoundingClientRect();
-  fxSpawn('fx-banner', r.width / 2, r.height * 0.3, esc(String(name || '').toUpperCase()), 2000);
+  fxCallout(String(name || '').toUpperCase() + ' · FASE 2', 'fury big', 1500); // v249: na mesma fila das outras palavras
   fxShakeScreen(true); fxVibrate([40, 50, 80]);
 }
 // Chamado no fim de fxAfterCombatRender.
@@ -20821,7 +20847,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v248</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v249</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
