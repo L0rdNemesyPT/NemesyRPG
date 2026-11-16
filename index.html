@@ -20684,7 +20684,7 @@ async function renameHero() {
 function openSettingsModal() {
   const p = App.player;
   const themeSwatches = THEME_PRESETS.map(t => `
-    <button class="theme-swatch${App.theme === t.key ? ' active' : ''}" data-theme-key="${t.key}" style="--sw-color:${uiStyle() === 'pergaminho' ? t.ink : uiStyle() === 'arcano' ? `linear-gradient(135deg, ${t.gold}, ${t.acc2})` : t.gold};">
+    <button class="theme-swatch${App.theme === t.key ? ' active' : ''}" data-theme-key="${t.key}" style="--sw-color:${uiStyle() === 'pergaminho' ? `linear-gradient(180deg, ${t.gold}, #120E0A)` : uiStyle() === 'arcano' ? `linear-gradient(135deg, ${t.gold}, ${t.acc2})` : t.gold};">
       <span class="theme-swatch-dot"></span><span class="tiny">${t.icon} ${t.name}</span>
     </button>
   `).join('');
@@ -20693,7 +20693,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v246</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v247</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
