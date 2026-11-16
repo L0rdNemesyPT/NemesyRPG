@@ -17351,7 +17351,7 @@ function resetCombatScreenChrome() {
   $('cb-end-screen').style.display = 'none'; $('cb-end-screen').classList.remove('has-art'); { const sc = $('screen-combat'); if (sc) sc.classList.remove('ended'); }
   $('cb-log').style.display = '';
   const bottom = document.querySelector('#screen-combat .combat-bottom');
-  if (bottom) bottom.style.display = '';
+  if (bottom) { bottom.style.display = ''; bottom.classList.remove('fx-locked'); }
 }
 
 
@@ -18480,6 +18480,7 @@ function rollPoisonOnHit(pStats, c) {
 }
 
 function useAbilityAction(key) {
+  if (App.combat) App.combat._fxAb = key; // v248: cor dos números de dano
   const c = App.combat;
   if (!c || c.ended) return;
   tickCooldowns();
@@ -18509,6 +18510,7 @@ function useAbilityAction(key) {
 }
 
 function useNormalAttackAction() {
+  if (App.combat) App.combat._fxAb = null; // v248
   const c = App.combat;
   if (!c || c.ended) return;
   tickCooldowns();
@@ -19793,13 +19795,23 @@ function showCombatEnd(won, info) {
     if (App.player.hp > before) { info = info || {}; info.drops = (info.drops || []).concat([`👣 Sandálias do Peregrino: +${App.player.hp - before} HP.`]); }
   }
   guardOnBattleEnd();
-  $('cb-log').style.display = 'none';
   const bottom = document.querySelector('#screen-combat .combat-bottom');
-  if (bottom) bottom.style.display = 'none';
+  if (bottom) bottom.classList.add('fx-locked'); // v248: fica no sítio (sem saltos) mas já não se toca
   const endEl = $('cb-end-screen');
-  endEl.style.display = 'flex';
-  { const sc = $('screen-combat'); if (sc) { sc.scrollTop = 0; sc.classList.add('ended'); } } // v208: só o fim do combate desliza
-  endEl.scrollTop = 0;
+  // v248: ao ganhar, deixa ver o golpe final e os feixes de loot antes do ecrã de vitória.
+  { const cbx = $('fx-combo'); if (cbx) cbx.classList.remove('on'); }
+  const beams = won ? fxLootBeams(c) : 0;
+  const revealDelay = won && fxOn() && c._fxDead ? (fxFull() ? (beams ? 1700 : 950) : (beams ? 900 : 350)) : 0;
+  const reveal = () => {
+    if (App.combat !== c) return;
+    if (bottom) { bottom.style.display = 'none'; bottom.classList.remove('fx-locked'); }
+    { const g = $('cb-enemy-glyph'); if (g && won) g.classList.add('fx-gone'); }
+    $('cb-log').style.display = 'none';
+    endEl.style.display = 'flex';
+    { const sc = $('screen-combat'); if (sc) { sc.scrollTop = 0; sc.classList.add('ended'); } } // v208: só o fim do combate desliza
+    endEl.scrollTop = 0;
+    if (won) fxVictoryScreen(info);
+  };
   let html;
   if (won) {
     const pl = App.player, plLv = heroLv(pl), need = xpForLevel(plLv), maxed = plLv >= MAX_LEVEL;
@@ -19833,7 +19845,7 @@ function showCombatEnd(won, info) {
   if (won) setTimeout(() => { try { tutCheck('end'); } catch (e) {} }, 0); // v188
   if ((App.player.elemPotionBattles || 0) > 0) App.player.elemPotionBattles--; // v181: Poção Elemental gasta 1 batalha
   fxCombatEndClasses(won);
-  if (won) fxVictoryScreen(info);
+  if (revealDelay) { endEl.style.display = 'none'; setTimeout(reveal, revealDelay); } else reveal();
   const wasTower = !!c.isTower;
   const wasHunt = !!c.isHunt;
   const wasArena = !!c.isArena; // v223
@@ -19899,6 +19911,94 @@ function fxNumber(el, text, kind) {
   const p = fxPoint(el, (Math.random() - 0.5) * 34, -10);
   fxSpawn('fx-num ' + (kind || ''), p.x, p.y, text, 1300);
 }
+// ============================================================
+// 💥 PACOTE "IMPACTO" (v248) — números à ARPG (arco, crítico, cor do elemento), rachas no
+// retrato, Combo, entrada de chefe com "slam", Fúria abaixo de 30%, barra de chefe por fases,
+// golpe final com o retrato a estilhaçar e feixes de loot da cor da raridade.
+// ============================================================
+const FX_AB_ELEM = { boladefogo: 'fire', relampago: 'elec', terramoto: 'earth', flechavenenosa: 'poison', serrada: 'blood', divino: 'holy', roubaralma: 'soul', vortex: 'arcane' };
+function fxHitNumber(el, n, crit, elem) {
+  if (!fxOn() || !el) return;
+  const side = Math.random() < 0.5 ? -1 : 1;
+  const p = fxPoint(el, side * (8 + Math.random() * 22), -18);
+  const txt = Number(n).toLocaleString('pt-PT');
+  const d = fxSpawn('fx-hitn' + (crit ? ' crit' : '') + (elem ? ' el-' + elem : ''), p.x, p.y, crit ? `<small>CRÍTICO!</small>${txt}` : txt, 1250);
+  if (d) d.style.setProperty('--dx', (side * (26 + Math.random() * 30)) + 'px');
+}
+function fxCombo(c, hit) {
+  if (!c) return;
+  c._combo = hit ? (c._combo || 0) + 1 : 0;
+  const host = document.getElementById('screen-combat'); if (!host) return;
+  let b = document.getElementById('fx-combo');
+  if (!fxOn() || (c._combo || 0) < 3) { if (b) b.classList.remove('on'); return; }
+  if (!b) { const l = fxLayer(); if (!l) return; b = document.createElement('div'); b.id = 'fx-combo'; l.appendChild(b); }
+  { const g = document.getElementById('cb-enemy-glyph'); if (g) { const r = g.getBoundingClientRect(), h = host.getBoundingClientRect(); b.style.left = (r.right - h.left + 6) + 'px'; b.style.top = (r.top - h.top + r.height * 0.18) + 'px'; } }
+  const n = c._combo, tier = n >= 20 ? 4 : n >= 10 ? 3 : n >= 5 ? 2 : 1;
+  b.className = 'on t' + tier;
+  b.innerHTML = `<b>×${n}</b><span>COMBO</span>`;
+  b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop');
+  if (tier >= 3 && fxFull() && n % 5 === 0) fxShakeScreen(false);
+}
+// Rachas na moldura do inimigo aos 75 / 50 / 25% de vida (e faísca na barra quando parte um segmento).
+function fxCracks(c, glyph) {
+  if (!glyph || !c || !c.enemy) return;
+  let k = glyph.querySelector('.fx-cracks');
+  if (!k) { k = document.createElement('i'); k.className = 'fx-cracks'; glyph.appendChild(k); }
+  const pct = c.enemy.hp / Math.max(1, c.enemy.maxHp);
+  const st = !fxOn() || c.enemy.hp <= 0 && !c._fxDead ? 0 : pct <= 0.25 ? 3 : pct <= 0.5 ? 2 : pct <= 0.75 ? 1 : 0;
+  const prev = Number(k.dataset.st || 0);
+  k.dataset.st = st; k.className = 'fx-cracks s' + st;
+  if (st > prev && fxOn() && c.enemy.hp > 0) {
+    const bar = document.getElementById('cb-enemy-hpfill');
+    if (bar) { const r = bar.parentElement.getBoundingClientRect(), h = document.getElementById('screen-combat').getBoundingClientRect();
+      const x = r.left - h.left + r.width * (1 - st * 0.25), y = r.top - h.top + r.height / 2;
+      fxSpawn('fx-segbreak', x, y, '', 700);
+      for (let i = 0; i < (fxFull() ? 8 : 3); i++) { const a = Math.random() * Math.PI * 2, dd = 18 + Math.random() * 22, sp = fxSpawn('fx-spark', x, y, '', 650); if (sp) { sp.style.setProperty('--dx', Math.cos(a) * dd + 'px'); sp.style.setProperty('--dy', Math.sin(a) * dd + 'px'); } } }
+    if (fxFull()) fxVibrate(20);
+  }
+}
+// Fúria dos chefes abaixo de 30% de vida.
+function fxFury(c) {
+  const s = document.getElementById('screen-combat'); if (!s || !c || !c.enemy) return;
+  const on = fxOn() && !c.ended && c.enemy.hp > 0 && (c.isBoss || c.isMiniBoss || c.isSoberano) && c.enemy.hp / Math.max(1, c.enemy.maxHp) <= 0.30;
+  if (on && !s.classList.contains('fx-fury')) { const g = document.getElementById('cb-enemy-glyph'); if (g && fxFull()) { const pt = fxPoint(g); fxSpawn('fx-fury-tag', pt.x, pt.y - 70, 'FÚRIA!', 1400); fxVibrate([30, 40, 30]); } }
+  s.classList.toggle('fx-fury', on);
+}
+// Golpe final: câmara lenta, clarão e o retrato a estilhaçar em pedaços.
+const FX_SHARDS = ['0 0,55% 0,40% 45%,0 35%', '55% 0,100% 0,100% 30%,40% 45%', '0 35%,40% 45%,25% 100%,0 100%', '40% 45%,100% 30%,100% 70%,60% 62%', '40% 45%,60% 62%,55% 100%,25% 100%', '60% 62%,100% 70%,100% 100%,55% 100%'];
+function fxShatter(glyph, big) {
+  if (!fxFull() || !glyph) return;
+  const img = glyph.querySelector('img');
+  const r = glyph.getBoundingClientRect(), pt = fxPoint(glyph);
+  const inner = img ? `<img src="${img.getAttribute('src')}" alt="">` : `<span>${glyph.textContent}</span>`;
+  FX_SHARDS.forEach((poly, i) => {
+    const d = fxSpawn('fx-shard', pt.x, pt.y, inner, 1100); if (!d) return;
+    d.style.width = r.width + 'px'; d.style.height = r.height + 'px'; d.style.clipPath = `polygon(${poly})`;
+    const cx = poly.split(',').map(q => q.trim().split(' ')).reduce((a, [x, y]) => [a[0] + parseFloat(x), a[1] + parseFloat(y)], [0, 0]).map(v => v / poly.split(',').length);
+    const ang = Math.atan2(cx[1] - 50, cx[0] - 50), dist = (big ? 120 : 80) + Math.random() * 50;
+    d.style.setProperty('--dx', Math.cos(ang) * dist + 'px'); d.style.setProperty('--dy', Math.sin(ang) * dist + 40 + 'px');
+    d.style.setProperty('--rot', (Math.random() * 80 - 40) + 'deg'); d.style.animationDelay = (big ? 260 : 0) + i * 12 + 'ms';
+  });
+  fxSpawn('fx-killflash', pt.x, pt.y, '', 700);
+}
+// Feixes de loot: os itens novos caem num pilar de luz da cor da raridade e voam para a mochila.
+const FX_BEAM_MIN = ['raro', 'lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'mitico'];
+function fxLootBeams(c) {
+  if (!fxOn() || !c || !c._fxInv) return 0;
+  const p = App.player, glyph = document.getElementById('cb-enemy-glyph'); if (!glyph) return 0;
+  const order = RARITY_ORDER_FR || [];
+  const fresh = (p.inventory || []).filter(it => !c._fxInv.has(it.id) && FX_BEAM_MIN.includes(it.rarity))
+    .sort((a, b) => order.indexOf(a.rarity) - order.indexOf(b.rarity)).slice(0, 3);
+  if (!fresh.length) return 0;
+  const pt = fxPoint(glyph), gap = 74;
+  fresh.forEach((it, i) => {
+    const x = pt.x + (i - (fresh.length - 1) / 2) * gap;
+    const d = fxSpawn('fx-beam r-' + it.rarity, x, pt.y + 40, `<i class="col"></i><i class="base"></i><span class="it">${itemIconHtml(it)}</span>`, 1900);
+    if (d) { d.style.setProperty('--rc', it.rarityColor || '#fff'); d.style.animationDelay = (i * 140) + 'ms'; d.querySelector('.it').style.animationDelay = (i * 140) + 'ms'; }
+  });
+  if (fresh.some(it => it.rarity === 'divino')) fxVibrate([30, 60, 30, 60, 90]); else fxVibrate([20, 40, 20]);
+  return fresh.length;
+}
 function fxShakeScreen(strong) {
   if (!fxFull()) return;
   const s = document.getElementById('screen-combat'); if (!s) return;
@@ -19947,20 +20047,23 @@ function fxAfterCombatRender(c, p, pStats) {
   const txt = newLogs.map(m => m.text || '').join(' ');
   const crit = newLogs.some(m => m.cls === 'crit' && /crítico|CRÍTICO/i.test(m.text || ''));
   fxBodySync();
-  if (glyph && c._fxDead) glyph.classList.add('fx-die');
+  if (glyph && c._fxDead) { glyph.classList.add('fx-die'); if (c._fxShat) glyph.classList.add('fx-shattered'); }
   if (c._fxKey !== key) {
-    if (c._fxKey && c._fxDead && c.enemy.hp > 0) { c._fxDead = false; if (glyph) glyph.classList.remove('fx-die'); } // v240: inimigo novo na sala seguinte volta a aparecer
+    if (c._fxKey && c._fxDead && c.enemy.hp > 0) { c._fxDead = false; c._fxShat = false; if (glyph) glyph.classList.remove('fx-die', 'fx-shattered'); } // v240: inimigo novo na sala seguinte volta a aparecer
     c._fxKey = key; c._fxEnemyHp = c.enemy.hp; c._fxPlayerHp = p.hp;
+    if (!c._fxInv) c._fxInv = new Set((p.inventory || []).map(i => i.id)); // v248: para os feixes de loot
     if (fxOn() && glyph) { glyph.classList.remove('fx-enter'); void glyph.offsetWidth; glyph.classList.add('fx-enter'); }
+    fxCracks(c, glyph); fxFury(c);
     fxCombatExtras(c, p, pStats, true, txt);
     return;
   }
   const eDiff = (c._fxEnemyHp ?? c.enemy.hp) - c.enemy.hp;
   const pDiff = p.hp - (c._fxPlayerHp ?? p.hp);
   c._fxEnemyHp = c.enemy.hp; c._fxPlayerHp = p.hp;
+  const elem = FX_AB_ELEM[c._fxAb] || null; c._fxAb = null;
   if (eDiff > 0) {
-    const kind = crit ? 'crit' : '';
-    fxNumber(glyph, crit ? `${eDiff}!` : `${eDiff}`, kind);
+    fxHitNumber(glyph, eDiff, crit, elem); // v248
+    fxCombo(c, true);
     if (crit) { fxShakeScreen(false); fxVibrate(25); fxBurst(glyph, '✦', 7, 40); if (fxFull()) { fxSpawn('fx-flash cbx-wf', 0, 0, '', 360); const sc = $('cb-scene'); if (sc) { sc.classList.remove('cbx-zoom'); void sc.offsetWidth; sc.classList.add('cbx-zoom'); } } }
     else if (fxFull()) fxBurst(glyph, '✦', 4, 34); // v241
   } else if (eDiff < 0) fxNumber(glyph, `+${-eDiff}`, 'heal');
@@ -19971,14 +20074,22 @@ function fxAfterCombatRender(c, p, pStats) {
     if (-pDiff >= pStats.hp * 0.18) { fxShakeScreen(true); fxVibrate(45); }
   } else if (pDiff > 0) fxNumber(panel, `+${pDiff}`, 'heal');
   if (glyph) glyph.classList.toggle('enraged', !!(c.battleState && c.battleState.bossEnraged));
+  fxCracks(c, glyph); fxFury(c); // v248
   fxCombatExtras(c, p, pStats, false, txt);
 }
 function fxEnemyDie() {
   if (!fxOn()) return;
   const glyph = document.getElementById('cb-enemy-glyph'); if (!glyph) return;
   if (App.combat) App.combat._fxDead = true; // mantém o inimigo "apagado" até ao próximo combate
+  const c = App.combat, big = !!(c && (c.isBoss || c.isMiniBoss || c.isSoberano || (c.isDungeon && c.waveIndex >= (c.totalWaves || 1) - 1)));
+  const s = document.getElementById('screen-combat');
+  if (s && fxFull()) { s.classList.remove('fx-slowmo', 'fx-slowmo-big'); void s.offsetWidth; s.classList.add(big ? 'fx-slowmo-big' : 'fx-slowmo'); setTimeout(() => s.classList.remove('fx-slowmo', 'fx-slowmo-big'), big ? 1100 : 600); }
+  fxShatter(glyph, big); // v248: golpe final
+  if (c && fxFull()) { c._fxShat = true; glyph.classList.add('fx-shattered'); }
   glyph.classList.remove('fx-die'); void glyph.offsetWidth; glyph.classList.add('fx-die');
-  fxBurst(glyph, '✦', 10, 60);
+  if (!fxFull()) fxBurst(glyph, '✦', 10, 60);
+  if (big) { fxVibrate([40, 30, 80]); fxShakeScreen(true); }
+  if (s) s.classList.remove('fx-fury');
 }
 // Rasto das barras de HP: a barra principal desce logo, a "fantasma" vai atrás.
 function fxGhostBar(fillId, pctNow) {
@@ -20141,14 +20252,28 @@ function fxSlash(crit) {
   fxSpawn('fx-skill slash' + (crit ? ' double' : ''), c.x, c.y, '', 700);
 }
 // Entrada dos chefes: faixas de cinema e o nome a entrar de lado.
+function fxBossTitle(c) {
+  if (c.isSoberano) return 'Soberano';
+  if (c.isCatacumba && c.catacumbaDef) return `Senhor de ${c.catacumbaDef.name}`;
+  if (c.isDungeon && c.dungeonDef) return `Guardião de ${c.dungeonDef.name}`;
+  if (c.isTower) return 'Senhor da Torre';
+  const r = c.regionKey ? REGIONS.find(x => x.key === c.regionKey) : (c.regionIndexForBoss != null ? REGIONS[c.regionIndexForBoss] : null);
+  return r ? `Guardião de ${r.name}` : 'Chefe';
+}
 function fxBossIntro(c) {
   if (!fxOn()) return;
-  const sub = c.isSoberano ? `Chefe Soberano · Nv. ${c.level}` : `Chefe · Nv. ${c.level}${c.paragon ? ' · P' + c.paragon : ''}`;
-  fxSpawn('fx-cine', 0, 0, `<i class="t"></i><i class="b"></i><div class="fx-cine-card"><b>${esc(c.name || '')}</b><span>${sub}</span></div>`, 2700);
+  const lv = `Nv. ${c.level}${c.paragon ? ' · P' + c.paragon : ''}`;
   const g = document.getElementById('cb-enemy-glyph');
+  if (!fxFull()) { // Reduzidas: só a faixa com o nome
+    fxSpawn('fx-cine', 0, 0, `<i class="t"></i><i class="b"></i><div class="fx-cine-card"><b>${esc(c.name || '')}</b><span>${esc(fxBossTitle(c))} · ${lv}</span></div>`, 2700);
+    return;
+  }
+  const img = g && g.querySelector('img');
+  const face = img ? `<img src="${img.getAttribute('src')}" alt="">` : `<span>${esc(c.icon || '')}</span>`;
+  const d = fxSpawn('fx-bossin', 0, 0, `<i class="fx-bi-rays"></i><div class="fx-bi-face">${face}</div><div class="fx-bi-name">${esc(c.name || '')}</div><div class="fx-bi-title">${esc(fxBossTitle(c))}</div><div class="fx-bi-lv">${lv}</div><div class="fx-bi-skip">toca para saltar</div>`, 1900);
+  if (d) { d.addEventListener('click', () => { d.classList.add('out'); setTimeout(() => d.remove(), 200); }); }
   if (g) { g.classList.remove('fx-enter', 'fx-boss-in'); void g.offsetWidth; g.classList.add('fx-boss-in'); }
-  if (fxFull()) setTimeout(() => fxShakeScreen(true), 650);
-  fxVibrate([20, 60, 40]);
+  setTimeout(() => { fxShakeScreen(true); fxVibrate([50, 40, 30]); }, 380);
 }
 function fxPhase2Banner(name) {
   if (!fxOn()) return;
@@ -20420,7 +20545,9 @@ function sceneFxHtml(fx) {
   let h = '';
   for (let i = 0; i < n; i++) h += `<i style="left:${Math.round(Math.random() * 100)}%; top:${Math.round(Math.random() * 100)}%; animation-delay:-${(Math.random() * 8).toFixed(2)}s; animation-duration:${(4 + Math.random() * 6).toFixed(2)}s;"></i>`;
   if (fx === 'motes' && fxFull()) h += '<b class="sc-shoot"></b><b class="sc-shoot" style="animation-delay:-4.5s; top:22%; left:55%;"></b>';
-  return `<div class="scene-fx fx-${fx}">${h}</div>`;
+  let fg = ''; // v248: camada da frente (maior e desfocada) para dar profundidade
+  if (fxFull() && fx !== 'fog') for (let i = 0; i < 7; i++) fg += `<i style="left:${Math.round(Math.random() * 100)}%; top:${Math.round(Math.random() * 100)}%; animation-delay:-${(Math.random() * 8).toFixed(2)}s; animation-duration:${(3 + Math.random() * 4).toFixed(2)}s;"></i>`;
+  return `<div class="scene-fx fx-${fx}">${h}</div>${fg ? `<div class="scene-fx fx-${fx} sc-fg">${fg}</div>` : ''}`;
 }
 function combatSceneKey(c) {
   if (c.isArena) return 'arena'; // v223
@@ -20497,6 +20624,7 @@ function renderCombat() {
   catEl.style.borderColor = catInfo.color;
   catEl.style.color = catInfo.color;
   $('cb-enemy-hpfill').style.width = clamp(c.enemy.hp / c.enemy.maxHp * 100, 0, 100) + '%';
+  $('cb-enemy-hpfill').parentElement.classList.toggle('fx-bossbar', !!(c.isBoss || c.isMiniBoss || c.isSoberano)); // v248
   fxGhostBar('cb-enemy-hpfill', clamp(c.enemy.hp / c.enemy.maxHp * 100, 0, 100));
   $('cb-enemy-hp').textContent = `${Math.max(0, c.enemy.hp)}/${c.enemy.maxHp}`;
 
@@ -20693,7 +20821,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v247</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v248</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

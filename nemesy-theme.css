@@ -4312,3 +4312,104 @@ body.tod-noite .cb-scene .scene-svg,body.tod-noite .region-banner .scene-svg{fil
 @keyframes fzPulse{0%,100%{transform:translateX(0);}50%{transform:translateX(4px);}}
 @keyframes fzGlow{0%,100%{transform:scale(1);}50%{transform:scale(1.12);filter:drop-shadow(0 0 8px var(--nc));}}
 @keyframes fzPop{0%{transform:scale(.6);opacity:0;}70%{transform:scale(1.08);opacity:1;}100%{transform:scale(1);}}
+
+/* ============ v248: pacote "Impacto" no combate ============ */
+/* números de dano: arco, crítico e cor do elemento */
+.fx-hitn{position:absolute; transform:translate(-50%,-50%); font-family:var(--font-display); font-weight:800; font-size:22px; color:#fff; white-space:nowrap; z-index:5;
+  text-shadow:0 2px 0 #000, 0 0 3px #000, 0 0 10px rgba(0,0,0,.8); animation:fxHitArc 1.15s cubic-bezier(.2,.7,.4,1) forwards; text-align:center; line-height:1;}
+.fx-hitn small{display:block; font-size:11px; letter-spacing:.14em; color:#FFE9A8; margin-bottom:2px; text-shadow:0 1px 0 #000, 0 0 8px rgba(255,140,30,.9);}
+.fx-hitn.crit{font-size:36px; color:#FFB43A; text-shadow:0 3px 0 #5a2600, 0 0 4px #000, 0 0 18px rgba(255,120,20,.95); animation:fxHitCrit 1.25s cubic-bezier(.2,.7,.4,1) forwards;}
+.fx-hitn.el-fire{color:#FF8A3A; text-shadow:0 2px 0 #4a1400, 0 0 14px rgba(255,90,20,.95);}
+.fx-hitn.el-elec{color:#FFF27A; text-shadow:0 2px 0 #4a3e00, 0 0 14px rgba(255,240,90,.95);}
+.fx-hitn.el-earth{color:#D9A86A; text-shadow:0 2px 0 #3a2410, 0 0 12px rgba(180,120,60,.9);}
+.fx-hitn.el-poison{color:#9BF06A; text-shadow:0 2px 0 #183a08, 0 0 12px rgba(120,230,80,.9);}
+.fx-hitn.el-blood{color:#FF5A5A; text-shadow:0 2px 0 #3a0808, 0 0 12px rgba(230,40,40,.9);}
+.fx-hitn.el-holy{color:#FFF6C8; text-shadow:0 2px 0 #4a3a00, 0 0 16px rgba(255,230,140,1);}
+.fx-hitn.el-soul,.fx-hitn.el-arcane{color:#C9A6FF; text-shadow:0 2px 0 #24104a, 0 0 14px rgba(160,110,255,.95);}
+@keyframes fxHitArc{0%{opacity:0; transform:translate(-50%,-30%) scale(.6);} 10%{opacity:1; transform:translate(-50%,-80%) scale(1.15);} 45%{transform:translate(calc(-50% + var(--dx,20px) * .6),-210%) scale(1);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx,20px)),-120%) scale(.9);}}
+@keyframes fxHitCrit{0%{opacity:0; transform:translate(-50%,-40%) scale(.3) rotate(-10deg);} 12%{opacity:1; transform:translate(-50%,-80%) scale(1.55) rotate(5deg);} 24%{transform:translate(-50%,-110%) scale(1.15) rotate(0);} 55%{transform:translate(calc(-50% + var(--dx,20px) * .5),-200%) scale(1.1);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx,20px)),-140%) scale(1);}}
+/* rasto da barra mais visível */
+.bar-ghost{background:linear-gradient(180deg,#FFF6D8,#FFD98A) !important; box-shadow:0 0 8px rgba(255,220,140,.6);}
+/* Combo */
+#fx-combo{position:absolute; width:auto; z-index:41; pointer-events:none; text-align:left; opacity:0; transform:translateX(20px); transition:opacity .25s, transform .25s; font-family:var(--font-display); line-height:.9;}
+#fx-combo.on{opacity:1; transform:none;}
+#fx-combo b{display:block; font-size:34px; font-weight:800; color:#fff; text-shadow:0 3px 0 #000, 0 0 12px rgba(255,255,255,.5);}
+#fx-combo span{font-size:11px; font-weight:800; letter-spacing:.24em; color:#ffe9b0; text-shadow:0 1px 0 #000;}
+#fx-combo.t2 b{color:#FFC24A; text-shadow:0 3px 0 #4a2600, 0 0 16px rgba(255,170,40,.9);}
+#fx-combo.t3 b{color:#FF6A2A; text-shadow:0 3px 0 #4a0e00, 0 0 20px rgba(255,80,20,1); animation:fxComboShake .25s linear infinite;}
+#fx-combo.t4 b{color:#E07BFF; text-shadow:0 3px 0 #2a0a4a, 0 0 22px rgba(200,90,255,1), 0 0 40px rgba(255,90,40,.6); animation:fxComboShake .18s linear infinite;}
+#fx-combo.t3 span,#fx-combo.t4 span{color:#FFB98A;}
+#fx-combo.pop b{animation:fxComboPop .3s cubic-bezier(.2,1.6,.4,1);}
+#fx-combo.t3.pop b,#fx-combo.t4.pop b{animation:fxComboPop .3s cubic-bezier(.2,1.6,.4,1), fxComboShake .2s linear .3s infinite;}
+@keyframes fxComboPop{0%{transform:scale(1.7);} 100%{transform:scale(1);}}
+@keyframes fxComboShake{0%,100%{transform:translate(0,0);} 25%{transform:translate(1px,-1px);} 50%{transform:translate(-1px,1px);} 75%{transform:translate(1px,1px);}}
+/* rachas no retrato */
+.enemy-glyph .fx-cracks{position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:3; background-size:100% 100%; background-repeat:no-repeat; opacity:0; transition:opacity .2s;}
+#screen-combat .enemy-glyph > i.fx-cracks.s1{opacity:1; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M84 14 L72 28 L74 36 L63 44 L60 55' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M84 14 L72 28 L74 36 L63 44 L60 55' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M72 28 L82 34' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M72 28 L82 34' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M63 44 L54 41' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M63 44 L54 41' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3C/svg%3E") !important;}
+#screen-combat .enemy-glyph > i.fx-cracks.s2{opacity:1; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M84 14 L72 28 L74 36 L63 44 L60 55' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M84 14 L72 28 L74 36 L63 44 L60 55' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M72 28 L82 34' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M72 28 L82 34' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M63 44 L54 41' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M63 44 L54 41' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M8 46 L22 50 L28 44 L40 52 L46 49' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M8 46 L22 50 L28 44 L40 52 L46 49' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M22 50 L20 62' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M22 50 L20 62' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M28 44 L31 35' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M28 44 L31 35' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3C/svg%3E") !important;}
+#screen-combat .enemy-glyph > i.fx-cracks.s3{opacity:1; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M84 14 L72 28 L74 36 L63 44 L60 55' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M84 14 L72 28 L74 36 L63 44 L60 55' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M72 28 L82 34' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M72 28 L82 34' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M63 44 L54 41' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M63 44 L54 41' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M8 46 L22 50 L28 44 L40 52 L46 49' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M8 46 L22 50 L28 44 L40 52 L46 49' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M22 50 L20 62' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M22 50 L20 62' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M28 44 L31 35' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M28 44 L31 35' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3C/svg%3E"),url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 96 L52 82 L44 74 L48 64 L42 58' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M50 96 L52 82 L44 74 L48 64 L42 58' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M52 82 L62 78 L66 70' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M52 82 L62 78 L66 70' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M44 74 L34 78' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M44 74 L34 78' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3Cpath d='M48 64 L58 60' fill='none' stroke='rgba(0,0,0,.85)' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M48 64 L58 60' fill='none' stroke='rgba(255,220,180,.55)' stroke-width='.9' stroke-linecap='round' stroke-linejoin='round' transform='translate(.6 .6)'/%3E%3C/svg%3E") !important; filter:drop-shadow(0 0 2px rgba(255,90,40,.6));}
+.fx-segbreak{position:absolute; width:16px; height:30px; transform:translate(-50%,-50%); background:radial-gradient(closest-side,#fff,rgba(255,200,90,.8),transparent); animation:fxSegBreak .7s ease-out forwards; z-index:6;}
+@keyframes fxSegBreak{0%{opacity:1; transform:translate(-50%,-50%) scale(.4,1.6);} 100%{opacity:0; transform:translate(-50%,-50%) scale(2.6,.6);}}
+.fx-spark{position:absolute; width:4px; height:4px; border-radius:50%; background:#FFE39A; box-shadow:0 0 6px #FFB040; animation:fxSpark .65s ease-out forwards; z-index:6;}
+@keyframes fxSpark{0%{opacity:1; transform:translate(-50%,-50%);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy)));}}
+/* barra de chefe por fases */
+#screen-combat .bar.fx-bossbar{height:16px !important; border:1px solid #6B4A22 !important; box-shadow:0 0 0 1px #000, inset 0 2px 4px rgba(0,0,0,.8), 0 0 14px rgba(200,40,20,.25) !important;}
+#screen-combat .bar.fx-bossbar::after{content:''; position:absolute; inset:0; pointer-events:none; z-index:2; background:linear-gradient(90deg,transparent calc(25% - 1px),#000 calc(25% - 1px),#C9963C 25%,#000 calc(25% + 1px),transparent calc(25% + 1px),transparent calc(50% - 1px),#000 calc(50% - 1px),#C9963C 50%,#000 calc(50% + 1px),transparent calc(50% + 1px),transparent calc(75% - 1px),#000 calc(75% - 1px),#C9963C 75%,#000 calc(75% + 1px),transparent calc(75% + 1px));}
+#screen-combat .bar.fx-bossbar .bar-fill{background:linear-gradient(180deg,#FF6A4A 0%,#D4241A 45%,#7A0C06 100%) !important;}
+#screen-combat .bar.fx-bossbar .bar-num{z-index:3;}
+/* Fúria */
+#screen-combat.fx-fury #cb-scene{filter:brightness(.62) saturate(1.25) sepia(.25) hue-rotate(-12deg); transition:filter .6s;}
+#screen-combat.fx-fury::before{content:''; position:absolute; inset:0; pointer-events:none; z-index:39; box-shadow:inset 0 0 90px rgba(200,20,10,.55); animation:fxFuryPulse 1.1s ease-in-out infinite;}
+#screen-combat.fx-fury .enemy-glyph{box-shadow:0 0 0 3px rgba(255,60,30,.9), 0 0 26px 6px rgba(255,40,20,.7) !important; animation:fxFuryGlyph 1.1s ease-in-out infinite;}
+@keyframes fxFuryPulse{0%,100%{opacity:.55;} 50%{opacity:1;}}
+@keyframes fxFuryGlyph{0%,100%{transform:scale(1);} 50%{transform:scale(1.04);}}
+.fx-fury-tag{position:absolute; transform:translate(-50%,-50%); font-family:var(--font-display); font-weight:800; font-size:26px; letter-spacing:.2em; color:#FF5A3A; text-shadow:0 2px 0 #000, 0 0 18px rgba(255,40,20,1); animation:fxFuryTag 1.4s ease-out forwards; z-index:7;}
+@keyframes fxFuryTag{0%{opacity:0; transform:translate(-50%,-50%) scale(2.2);} 15%{opacity:1; transform:translate(-50%,-50%) scale(1);} 75%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-90%) scale(1);}}
+/* golpe final */
+#screen-combat.fx-slowmo #cb-scene{animation:fxSlowmo .6s ease-out;}
+#screen-combat.fx-slowmo-big #cb-scene{animation:fxSlowmoBig 1.1s ease-out;}
+@keyframes fxSlowmo{0%{filter:brightness(1.8) contrast(1.2);} 100%{filter:none;}}
+@keyframes fxSlowmoBig{0%{filter:brightness(2.4) contrast(1.4) saturate(.4); transform:scale(1.06);} 35%{filter:brightness(.7) saturate(.6); transform:scale(1.04);} 100%{filter:none; transform:scale(1);}}
+.fx-shard{position:absolute; transform:translate(-50%,-50%); border-radius:50%; overflow:hidden; z-index:8; animation:fxShard 1s cubic-bezier(.3,.6,.5,1) forwards; filter:drop-shadow(0 0 6px rgba(255,200,120,.6));}
+.fx-shard img,.fx-shard span{width:100%; height:100%; object-fit:cover; display:grid; place-items:center; font-size:60px;}
+@keyframes fxShard{0%{opacity:1; transform:translate(-50%,-50%);} 15%{opacity:1; transform:translate(-50%,-50%) scale(1.03);} 100%{opacity:0; transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) rotate(var(--rot));}}
+.fx-killflash{position:absolute; width:260px; height:260px; transform:translate(-50%,-50%); border-radius:50%; background:radial-gradient(closest-side,rgba(255,255,255,.95),rgba(255,220,150,.5) 40%,transparent); animation:fxKillFlash .7s ease-out forwards; z-index:7;}
+@keyframes fxKillFlash{0%{opacity:0; transform:translate(-50%,-50%) scale(.2);} 20%{opacity:1;} 100%{opacity:0; transform:translate(-50%,-50%) scale(1.6);}}
+/* feixes de loot */
+.fx-beam{position:absolute; width:64px; height:0; z-index:9; animation:fxBeamLife 1.9s ease-in-out forwards; opacity:0;}
+.fx-beam .col{position:absolute; left:50%; bottom:0; width:34px; height:340px; transform:translateX(-50%); background:linear-gradient(0deg, var(--rc) 0%, color-mix(in srgb,var(--rc) 60%,transparent) 35%, transparent 100%); filter:blur(3px); opacity:.85; mix-blend-mode:screen;}
+.fx-beam .col::after{content:''; position:absolute; left:50%; bottom:0; width:8px; height:100%; transform:translateX(-50%); background:linear-gradient(0deg,#fff,color-mix(in srgb,var(--rc) 40%,#fff) 40%,transparent); filter:blur(1px);}
+.fx-beam .base{position:absolute; left:50%; bottom:-10px; width:90px; height:22px; transform:translateX(-50%); border-radius:50%; background:radial-gradient(closest-side,var(--rc),transparent); filter:blur(2px);}
+.fx-beam .it{position:absolute; left:50%; bottom:6px; width:46px; height:46px; transform:translateX(-50%); display:grid; place-items:center; animation:fxBeamItem 1.9s cubic-bezier(.3,.6,.4,1) forwards; filter:drop-shadow(0 0 8px var(--rc));}
+.fx-beam .it .nx-ic,.fx-beam .it img{width:44px; height:44px;}
+.fx-beam.r-divino .col{width:46px; height:420px;} .fx-beam.r-divino .base{width:120px;}
+@keyframes fxBeamLife{0%{opacity:0;} 10%{opacity:1;} 80%{opacity:1;} 100%{opacity:0;}}
+@keyframes fxBeamItem{0%{transform:translate(-50%,-160px) scale(.6); opacity:0;} 18%{transform:translate(-50%,0) scale(1.15); opacity:1;} 26%{transform:translate(-50%,-14px) scale(1);} 34%{transform:translate(-50%,0);} 72%{transform:translate(-50%,0) scale(1); opacity:1;} 100%{transform:translate(calc(-50% + 120px),-420px) scale(.3); opacity:0;}}
+/* entrada de chefe */
+.fx-bossin{position:absolute; inset:0; z-index:45; pointer-events:auto; display:flex; flex-direction:column; align-items:center; justify-content:center; background:radial-gradient(ellipse at 50% 42%, rgba(60,10,6,.55), rgba(0,0,0,.92) 70%); animation:fxBossInBg 1.9s ease forwards; text-align:center;}
+.fx-bossin.out{opacity:0; transition:opacity .2s;}
+.fx-bi-rays{position:absolute; left:50%; top:40%; width:520px; height:520px; transform:translate(-50%,-50%); background:repeating-conic-gradient(from 0deg, rgba(255,90,40,.16) 0 6deg, transparent 6deg 18deg); border-radius:50%; mask:radial-gradient(closest-side,#000 30%,transparent); -webkit-mask:radial-gradient(closest-side,#000 30%,transparent); animation:fxBiRays 2s linear forwards;}
+.fx-bi-face{position:relative; width:150px; height:150px; border-radius:50%; overflow:hidden; box-shadow:0 0 0 3px #C9963C, 0 0 0 6px #000, 0 0 40px rgba(255,60,20,.8); animation:fxBiSlam .45s cubic-bezier(.5,0,.75,0) forwards; display:grid; place-items:center; font-size:90px; background:#120a06;}
+.fx-bi-face img{width:100%; height:100%; object-fit:cover;}
+.fx-bi-name{margin-top:18px; font-family:var(--font-display); font-weight:800; font-size:28px; letter-spacing:.12em; text-transform:uppercase; color:#FFD9C2; text-shadow:0 2px 0 #000, 0 0 18px rgba(255,60,20,.9); animation:fxBiText .5s ease .35s both;}
+.fx-bi-title{font-family:var(--font-display); font-size:13px; letter-spacing:.22em; text-transform:uppercase; color:#E8C27A; margin-top:4px; animation:fxBiText .5s ease .5s both;}
+.fx-bi-title::before,.fx-bi-title::after{content:'—'; margin:0 8px; color:#8a6a3a;}
+.fx-bi-lv{font-size:12px; color:#c9b39a; margin-top:6px; animation:fxBiText .5s ease .6s both;}
+.fx-bi-skip{position:absolute; bottom:18%; font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.35);}
+@keyframes fxBossInBg{0%{opacity:0;} 8%{opacity:1;} 82%{opacity:1;} 100%{opacity:0; visibility:hidden;}}
+@keyframes fxBiSlam{0%{transform:scale(3.2); opacity:0; filter:blur(6px);} 80%{opacity:1; filter:none;} 100%{transform:scale(1); opacity:1;}}
+@keyframes fxBiText{0%{opacity:0; transform:translateY(10px) scale(1.1); letter-spacing:.4em;} 100%{opacity:1; transform:none;}}
+@keyframes fxBiRays{0%{transform:translate(-50%,-50%) rotate(0) scale(.5); opacity:0;} 25%{opacity:1;} 100%{transform:translate(-50%,-50%) rotate(40deg) scale(1.1); opacity:.6;}}
+/* partículas do cenário: camada da frente */
+.scene-fx.sc-fg{z-index:3;}
+.scene-fx.sc-fg i{scale:2.1; filter:blur(1.6px); opacity:.55;}
+body.fx-lite .scene-fx.sc-fg,body.fx-off .scene-fx.sc-fg{display:none;}
+body.fx-lite #fx-combo b{animation:none !important;}
+@media (prefers-reduced-motion:reduce){.fx-bi-rays,#fx-combo b,#screen-combat.fx-fury::before,#screen-combat.fx-fury .enemy-glyph{animation:none !important;}}
+#screen-combat .enemy-glyph > i.fx-cracks{position:absolute !important; inset:5px; width:auto !important; height:auto !important; display:block; border-radius:50%; background-color:transparent !important; background-size:100% 100% !important; background-repeat:no-repeat !important; overflow:visible;}
+#screen-combat .enemy-glyph > i.fx-cracks.s0{background-image:none !important;}
+#screen-combat.cbx .enemy-glyph.boss::after,#screen-combat.cbx .enemy-glyph.mini::after{border-radius:50%;}
+#screen-combat .combat-bottom.fx-locked{pointer-events:none; filter:grayscale(.6) brightness(.6); transition:filter .3s;}
+#screen-combat .enemy-glyph.fx-gone{opacity:.28; filter:grayscale(1) brightness(.6); transition:opacity .3s;}
+#screen-combat .enemy-glyph.fx-gone > i.fx-cracks{display:none;}
+#screen-combat .enemy-glyph.fx-shattered{opacity:0 !important; transition:opacity .08s;}
