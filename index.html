@@ -2900,7 +2900,7 @@ async function spiralLoadRanking(box) {
 function spiralRankHtml(rows) {
   if (!rows.length) return '<p class="tiny muted">Ainda ninguém subiu esta semana. Sê o primeiro!</p>';
   const medal = i => ['🥇', '🥈', '🥉'][i] || `<b>${i + 1}</b>`;
-  return `<div class="sp-rank">${rows.map((r, i) => `<div class="sp-rank-row${r.is_me ? ' me' : ''}"><span class="sp-rank-pos">${medal(i)}</span><span class="sp-rank-n">${esc(r.name || 'Herói')}<small>${r.paragon ? `P${r.paragon} · ` : ''}Nv. ${r.level || 200}</small></span><span class="sp-rank-f">🌀 ${r.floor}</span></div>`).join('')}</div>`;
+  return `<div class="sp-rank">${rows.map((r, i) => `<div class="sp-rank-row${r.is_me ? ' me' : ''}" data-pf-name="${esc(r.name || '')}" role="button" tabindex="0"><span class="sp-rank-pos">${medal(i)}</span><span class="sp-rank-n">${esc(r.name || 'Herói')}<small>${r.paragon ? `P${r.paragon} · ` : ''}Nv. ${r.level || 200}</small></span><span class="sp-rank-f">🌀 ${r.floor}</span></div>`).join('')}</div>`;
 }
 function renderSpiralBody(body, T) {
   const p = App.player, s = spiralState(p), t = p.tower && p.tower.key === T.key ? p.tower : null;
@@ -15395,8 +15395,7 @@ function equipItemOffhand(itemId) {
   if (current) p.inventory.push(current);
   saveGame();
   sfx.equip();
-  renderMochilaBody();
-  renderStatusBar();
+  liveRefresh();
   toast(dualWieldEligible(p.equipment.weapon) ? `⚔️ ${item.name} equipado como 2.ª arma.` : `${item.name} equipado como 2.ª arma — só conta quando a arma principal for Espada, Machado ou Varinha.`);
 }
 function equipItem(itemId) {
@@ -15410,8 +15409,7 @@ function equipItem(itemId) {
   if (current) p.inventory.push(current);
   saveGame();
   sfx.equip();
-  renderMochilaBody();
-  renderStatusBar();
+  liveRefresh();
   toast(`${item.name} equipado.`);
 }
 
@@ -15555,7 +15553,7 @@ function toggleItemLock(itemId, after) {
   if (!item.locked) delete item.locked;
   saveGame();
   sfx.click();
-  if (App.tab === 'mochila') renderMochilaBody();
+  liveRefresh();
   if (typeof after === 'function') after(); // v239: a ficha volta a abrir já com o novo estado
   toast(item.locked ? `🔒 ${item.name} bloqueado — não pode ser vendido.` : `🔓 ${item.name} desbloqueado.`);
 }
@@ -15572,8 +15570,7 @@ function sellItem(itemId) {
   p.inventory.splice(idx, 1);
   saveGame();
   sfx.gold();
-  renderMochilaBody();
-  renderStatusBar();
+  liveRefresh();
   fxGoldGain(g0, p.gold);
   toast(`Vendido por ${value} ouro.`);
 }
@@ -15910,7 +15907,7 @@ function useNephalemStone(slot) {
     toast('💎 A Pedra Nephalen não teve efeito desta vez.');
   }
   saveGame();
-  renderStatusBar();
+  liveRefresh();
   openEquipSlotModal(slot);
 }
 
@@ -16217,8 +16214,7 @@ function unequipItem(slot) {
   p.inventory.push(item);
   delete p.equipment[slot];
   saveGame();
-  renderMochilaBody();
-  renderStatusBar();
+  liveRefresh();
 }
 
 function addSocketSlot(slot) {
@@ -16232,7 +16228,7 @@ function addSocketSlot(slot) {
   item.socketSlots++;
   item.sockets.push(null);
   saveGame();
-  renderStatusBar();
+  liveRefresh();
   refreshItemView(slot);
 }
 
@@ -16253,7 +16249,7 @@ async function removeGem(slot, socketIdx) {
   p.gems[s.type][s.tier] = (p.gems[s.type][s.tier] || 0) + 1;
   saveGame();
   sfx.click();
-  renderStatusBar();
+  liveRefresh();
   refreshItemView(slot);
   toast(`${gdef.icon} ${gemFullName(s.type, s.tier)} voltou para a bolsa.`);
 }
@@ -16289,7 +16285,7 @@ function openGemPicker(slot, socketIdx) {
     item.sockets[socketIdx] = { type, tier };
     saveGame();
     closeModal();
-    renderStatusBar();
+    liveRefresh();
     if (inBag) { openItemCompareModal(slot, 'item'); toast('Gema encaixada!'); return; }
     if (fxOn()) fxGemSocket(item, type, tier); else toast('Gema encaixada!');
   }));
@@ -16889,6 +16885,15 @@ function smithCardHtml(p, item, ref) {
     ${bodyHtml}
   </div>`;
 }
+// v255: atualiza em tempo real o ecrã que está por baixo (Mochila, Gemas, Herói, Ferreiro…) depois de uma ação feita numa janela.
+function liveRefresh() {
+  if (!App.player) return;
+  renderStatusBar();
+  if (App.combat && !App.combat.ended) return;
+  const y = window.scrollY;
+  try { if (App.tab === 'mochila') renderMochilaBody(); else if (App.tab === 'heroi' || App.tab === 'loja') renderHubTab(); } catch (e) { console.warn(e); }
+  window.scrollTo(0, y);
+}
 // v254: um item pode vir do equipamento (ref = espaço) ou da Mochila (ref = id do item).
 function itemByRef(ref) { const p = App.player; return EQUIP_SLOTS.includes(ref) ? p.equipment[ref] : (p.inventory || []).find(i => i.id === ref); }
 function refreshItemView(ref) { if (EQUIP_SLOTS.includes(ref)) openEquipSlotModal(ref); else openItemCompareModal(ref, 'item'); }
@@ -16904,7 +16909,7 @@ async function ascendItemAction(slot) {
   p.hp = Math.min(p.hp, effectiveStats(p).hp);
   saveGame(); sfx.evolve(); fxVibrate([20, 40, 20]);
   toast(`✦ ${item.name} foi Ascendido!`);
-  renderStatusBar(); renderLojaBody();
+  liveRefresh();
 }
 function upgradeItem(slot) {
   const p = App.player;
@@ -17524,18 +17529,82 @@ let leaderboardCache = null;
 let leaderboardToken = 0;
 const LEADERBOARD_TTL_MS = 60000;
 
+// v255: 👤 Perfil de outro herói (Classificação, Ranking da Espiral…). Os stats são calculados aqui a partir
+// do que o servidor devolve (equipamento, passivas, alquimia, mascote…), por isso batem certo com o Perfil dele.
+let pfOpening = false;
+async function openPlayerProfile(name) {
+  if (!name || pfOpening) return;
+  if (!cloudClient || !cloudUser) { toast('Inicia sessão para veres perfis.'); return; }
+  pfOpening = true;
+  openModal(`<div class="opf-load"><div class="opf-spin"></div><p class="muted">A abrir o perfil de <b>${esc(name)}</b>…</p></div>`);
+  let data = null, error = null;
+  try { ({ data, error } = await cloudClient.rpc('get_player_profile', { p_name: name })); } catch (e) { error = e; }
+  pfOpening = false;
+  if (error || !data || !data.save || !CLASSES[data.save.class]) {
+    openModal(`<h3 style="margin-bottom:8px;">👤 ${esc(name)}</h3><p class="muted">${error ? 'Não foi possível abrir o perfil agora. Tenta de novo daqui a pouco.' : 'Este herói já não existe.'}</p><button class="btn ghost block" id="btn-close-modal" style="margin-top:12px;">Fechar</button>`);
+    $('btn-close-modal').addEventListener('click', closeModal);
+    return;
+  }
+  const q = JSON.parse(JSON.stringify(data.save));
+  try { applyPlayerMigrations(q); } catch (e) {}
+  q.equipment = q.equipment && typeof q.equipment === 'object' ? q.equipment : {};
+  EQUIP_SLOTS.forEach(sl => { const it = q.equipment[sl]; if (it && (typeof it !== 'object' || !it.stats || !it.baseStats)) delete q.equipment[sl]; });
+  App.pfView = { q, me: !!data.is_me };
+  paintPlayerProfile();
+}
+function paintPlayerProfile() {
+  const v = App.pfView; if (!v) return;
+  const q = v.q, cls = CLASSES[q.class], evo = q.evolution && EVOLUTIONS[q.class] ? EVOLUTIONS[q.class].find(e => e.key === q.evolution) : null;
+  let st = null, pow = 0;
+  try { st = effectiveStats(q); pow = heroPower(q); } catch (e) { st = null; }
+  const int = n => Math.round(n || 0).toLocaleString('pt-PT');
+  const eqN = EQUIP_SLOTS.filter(sl => q.equipment[sl]).length;
+  const nAst = EQUIP_SLOTS.filter(sl => q.equipment[sl] && q.equipment[sl].rarity === 'astral').length, nDiv = EQUIP_SLOTS.filter(sl => q.equipment[sl] && q.equipment[sl].rarity === 'divino').length;
+  const sp = q.spiral || {}, wk = isoWeekKey();
+  const recs = [
+    sp.allBest ? ['🌀', 'Espiral (recorde)', `Andar ${int(sp.allBest)}`] : null,
+    sp.wk === wk && sp.best ? ['📅', 'Espiral (esta semana)', `Andar ${int(sp.best)}`] : null,
+    Number(q.pactBest) > 0 ? ['⚖️', 'Torre dos Pactos (recorde)', `Peso ${int(q.pactBest)}`] : null,
+    Array.isArray(q.defeatedBosses) && q.defeatedBosses.length ? ['👑', 'Chefes derrotados', int(q.defeatedBosses.length)] : null,
+    (() => { try { const n = cardCount(q); return n ? ['🃏', 'Cartas colecionadas', `${n}/${cardList().length}`] : null; } catch (e) { return null; } })(),
+    nAst ? ['💎', 'Peças Astrais', `${nAst}/9`] : null,
+    nDiv ? ['💠', 'Peças Divinas', `${nDiv}/9`] : null
+  ].filter(Boolean);
+  openModal(`<div class="opf">
+    <div class="opf-hd">
+      <div class="pf-por${paragonOf(q) ? ' pg' + paragonOf(q) : ''}"><div class="frame">${heroAvatarHtml(q, 'big')}</div><span class="lv">Nv. ${heroLv(q)}${pgPill(paragonOf(q))}</span></div>
+      <div class="opf-hi"><b class="n">${esc(q.name || 'Herói')}${v.me ? ' <small>(tu)</small>' : ''}</b>
+        <div class="cl">${classIc(q.class, cls.icon)} ${cls.name}${evo ? ` · ${esc(evo.name)}` : ''}${q.profession && PROFESSIONS[q.profession] ? ` · ${PROFESSIONS[q.profession].icon} ${PROFESSIONS[q.profession].name}` : ''}</div>
+        ${st ? `<div class="pf-pow"><small>Poder</small><b>${int(pow)}</b></div>` : ''}</div>
+    </div>
+    ${st ? `<div class="pf-quick opf-quick"><div><b>${int(st.dmgMin)}–${int(st.dmgMax)}</b><small>Dano</small></div><div><b>${int(st.hp)}</b><small>HP</small></div><div><b class="st-def">${int(st.def)}</b><small>Defesa</small></div>${st.es ? `<div><b class="st-es">${int(st.es)}</b><small>Escudo</small></div>` : ''}<div><b>${(Math.round((st.crit || 0) * 1000) / 10).toLocaleString('pt-PT')}%</b><small>Crítico</small></div></div>` : ''}
+    <div class="opf-sec"><div class="row between"><b>🛡️ Equipamento</b><span class="tiny muted">${eqN}/${EQUIP_SLOTS.length} · toca numa peça</span></div>
+      <div class="opf-eq">${EQUIP_SLOTS.map(sl => { const it = q.equipment[sl]; return it ? `<button type="button" class="opf-it" data-opf-slot="${sl}" style="${rarityBoxStyle(it)}">${itemIconHtml(it)}${it.upgrade ? `<i>${it.ascended ? '✦' : '+' + it.upgrade}</i>` : ''}<small>${SLOT_NAMES[sl]}</small></button>` : `<div class="opf-it empty">${slotIconHtml(sl)}<small>${SLOT_NAMES[sl]}</small></div>`; }).join('')}</div></div>
+    ${recs.length ? `<div class="opf-sec"><b>🏆 Conquistas</b><div class="opf-recs">${recs.map(([ic, l, val]) => `<div><span>${ic} ${l}</span><b>${val}</b></div>`).join('')}</div></div>` : ''}
+    <button class="btn ghost block" id="btn-close-modal" style="margin-top:12px;">Fechar</button>
+  </div>`);
+  $('btn-close-modal').addEventListener('click', () => { App.pfView = null; closeModal(); });
+  els('[data-opf-slot]').forEach(b => b.addEventListener('click', () => {
+    const sl = b.dataset.opfSlot, it = q.equipment[sl]; if (!it) return;
+    sfx.click();
+    openModal(`<h3 style="margin-bottom:10px;">${slotIconHtml(sl)} ${SLOT_NAMES[sl]} · <span class="muted">${esc(q.name || '')}</span></h3>${itemSheetHtml(it, sl, q, true)}
+      <button class="btn block" id="btn-opf-back" style="margin-top:10px;">← Voltar ao perfil</button>`);
+    $('btn-opf-back').addEventListener('click', () => { sfx.tab(); paintPlayerProfile(); });
+  }));
+}
+document.addEventListener('click', e => { const el = e.target && e.target.closest && e.target.closest('[data-pf-name]'); if (el && el.dataset.pfName) { sfx.click(); openPlayerProfile(el.dataset.pfName); } });
 function leaderboardRowsHtml(rows, valueFn) {
   if (!rows || !rows.length) return `<p class="tiny muted">Ainda não há jogadores na classificação.</p>`;
   const medals = ['🥇', '🥈', '🥉'];
   return rows.map((r, i) => {
     const cls = CLASSES[r.class] || CLASSES.guerreiro;
-    return `<div class="item-row"${r.is_me ? ' style="border-color:var(--gold-bright);"' : ''}>
+    return `<div class="item-row lb-row" data-pf-name="${esc(r.name || '')}" role="button" tabindex="0"${r.is_me ? ' style="border-color:var(--gold-bright);"' : ''}>
       <div class="item-ic">${medals[i] || (i + 1)}</div>
       <div class="item-mid">
         <div class="item-name">${esc(r.name)}${r.is_me ? ' <span class="tiny" style="color:var(--gold-bright);">(tu)</span>' : ''}</div>
         <div class="tiny">${classIc(CLASSES[r.class] ? r.class : 'guerreiro', cls.icon)} ${cls.name} · Nível ${Number(r.level) || 1}</div>
       </div>
-      <div style="font-weight:800; color:var(--gold-bright); white-space:nowrap;">${valueFn(r)}</div>
+      <div style="font-weight:800; color:var(--gold-bright); white-space:nowrap;">${valueFn(r)}</div><span class="lb-go">›</span>
     </div>`;
   }).join('');
 }
@@ -17546,7 +17615,7 @@ function paintLeaderboard(body, data) {
     ${leaderboardRowsHtml(data.levels, r => Number(r.paragon) > 0 ? `Nv. ${Number(r.plv) || 1} · P${Number(r.paragon)}` : `Nv. ${Number(r.level) || 1}`)}
     <div class="section-title">💰 Top Ouro</div>
     ${leaderboardRowsHtml(data.gold, r => `🪙 ${Number(r.gold || 0).toLocaleString('pt-PT')}`)}
-    <p class="tiny muted" style="margin-top:10px;">Atualiza a cada minuto. Só aparecem o nome da personagem, a classe e o nível.</p>
+    <p class="tiny muted" style="margin-top:10px;">Atualiza a cada minuto. Toca num herói para veres o perfil dele.</p>
   `;
 }
 
@@ -21615,7 +21684,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v254</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v255</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
