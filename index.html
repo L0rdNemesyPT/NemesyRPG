@@ -7492,6 +7492,7 @@ const ADMIN_ADD_KEYS = [
   ['potion_hp', '🧪 Poção de HP'], ['potion_hp2', '⚗️ Poção de HP Maior'], ['potion_def', '🔵 Poção da Defesa'],
   ['potion_atk', '🔴 Poção do Ataque'], ['potion_fortune', '🍀 Poção da Fortuna'],
   ['key_demonio_t1', '🗝️ Chave da Catacumba do Demônio'], ['key_morte_t2', '🗝️ Chave das Catacumbas da Morte'], ['key_templo_almas', '🗝️ Chave do Templo das Almas'],
+  ['astral_shards', '✴️ Estilhaço Astral'], ['soberano_heart', '❤️‍🔥 Coração do Soberano'],
   ['po_estelar', '✨ Pó Estelar'], ['pearl_branca', '⚪ Pérola Branca'], ['pearl_azul', '🔵 Pérola Azul'], ['pearl_vermelha', '🔴 Pérola Vermelha'], ['pearl_verde', '🟢 Pérola Verde']
 ];
 function adminOpLabel(op) {
@@ -7565,7 +7566,8 @@ async function claimAdminGifts(force) {
 }
 
 function adminState() {
-  if (!App.adminUi) App.adminUi = { target: null, cart: [], note: '', item: null, itemCfg: { slot: 'weapon', rarity: 'divino', level: Math.min(MAX_LEVEL, (App.player && App.player.level) || 1), upgrade: 0, setKey: Object.keys(SET_DEFS)[0], b1: '', v1: 0, b2: '', v2: 0, pp: '', pv: 0 } };
+  if (!App.adminUi) App.adminUi = { target: null, cart: [], note: '', item: null, results: null, search: '', sheet: false, logHtml: null, sending: false,
+    inp: { xp: '', lv: '', gold: '', res: ADMIN_ADD_KEYS[0][0], resQty: 1, gem: 'dano', gemTier: 2, gemQty: 1 }, itemCfg: { slot: 'weapon', rarity: 'divino', level: Math.min(MAX_LEVEL, (App.player && App.player.level) || 1), upgrade: 0, setKey: Object.keys(SET_DEFS)[0], b1: '', v1: 0, b2: '', v2: 0, pp: '', pv: 0 } };
   return App.adminUi;
 }
 function adminBuildItem() {
@@ -7592,101 +7594,128 @@ function adminBuildItem() {
 
 async function renderTabCriador() {
   const hc = $('hub-content');
-  hc.innerHTML = '<div class="section-title">🛠️ Menu de Criador</div><p class="muted">A verificar acesso…</p>';
+  if (!App.admin || !App.admin.mfa) hc.innerHTML = '<div class="section-title">🛠️ Menu de Criador</div><p class="muted">A verificar acesso…</p>';
   await checkAdminStatus();
   if (App.tab !== 'criador') return;
   if (!App.admin) { hc.innerHTML = '<div class="section-title">🛠️ Menu de Criador</div><p class="muted">Sem acesso.</p>'; return; }
   if (!App.admin.mfa) { renderAdminMfa(hc); return; }
-  const ui = adminState(), c = ui.itemCfg;
+  const ui = adminState(), c = ui.itemCfg, inp = ui.inp;
   const opt = (arr, sel) => arr.map(([v, l]) => `<option value="${v}"${String(sel) === String(v) ? ' selected' : ''}>${esc(l)}</option>`).join('');
   const slotBonus = BONUS_PLUS_POOL.filter(b => !b.slots || b.slots.includes(c.slot));
   const item = ui.item || adminBuildItem();
+  const who = ui.target === 'all' ? '📢 Todos os jogadores' : ui.target ? ui.target.name : `${App.player.name} (tu)`;
+  const tInfo = t => `${esc(CLASSES[t.class] ? CLASSES[t.class].icon + ' ' + CLASSES[t.class].name : '')} · Nv. ${esc(t.level)}${Number(t.paragon) > 0 ? ` · Paragon ${esc(t.paragon)} (Nv. ${esc(t.plv)})` : ''}${t.gold != null ? ` · ${Number(t.gold).toLocaleString('pt-PT')} 🪙` : ''}`;
+  const quick = (kind, vals) => vals.map(([v, l]) => `<button class="tab-chip" data-adm-quick="${kind}:${v}">+ ${l}</button>`).join('');
   hc.innerHTML = `
     <div class="row between" style="margin-bottom:6px;"><div class="section-title" style="margin:4px 0;">🛠️ Menu de Criador</div><span class="pill" style="border-color:var(--success); color:var(--success);">🔐 2 passos OK</span></div>
     <p class="tiny muted" style="margin-bottom:10px;">Tudo o que dás fica registado. Os presentes entram no save pelo servidor (o jogador recebe-os ao entrar ou em ~1 minuto).</p>
 
     <div class="card raised admin-card">
       <span style="font-weight:700;">🎯 Para quem</span>
-      <div class="trade-filters" style="margin-top:8px;">
-        <button class="tab-chip${!ui.target ? ' active' : ''}" id="adm-target-me">🙋 Eu (${esc(App.player.name)})</button>
-        <input class="name-input trade-search" id="adm-target-name" placeholder="Nome de outro herói" value="${ui.target ? esc(ui.target.name) : ''}" style="flex:1 1 140px;">
-        <button class="btn small" id="adm-target-find">🔎 Procurar</button>
+      <div class="adm-chips" style="margin-top:8px;">
+        <button class="tab-chip${!ui.target ? ' active' : ''}" id="adm-target-me">🙋 Eu</button>
+        <button class="tab-chip${ui.target === 'all' ? ' active' : ''}" id="adm-target-all">📢 Todos os jogadores</button>
       </div>
-      <p class="tiny" style="margin-top:4px;">${ui.target ? `Destino: <b>${esc(ui.target.name)}</b> · Nv. ${esc(ui.target.level)} · ${esc(CLASSES[ui.target.class] ? CLASSES[ui.target.class].name : '')}` : 'Destino: <b>tu</b>'}</p>
+      <div class="admin-row"><input class="name-input" id="adm-target-name" placeholder="Procurar herói (ex.: Lor)" value="${esc(ui.search || '')}" autocomplete="off"><button class="btn small" id="adm-target-find">🔎 Procurar</button></div>
+      ${ui.results ? `<div class="adm-results">${ui.results.length ? ui.results.map((r, i) => `<button class="adm-res" data-adm-pick="${i}"><b>${esc(r.name)}</b><small>${tInfo(r)}</small></button>`).join('') : '<p class="tiny muted">Nenhum herói encontrado.</p>'}</div>` : ''}
+      <div class="adm-dest${ui.target === 'all' ? ' all' : ''}">Destino: <b>${esc(who)}</b>${ui.target && ui.target !== 'all' ? `<br><small>${tInfo(ui.target)}</small>` : ''}${ui.target === 'all' ? '<br><small>Cada jogador recebe uma cópia do presente.</small>' : ''}</div>
     </div>
 
     <div class="card raised admin-card">
       <span style="font-weight:700;">✨ XP, nível e ouro</span>
-      <div class="admin-row"><input class="name-input" id="adm-xp" type="number" min="1" placeholder="XP"><button class="btn small" data-adm-add="xp">+ XP</button></div>
-      <div class="admin-row"><input class="name-input" id="adm-lv" type="number" min="1" max="${MAX_LEVEL}" placeholder="Nível (1–${MAX_LEVEL})"><button class="btn small" data-adm-add="set_level">Definir nível</button></div>
-      <div class="admin-row"><input class="name-input" id="adm-gold" type="number" min="1" placeholder="Ouro"><button class="btn small" data-adm-add="gold">+ Ouro</button></div>
+      <div class="admin-row"><input class="name-input" id="adm-xp" type="number" min="1" placeholder="XP" value="${esc(inp.xp)}"><button class="btn small" data-adm-add="xp">+ XP</button></div>
+      <div class="adm-chips">${quick('xp', [[100000, '100 mil XP'], [1000000, '1 M XP'], [10000000, '10 M XP']])}</div>
+      <div class="admin-row"><input class="name-input" id="adm-lv" type="number" min="1" max="${MAX_LEVEL}" placeholder="Nível (1–${MAX_LEVEL})" value="${esc(inp.lv)}"><button class="btn small" data-adm-add="set_level">Definir nível</button></div>
+      <div class="admin-row"><input class="name-input" id="adm-gold" type="number" min="1" placeholder="Ouro" value="${esc(inp.gold)}"><button class="btn small" data-adm-add="gold">+ Ouro</button></div>
+      <div class="adm-chips">${quick('gold', [[100000, '100 mil'], [1000000, '1 M'], [10000000, '10 M']])}</div>
+      <p class="tiny muted" style="margin-top:6px;">Em heróis com Paragon, o XP e o nível contam no nível do Paragon.</p>
     </div>
 
     <div class="card raised admin-card">
       <span style="font-weight:700;">🎒 Recursos</span>
-      <div class="admin-row"><select class="name-input" id="adm-res">${opt(ADMIN_ADD_KEYS, ADMIN_ADD_KEYS[0][0])}</select><input class="name-input" id="adm-res-qty" type="number" min="1" value="1" style="max-width:80px;"><button class="btn small" data-adm-add="add">Adicionar</button></div>
-      <div class="admin-row"><select class="name-input" id="adm-gem">${opt(Object.keys(GEM_DEFS).map(k => [k, GEM_DEFS[k].icon + ' ' + GEM_DEFS[k].name]), 'dano')}</select><select class="name-input" id="adm-gem-tier" style="max-width:70px;">${opt([[0, 'T1'], [1, 'T2'], [2, 'T3'], [3, 'T4'], [4, 'T5']], 2)}</select><input class="name-input" id="adm-gem-qty" type="number" min="1" value="1" style="max-width:70px;"><button class="btn small" data-adm-add="gem">Gema</button></div>
+      <select class="name-input adm-full" id="adm-res">${opt(ADMIN_ADD_KEYS, inp.res)}</select>
+      <div class="admin-row"><input class="name-input" id="adm-res-qty" type="number" min="1" value="${esc(inp.resQty)}"><button class="btn small" data-adm-add="add">Adicionar</button></div>
+      <select class="name-input adm-full" id="adm-gem" style="margin-top:10px;">${opt(Object.keys(GEM_DEFS).map(k => [k, GEM_DEFS[k].icon + ' ' + GEM_DEFS[k].name]), inp.gem)}</select>
+      <div class="admin-row"><select class="name-input" id="adm-gem-tier">${opt(Array.from({ length: GEM_TIERS }, (_, i) => [i, 'T' + (i + 1)]), inp.gemTier)}</select><input class="name-input" id="adm-gem-qty" type="number" min="1" value="${esc(inp.gemQty)}"><button class="btn small" data-adm-add="gem">+ Gema</button></div>
     </div>
 
     <div class="card raised admin-card">
       <span style="font-weight:700;">🎁 Criar item</span>
-      <div class="trade-filters" style="margin-top:8px;">
-        <select class="name-input trade-sel" data-adm-item="slot">${opt(EQUIP_SLOTS.map(s => [s, SLOT_NAMES[s]]), c.slot)}</select>
-        <select class="name-input trade-sel" data-adm-item="rarity">${opt(RARITIES.map(r => [r.key, r.icon + ' ' + r.name]), c.rarity)}</select>
-        ${c.rarity === 'mitico' ? `<select class="name-input trade-sel" data-adm-item="mythic">${opt(MYTHIC_KEYS.filter(k => MYTHIC_DEFS[k].slot === c.slot).map(k => [k, '❇️ ' + MYTHIC_DEFS[k].name]), c.mythic)}</select>` : ''}
-        ${c.rarity === 'set' ? `<select class="name-input trade-sel" data-adm-item="setKey">${opt(Object.keys(SET_DEFS).map(k => [k, SET_DEFS[k].icon + ' ' + SET_DEFS[k].name]), c.setKey)}</select>` : ''}
-        <label class="trade-check">Nível <input class="name-input" type="number" min="1" max="${MAX_LEVEL}" value="${c.level}" data-adm-item="level" style="width:70px; margin:0; padding:6px;"></label>
-        <label class="trade-check">Melhoria + <input class="name-input" type="number" min="0" max="9" value="${c.upgrade}" data-adm-item="upgrade" style="width:56px; margin:0; padding:6px;"></label>
+      <div class="adm-grid">
+        <select class="name-input" data-adm-item="slot">${opt(EQUIP_SLOTS.map(s => [s, SLOT_NAMES[s]]), c.slot)}</select>
+        <select class="name-input" data-adm-item="rarity">${opt(RARITIES.map(r => [r.key, r.icon + ' ' + r.name]), c.rarity)}</select>
+        ${c.rarity === 'mitico' ? `<select class="name-input adm-span" data-adm-item="mythic">${opt(MYTHIC_KEYS.filter(k => MYTHIC_DEFS[k].slot === c.slot).map(k => [k, '❇️ ' + MYTHIC_DEFS[k].name]), c.mythic)}</select>` : ''}
+        ${c.rarity === 'set' ? `<select class="name-input adm-span" data-adm-item="setKey">${opt(Object.keys(SET_DEFS).map(k => [k, SET_DEFS[k].icon + ' ' + SET_DEFS[k].name]), c.setKey)}</select>` : ''}
+        <label class="adm-lbl">Nível<input class="name-input" type="number" min="1" max="${MAX_LEVEL}" value="${c.level}" data-adm-item="level"></label>
+        <label class="adm-lbl">Melhoria +<input class="name-input" type="number" min="0" max="9" value="${c.upgrade}" data-adm-item="upgrade"></label>
       </div>
-      <div class="trade-filters">
-        <select class="name-input trade-sel" data-adm-item="b1">${opt([['', 'Bónus+ 1: nenhum']].concat(slotBonus.map(b => [b.key, `${b.icon} ${b.name} (${b.min}–${b.max})`])), c.b1)}</select>
-        <input class="name-input" type="number" value="${c.v1 || ''}" placeholder="valor" data-adm-item="v1" style="width:70px; margin:0; padding:6px;">
-        <select class="name-input trade-sel" data-adm-item="b2">${opt([['', 'Bónus+ 2: nenhum']].concat(slotBonus.map(b => [b.key, `${b.icon} ${b.name} (${b.min}–${b.max})`])), c.b2)}</select>
-        <input class="name-input" type="number" value="${c.v2 || ''}" placeholder="valor" data-adm-item="v2" style="width:70px; margin:0; padding:6px;">
-        <select class="name-input trade-sel" data-adm-item="pp">${opt([['', 'Bónus ➕: nenhum']].concat(plus2Pool(c.slot).map(b => [b.key, `➕ ${b.name} (${b.min}–${b.max})`])), c.pp)}</select>
-        <input class="name-input" type="number" value="${c.pv || ''}" placeholder="valor" data-adm-item="pv" style="width:70px; margin:0; padding:6px;">
+      <div class="adm-grid adm-bonus">
+        <select class="name-input" data-adm-item="b1">${opt([['', 'Bónus+ 1: nenhum']].concat(slotBonus.map(b => [b.key, `${b.icon} ${b.name} (${b.min}–${b.max})`])), c.b1)}</select>
+        <input class="name-input" type="number" value="${c.v1 || ''}" placeholder="máx." data-adm-item="v1">
+        <select class="name-input" data-adm-item="b2">${opt([['', 'Bónus+ 2: nenhum']].concat(slotBonus.map(b => [b.key, `${b.icon} ${b.name} (${b.min}–${b.max})`])), c.b2)}</select>
+        <input class="name-input" type="number" value="${c.v2 || ''}" placeholder="máx." data-adm-item="v2">
+        <select class="name-input" data-adm-item="pp">${opt([['', 'Bónus ➕: nenhum']].concat(plus2Pool(c.slot).map(b => [b.key, `➕ ${b.name} (${b.min}–${b.max})`])), c.pp)}</select>
+        <input class="name-input" type="number" value="${c.pv || ''}" placeholder="máx." data-adm-item="pv">
       </div>
-      <div class="item-row" style="margin-top:6px;">
+      <button class="item-row adm-item-prev" id="adm-item-sheet" type="button" style="${rarityBoxStyle(item)}">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
           <div class="item-name"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${esc(item.name)}${item.upgrade ? ` +${item.upgrade}` : ''}</div>
           <div class="item-stats">${itemStatsLine(item)}</div>
           <div class="row" style="gap:4px; flex-wrap:wrap; margin-top:4px;">${(item.bonuses || []).map(b => `<span class="pill" style="border-color:var(--arcane-bright); color:var(--arcane-bright);">${esc(bonusPlusLabel(b))}</span>`).join('')}${item.plusBonus ? plus2Chip(item.plusBonus) : ''}</div>
+          <div class="tiny muted" style="margin-top:4px;">${ui.sheet ? '▲ Esconder ficha' : '▼ Toca para ver a ficha completa'}</div>
         </div>
-      </div>
-      <div class="row" style="gap:8px; margin-top:8px;"><button class="btn small ghost" id="adm-item-reroll">🎲 Outro rolo</button><button class="btn small primary" data-adm-add="item">Adicionar item</button></div>
+      </button>
+      ${ui.sheet ? `<div class="adm-sheet">${itemSheetHtml(item, item.slot, App.player, true)}</div>` : ''}
+      <div class="row" style="gap:8px; margin-top:8px;"><button class="btn small ghost" id="adm-item-reroll">🎲 Outro rolo</button><button class="btn small primary" data-adm-add="item" style="flex:1;">➕ Adicionar ao presente</button></div>
     </div>
 
-    <div class="card raised admin-card" style="border-color:var(--gold);">
-      <span style="font-weight:700;">📦 Presente (${ui.cart.length})</span>
-      ${ui.cart.length ? ui.cart.map((op, i) => `<div class="row between" style="margin-top:6px; gap:8px;"><span class="tiny">${esc(adminOpLabel(op))}</span><button class="btn small ghost" data-adm-rm="${i}">✕</button></div>`).join('') : '<p class="tiny muted" style="margin-top:6px;">Vazio — adiciona coisas acima.</p>'}
+    <div class="card raised admin-card adm-cart${ui.target === 'all' ? ' all' : ''}">
+      <div class="row between"><span style="font-weight:700;">📦 Presente (${ui.cart.length}/30)</span>${ui.cart.length ? '<button class="btn small ghost" id="adm-cart-clear">🗑️ Limpar</button>' : ''}</div>
+      ${ui.cart.length ? ui.cart.map((op, i) => `<div class="adm-line"><span class="tiny">${esc(adminOpLabel(op))}</span><button class="btn small ghost" data-adm-rm="${i}">✕</button></div>`).join('') : '<p class="tiny muted" style="margin-top:6px;">Vazio — adiciona coisas acima.</p>'}
       <input class="name-input" id="adm-note" maxlength="140" placeholder="Mensagem (opcional), ex.: Prémio do evento!" value="${esc(ui.note)}" style="margin-top:10px;">
-      <button class="btn primary block" id="adm-send" style="margin-top:8px;"${ui.cart.length ? '' : ' disabled'}>🎁 Enviar para ${ui.target ? esc(ui.target.name) : 'mim'}</button>
+      <button class="btn primary block" id="adm-send" style="margin-top:8px;"${ui.cart.length && !ui.sending ? '' : ' disabled'}>${ui.sending ? 'A enviar…' : `🎁 Enviar para ${esc(ui.target === 'all' ? 'TODOS os jogadores' : ui.target ? ui.target.name : 'mim')}`}</button>
     </div>
 
     <div class="card raised admin-card">
-      <div class="row between"><span style="font-weight:700;">📋 Registo</span><button class="btn small ghost" id="adm-log-load">Ver últimas ações</button></div>
-      <div id="adm-log"></div>
+      <div class="row between"><span style="font-weight:700;">📋 Registo</span><button class="btn small ghost" id="adm-log-load">🔄 Atualizar</button></div>
+      <div id="adm-log">${ui.logHtml || '<p class="tiny muted" style="margin-top:6px;">A carregar…</p>'}</div>
     </div>
   `;
   const num = id => parseInt(($(id) || {}).value, 10);
-  $('adm-target-me').addEventListener('click', () => { ui.target = null; renderTabCriador(); });
-  $('adm-target-find').addEventListener('click', async () => {
-    const name = $('adm-target-name').value.trim();
-    if (!name) return;
-    const { data, error } = await cloudClient.rpc('admin_find_player', { p_name: name });
-    if (error) { toast(error.message === 'MFA_REQUIRED' ? 'Confirma a verificação em 2 passos.' : error.message); return; }
-    if (!data) { sfx.error(); toast('Nenhum herói com esse nome.'); return; }
-    ui.target = data.user_id === cloudUser.id ? null : data;
+  // guarda o que se escreve (para não se perder quando o menu se redesenha)
+  [['adm-xp', 'xp'], ['adm-lv', 'lv'], ['adm-gold', 'gold'], ['adm-res', 'res'], ['adm-res-qty', 'resQty'], ['adm-gem', 'gem'], ['adm-gem-tier', 'gemTier'], ['adm-gem-qty', 'gemQty']]
+    .forEach(([id, k]) => { const el = $(id); if (el) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { inp[k] = el.value; }); });
+  $('adm-target-me').addEventListener('click', () => { ui.target = null; ui.results = null; renderTabCriador(); });
+  $('adm-target-all').addEventListener('click', () => { ui.target = 'all'; ui.results = null; sfx.click(); renderTabCriador(); });
+  const doSearch = async () => {
+    const name = $('adm-target-name').value.trim(); ui.search = name;
+    if (name.length < 2) { sfx.error(); toast('Escreve pelo menos 2 letras.'); return; }
+    const { data, error } = await cloudClient.rpc('admin_search_players', { p_query: name });
+    if (error) { sfx.error(); toast(error.message === 'MFA_REQUIRED' ? 'Confirma a verificação em 2 passos.' : error.message); return; }
+    ui.results = Array.isArray(data) ? data : [];
+    if (ui.results.length === 1) { ui.target = ui.results[0].user_id === cloudUser.id ? null : ui.results[0]; ui.results = null; }
     sfx.click(); renderTabCriador();
-  });
+  };
+  $('adm-target-find').addEventListener('click', doSearch);
+  $('adm-target-name').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+  els('[data-adm-pick]').forEach(b => b.addEventListener('click', () => {
+    const r = ui.results[parseInt(b.dataset.admPick, 10)]; if (!r) return;
+    ui.target = r.user_id === cloudUser.id ? null : r; ui.results = null; sfx.click(); renderTabCriador();
+  }));
   els('[data-adm-item]').forEach(el => el.addEventListener('change', () => {
     const k = el.dataset.admItem;
     c[k] = el.value;
     if (k === 'slot') { c.b1 = c.b2 = c.pp = ''; }
     adminBuildItem(); renderTabCriador();
   }));
+  $('adm-item-sheet').addEventListener('click', () => { ui.sheet = !ui.sheet; renderTabCriador(); });
   $('adm-item-reroll').addEventListener('click', () => { adminBuildItem(); renderTabCriador(); });
+  const pushOp = op => {
+    if (ui.cart.length >= 30) { sfx.error(); toast('Máximo 30 coisas por presente.'); return false; }
+    ui.cart.push(op); sfx.click(); renderTabCriador(); return true;
+  };
+  els('[data-adm-quick]').forEach(b => b.addEventListener('click', () => { const [k, v] = b.dataset.admQuick.split(':'); pushOp({ op: k, amount: Number(v) }); }));
   els('[data-adm-add]').forEach(b => b.addEventListener('click', () => {
     const kind = b.dataset.admAdd;
     let op = null;
@@ -7695,33 +7724,44 @@ async function renderTabCriador() {
     else if (kind === 'gold' && num('adm-gold') > 0) op = { op: 'gold', amount: num('adm-gold') };
     else if (kind === 'add' && num('adm-res-qty') > 0) op = { op: 'add', key: $('adm-res').value, amount: num('adm-res-qty') };
     else if (kind === 'gem' && num('adm-gem-qty') > 0) op = { op: 'gem', gem: $('adm-gem').value, tier: num('adm-gem-tier'), amount: num('adm-gem-qty') };
-    else if (kind === 'item') { op = { op: 'item', item: ui.item || adminBuildItem() }; ui.item = null; }
+    else if (kind === 'item') op = { op: 'item', item: ui.item || adminBuildItem() };
     if (!op) { sfx.error(); toast('Escreve uma quantidade.'); return; }
-    if (ui.cart.length >= 30) { sfx.error(); toast('Máximo 30 coisas por presente.'); return; }
-    ui.cart.push(op); sfx.click(); renderTabCriador();
+    if (pushOp(op) && kind === 'item') { adminBuildItem(); renderTabCriador(); }
   }));
   els('[data-adm-rm]').forEach(b => b.addEventListener('click', () => { ui.cart.splice(parseInt(b.dataset.admRm, 10), 1); renderTabCriador(); }));
+  const clr = $('adm-cart-clear'); if (clr) clr.addEventListener('click', () => { ui.cart = []; renderTabCriador(); });
   $('adm-note').addEventListener('input', e => { ui.note = e.target.value; });
   $('adm-send').addEventListener('click', async () => {
-    if (!ui.cart.length) return;
-    const who = ui.target ? ui.target.name : 'ti';
-    if (!await nxConfirm(`Enviar ${ui.cart.length} coisa(s) para ${who}?\n${ui.cart.map(adminOpLabel).join('\n')}`, { title: 'Enviar presente', icon: '🎁', confirmLabel: 'Enviar' })) return;
-    const { data, error } = await cloudClient.rpc('admin_send_gift', { p_target: ui.target ? ui.target.user_id : null, p_ops: ui.cart, p_note: ui.note || '' });
-    if (error) { sfx.error(); toast(error.message === 'MFA_REQUIRED' ? 'Confirma a verificação em 2 passos.' : error.message); return; }
-    ui.cart = []; ui.note = '';
-    if (data && data.self) {
+    if (!ui.cart.length || ui.sending) return;
+    const all = ui.target === 'all', whoTxt = all ? 'TODOS os jogadores' : ui.target ? ui.target.name : 'ti';
+    if (!await nxConfirm(`Enviar ${ui.cart.length} coisa(s) para ${whoTxt}?\n${ui.cart.map(adminOpLabel).join('\n')}`, { title: 'Enviar presente', icon: '🎁', confirmLabel: 'Enviar' })) return;
+    if (all && !await nxConfirm('Tens a certeza? Cada jogador do jogo vai receber este presente e não dá para desfazer.', { title: '📢 Presente para todos', icon: '⚠️', confirmLabel: 'Sim, enviar a todos' })) return;
+    ui.sending = true; renderTabCriador();
+    const { data, error } = all
+      ? await cloudClient.rpc('admin_send_gift_all', { p_ops: ui.cart, p_note: ui.note || '' })
+      : await cloudClient.rpc('admin_send_gift', { p_target: ui.target ? ui.target.user_id : null, p_ops: ui.cart, p_note: ui.note || '' });
+    ui.sending = false;
+    if (error) { sfx.error(); toast(error.message === 'MFA_REQUIRED' ? 'Confirma a verificação em 2 passos.' : error.message); renderTabCriador(); return; }
+    ui.cart = []; ui.note = ''; ui.logHtml = null;
+    if (all) { sfx.questdone(); toast(`📢 Presente enviado para ${data && data.count != null ? data.count : 'todos os'} jogadores.`); claimAdminGifts(true); }
+    else if (data && data.self) {
       const ok = await claimAdminGifts(true);
       if (!ok) toast('Presente criado. Vai entrar no teu save dentro de momentos.');
     } else {
-      sfx.questdone(); toast(`🎁 Presente enviado para ${data ? data.target_name : who}. Recebe-o ao entrar no jogo.`);
+      sfx.questdone(); toast(`🎁 Presente enviado para ${data ? data.target_name : whoTxt}. Recebe-o ao entrar no jogo.`);
     }
     renderTabCriador();
   });
-  $('adm-log-load').addEventListener('click', async () => {
+  const loadLog = async () => {
+    const box = $('adm-log');
     const { data, error } = await cloudClient.rpc('admin_get_log', { p_limit: 30 });
-    if (error) { toast(error.message); return; }
-    $('adm-log').innerHTML = (data || []).map(r => `<p class="tiny" style="margin-top:6px;"><span class="muted">${new Date(r.at).toLocaleString('pt-PT')}</span> · ${r.action === 'gift' ? '🎁 Enviado' : '✅ Recebido'} · <b>${esc(r.target_name || '?')}</b>${r.action === 'gift' && r.details && r.details.ops ? ` — ${esc(r.details.ops.map(adminOpLabel).join(', '))}` : ''}</p>`).join('') || '<p class="tiny muted">Sem registos.</p>';
-  });
+    if (error) { if (box) box.innerHTML = `<p class="tiny muted" style="margin-top:6px;">${esc(error.message)}</p>`; return; }
+    const act = { gift: '🎁 Enviado', gift_all: '📢 Enviado a todos', claimed: '✅ Recebido' };
+    ui.logHtml = (data || []).map(r => `<div class="adm-log"><span class="muted">${new Date(r.at).toLocaleString('pt-PT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span> · ${act[r.action] || esc(r.action)} · <b>${esc(r.action === 'gift_all' ? `${r.details && r.details.count != null ? r.details.count : ''} jogadores` : r.target_name || '?')}</b>${r.details && r.details.ops ? `<br><span class="muted">${esc(r.details.ops.map(adminOpLabel).join(', '))}</span>` : ''}${r.details && r.details.note ? `<br><i>“${esc(r.details.note)}”</i>` : ''}</div>`).join('') || '<p class="tiny muted" style="margin-top:6px;">Sem registos.</p>';
+    if ($('adm-log')) $('adm-log').innerHTML = ui.logHtml;
+  };
+  $('adm-log-load').addEventListener('click', loadLog);
+  if (!ui.logHtml) loadLog();
 }
 
 // Verificação em 2 passos (TOTP, app tipo Google Authenticator / Authy / Microsoft Authenticator).
@@ -21536,7 +21576,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v252</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v253</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
