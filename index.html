@@ -16184,7 +16184,7 @@ function openItemCompareModal(itemId, tab) {
   const eq = p.equipment[item.slot] || null;
   tab = tab || 'cmp';
   const tabs = [['cmp', '⚖️ Comparar'], ['item', '🎒 Este item']].concat(eq ? [['eq', '🧍 Equipado']] : []);
-  const body = tab === 'item' ? itemSheetHtml(item, item.slot, p, true) : tab === 'eq' && eq ? itemSheetHtml(eq, item.slot, p, true) : itemCompareHtml(item, eq, p);
+  const body = tab === 'item' ? itemSheetHtml(item, item.slot, p, false) + `<button class="btn block sm-goto" id="btn-cmp-smith">⚒️ ${(item.upgrade || 0) >= 9 ? (item.ascended ? 'Ver no Ferreiro' : 'Ascender no Ferreiro') : `Melhorar no Ferreiro (+${item.upgrade || 0} → +${(item.upgrade || 0) + 1})`}</button>` : tab === 'eq' && eq ? itemSheetHtml(eq, item.slot, p, true) : itemCompareHtml(item, eq, p);
   const dualOk = hasDualWield(p) && dualWieldEligible(item);
   openModal(`<h3 style="margin-bottom:10px;">${SLOT_ICONS[item.slot]} ${SLOT_NAMES[item.slot]}</h3>
     <div class="tab-strip cmp-tabs" style="padding-bottom:10px;">${tabs.map(([k, l]) => `<button class="tab-chip${k === tab ? ' active' : ''}" data-cmp-tab="${k}">${l}</button>`).join('')}</div>
@@ -16202,6 +16202,12 @@ function openItemCompareModal(itemId, tab) {
   $('btn-cmp-equip').addEventListener('click', () => { closeModal(); equipItem(itemId); });
   if ($('btn-cmp-off')) $('btn-cmp-off').addEventListener('click', () => { closeModal(); equipItemOffhand(itemId); });
   if (!item.locked) $('btn-cmp-sell').addEventListener('click', () => { closeModal(); sellItem(itemId); });
+  if (tab === 'item') { // v254: gemas e encaixes também nos itens da Mochila
+    const add = $('btn-add-socket'); if (add) add.addEventListener('click', () => addSocketSlot(itemId));
+    els('[data-open-socket]').forEach(b => b.addEventListener('click', () => openGemPicker(itemId, parseInt(b.dataset.openSocket))));
+    els('[data-remove-gem]').forEach(b => b.addEventListener('click', () => removeGem(itemId, parseInt(b.dataset.removeGem))));
+    const sm = $('btn-cmp-smith'); if (sm) sm.addEventListener('click', () => { closeModal(); App.smithSrc = 'inv'; App.smithInvSel = itemId; App.smithInvSlot = 'all'; App.smithTab = 'melhorar'; App.lojaTab = 'ferreiro'; setTab('loja'); });
+  }
 }
 
 function unequipItem(slot) {
@@ -16217,7 +16223,8 @@ function unequipItem(slot) {
 
 function addSocketSlot(slot) {
   const p = App.player;
-  const item = p.equipment[slot];
+  const item = itemByRef(slot);
+  if (!item) return;
   if (item && item.mythic === 'coracao_tita') { sfx.error(); toast('O Coração do Titã não pode ter gemas.'); return; } // v184
   const cost = socketSlotCost(item);
   if (p.gold < cost) { toast(`Precisas de ${cost} ouro.`); return; }
@@ -16226,13 +16233,13 @@ function addSocketSlot(slot) {
   item.sockets.push(null);
   saveGame();
   renderStatusBar();
-  openEquipSlotModal(slot);
+  refreshItemView(slot);
 }
 
 // v186: tirar uma gema devolve-a à bolsa (custa ouro conforme o nível do item).
 async function removeGem(slot, socketIdx) {
   const p = App.player;
-  const item = p.equipment[slot];
+  const item = itemByRef(slot);
   if (!item || !item.sockets[socketIdx]) return;
   const s = item.sockets[socketIdx];
   const gdef = GEM_DEFS[s.type];
@@ -16247,20 +16254,22 @@ async function removeGem(slot, socketIdx) {
   saveGame();
   sfx.click();
   renderStatusBar();
-  openEquipSlotModal(slot);
+  refreshItemView(slot);
   toast(`${gdef.icon} ${gemFullName(s.type, s.tier)} voltou para a bolsa.`);
 }
 
 function openGemPicker(slot, socketIdx) {
-  { const it0 = App.player.equipment[slot]; if (it0 && it0.mythic === 'coracao_tita') { sfx.error(); toast('O Coração do Titã não pode ter gemas.'); return; } } // v184
+  { const it0 = itemByRef(slot); if (it0 && it0.mythic === 'coracao_tita') { sfx.error(); toast('O Coração do Titã não pode ter gemas.'); return; } } // v184
   const p = App.player;
-  const item = p.equipment[slot];
+  const item = itemByRef(slot);
+  if (!item) return;
+  const inBag = !EQUIP_SLOTS.includes(slot);
   const options = [];
-  const zone = gemZoneOf(item, slot), gm = craftGemMult(item);
+  const zone = gemZoneOf(item, inBag ? item.slot : slot), gm = craftGemMult(item);
   Object.keys(GEM_DEFS).forEach(type => {
     for (let tier = GEM_TIERS - 1; tier >= 0; tier--) if ((p.gems[type][tier] || 0) > 0) options.push({ type, tier });
   });
-  let html = `<h3 style="margin-bottom:6px;">Escolher gema</h3><p class="tiny muted" style="margin-bottom:10px;">${SLOT_NAMES[slot]} — as gemas dão o efeito de <b>${GEM_ZONE_NAMES[zone]}</b>.</p>`;
+  let html = `<h3 style="margin-bottom:6px;">Escolher gema</h3><p class="tiny muted" style="margin-bottom:10px;">${SLOT_NAMES[inBag ? item.slot : slot]}${inBag ? ' (Mochila)' : ''} — as gemas dão o efeito de <b>${GEM_ZONE_NAMES[zone]}</b>.</p>`;
   if (!options.length) {
     html += `<p class="muted">Não tens gemas disponíveis. Mina minério na Cidade → Trabalhos para encontrar gemas.</p>`;
   } else {
@@ -16281,6 +16290,7 @@ function openGemPicker(slot, socketIdx) {
     saveGame();
     closeModal();
     renderStatusBar();
+    if (inBag) { openItemCompareModal(slot, 'item'); toast('Gema encaixada!'); return; }
     if (fxOn()) fxGemSocket(item, type, tier); else toast('Gema encaixada!');
   }));
 }
@@ -16733,76 +16743,25 @@ function renderLojaBody() {
   } else if (App.lojaTab === 'ferreiro') {
     const equippedItems = EQUIP_SLOTS.filter(s => p.equipment[s]);
     const maxedCount = equippedItems.filter(s => p.equipment[s].upgrade >= 9).length;
-    const cardsHtml = equippedItems.length ? equippedItems.map(slot => {
-      const item = p.equipment[slot];
-      const cost = blacksmithCost(p.level, item);
-      const chance = smithChanceWithBook(item, p);
-      const maxed = item.upgrade >= 9;
-      const cur = itemStatsAtUpgrade(item, itemUpLv(item));
-      const accent = item.rarityColor || 'var(--blood-bright)';
-      const dotsHtml = `<div class="upgrade-dots" style="margin-top:12px;">${Array.from({ length: 9 }, (_, i) => `<div class="upgrade-dot${i < item.upgrade ? ' filled' : ''}"></div>`).join('')}</div>`;
-      let bodyHtml, pillHtml;
-      if (maxed && item.ascended) {
-        pillHtml = `<span class="pill asc-pill">✦ Ascendido</span>`;
-        bodyHtml = `
-          <p class="tiny asc-txt" style="margin-top:10px; font-weight:700;">Este item foi Ascendido com o Coração do Soberano.</p>
-          <div style="margin-top:8px; padding:8px 10px; background:var(--bg-void); border:1px solid var(--line-soft); border-radius:8px;">
-            <div class="tiny muted">Stats atuais</div>
-            <div class="tiny">${formatStatTotals(cur)}</div>
-          </div>`;
-      } else if (maxed) {
-        const hearts = p.soberanoHearts || 0, asc = itemStatsAtUpgrade(item, 9 + ASCEND_EXTRA_LEVELS);
-        pillHtml = `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">✦ Máximo</span>`;
-        bodyHtml = `
-          <p class="tiny" style="margin-top:10px; color:var(--gold-bright); font-weight:700;">Este item já está no máximo (+9/9).</p>
-          <div class="asc-box">
-            <div class="asc-h">${nxEnt('coracao-soberano', '❤️‍🔥')} Ascensão</div>
-            <div class="tiny muted">Agora</div>
-            <div class="tiny">${formatStatTotals(cur)}</div>
-            <div class="tiny muted" style="margin-top:6px;">Depois de Ascender</div>
-            <div class="tiny asc-txt" style="font-weight:700;">${formatStatDeltas(cur, asc)} a mais</div>
-            <p class="tiny muted" style="margin-top:6px;">Gasta 1 Coração do Soberano (tens ${hearts}). 100% de sucesso. O item passa a mostrar "✦ Ascendido".</p>
-            <button class="btn small ${hearts > 0 ? 'asc-btn' : 'ghost'} block" style="margin-top:8px;" data-ascend-item="${slot}"${hearts > 0 ? '' : ' disabled'}>✦ Ascender${hearts > 0 ? '' : ' (precisas de um Coração do Soberano)'}</button>
-          </div>`;
-      } else {
-        const next = itemStatsAtUpgrade(item, item.upgrade + 1);
-        const nextLevel = item.upgrade + 1;
-        const pearlDef = upgradeMaterial(item, nextLevel);
-        const pearlOwned = pearlDef ? upgradeMaterialOwned(p, pearlDef) : 0;
-        const pearlOk = !pearlDef || pearlOwned >= 1;
-        const goldOk = p.gold >= cost;
-        const canDo = goldOk && pearlOk;
-        const chip = (ok, html) => `<span class="pill" style="border-color:${ok ? 'var(--success)' : 'var(--blood-bright)'}; color:${ok ? 'var(--success)' : 'var(--blood-bright)'};">${html}</span>`;
-        pillHtml = `<span class="pill" style="border-color:${accent}; color:${accent};">+${item.upgrade} → +${nextLevel}</span>`;
-        bodyHtml = `
-          <div style="margin-top:10px; padding:8px 10px; background:var(--bg-void); border:1px solid var(--line-soft); border-radius:8px;">
-            <div class="tiny muted">Agora</div>
-            <div class="tiny">${formatStatTotals(cur)}</div>
-            <div class="tiny muted" style="margin-top:6px;">Depois de melhorar</div>
-            <div class="tiny" style="color:var(--success); font-weight:700;">${formatStatDeltas(cur, next)} a mais</div>
-          </div>
-          <div class="row" style="gap:6px; flex-wrap:wrap; margin-top:10px;">
-            ${chip(goldOk, `🪙 ${cost}`)}
-            ${pearlDef ? chip(pearlOk, `${pearlDef.icon} 1 ${pearlDef.name} (tens ${pearlOwned})`) : ''}
-            <span class="pill">🎲 ${pct(chance)} sucesso</span>
-          </div>
-          <button class="btn small ${canDo ? 'primary' : 'ghost'} block" style="margin-top:10px;" data-upgrade-item="${slot}">🔨 Melhorar${canDo ? '' : ' (faltam recursos)'}</button>`;
-      }
-      return `<div class="card raised" data-smith-card="${slot}" style="${rarityBoxStyle(item)} border-left:3px solid ${accent}; margin-bottom:10px;">
-        <div class="row" style="gap:12px; align-items:center;">
-          <div class="item-ic" style="font-size:30px;">${itemIconHtml(item)}</div>
-          <div style="flex:1;">
-            <div class="row between" style="align-items:center;">
-              <span style="font-weight:700; font-family:var(--font-display);">${item.name}</span>
-              ${pillHtml}
-            </div>
-            <div class="tiny muted" style="margin-top:2px;">${SLOT_NAMES[slot]} · Nv.${item.itemLevel || 1} · <b>+${item.upgrade}/9</b></div>
-          </div>
-        </div>
-        ${dotsHtml}
-        ${bodyHtml}
-      </div>`;
-    }).join('') : `<div class="empty-hint">⚒️ Equipa um item para o poderes melhorar aqui.</div>`;
+    const src = App.smithSrc === 'inv' ? 'inv' : 'eq';
+    let cardsHtml;
+    if (src === 'eq') {
+      cardsHtml = equippedItems.length ? equippedItems.map(slot => smithCardHtml(p, p.equipment[slot], slot)).join('') : `<div class="empty-hint">⚒️ Não tens nada equipado. Usa a aba 🎒 Mochila para melhorar itens sem os equipar.</div>`;
+    } else {
+      const RO = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral'];
+      const f = App.smithInvSlot || 'all';
+      const list = (p.inventory || []).filter(it => it && EQUIP_SLOTS.includes(it.slot) && (f === 'all' || it.slot === f) && !(it.upgrade >= 9 && it.ascended))
+        .sort((x, y) => RO.indexOf(y.rarity) - RO.indexOf(x.rarity) || (y.itemLevel || 0) - (x.itemLevel || 0) || (y.upgrade || 0) - (x.upgrade || 0));
+      let sel = list.find(it => it.id === App.smithInvSel) || null;
+      const chips = [['all', 'Todos']].concat(EQUIP_SLOTS.map(sl => [sl, SLOT_NAMES[sl]])).map(([k, l]) => `<button class="tab-chip${k === f ? ' active' : ''}" data-smith-inv-slot="${k}">${k === 'all' ? '' : slotIconHtml(k) + ' '}${l}</button>`).join('');
+      cardsHtml = `${sel ? smithCardHtml(p, sel, sel.id) : `<div class="empty-hint" style="margin-bottom:10px;">👇 Escolhe um item da Mochila para o melhorar.</div>`}
+        <div class="tab-strip sm-inv-chips">${chips}</div>
+        ${list.length ? `<div class="sm-inv-list">${list.slice(0, 60).map(it => `<button type="button" class="item-row sm-inv-row${sel && sel.id === it.id ? ' on' : ''}" data-smith-pick="${it.id}" style="${rarityBoxStyle(it)}">
+          <div class="item-ic">${itemIconHtml(it)}</div>
+          <div class="item-mid"><div class="item-name" style="color:${it.rarityColor};">${esc(it.name)}${it.ascended ? ' <span class="asc-badge">✦</span>' : ''}</div><div class="tiny muted">${it.rarityName || ''} · ${SLOT_NAMES[it.slot]} · Nv. ${it.itemLevel || 1}${it.locked ? ' · 🔒' : ''}</div></div>
+          <span class="sm-inv-up">${it.upgrade >= 9 ? '✦' : '+' + (it.upgrade || 0)}</span></button>`).join('')}</div>${list.length > 60 ? `<p class="tiny muted" style="margin-top:6px;">A mostrar 60 de ${list.length}. Usa os filtros para encontrares o item.</p>` : ''}`
+        : '<div class="empty-hint">Não há itens na Mochila para melhorar.</div>'}`;
+    }
 
     body.innerHTML = smithTabsHtml() + `
       <div class="card raised" style="margin-bottom:14px; border-left:3px solid var(--blood-bright);">
@@ -16815,15 +16774,19 @@ function renderLojaBody() {
           <span class="pill">${maxedCount}/${equippedItems.length} no máx.</span>
         </div>
       </div>
-      <p class="muted" style="margin-bottom:10px;">Melhora o teu equipamento de +0 até +9. Falhar só gasta os recursos — o item nunca perde atributos. Em itens de Nv.100+, +6 a +9 pedem também uma Pérola. Em itens de Nv. 200: Pérolas de +4 a +7 e 🔹/🌙 Cristais Luar para +8 e +9.</p>
+      <p class="muted" style="margin-bottom:10px;">Melhora o teu equipamento de +0 até +9 — equipado ou na Mochila. Falhar só gasta os recursos — o item nunca perde atributos. Em itens de Nv.100+, +6 a +9 pedem também uma Pérola. Em itens de Nv. 200: Pérolas de +4 a +7 e 🔹/🌙 Cristais Luar para +8 e +9.</p>
       ${(p.smithBooks || 0) > 0 ? `<label class="card raised smith-book-toggle" style="display:flex; gap:10px; align-items:center; margin-bottom:12px; cursor:pointer; border-left:3px solid var(--gold-bright);">
         <input type="checkbox" id="smith-book-use" ${App.useSmithBook ? 'checked' : ''} style="width:20px; height:20px;">
         <span style="flex:1;"><b>📕 Usar Livro do Ferreiro</b> <span class="tiny muted">(tens ${p.smithBooks})</span><br><span class="tiny">+${Math.round(SMITH_BOOK_BONUS * 100)}% de sucesso na próxima tentativa. O livro é gasto quer resulte quer não.</span></span>
       </label>` : ''}
+      <div class="sm-src"><button type="button" class="${src === 'eq' ? 'on' : ''}" data-smith-src="eq">🧍 Equipados</button><button type="button" class="${src === 'inv' ? 'on' : ''}" data-smith-src="inv">🎒 Mochila</button></div>
       ${cardsHtml}
     `;
     const smithToggle = $('smith-book-use');
     if (smithToggle) smithToggle.addEventListener('change', () => { App.useSmithBook = smithToggle.checked; sfx.tab(); renderHubTab(); });
+    els('[data-smith-src]').forEach(b => b.addEventListener('click', () => { if (App.smithSrc === b.dataset.smithSrc) return; sfx.tab(); App.smithSrc = b.dataset.smithSrc; renderHubTab(); }));
+    els('[data-smith-inv-slot]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.smithInvSlot = b.dataset.smithInvSlot; renderHubTab(); }));
+    els('[data-smith-pick]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.smithInvSel = b.dataset.smithPick; renderHubTab(); const c = document.querySelector('[data-smith-card]'); if (c) c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }));
     els('[data-upgrade-item]').forEach(b => b.addEventListener('click', () => upgradeItem(b.dataset.upgradeItem)));
     els('[data-ascend-item]').forEach(b => b.addEventListener('click', () => ascendItemAction(b.dataset.ascendItem)));
     wireSmithTabs();
@@ -16855,9 +16818,83 @@ function smithChanceWithBook(item, p) {
   const base = blacksmithSuccessChance(item);
   return App.useSmithBook && (p.smithBooks || 0) > 0 ? Math.min(0.95, base + SMITH_BOOK_BONUS) : base;
 }
-// v173: Ascender um item +9 equipado com um Coração do Soberano.
+// v254: cartão de melhoria do Ferreiro — serve para itens equipados (ref = espaço) e da Mochila (ref = id do item).
+function smithCardHtml(p, item, ref) {
+  const eqd = EQUIP_SLOTS.includes(ref);
+  const cost = blacksmithCost(p.level, item);
+  const chance = smithChanceWithBook(item, p);
+  const maxed = item.upgrade >= 9;
+  const cur = itemStatsAtUpgrade(item, itemUpLv(item));
+  const accent = item.rarityColor || 'var(--blood-bright)';
+  const dotsHtml = `<div class="upgrade-dots" style="margin-top:12px;">${Array.from({ length: 9 }, (_, i) => `<div class="upgrade-dot${i < item.upgrade ? ' filled' : ''}"></div>`).join('')}</div>`;
+  let bodyHtml, pillHtml;
+  if (maxed && item.ascended) {
+    pillHtml = `<span class="pill asc-pill">✦ Ascendido</span>`;
+    bodyHtml = `
+      <p class="tiny asc-txt" style="margin-top:10px; font-weight:700;">Este item foi Ascendido com o Coração do Soberano.</p>
+      <div style="margin-top:8px; padding:8px 10px; background:var(--bg-void); border:1px solid var(--line-soft); border-radius:8px;">
+        <div class="tiny muted">Stats atuais</div>
+        <div class="tiny">${formatStatTotals(cur)}</div>
+      </div>`;
+  } else if (maxed) {
+    const hearts = p.soberanoHearts || 0, asc = itemStatsAtUpgrade(item, 9 + ASCEND_EXTRA_LEVELS);
+    pillHtml = `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">✦ Máximo</span>`;
+    bodyHtml = `
+      <p class="tiny" style="margin-top:10px; color:var(--gold-bright); font-weight:700;">Este item já está no máximo (+9/9).</p>
+      <div class="asc-box">
+        <div class="asc-h">${nxEnt('coracao-soberano', '❤️‍🔥')} Ascensão</div>
+        <div class="tiny muted">Agora</div>
+        <div class="tiny">${formatStatTotals(cur)}</div>
+        <div class="tiny muted" style="margin-top:6px;">Depois de Ascender</div>
+        <div class="tiny asc-txt" style="font-weight:700;">${formatStatDeltas(cur, asc)} a mais</div>
+        <p class="tiny muted" style="margin-top:6px;">Gasta 1 Coração do Soberano (tens ${hearts}). 100% de sucesso. O item passa a mostrar "✦ Ascendido".</p>
+        <button class="btn small ${hearts > 0 ? 'asc-btn' : 'ghost'} block" style="margin-top:8px;" data-ascend-item="${ref}"${hearts > 0 ? '' : ' disabled'}>✦ Ascender${hearts > 0 ? '' : ' (precisas de um Coração do Soberano)'}</button>
+      </div>`;
+  } else {
+    const next = itemStatsAtUpgrade(item, item.upgrade + 1);
+    const nextLevel = item.upgrade + 1;
+    const pearlDef = upgradeMaterial(item, nextLevel);
+    const pearlOwned = pearlDef ? upgradeMaterialOwned(p, pearlDef) : 0;
+    const pearlOk = !pearlDef || pearlOwned >= 1;
+    const goldOk = p.gold >= cost;
+    const canDo = goldOk && pearlOk;
+    const chip = (ok, html) => `<span class="pill" style="border-color:${ok ? 'var(--success)' : 'var(--blood-bright)'}; color:${ok ? 'var(--success)' : 'var(--blood-bright)'};">${html}</span>`;
+    pillHtml = `<span class="pill" style="border-color:${accent}; color:${accent};">+${item.upgrade} → +${nextLevel}</span>`;
+    bodyHtml = `
+      <div style="margin-top:10px; padding:8px 10px; background:var(--bg-void); border:1px solid var(--line-soft); border-radius:8px;">
+        <div class="tiny muted">Agora</div>
+        <div class="tiny">${formatStatTotals(cur)}</div>
+        <div class="tiny muted" style="margin-top:6px;">Depois de melhorar</div>
+        <div class="tiny" style="color:var(--success); font-weight:700;">${formatStatDeltas(cur, next)} a mais</div>
+      </div>
+      <div class="row" style="gap:6px; flex-wrap:wrap; margin-top:10px;">
+        ${chip(goldOk, `🪙 ${cost}`)}
+        ${pearlDef ? chip(pearlOk, `${pearlDef.icon} 1 ${pearlDef.name} (tens ${pearlOwned})`) : ''}
+        <span class="pill">🎲 ${pct(chance)} sucesso</span>
+      </div>
+      <button class="btn small ${canDo ? 'primary' : 'ghost'} block" style="margin-top:10px;" data-upgrade-item="${ref}">🔨 Melhorar${canDo ? '' : ' (faltam recursos)'}</button>`;
+  }
+  return `<div class="card raised" data-smith-card="${ref}" style="${rarityBoxStyle(item)} border-left:3px solid ${accent}; margin-bottom:10px;">
+    <div class="row" style="gap:12px; align-items:center;">
+      <div class="item-ic" style="font-size:30px;">${itemIconHtml(item)}</div>
+      <div style="flex:1;">
+        <div class="row between" style="align-items:center;">
+          <span style="font-weight:700; font-family:var(--font-display);">${esc(item.name)}</span>
+          ${pillHtml}
+        </div>
+        <div class="tiny muted" style="margin-top:2px;">${SLOT_NAMES[eqd ? ref : item.slot]}${eqd ? '' : ' · 🎒 Mochila'} · Nv.${item.itemLevel || 1} · <b>+${item.upgrade}/9</b></div>
+      </div>
+    </div>
+    ${dotsHtml}
+    ${bodyHtml}
+  </div>`;
+}
+// v254: um item pode vir do equipamento (ref = espaço) ou da Mochila (ref = id do item).
+function itemByRef(ref) { const p = App.player; return EQUIP_SLOTS.includes(ref) ? p.equipment[ref] : (p.inventory || []).find(i => i.id === ref); }
+function refreshItemView(ref) { if (EQUIP_SLOTS.includes(ref)) openEquipSlotModal(ref); else openItemCompareModal(ref, 'item'); }
+// v173: Ascender um item +9 com um Coração do Soberano.
 async function ascendItemAction(slot) {
-  const p = App.player, item = p.equipment[slot];
+  const p = App.player, item = itemByRef(slot);
   if (!item || (item.upgrade || 0) < 9 || item.ascended || (p.soberanoHearts || 0) <= 0) { sfx.error(); return; }
   const ok = await nxConfirm('', { title: 'Ascender item?', icon: nxEnt('coracao-soberano', '❤️‍🔥'), confirmLabel: '✦ Ascender', cancelLabel: 'Cancelar',
     html: `<p class="dc-lead">Vais gastar 1 Coração do Soberano para Ascender <b style="color:${item.rarityColor}">${esc(item.name)}</b>.</p><p class="tiny">100% de sucesso. Os stats sobem +20% dos stats base e o item passa a mostrar "✦ Ascendido".</p>` });
@@ -16871,7 +16908,9 @@ async function ascendItemAction(slot) {
 }
 function upgradeItem(slot) {
   const p = App.player;
-  const item = p.equipment[slot];
+  const item = itemByRef(slot);
+  if (!item || (item.upgrade || 0) >= 9) return;
+  item.upgrade = item.upgrade || 0;
   const cost = blacksmithCost(p.level, item);
   const nextLevel = (item.upgrade || 0) + 1;
   const pearlDef = upgradeMaterial(item, nextLevel);
@@ -21576,7 +21615,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v253</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v254</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>

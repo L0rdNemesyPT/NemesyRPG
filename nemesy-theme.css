@@ -4591,3 +4591,14 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .adm-line{display:flex; justify-content:space-between; align-items:center; gap:8px; margin-top:6px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,.06);}
 .adm-cart.all{border-color:#e8a33a !important; box-shadow:0 0 12px rgba(232,163,58,.25);}
 .adm-log{font-size:12px; margin-top:8px; line-height:1.45; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,.06);}
+
+/* ===== v254: Ferreiro — Equipados / Mochila ===== */
+.sm-src{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:0 0 12px; padding:4px; border-radius:12px; background:var(--bg-void, rgba(0,0,0,.3)); border:1px solid var(--line-soft, rgba(255,255,255,.1));}
+.sm-src button{padding:9px 6px; border-radius:9px; border:0; background:transparent; color:var(--text-dim, #aaa); font-weight:700; font-size:14px; cursor:pointer;}
+.sm-src button.on{background:var(--bg-raised, rgba(255,255,255,.08)); color:var(--gold-bright, #f2c94c); box-shadow:inset 0 0 0 1px var(--gold-dim, rgba(242,201,76,.4));}
+.sm-inv-chips{margin:4px 0 8px; padding-bottom:6px;}
+.sm-inv-list{display:flex; flex-direction:column; gap:6px;}
+.sm-inv-row{width:100%; text-align:left; border:1px solid; border-radius:10px; color:inherit; cursor:pointer; margin:0;}
+.sm-inv-row.on{outline:2px solid var(--gold-bright, #f2c94c); outline-offset:1px;}
+.sm-inv-up{flex:none; min-width:34px; text-align:center; font-weight:800; font-size:13px; color:var(--gold-bright, #f2c94c); padding:3px 6px; border-radius:8px; background:rgba(0,0,0,.35);}
+.sm-goto{margin-top:8px;}
