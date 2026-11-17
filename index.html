@@ -5357,7 +5357,10 @@ const RANDOM_EVENTS = [
   { key: 'atormentados', name: 'Atormentados', icon: '👹', dmgMult: 2.0, hpMult: 3.0, defMult: 0.2, bleedChance: 0.35,
     desc: 'Especialistas em sangramento: dano ×2 e vida ×3, mas defesa a ×0,2 — e cada ataque deles tem 35% de hipótese de te fazer sangrar.' },
   { key: 'culto', name: 'Culto do Eclipse', icon: '🕯️', dmgMult: 1.2, hpMult: 1.4, defMult: 1.0, curseChance: 0.25, battles: 8, candles: 0,
-    desc: 'Cultistas do Eclipse tomaram a região. Cada vitória acende uma vela no altar; com 5 velas acesas, o Sumo-Sacerdote do Eclipse vem enfrentar-te.' }
+    desc: 'Cultistas do Eclipse tomaram a região. Cada vitória acende uma vela no altar; com 5 velas acesas, o Sumo-Sacerdote do Eclipse vem enfrentar-te.' },
+  // v256: 👑 Ascendentes — só aparece a heróis que já fizeram o Paragon 1.
+  { key: 'ascendentes', name: 'Ascendentes', icon: '👑', dmgMult: 1.0, hpMult: 2.0, defMult: 1.0, paragonOnly: true, affixes: 2, rewardMult: 1.5,
+    desc: 'Os monstros também renasceram: cada um nasce com 2 afixos de Elite ao acaso e vida ×2 — mas dão +50% de ouro e XP.' }
 ];
 // v183: 🕯️ Culto do Eclipse — evento com objetivo. Cada vitória acende 1 vela (máx. 5); com 5,
 // o combate seguinte do separador Batalha é contra o Sumo-Sacerdote do Eclipse (chefe).
@@ -5399,7 +5402,8 @@ function cultCandlesHtml(n) {
 }
 function rollRandomEvent() {
   if (Math.random() > 0.15) return null;
-  const ev = RANDOM_EVENTS[Math.floor(Math.random() * RANDOM_EVENTS.length)];
+  const pool = RANDOM_EVENTS.filter(e => !e.paragonOnly || paragonOf(App.player) >= 1); // v256: Ascendentes só em Paragon
+  const ev = pool[Math.floor(Math.random() * pool.length)];
   return Object.assign({}, ev);
 }
 
@@ -5408,6 +5412,7 @@ function rollRandomEvent() {
 const EVENT_DROPS = {
   praga: '🧪 6% de hipótese, por monstro derrotado enquanto a Praga está ativa, de deixar cair uma arma já com o bónus de Envenenamento aplicado.',
   escuridao: '🌀 6% de hipótese, por monstro derrotado enquanto a Escuridão está ativa, de deixar cair uma peça de armadura já com o bónus de Esquiva aplicada.',
+  ascendentes: '👑 4% de hipótese, por monstro derrotado enquanto os Ascendentes estão ativos, de deixar cair uma peça Lendária ou Única já com um bónus ➕ (o 2.º bónus dos Feitiços ➕).',
   atormentados: '👹 1% de hipótese, por monstro derrotado enquanto os Atormentados estão ativos, de deixar cair o Amuleto dos Atormentados — imunidade permanente a Sangramento.',
   culto: '🌑 Sumo-Sacerdote do Eclipse: o espólio de chefe normal + 2 Livros de Habilidades + Baú de Equipamento (qualidade +3) + 25% de hipótese de Pedra Nephalen.'
 };
@@ -6886,7 +6891,7 @@ function showInfoModal(icon, title, bodyHtml) {
   $('btn-close-modal').addEventListener('click', closeModal);
 }
 
-const EVENT_ART = ['demoniaco', 'corrompido', 'nod', 'kappa', 'praga', 'escuridao', 'atormentados', 'culto']; // v206: icons/evento-<chave>.webp
+const EVENT_ART = ['demoniaco', 'corrompido', 'nod', 'kappa', 'praga', 'escuridao', 'atormentados', 'culto', 'ascendentes']; // v206: icons/evento-<chave>.webp
 function showEventInfoModal(ev) {
   const rows = [];
   const x = v => String(v).replace('.', ',');
@@ -6896,6 +6901,9 @@ function showEventInfoModal(ev) {
   if (ev.critBonus) rows.push(`Chance de crítico dos monstros: <b>+${Math.round(ev.critBonus * 100)}%</b>`);
   if (ev.bleedChance) rows.push(`Hipótese de te fazerem sangrar: <b>${Math.round(ev.bleedChance * 100)}%</b> por ataque`);
   if (ev.curseChance) rows.push(`Hipótese de te amaldiçoarem: <b>${Math.round(ev.curseChance * 100)}%</b> por ataque (−${Math.round(CULT_CURSE_PCT * 100)}% de dano, ${CULT_CURSE_ROUNDS} rondas)`);
+  if (ev.affixes) rows.push(`⭐ Afixos de Elite por monstro: <b>${ev.affixes}</b> (ao acaso)`);
+  if (ev.rewardMult) rows.push(`🪙 Ouro e ✨ XP: <b>+${Math.round((ev.rewardMult - 1) * 100)}%</b>`);
+  if (ev.paragonOnly) rows.push(`✨ Só aparece a heróis Paragon.`);
   if (ev.key === 'culto') rows.push(`🕯️ Velas no altar: <b>${ev.candles || 0}/${CULT_CANDLES}</b> — com ${CULT_CANDLES}, o combate seguinte é contra o ${CULT_BOSS.name}.`);
   if (EVENT_DROPS[ev.key]) rows.push(EVENT_DROPS[ev.key]);
   const battlesLeft = ev.battlesLeft !== undefined ? `<p class="tiny" style="margin-top:8px;">Continua ativo durante mais ${ev.battlesLeft} batalha(s).</p>` : '';
@@ -8505,6 +8513,9 @@ function renderWikiBody() {
         if (ev.critBonus) rows.push(`+${Math.round(ev.critBonus * 100)}% crítico`);
         if (ev.bleedChance) rows.push(`${Math.round(ev.bleedChance * 100)}% de hipótese de Sangramento por ataque`);
         if (ev.curseChance) rows.push(`${Math.round(ev.curseChance * 100)}% de hipótese de Maldição por ataque (−${Math.round(CULT_CURSE_PCT * 100)}% de dano durante ${CULT_CURSE_ROUNDS} rondas)`);
+        if (ev.affixes) rows.push(`${ev.affixes} afixos de Elite por monstro`);
+        if (ev.rewardMult) rows.push(`+${Math.round((ev.rewardMult - 1) * 100)}% ouro e XP`);
+        if (ev.paragonOnly) rows.push(`✨ Só para heróis Paragon`);
         if (ev.key === 'culto') rows.push(`Dura ${ev.battles} batalhas. Cada vitória acende 1 vela; com ${CULT_CANDLES}, o combate seguinte contra monstros é contra o ${CULT_BOSS.name} (chefe, Nv. +${CULT_BOSS.lvPlus}, Maldição ${Math.round(CULT_BOSS.curseChance * 100)}%, Eclipse Total a meio da vida: +25% de dano e maldições de −25%). Tens ${CULT_BOSS.tries} tentativas; se o venceres, o evento termina.`);
         const dropInfo = EVENT_DROPS[ev.key];
         return `<div class="card raised">
@@ -18515,6 +18526,10 @@ function startCombat(opts) {
   if (opts.kind === 'wild' && !opts.extra) todApplyEnemies(App.combat); // v233: 🌙 noite
   if (hordeN === 1) eliteMaybe(App.combat, opts); // v231
   else { const c0 = App.combat; c0.horde.forEach((m, i) => { hordeSwitch(c0, i); eliteMaybe(c0, opts, 0.6); }); hordeSwitch(c0, 0); } // v233
+  if (eventApplied && eventApplied.affixes) { // v256: 👑 Ascendentes — cada monstro nasce com afixos de Elite
+    const c0 = App.combat, giveAff = () => { if (!c0.eliteAff || c0.eliteAff.length < eventApplied.affixes) { if (c0.eliteAff && c0.eliteAff.includes('blindado')) c0.enemy.def = Math.round(c0.enemy.def / 1.5); eliteAffixes(c0, eventApplied.affixes); } };
+    if (hordeN === 1) giveAff(); else { c0.horde.forEach((m, i) => { hordeSwitch(c0, i); giveAff(); }); hordeSwitch(c0, 0); }
+  }
   if (diff.statMult > 1) addCombatLog({ text: `${rarIc(diff.key, diff.icon)} Dificuldade ${diff.name}: inimigo ${diff.hpMult ? difficultyStatsText(diff) : `×${String(diff.statMult).replace('.', ',')} mais forte`}, mas recompensa muito melhor.`, cls: 'hit' });
   if (gapMult > 1.15) addCombatLog({ text: `⚠️ Este chefe está muito acima do teu nível — força ×${gapMult.toFixed(2)}!`, cls: 'hit' });
   if (App.combat.isCultBoss) {
@@ -20257,7 +20272,7 @@ function wildRewardRoll(c) {
   const killRg = regionOfCombat(c); // v201
   const lootLv = combatLootLv(c); // v219: em Paragon o espólio é sempre do Nv. 200
   const goldGain = Math.round((isBoss ? (30 + lootLv * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(lootLv * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)) * ((killRg && killRg.goldMult) || 1) * (1 + PARAGON_GOLD_PER_P * (c.paragon || 0)));
-  const eliteM = c.elite ? 2 : 1; // v231: Elite = XP e ouro ×2
+  const eliteM = (c.elite ? 2 : 1) * (c.eventApplied && c.eventApplied.rewardMult ? c.eventApplied.rewardMult : 1); // v231: Elite = XP e ouro ×2 · v256: Ascendentes +50%
   const todGm = 1 + todGold(); // v233: ☀️ Dia
   p.gold += Math.round(goldGain * eliteM * todGm);
   grantXp(xpGain * eliteM);
@@ -20389,6 +20404,16 @@ function wildRewardRoll(c) {
   // Monstros afetados pelos Atormentados têm uma hipótese muito baixa de deixar cair o
   // Amuleto dos Atormentados: um item único com imunidade permanente a Sangramento,
   // à parte dos drops normais e não obtenível de nenhuma outra forma.
+  // v256: 👑 Ascendentes — 4% de uma peça Lendária/Única já com bónus ➕.
+  if (c.eventApplied && c.eventApplied.key === 'ascendentes' && Math.random() < 0.04) {
+    if (eventBagFull()) eventFullMsg('a peça dos Ascendentes'); else {
+    const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+    const it = generateItem(slot, lootLv, null, false, RARITIES.find(r => r.key === (Math.random() < 0.3 ? 'unico' : 'lendario')));
+    it.plusBonus = plus2Roll(slot);
+    p.inventory.push(it);
+    drops.push(`👑➕ Os Ascendentes deixaram cair ${it.name} — já com um bónus ➕!`);
+    }
+  }
   if (c.eventApplied && c.eventApplied.key === 'atormentados' && Math.random() < 0.01) {
     if (eventBagFull()) eventFullMsg('o Amuleto dos Atormentados'); else {
     const amulet = generateItem('amulet', lootLv, null, null, RARITIES.find(r => r.key === 'unico'));
@@ -21684,7 +21709,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v255</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v256</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
