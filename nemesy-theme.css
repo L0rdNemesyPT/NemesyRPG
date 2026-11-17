@@ -2040,7 +2040,7 @@ body.fx-off .wm-hero,body.fx-off .wm-event .wm-ic{animation:none;}
 .ifx-raro{--ifx:rgba(154,95,214,.75);} .ifx-lend{--ifx:rgba(232,190,60,.75);} .ifx-unico{--ifx:rgba(236,140,50,.8);}
 .ifx-set{--ifx:rgba(95,190,95,.75);} .ifx-temp{--ifx:rgba(242,201,76,.8);} .ifx-demo{--ifx:rgba(235,50,40,.85);} .ifx-div{--ifx:rgba(63,224,208,.8);}
 .ifx-asc{filter:drop-shadow(0 0 3px rgba(255,214,90,.9));}
-.ifx-asc:not(.ifx-raro):not(.ifx-lend):not(.ifx-unico):not(.ifx-set):not(.ifx-temp):not(.ifx-demo):not(.ifx-div){--ifx:rgba(255,214,90,.7);}
+.ifx-asc:not(.ifx-raro):not(.ifx-lend):not(.ifx-unico):not(.ifx-set):not(.ifx-temp):not(.ifx-demo):not(.ifx-div):not(.ifx-ast){--ifx:rgba(255,214,90,.7);}
 body:not(.fx-lite) .ifx-raro::before,body:not(.fx-lite) .ifx-set::before,body:not(.fx-lite) .ifx-temp::before{animation:ifxPulse 2.8s ease-in-out infinite;}
 body:not(.fx-lite) .ifx-lend::before,body:not(.fx-lite) .ifx-unico::before{animation:ifxPulse 2.2s ease-in-out infinite;}
 body:not(.fx-lite) .ifx-demo::before{animation:ifxFlicker 1.3s ease-in-out infinite;}
@@ -4530,3 +4530,42 @@ body.fx-lite #fx-combo b{animation:none !important;}
 .sp-card-ic{font-size:30px; width:40px; text-align:center;} .sp-card-tx b{display:block; font-family:var(--font-display); font-size:15px; color:#E8E0FF;} .sp-card-tx b em{font-style:normal; font-size:12px; color:#ffd36a;} .sp-card-tx span{font-size:12.5px; color:#c4f0d2;}
 
 .spc .nx-k,.spc img{width:1.15em !important; height:1.15em !important; vertical-align:-.2em; background:none !important; border:0 !important; box-shadow:none !important;}
+
+/* ===== v252: 💎 Astral ===== */
+.ifx-ast{--ifx:rgba(207,232,255,.9); filter:drop-shadow(0 0 3px rgba(200,232,255,.95));}
+.ifx-asc.ifx-ast{--ifx:rgba(207,232,255,.9);}
+body:not(.fx-lite) .ifx-ast::before{animation:ifxBreath 3.2s ease-in-out infinite;}
+@keyframes ifxBreath{0%,100%{opacity:.3; transform:scale(.88);} 50%{opacity:.95; transform:scale(1.1);}}
+.ifx-ast > i{width:auto; height:auto; bottom:auto; border-radius:0; background:none; box-shadow:none; font-style:normal; line-height:1; color:#fff; text-shadow:0 0 4px #bfe6ff, 0 0 2px #fff; font-size:max(8px,.3em); animation:ifxTwinkle 2.6s ease-in-out infinite;}
+.ifx-ast > i::before{content:"✦";}
+.ifx-ast > i:nth-of-type(1){top:-12%; left:-10%; animation-delay:0s;}
+.ifx-ast > i:nth-of-type(2){top:-16%; left:auto; right:-12%; animation-delay:-.9s;}
+.ifx-ast > i:nth-of-type(3){top:auto; bottom:-10%; left:auto; right:-4%; animation-delay:-1.7s;}
+.ifx-ast > b{display:none; position:absolute; inset:-4%; z-index:2; pointer-events:none; border-radius:22%; background:linear-gradient(115deg, transparent 38%, rgba(255,255,255,.65) 50%, transparent 62%); background-size:260% 100%; background-position:160% 0; mix-blend-mode:screen;}
+body:not(.fx-lite) .ifx-ast > b{display:block; animation:ifxShine 3.6s ease-in-out infinite;}
+@keyframes ifxShine{0%,55%{background-position:160% 0;} 100%{background-position:-70% 0;}}
+body.fx-off .ifx-ast > b{display:none;}
+@media (prefers-reduced-motion:reduce){.ifx-ast > b{animation:none !important; display:none;}}
+/* ficha do item: moldura de cristal */
+.tt.ast{--c:#CFE8FF; border:2px solid #EAF6FF; outline:1px solid #8fbfdc; box-shadow:0 0 22px rgba(220,240,255,.45), 0 8px 24px rgba(0,0,0,.7);}
+.tt.ast .tt-head{background:linear-gradient(135deg, rgba(255,255,255,.55) 0 16%, rgba(214,236,255,.35) 16% 36%, rgba(255,255,255,.22) 36% 54%, rgba(190,222,250,.42) 54% 74%, rgba(255,255,255,.4) 74%), #5d88a8 !important; border-bottom:1px solid #EAF6FF; overflow:hidden;}
+.tt.ast .tt-head::after{content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(105deg, transparent 38%, rgba(255,255,255,.7) 50%, transparent 62%); background-size:260% 100%; background-position:160% 0;}
+body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s ease-in-out infinite;}
+.tt.ast .tt-name{color:#fff !important; text-shadow:0 1px 2px #2b4b63, 0 0 10px #d8efff !important;}
+.doll-slot.astral{border-color:#EAF6FF !important;}
+/* Forja Astral */
+.as-forge{margin-top:12px; border:1px solid rgba(207,232,255,.55); background:linear-gradient(135deg, rgba(207,232,255,.14), rgba(93,136,168,.12)); box-shadow:0 0 14px rgba(207,232,255,.18);}
+.as-hd{display:flex; align-items:center; gap:10px;}
+.as-hd .nx-k,.as-hd img{width:34px; height:34px; font-size:30px;}
+.as-hd b{display:block; font-family:var(--font-display, Georgia, serif); font-size:16px; color:#eaf6ff;}
+.as-hd small{font-size:12px; color:var(--text-dim, #aaa);}
+.as-hd small b{display:inline; font-family:inherit; font-size:13px;}
+.as-bar{height:9px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:8px;}
+.as-bar i{display:block; height:100%; background:linear-gradient(90deg, #8fbfdc, #eaf6ff); box-shadow:0 0 8px rgba(207,232,255,.8);}
+.as-slots{display:grid; grid-template-columns:repeat(9, 1fr); gap:4px; margin-top:8px;}
+.as-slot{aspect-ratio:1; padding:2px; border-radius:8px; border:1px solid rgba(207,232,255,.3); background:rgba(207,232,255,.06); display:flex; align-items:center; justify-content:center; font-size:18px; cursor:pointer;}
+.as-slot .nx-k{width:22px; height:22px;}
+.as-slot.on{border-color:#eaf6ff; background:rgba(207,232,255,.22); box-shadow:0 0 8px rgba(207,232,255,.7);}
+.as-const{margin-top:10px; padding-top:8px; border-top:1px solid rgba(207,232,255,.2); font-size:12px; display:flex; flex-direction:column; gap:2px;}
+.as-const span{color:var(--text-dim, #999); opacity:.75;}
+.as-const span.on{color:#d8efff; opacity:1;}
