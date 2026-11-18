@@ -7873,6 +7873,8 @@ async function startNewGame() {
 function renderStatusBar() {
   const p = App.player;
   const stats = effectiveStats(p);
+  // v260: o HP atual nunca fica acima do máximo (ex.: depois de tirar um talismã, gema ou pedra de HP).
+  if (p && !(App.combat && !App.combat.ended) && p.hp > stats.hp) p.hp = stats.hp;
   const hl = heroLv(p), pgP = paragonOf(p); // v219
   const need = xpForLevel(hl);
   const cls = CLASSES[p.class];
@@ -14034,13 +14036,13 @@ function renderFullStatsSheet(stats) {
   const rows = [];
   rows.push(statSheetRow('💥', 'Crítico', pct(stats.crit), stats.crit, CRIT_CAP, pct(CRIT_CAP)));
   rows.push(statSheetRow('🌀', 'Esquiva', pct(stats.dodge), stats.dodge, DODGE_CAP, pct(DODGE_CAP)));
-  rows.push(statSheetRow('💚', 'Regeneração de HP por ronda', stats.regenPct + '%', stats.regenPct, REGEN_CAP, REGEN_CAP + '%', 'var(--success)'));
+  rows.push(statSheetRow('💚', 'Regeneração de HP por ronda', (Math.round(stats.regenPct * 10) / 10).toLocaleString('pt-PT') + '%', stats.regenPct, REGEN_CAP, REGEN_CAP + '%', 'var(--success)')); // v260: sem casas decimais a mais
   rows.push(statSheetRow('💫', 'Atordoar ao atacar (itens)', pct(stats.stunOnHitChance / 100), stats.stunOnHitChance / 100, STUN_ON_HIT_CAP, pct(STUN_ON_HIT_CAP)));
   rows.push(statSheetRow('🐺', 'Dano vs. Animais', pct(stats.dmgVsAnimaisPct / 100), stats.dmgVsAnimaisPct / 100, DMG_PCT_CAP, pct(DMG_PCT_CAP)));
   rows.push(statSheetRow('🗡️', 'Dano vs. Humanos', pct(stats.dmgVsHumanosPct / 100), stats.dmgVsHumanosPct / 100, DMG_PCT_CAP, pct(DMG_PCT_CAP)));
   rows.push(statSheetRow('😈', 'Dano vs. Demónios', pct(stats.dmgVsDemoniosPct / 100), stats.dmgVsDemoniosPct / 100, DMG_PCT_CAP, pct(DMG_PCT_CAP)));
   rows.push(statSheetRow('💀', 'Dano vs. Mortos-Vivos', pct(stats.dmgVsMortosPct / 100), stats.dmgVsMortosPct / 100, DMG_PCT_CAP, pct(DMG_PCT_CAP)));
-  rows.push(statSheetRow('🌟', 'Dano das Habilidades', pct(stats.skillDmgPct / 100), stats.skillDmgPct / 100, 0.20, pct(0.20)));
+  rows.push(statSheetRow('🌟', 'Dano das Habilidades', pct(stats.skillDmgPct / 100), stats.skillDmgPct / 100, 0.20 + GEM_CAPS.skillPct, pct(0.20 + GEM_CAPS.skillPct))); // v260: 20% dos Feitiços + 30% das gemas
   if (stats.dmgVsBossPct) rows.push(statSheetRow('🏆', 'Dano vs. Bosses e Mini-Chefes', pct(stats.dmgVsBossPct), stats.dmgVsBossPct));
   if (stats.dmgReducedFromBossPct) rows.push(statSheetRow('🛡️', 'Redução de dano de Bosses', pct(stats.dmgReducedFromBossPct), stats.dmgReducedFromBossPct));
   if (stats.blockPct) rows.push(statSheetRow('🛡️', 'Bloqueio (metade do dano)', pct(stats.blockPct), stats.blockPct, BLOCK_CAP, pct(BLOCK_CAP))); // v244
@@ -14055,6 +14057,7 @@ function renderFullStatsSheet(stats) {
   if (stats.dmgTakenRed) rows.push(statSheetRow('🛡️', 'Redução de dano recebido', pct(stats.dmgTakenRed), null));
   if (stats.esLeech) rows.push(statSheetRow('🔷', 'Escudo Mágico por dano feito', pct(stats.esLeech), null));
   if (stats.esRegen) rows.push(statSheetRow('🔷', 'Escudo Mágico por ronda', pct(stats.esRegen), null));
+  { const vs = gemTotals(App.player).vsElem || 0; if (vs) rows.push(statSheetRow('🌈', 'Dano vs. monstros com elemento', pct(vs), vs, GEM_CAPS.vsElem, pct(GEM_CAPS.vsElem))); } // v260: Pedra Prismática na arma
 
   const badges = [];
   if (stats.critImmune) badges.push('💥🚫 Imune a Críticos');
@@ -16316,6 +16319,13 @@ function gemStatText(type, tier, mult, zone) {
   return ['arma', 'armadura', 'joia'].map(z => `${GEM_ZONE_NAMES[z]}: ${GEM_FX_LABEL[fx[z][0]](gemFxValue(type, tier, z, mult))}`).join(' · ');
 }
 function gemRemoveCost(item) { return Math.max(100, Math.round(20 * ((item && item.itemLevel) || 1))); }
+// v260: resumo do que as gemas equipadas estão a dar AGORA ao herói (já com os limites).
+function gemActiveTotalsHtml(p) {
+  const gt = gemTotals(p), keys = Object.keys(GEM_CAPS).filter(k => gt[k] > 1e-9);
+  if (!keys.length) return '';
+  return `<div class="card raised gem-act"><div class="row between"><b>💠 Bónus ativos das gemas</b><span class="tiny muted">já contam no herói</span></div>
+    <div class="gem-act-list">${keys.map(k => { const atCap = gt[k] >= GEM_CAPS[k] - 1e-9; return `<span class="${atCap ? 'cap' : ''}">${GEM_FX_LABEL[k](gt[k])}${atCap ? ' <em>máx.</em>' : ` <small>/ ${gemCapTxt(k)}</small>`}</span>`; }).join('')}</div></div>`;
+}
 function renderGemsBody(body, p) {
   const types = Object.keys(GEM_DEFS);
   const total = types.reduce((sum, t) => sum + p.gems[t].reduce((a, b) => a + b, 0), 0);
@@ -16369,7 +16379,7 @@ function renderGemsBody(body, p) {
       <div class="stat-box"><div class="v">${nxEnt('po-estelar', '✨')} ${capTxt(p.poEstelar || 0, resCap('poEstelar'))}</div><div class="k">Pó Estelar</div></div>
     </div>
     <div class="section-title" style="margin-top:2px;">🛡️ Encaixes no equipamento</div>
-    ${equipped.length ? `<div class="gem-sock-grid">${socketTiles}</div><p class="tiny muted" style="margin:6px 0 10px;">Toca numa peça para encaixar, trocar ou abrir mais encaixes.</p>` : '<p class="tiny muted" style="margin-bottom:10px;">Equipa itens para lhes encaixares gemas.</p>'}
+    ${equipped.length ? `<div class="gem-sock-grid">${socketTiles}</div><p class="tiny muted" style="margin:6px 0 10px;">Toca numa peça para encaixar, trocar ou abrir mais encaixes.</p>${gemActiveTotalsHtml(p)}` : '<p class="tiny muted" style="margin-bottom:10px;">Equipa itens para lhes encaixares gemas.</p>'}
     <div class="row between" style="margin-top:4px; gap:8px;">
       <div class="section-title" style="margin:0;">🎒 Gemas na bolsa</div>
       ${canCombineAny ? '<button class="btn small primary" id="btn-gem-all">⚡ Combinar todas</button>' : ''}
@@ -22270,7 +22280,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v259</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v260</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
