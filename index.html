@@ -1618,7 +1618,10 @@ const TOWERS = [
     ],
     minis: { guard: { name: 'Guardião da Espiral', icon: '🌀', category: 'outro' } },
     boss: { name: 'Senhor do Ciclo', icon: '👑', category: 'outro' }
-  }
+  },
+  // v258: EXPEDIÇÃO SEMANAL — Desafio Paragon (P1+), mapa de caminhos igual para todos (ver EXP_*). Fica em Mapa → Desafios.
+  { key: 'expedicao', exped: true, challenge: true, name: 'Expedição Semanal', icon: '🗺️', img: 'dungeon-expedicao', minLv: 200, cost: 0, floors: 12,
+    lvStart: 200, lvEnd: 200, bossLv: 200, miniFloors: [], fountainFloors: [], divineChance: 0.08, monsters: [], minis: {}, boss: { name: 'Chefe da semana', icon: '👑', category: 'outro' } }
 ];
 // ---------- v250: Pactos ----------
 // peso: quanto pesa na balança · enemy: multiplicadores dos inimigos · player: efeito no herói.
@@ -2235,6 +2238,7 @@ function startTowerCombat(lane) {
 function finishTowerFight() {
   if (App.combat && App.combat.isPact) { finishPactFight(); return; } // v250
   if (App.combat && App.combat.isSpiral) { finishSpiralFight(); return; } // v251
+  if (App.combat && App.combat.isExped) { finishExpFight(); return; } // v258
   const c = App.combat, p = App.player, t = p.tower;
   const T = t ? towerDef(t.key) : TOWERS[0];
   const lv = c.level;
@@ -2299,7 +2303,8 @@ function finishTowerFight() {
 // Derrota ou fuga dentro da torre: a subida acaba, mas não se perde ouro (já pagaste a entrada).
 function endTowerRunByDefeat() {
   const p = App.player, t = p.tower;
-  const floor = t ? (t.maze ? t.floor : t.floor + 1) : 0;
+  const floor = t ? (t.exped ? (t.path || []).length + 1 : t.maze ? t.floor : t.floor + 1) : 0;
+  if (t && t.exped) expFinalize(t, false); // v258: a pontuação conta mesmo se caíres
   p.tower = null;
   return floor;
 }
@@ -2308,6 +2313,7 @@ function endTowerRunByDefeat() {
 function renderTowerBody(body, T) {
   if (T.pact) { renderPactBody(body, T); return; } // v250
   if (T.spiral) { renderSpiralBody(body, T); return; } // v251
+  if (T.exped) { renderExpBody(body, T); return; } // v258
   const p = App.player, t = p.tower && p.tower.key === T.key ? p.tower : null;
   const clears = (p.towerClears && p.towerClears[T.key]) || 0;
   if (!t) {
@@ -2978,6 +2984,461 @@ function renderSpiralBody(body, T) {
   const l = $('sp-leave'); if (l) l.addEventListener('click', towerLeave);
   if (t.boonPending && !App._spBoonAuto) { App._spBoonAuto = true; setTimeout(() => { App._spBoonAuto = false; if (spiralRun(App.player) && spiralRun(App.player).boonPending && !document.querySelector('.sp-card')) spiralOpenBoons(); }, 350); }
 }
+// ============================================================
+// 🗺️ EXPEDIÇÃO SEMANAL (v258) — Desafio Paragon (P1+). Um mapa de caminhos (estilo roguelike),
+// IGUAL PARA TODOS durante a semana (gerado a partir da semana). 12 linhas: escolhes o caminho entre
+// ⚔️ combates, 💀 elites, ❓ eventos, 🛒 mercador, 🔥 fogueira, 💰 tesouro e, no fim, 👑 o chefe da semana.
+// Pelo caminho apanhas Relíquias (só duram nesta expedição) que combinam entre si por "família".
+// p.tower = { key:'expedicao', exped:true, wk, row, col, path:[[r,c]], relics:[], selos, sharp, offer, shop, ev, loot }
+// p.expedicao = { wk, best, allBest, day, n, clears }
+// ============================================================
+const EXP_ROWS = 12, EXP_COLS = 4, EXP_DAILY = 1, EXP_EXTRA_COST = 50000;
+let EXP_GROW_HP = 1.11, EXP_GROW_DMG = 1.09, EXP_BREATH = 0.06;
+const EXP_MULT = { mob: { hp: 0.95, dmg: 0.85, def: 0.9 }, elite: { hp: 1.5, dmg: 1.0, def: 0.95 }, boss: { hp: 0.9, dmg: 0.5, def: 0.95 } };
+const EXP_NODE = {
+  combate:  { icon: '🗡️', name: 'Combate', desc: 'Um combate normal. Dá Selos 🔖.' },
+  elite:    { icon: '💀', name: 'Elite', desc: 'Um monstro com afixos de Elite. Dá uma Relíquia (1 de 3) e um tesouro.' },
+  evento:   { icon: '❓', name: 'Evento', desc: 'Algo inesperado — com escolhas.' },
+  mercador: { icon: '🛒', name: 'Mercador', desc: 'Compra Relíquias ou cura com Selos 🔖.' },
+  fogueira: { icon: '🔥', name: 'Fogueira', desc: 'Descansa (cura 40%) ou afia a arma (+5% de dano).' },
+  tesouro:  { icon: '💰', name: 'Tesouro', desc: 'Uma Relíquia (1 de 3), Selos e um tesouro.' },
+  chefe:    { icon: '👑', name: 'Chefe da semana', desc: 'O guardião do fim do mapa.' }
+};
+const EXP_FAMILIES = {
+  furia:    { icon: '🔥', name: 'Fúria', color: '#ff7a45' },
+  precisao: { icon: '🎯', name: 'Precisão', color: '#ffd166' },
+  sangue:   { icon: '🩸', name: 'Sangue', color: '#e05a6a' },
+  guarda:   { icon: '🛡️', name: 'Guarda', color: '#6fb7ff' },
+  sorte:    { icon: '🍀', name: 'Sorte', color: '#7ad97a' }
+};
+const EXP_RELICS = {
+  brasa:    { icon: '🔥', name: 'Brasa Viva', fam: 'furia', rare: false, desc: '+12% de dano.' },
+  coroa:    { icon: '👑', name: 'Coroa da Fúria', fam: 'furia', rare: true, desc: '+6% de dano por cada relíquia de 🔥 Fúria (conta com esta).' },
+  raio:     { icon: '⚡', name: 'Raio Inicial', fam: 'furia', rare: false, desc: '+60% de dano na 1.ª ronda de cada combate.' },
+  lamina:   { icon: '🗡️', name: 'Lâmina Gémea', fam: 'precisao', rare: false, desc: '+6% de crítico.' },
+  falcao:   { icon: '🦅', name: 'Olho do Falcão', fam: 'precisao', rare: true, desc: '+12% de crítico se tiveres 2+ relíquias de 🎯 Precisão.' },
+  foice:    { icon: '💀', name: 'Foice do Carrasco', fam: 'precisao', rare: false, desc: '+35% de dano a inimigos abaixo de 30% de vida.' },
+  calice:   { icon: '🍷', name: 'Cálice Rubro', fam: 'sangue', rare: false, desc: '+4% de roubo de vida.' },
+  presas:   { icon: '🦇', name: 'Presas Noturnas', fam: 'sangue', rare: true, desc: '+2% de roubo de vida e +4% de HP depois de cada vitória por cada relíquia de 🩸 Sangue.' },
+  pulmoes:  { icon: '💨', name: 'Pulmões de Ferro', fam: 'sangue', rare: false, desc: '+8% de HP depois de cada vitória.' },
+  escama:   { icon: '🐉', name: 'Escama de Dragão', fam: 'guarda', rare: false, desc: '−8% de dano recebido.' },
+  carapaca: { icon: '🐢', name: 'Carapaça Antiga', fam: 'guarda', rare: true, desc: '−5% de dano recebido por cada relíquia de 🛡️ Guarda (máx. 45% no total).' },
+  coracao:  { icon: '❤️', name: 'Coração de Pedra', fam: 'guarda', rare: false, desc: 'Ao apanhar: recuperas 35% do HP.' },
+  moeda:    { icon: '🪙', name: 'Moeda da Sorte', fam: 'sorte', rare: false, desc: '+20% de ouro e XP e +3 Selos 🔖 por combate.' },
+  prisma:   { icon: '🔮', name: 'Prisma Caótico', fam: 'sorte', rare: true, desc: '+3% de dano por cada relíquia que tens.' },
+  alforge:  { icon: '🧪', name: 'Alforge do Viajante', fam: 'sorte', rare: false, desc: 'Ao apanhar: +2 Poções de HP Maior.' }
+};
+const EXP_BOSSES = [
+  { name: 'Imperador do Vazio', icon: '🌌', category: 'outro', aff: ['blindado'] },
+  { name: 'Leviatã Astral', icon: '🐋', category: 'animal', aff: ['regenerador'] },
+  { name: 'Avatar do Caos', icon: '🌀', category: 'demonio', aff: ['furioso'] },
+  { name: 'Deus da Destruição', icon: '☄️', category: 'outro', aff: ['explosivo'] }
+];
+const EXP_EVENTS = {
+  altar: { icon: '🩸', name: 'Altar Sangrento', text: 'Um altar pede sangue em troca de poder.',
+    opts: [{ label: 'Dar sangue (−20% HP) → Relíquia rara', fx: 'altar' }, { label: 'Ignorar', fx: 'nada' }] },
+  fonte: { icon: '⛲', name: 'Fonte Esquecida', text: 'Água limpa a correr entre as pedras.',
+    opts: [{ label: 'Beber (cura 35%)', fx: 'cura35' }, { label: 'Encher os bolsos de moedas (+25 🔖)', fx: 'selos25' }] },
+  bau: { icon: '🧰', name: 'Baú Suspeito', text: 'Um baú sozinho no meio do caminho… demasiado fácil?',
+    opts: [{ label: 'Abrir (60%: Relíquia · 40%: armadilha −25% HP)', fx: 'bau' }, { label: 'Deixar estar', fx: 'nada' }] },
+  peregrino: { icon: '🧙', name: 'Peregrino Cego', text: '"Dá-me uma das tuas relíquias e dou-te duas das minhas."',
+    opts: [{ label: 'Trocar 1 Relíquia ao acaso por 2 novas', fx: 'troca' }, { label: 'Recusar', fx: 'nada' }] },
+  ferreiro: { icon: '⚒️', name: 'Forja Abandonada', text: 'A bigorna ainda está quente.',
+    opts: [{ label: 'Afiar a arma (+5% de dano nesta expedição)', fx: 'afiar' }, { label: 'Descansar ao calor (cura 20%)', fx: 'cura20' }] },
+  jogo: { icon: '🎲', name: 'Jogo de Dados', text: 'Um goblin desafia-te para os dados.',
+    opts: [{ label: 'Apostar 20 🔖 (50%: ganhas 50 🔖)', fx: 'dados' }, { label: 'Não jogar', fx: 'nada' }] }
+};
+function expHash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
+function expRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function expWeekNum(wk) { const m = /W(\d+)/.exec(wk || ''); return m ? Number(m[1]) : 0; }
+// O mapa da semana — igual para todos (mesma semente).
+const _expMapCache = {};
+function expMap(wk) {
+  wk = wk || isoWeekKey();
+  if (_expMapCache[wk]) return _expMapCache[wk];
+  const rnd = expRng(expHash('nemesy-exp-' + wk));
+  const pick = w => { const tot = Object.values(w).reduce((a, b) => a + b, 0); let r = rnd() * tot; for (const k in w) { r -= w[k]; if (r <= 0) return k; } return Object.keys(w)[0]; };
+  const rows = [], next = [];
+  for (let r = 0; r < EXP_ROWS; r++) {
+    if (r === EXP_ROWS - 1) { rows.push([{ type: 'chefe' }]); break; }
+    const row = [];
+    for (let c = 0; c < EXP_COLS; c++) {
+      let type;
+      if (r === 0) type = 'combate';
+      else if (r === EXP_ROWS - 2) type = 'fogueira';
+      else if (r <= 2) type = pick({ combate: 55, evento: 25, tesouro: 10, mercador: 10 });
+      else type = pick({ combate: 36, elite: 16, evento: 20, mercador: 8, fogueira: 10, tesouro: 10 });
+      if (r > 0 && r < EXP_ROWS - 2 && row[c - 1] && row[c - 1].type === type && ['mercador', 'fogueira', 'tesouro'].includes(type)) type = 'combate';
+      row.push({ type });
+    }
+    rows.push(row);
+  }
+  for (let r = 0; r < EXP_ROWS - 1; r++) {
+    next[r] = [];
+    if (r === EXP_ROWS - 2) { for (let c = 0; c < EXP_COLS; c++) next[r][c] = [0]; continue; }
+    for (let c = 0; c < EXP_COLS; c++) {
+      const cand = [c - 1, c, c + 1].filter(x => x >= 0 && x < EXP_COLS);
+      const a = cand[Math.floor(rnd() * cand.length)];
+      const set = [a];
+      if (rnd() < 0.35) { const b = cand[Math.floor(rnd() * cand.length)]; if (b !== a) set.push(b); }
+      next[r][c] = set.sort();
+    }
+    for (let c = 0; c < EXP_COLS; c++) { // todas as casas da linha de cima têm de ter caminho
+      if (!next[r].some(s => s.includes(c))) { const from = Math.max(0, Math.min(EXP_COLS - 1, c + (rnd() < 0.5 ? -1 : 1))); next[r][from].push(c); next[r][from].sort(); }
+    }
+  }
+  const boss = EXP_BOSSES[expWeekNum(wk) % EXP_BOSSES.length];
+  return (_expMapCache[wk] = { wk, rows, next, boss, seed: expHash('nemesy-exp-' + wk) });
+}
+function expNodeRng(t, r, c) { return expRng(expHash(`${t.wk}|${r}|${c}`)); }
+function expState(p) {
+  const s = p.expedicao = Object.assign({ wk: '', best: 0, allBest: 0, day: '', n: 0, clears: 0, wkClear: false }, p.expedicao || {});
+  const wk = isoWeekKey(); if (s.wk !== wk) { s.wk = wk; s.best = 0; s.wkClear = false; }
+  const day = dgDayKey(); if (s.day !== day) { s.day = day; s.n = 0; }
+  return s;
+}
+function expRun(p) { const t = p && p.tower; return t && t.exped ? t : null; }
+function expFamCount(t, fam) { return (t.relics || []).filter(k => EXP_RELICS[k] && EXP_RELICS[k].fam === fam).length; }
+function expHas(t, k) { return (t.relics || []).includes(k); }
+function expStat(t, k) {
+  if (!t) return 0;
+  const n = (t.relics || []).length;
+  switch (k) {
+    case 'dmg': return (expHas(t, 'brasa') ? 0.12 : 0) + (expHas(t, 'coroa') ? 0.06 * expFamCount(t, 'furia') : 0) + (expHas(t, 'prisma') ? 0.03 * n : 0) + 0.05 * (t.sharp || 0);
+    case 'crit': return (expHas(t, 'lamina') ? 0.06 : 0) + (expHas(t, 'falcao') && expFamCount(t, 'precisao') >= 2 ? 0.12 : 0);
+    case 'ls': return (expHas(t, 'calice') ? 0.04 : 0) + (expHas(t, 'presas') ? 0.02 * expFamCount(t, 'sangue') : 0);
+    case 'red': return Math.min(0.45, (expHas(t, 'escama') ? 0.08 : 0) + (expHas(t, 'carapaca') ? 0.05 * expFamCount(t, 'guarda') : 0));
+    case 'first': return expHas(t, 'raio') ? 0.6 : 0;
+    case 'exec': return expHas(t, 'foice') ? 0.35 : 0;
+    case 'breath': return EXP_BREATH + (expHas(t, 'pulmoes') ? 0.08 : 0) + (expHas(t, 'presas') ? 0.04 * expFamCount(t, 'sangue') : 0);
+    case 'fort': return expHas(t, 'moeda') ? 0.20 : 0;
+    case 'selos': return expHas(t, 'moeda') ? 3 : 0;
+  }
+  return 0;
+}
+function expScore(t, won) {
+  const done = (t.path || []).length;
+  return done * 100 + (t.relics || []).length * 25 + (t.selos || 0) + (won ? 1000 + Math.round(clamp(App.player.hp / effectiveStats(App.player).hp, 0, 1) * 300) : 0);
+}
+function expReachable(t) {
+  const M = expMap(t.wk);
+  if (t.row < 0) return M.rows[0].map((_, c) => [0, c]);
+  if (t.row >= EXP_ROWS - 1) return [];
+  return (M.next[t.row][t.col] || []).map(c => [t.row + 1, c]);
+}
+async function expEnter(T) {
+  const p = App.player, s = expState(p);
+  if (p.tower) { sfx.error(); const O = towerDef(p.tower.key); toast(`Já estás numa subida: ${O ? O.name : 'outra torre'}. Termina-a primeiro.`); renderTabMapa(); return; }
+  if (paragonOf(p) < 1) { sfx.error(); toast('A Expedição é só para heróis Paragon 1 ou mais.'); return; }
+  const free = s.n < EXP_DAILY;
+  if (!free) {
+    if ((p.gold || 0) < EXP_EXTRA_COST) { sfx.error(); toast(`Já fizeste a Expedição de hoje. Uma extra custa ${EXP_EXTRA_COST.toLocaleString('pt-PT')} de ouro.`); return; }
+    if (!await nxConfirm(`Já fizeste a Expedição grátis de hoje. Pagar ${EXP_EXTRA_COST.toLocaleString('pt-PT')} de ouro por mais uma?`, { title: T.name, icon: T.icon, confirmLabel: 'Pagar e partir' })) return;
+    p.gold -= EXP_EXTRA_COST;
+  }
+  s.n++;
+  p.tower = { key: T.key, exped: true, wk: isoWeekKey(), row: -1, col: -1, path: [], relics: [], selos: 0, sharp: 0, offer: null, shop: null, ev: null, pend: null, loot: { gold: 0, xp: 0, list: [] }, startedAt: Date.now() };
+  saveGame(); sfx.questdone(); renderStatusBar(); renderTabMapa();
+  toast('🗺️ Partiste em Expedição. Escolhe o teu caminho!');
+}
+function expGainRelic(t, k) {
+  const p = App.player, d = EXP_RELICS[k]; if (!d) return;
+  t.relics.push(k);
+  if (k === 'coracao') { const ps = effectiveStats(p), b = p.hp; p.hp = Math.min(ps.hp, p.hp + Math.round(ps.hp * 0.35)); toast(`❤️ +${nxNum(p.hp - b)} HP`); }
+  if (k === 'alforge') { p.potions.hp2 = (p.potions.hp2 || 0) + 2; toast('🧪 +2 Poções de HP Maior'); }
+}
+function expRollRelics(t, n, rng, rareBias) {
+  const pool = Object.keys(EXP_RELICS).filter(k => !expHas(t, k));
+  const out = [];
+  while (out.length < n && pool.length) {
+    const w = pool.map(k => EXP_RELICS[k].rare ? (rareBias ? 2 : 0.6) : 1);
+    let r = rng() * w.reduce((a, b) => a + b, 0), i = 0;
+    for (; i < pool.length; i++) { r -= w[i]; if (r <= 0) break; }
+    out.push(pool.splice(Math.min(i, pool.length - 1), 1)[0]);
+  }
+  return out;
+}
+function expRelicCard(k, extra) {
+  const d = EXP_RELICS[k], f = EXP_FAMILIES[d.fam];
+  return `<div class="ex-rel-ic" style="--fc:${f.color}">${d.icon}</div><div class="sp-card-tx"><b>${d.name}${d.rare ? ' <em class="ex-rare">rara</em>' : ''}</b><span>${d.desc}</span><small style="color:${f.color}">${f.icon} ${f.name}${extra || ''}</small></div>`;
+}
+function expOpenOffer() {
+  const p = App.player, t = expRun(p); if (!t || !t.offer) return;
+  openModal(`
+    <div class="sp-boon-hd"><div class="sp-boon-ic">🏺</div><div><b>Escolhe uma Relíquia</b><span>Fica contigo até ao fim desta Expedição. Relíquias da mesma família combinam!</span></div></div>
+    ${t.offer.map(k => `<button type="button" class="sp-card" data-exrel="${k}">${expRelicCard(k)}</button>`).join('')}
+    <button class="btn ghost block" id="ex-skip" style="margin-top:8px;">Não quero nenhuma (+10 🔖)</button>`);
+  const done = () => { t.offer = null; saveGame(); closeModal(); renderStatusBar(); renderTabMapa(); };
+  els('[data-exrel]').forEach(b => b.addEventListener('click', () => { expGainRelic(t, b.dataset.exrel); sfx.levelup(); done(); }));
+  $('ex-skip').addEventListener('click', () => { t.selos += 10; sfx.click(); done(); });
+}
+function expMarkVisited(t, r, c) { t.row = r; t.col = c; t.path.push([r, c]); t.pend = null; }
+// Tocar numa casa do mapa.
+function expChoose(r, c) {
+  const p = App.player, t = expRun(p); if (!t) return;
+  if (t.offer) { expOpenOffer(); return; }
+  if (!expReachable(t).some(([a, b]) => a === r && b === c)) return;
+  const M = expMap(t.wk), node = M.rows[r][c], type = node.type;
+  sfx.click();
+  if (type === 'combate' || type === 'elite' || type === 'chefe') { t.pend = [r, c]; saveGame(); startExpCombat(); return; }
+  const rng = expNodeRng(t, r, c);
+  if (type === 'tesouro') {
+    expMarkVisited(t, r, c);
+    const sel = 12 + expStat(t, 'selos'); t.selos += sel;
+    const tr = towerTreasure(p, 200, 1); tr.forEach(x => towerAddLoot(t, x));
+    t.offer = expRollRelics(t, 3, rng, false);
+    saveGame(); renderTabMapa();
+    openModal(`<h3 style="margin-bottom:8px;">💰 Tesouro</h3><p class="tiny">+${sel} 🔖 Selos</p>${tr.map(x => `<p class="tiny" style="margin-top:4px;">${rarLead(esc(x))}</p>`).join('')}<button class="btn primary block" id="ex-ok" style="margin-top:12px;">🏺 Escolher Relíquia</button>`);
+    $('ex-ok').addEventListener('click', expOpenOffer);
+    return;
+  }
+  if (type === 'fogueira') {
+    openModal(`<h3 style="margin-bottom:6px;">🔥 Fogueira</h3><p class="tiny muted" style="margin-bottom:10px;">Escolhe uma:</p>
+      <button type="button" class="sp-card" data-exfire="rest"><div class="ex-rel-ic">🛌</div><div class="sp-card-tx"><b>Descansar</b><span>Recuperas 40% do HP.</span></div></button>
+      <button type="button" class="sp-card" data-exfire="sharp"><div class="ex-rel-ic">⚒️</div><div class="sp-card-tx"><b>Afiar a arma</b><span>+5% de dano até ao fim desta Expedição${t.sharp ? ` (já tens +${t.sharp * 5}%)` : ''}.</span></div></button>`);
+    els('[data-exfire]').forEach(b => b.addEventListener('click', () => {
+      expMarkVisited(t, r, c);
+      if (b.dataset.exfire === 'rest') { const ps = effectiveStats(p), h = p.hp; p.hp = Math.min(ps.hp, p.hp + Math.round(ps.hp * 0.4)); toast(`🛌 +${nxNum(p.hp - h)} HP`); }
+      else { t.sharp = (t.sharp || 0) + 1; toast('⚒️ Arma afiada: +5% de dano.'); }
+      sfx.questdone(); saveGame(); closeModal(); renderStatusBar(); renderTabMapa();
+    }));
+    return;
+  }
+  if (type === 'mercador') {
+    if (!t.shop || t.shop.at !== `${r},${c}`) t.shop = { at: `${r},${c}`, items: expRollRelics(t, 3, rng, true).map(k => ({ k, sold: false })), healed: false };
+    expMarkVisited(t, r, c); saveGame(); renderTabMapa(); expOpenShop();
+    return;
+  }
+  if (type === 'evento') {
+    const keys = Object.keys(EXP_EVENTS), ek = keys[Math.floor(rng() * keys.length)], E = EXP_EVENTS[ek];
+    openModal(`<div class="sp-boon-hd"><div class="sp-boon-ic">${E.icon}</div><div><b>${E.name}</b><span>${E.text}</span></div></div>
+      ${E.opts.map((o, i) => `<button type="button" class="sp-card ex-ev" data-exev="${i}"${o.fx === 'troca' && !t.relics.length || o.fx === 'dados' && t.selos < 20 ? ' disabled' : ''}><div class="sp-card-tx"><b>${o.label}</b></div></button>`).join('')}`);
+    els('[data-exev]').forEach(b => b.addEventListener('click', () => {
+      const fx = E.opts[Number(b.dataset.exev)].fx, ps = effectiveStats(p);
+      expMarkVisited(t, r, c);
+      let msg = '';
+      if (fx === 'altar') { p.hp = Math.max(1, p.hp - Math.round(ps.hp * 0.2)); t.offer = expRollRelics(t, 3, rng, true); msg = '🩸 O altar bebe o teu sangue…'; }
+      else if (fx === 'cura35' || fx === 'cura20') { const h = p.hp; p.hp = Math.min(ps.hp, p.hp + Math.round(ps.hp * (fx === 'cura35' ? 0.35 : 0.2))); msg = `💚 +${nxNum(p.hp - h)} HP`; }
+      else if (fx === 'selos25') { t.selos += 25; msg = '🔖 +25 Selos'; }
+      else if (fx === 'bau') { if (Math.random() < 0.6) { t.offer = expRollRelics(t, 3, rng, false); msg = '🧰 Lá dentro havia relíquias!'; } else { p.hp = Math.max(1, p.hp - Math.round(ps.hp * 0.25)); msg = '💥 Era uma armadilha! −25% HP'; } }
+      else if (fx === 'troca') { const i = Math.floor(Math.random() * t.relics.length), gone = t.relics.splice(i, 1)[0]; const add = expRollRelics(t, 2, rng, false); add.forEach(k => expGainRelic(t, k)); msg = `🧙 Deste ${EXP_RELICS[gone].icon} ${EXP_RELICS[gone].name} e recebeste ${add.map(k => EXP_RELICS[k].icon + ' ' + EXP_RELICS[k].name).join(' e ')}.`; }
+      else if (fx === 'afiar') { t.sharp = (t.sharp || 0) + 1; msg = '⚒️ +5% de dano'; }
+      else if (fx === 'dados') { t.selos -= 20; if (Math.random() < 0.5) { t.selos += 50; msg = '🎲 Ganhaste! +50 🔖'; } else msg = '🎲 Perdeste os 20 🔖…'; }
+      else msg = 'Seguiste caminho.';
+      sfx.click(); saveGame(); closeModal(); renderStatusBar(); renderTabMapa(); toast(msg);
+      if (t.offer) setTimeout(expOpenOffer, 250);
+    }));
+  }
+}
+function expRelicPrice(k) { return EXP_RELICS[k].rare ? 55 : 35; }
+function expOpenShop() {
+  const p = App.player, t = expRun(p); if (!t || !t.shop) return;
+  const sh = t.shop;
+  openModal(`<div class="sp-boon-hd"><div class="sp-boon-ic">🛒</div><div><b>Mercador Errante</b><span>Tens <b>${t.selos} 🔖 Selos</b>.</span></div></div>
+    ${sh.items.map((it, i) => `<button type="button" class="sp-card"${it.sold || t.selos < expRelicPrice(it.k) ? ' disabled' : ''} data-exbuy="${i}">${expRelicCard(it.k, ` · ${it.sold ? 'vendida' : expRelicPrice(it.k) + ' 🔖'}`)}</button>`).join('')}
+    <button type="button" class="sp-card"${sh.healed || t.selos < 20 ? ' disabled' : ''} data-exbuy="heal"><div class="ex-rel-ic">🧪</div><div class="sp-card-tx"><b>Poção do Mercador</b><span>Recuperas 30% do HP · 20 🔖</span></div></button>
+    <button class="btn ghost block" id="ex-shop-out" style="margin-top:8px;">Seguir caminho</button>`);
+  els('[data-exbuy]').forEach(b => b.addEventListener('click', () => {
+    const v = b.dataset.exbuy;
+    if (v === 'heal') { if (sh.healed || t.selos < 20) return; t.selos -= 20; sh.healed = true; const ps = effectiveStats(p), h = p.hp; p.hp = Math.min(ps.hp, p.hp + Math.round(ps.hp * 0.3)); toast(`🧪 +${nxNum(p.hp - h)} HP`); }
+    else { const it = sh.items[Number(v)]; if (!it || it.sold || t.selos < expRelicPrice(it.k)) return; t.selos -= expRelicPrice(it.k); it.sold = true; expGainRelic(t, it.k); toast(`${EXP_RELICS[it.k].icon} ${EXP_RELICS[it.k].name}!`); }
+    sfx.coin ? sfx.coin() : sfx.click(); saveGame(); renderStatusBar(); expOpenShop();
+  }));
+  $('ex-shop-out').addEventListener('click', () => { closeModal(); renderTabMapa(); });
+}
+function startExpCombat() {
+  const p = App.player, t = expRun(p); if (!t || !t.pend) return;
+  const [r, c] = t.pend, M = expMap(t.wk), type = M.rows[r][c].type, T = towerDef(t.key);
+  const isBoss = type === 'chefe', isElite = type === 'elite';
+  let foe;
+  if (isBoss) foe = M.boss;
+  else { const rng = expNodeRng(t, r, c); { const TM = towerDef('espiral'); foe = TM.monsters[Math.floor(rng() * TM.monsters.length)]; }; }
+  const enemy = enemyStatsFor(200, isBoss);
+  const m = isBoss ? EXP_MULT.boss : isElite ? EXP_MULT.elite : EXP_MULT.mob;
+  enemy.hp = Math.round(enemy.hp * m.hp * Math.pow(EXP_GROW_HP, r)); enemy.maxHp = enemy.hp;
+  enemy.dmg = Math.round(enemy.dmg * m.dmg * Math.pow(EXP_GROW_DMG, r));
+  enemy.def = Math.round(enemy.def * m.def * Math.pow(1.02, r));
+  Object.assign(enemy, { critImmune: false, category: foe.category || 'outro' });
+  App.combat = {
+    kind: 'tower', isTower: true, isExped: true, expRow: r, expType: type, towerKey: T.key, towerLane: 0, towerRoom: type,
+    name: foe.name, icon: foe.icon, level: 200, isBoss, isMiniBoss: false, isElite, monsterName: isBoss ? null : foe.name,
+    regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1, enemy,
+    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false, towerBlessing: expStat(t, 'dmg'), spiral: {
+      crit: expStat(t, 'crit'), ls: expStat(t, 'ls'), red: expStat(t, 'red'), first: expStat(t, 'first'), exec: expStat(t, 'exec') } },
+    cooldowns: {}, log: [], eventApplied: null, ended: false
+  };
+  const cb = App.combat;
+  if (isElite) eliteAffixes(cb, r >= 6 ? 2 : 1);
+  if (isBoss) { cb.eliteAff = foe.aff.slice(); if (foe.aff.includes('blindado')) cb.enemy.def = Math.round(cb.enemy.def * 1.5); }
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `🗺️ Expedição · Etapa ${r + 1}/${EXP_ROWS} · ${EXP_NODE[type].icon} ${EXP_NODE[type].name}`, cls: 'good' });
+  addCombatLog({ text: `${foe.icon} ${foe.name} apareceu!`, cls: isBoss || isElite ? 'hit' : 'good' });
+  if (t.relics.length) addCombatLog({ text: `🏺 ${t.relics.length} Relíquia${t.relics.length > 1 ? 's' : ''} ativa${t.relics.length > 1 ? 's' : ''}.`, cls: 'good' });
+  renderCombat();
+}
+function expFinalize(t, won) {
+  const p = App.player, s = expState(p);
+  const score = expScore(t, won);
+  if (t.wk === s.wk && score > s.best) s.best = score;
+  if (score > (s.allBest || 0)) s.allBest = score;
+  if (won) s.clears = (s.clears || 0) + 1;
+  return score;
+}
+function finishExpFight() {
+  const c = App.combat, p = App.player, t = expRun(p), s = expState(p), pStats = effectiveStats(p), lv = 200;
+  const r = c.expRow || 0, type = c.expType;
+  const mult = (1 + 0.04 * r) * (1 + (t ? expStat(t, 'fort') : 0)) * (type === 'elite' ? 1.6 : type === 'chefe' ? 3 : 1);
+  let xpGain = Math.round((type === 'combate' ? (10 + lv * 2.4) : (35 + lv * 4.5)) * (1 + battleXpBonus(c)) * mult);
+  let goldGain = Math.round((type === 'combate' ? (4 + Math.floor(Math.random() * 8) + Math.floor(lv * 0.8)) : (30 + lv * 4)) * (1 + (pStats.goldPct || 0)) * mult);
+  xpGain = pgXp(xpGain);
+  p.gold += goldGain; grantXp(xpGain);
+  p.stats.wins++; if (type !== 'combate') p.stats.bossesKilled = (p.stats.bossesKilled || 0) + (type === 'chefe' ? 1 : 0);
+  progressQuest(type === 'chefe');
+  const drops = [];
+  if (t) {
+    t.loot.gold += goldGain; t.loot.xp += xpGain;
+    const [pr, pc] = t.pend || [c.expRow, 0];
+    expMarkVisited(t, pr, pc);
+    const sel = (type === 'combate' ? 8 : type === 'elite' ? 18 : 0) + expStat(t, 'selos');
+    if (sel) { t.selos += sel; drops.push(`🔖 +${sel} Selos (tens ${t.selos})`); }
+    if (type !== 'chefe') { const before = p.hp; p.hp = Math.min(pStats.hp, p.hp + Math.round(pStats.hp * expStat(t, 'breath'))); if (p.hp > before) drops.push(`💨 Fôlego: +${nxNum(p.hp - before)} HP`); }
+    if (type === 'elite') {
+      drops.push(...towerTreasure(p, lv, 2));
+      t.offer = expRollRelics(t, 3, expNodeRng(t, pr, pc + 7), true);
+      drops.push('🏺 Ganhaste uma Relíquia: escolhe-a ao voltar ao mapa.');
+    }
+    if (type === 'chefe') {
+      drops.push(`🎁 Baú da Expedição`);
+      ['unico', 'unico', 'lendario'].forEach(rar => { const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+        const it = generateItem(slot, lv, null, 2, RARITIES.find(x => x.key === rar)); p.inventory.push(it);
+        drops.push(`${rarIc(it.rarity, it.rarityIcon)} ${it.name} (${it.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${lv})`); });
+      if (Math.random() < 0.30) { const isF = Math.random() < 0.5; if (isF) p.scrolls.feiticoPlus = (p.scrolls.feiticoPlus || 0) + 1; else p.scrolls.reforcoPlus = (p.scrolls.reforcoPlus || 0) + 1; drops.push(isF ? '📜➕ Pergaminho de Feitiço ➕' : '🔧➕ Pergaminho de Reforço ➕'); }
+      if (Math.random() < 0.08) { const ds = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const d = generateItem(ds, lv, null, false, DIVINO_RARITY); p.inventory.push(d); drops.push(`💠✨ ITEM DIVINO! ${d.name}!`); }
+      if (!s.wkClear) { s.wkClear = true; p.chests.push(newChest('equip', lv, 3)); drops.push(`🏅 Primeira vitória da semana: ${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} de qualidade superior!`); }
+      if (!p.defeatedBosses.includes(c.name)) p.defeatedBosses.push(c.name);
+      const score = expFinalize(t, true);
+      drops.push(`🏆 Expedição concluída! Pontuação: ${score.toLocaleString('pt-PT')} (melhor da semana: ${s.best.toLocaleString('pt-PT')}).`);
+      p.tower = null;
+    }
+  }
+  tickProfessionCooldowns(p);
+  consumeTalismanBattle();
+  saveGame();
+  if (type !== 'combate') sfx.evolve(); else sfx.victory();
+  showCombatEnd(true, { xpGain, goldGain, drops, isBoss: type === 'chefe' });
+}
+async function expGiveUp() {
+  const p = App.player, t = expRun(p); if (!t) return;
+  if (!await nxConfirm('Terminar a Expedição agora? Ficas com tudo o que apanhaste e a pontuação conta para o ranking.', { title: 'Terminar Expedição', icon: '🏳️', confirmLabel: 'Terminar' })) return;
+  const sc = expFinalize(t, false); p.tower = null; saveGame(); renderTabMapa();
+  toast(`🏳️ Expedição terminada · ${sc.toLocaleString('pt-PT')} pontos.`);
+}
+// Desenho do mapa (de baixo para cima). interactive=false → só para ver.
+function expMapHtml(t, wk, interactive) {
+  const M = expMap(wk), rowH = 62, W = 340, H = rowH * EXP_ROWS + 20;
+  const pos = (r, c) => ({ x: r === EXP_ROWS - 1 ? W / 2 : 30 + c * ((W - 60) / (EXP_COLS - 1)), y: H - 30 - r * rowH });
+  const visited = new Set((t ? t.path : []).map(([a, b]) => a + ',' + b));
+  const reach = new Set(t && interactive ? expReachable(t).map(([a, b]) => a + ',' + b) : []);
+  let lines = '';
+  for (let r = 0; r < EXP_ROWS - 1; r++) for (let c = 0; c < EXP_COLS; c++) (M.next[r][c] || []).forEach(nc => {
+    const a = pos(r, c), b = pos(r + 1, nc), on = visited.has(r + ',' + c) && visited.has((r + 1) + ',' + nc);
+    const nextOn = t && t.row === r && t.col === c && interactive;
+    lines += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" class="${on ? 'on' : nextOn ? 'nx' : ''}"/>`;
+  });
+  let nodes = '';
+  M.rows.forEach((row, r) => row.forEach((n, c) => {
+    const { x, y } = pos(r, c), k = r + ',' + c, cur = t && t.row === r && t.col === c;
+    const cls = `ex-node ${n.type}${visited.has(k) ? ' done' : ''}${cur ? ' cur' : ''}${reach.has(k) ? ' reach' : ''}${t && interactive && !reach.has(k) && !visited.has(k) ? ' far' : ''}`;
+    const ic = n.type === 'chefe' ? nxCreature(M.boss.name, '👑') : EXP_NODE[n.type].icon;
+    nodes += `<button type="button" class="${cls}" style="left:${x / W * 100}%; top:${y}px;" ${reach.has(k) ? `data-exnode="${r},${c}"` : ''} title="${EXP_NODE[n.type].name}">${ic}</button>`;
+  }));
+  return `<div class="ex-map" style="height:${H}px;"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${lines}</svg>${nodes}</div>`;
+}
+function expLegendHtml() {
+  return `<div class="ex-legend">${Object.keys(EXP_NODE).map(k => `<span title="${esc(EXP_NODE[k].desc)}">${EXP_NODE[k].icon} ${EXP_NODE[k].name}</span>`).join('')}</div>`;
+}
+function renderExpBody(body, T) {
+  const p = App.player, s = expState(p), t = expRun(p) && p.tower.key === T.key ? p.tower : null, M = expMap();
+  if (!t) {
+    const locked = paragonOf(p) < 1, left = Math.max(0, EXP_DAILY - s.n);
+    body.innerHTML = `
+      <div class="ex-hero"><div class="ex-hero-ic">${NX_ICON_IMG.has(T.img) ? `<img class="nx-noic" src="icons/${T.img}.webp" alt="" style="width:56px;height:56px;">` : '🗺️'}</div><div class="sp-hero-tx"><b>${T.name}</b><span>Desafio Paragon · o mapa muda todas as semanas · igual para todos</span></div></div>
+      <div class="sp-stats">
+        <div><small>Esta semana</small><b>🏆 ${s.best.toLocaleString('pt-PT')}</b></div>
+        <div><small>Recorde</small><b>⭐ ${(s.allBest || 0).toLocaleString('pt-PT')}</b></div>
+        <div><small>Hoje</small><b>${left}/${EXP_DAILY}</b></div>
+      </div>
+      <div class="card raised">
+        <p class="tiny" style="line-height:1.55;">Escolhe o caminho no mapa, de baixo para cima, até ao <b>👑 ${esc(M.boss.name)}</b> (o chefe desta semana). Cada casa só liga às de cima que tocam nela — planeia bem!</p>
+        <p class="tiny" style="line-height:1.55; margin-top:6px;">🏺 Pelo caminho apanhas <b>Relíquias</b> que só duram nesta Expedição. As da mesma família (${Object.values(EXP_FAMILIES).map(f => f.icon + ' ' + f.name).join(', ')}) <b>combinam entre si</b>.</p>
+        <p class="tiny" style="line-height:1.55; margin-top:6px;">🔖 Os <b>Selos</b> que ganhas compram Relíquias no 🛒 Mercador. Cada etapa é mais difícil que a anterior. Se caíres, ficas com tudo o que apanhaste.</p>
+        <p class="tiny" style="line-height:1.55; margin-top:6px;">🏆 Pontuação: etapas × 100 + relíquias × 25 + selos + 1000 por vencer o chefe (+ bónus de HP). A melhor da semana conta para o ranking.</p>
+      </div>
+      ${expLegendHtml()}
+      <div class="section-title" style="margin:14px 0 6px;">🏆 Ranking da semana</div>
+      <div id="ex-rank-box"></div>
+      <div class="section-title" style="margin:12px 0 6px;">🗺️ Mapa desta semana</div>
+      <div class="ex-map-wrap">${expMapHtml(null, M.wk, false)}</div>
+      <button class="btn primary block" id="ex-enter" style="margin-top:12px;"${locked ? ' disabled' : ''}>${locked ? '🔒 Só para heróis Paragon 1+' : left ? '🗺️ Partir em Expedição · grátis' : `🗺️ Partir · ${EXP_EXTRA_COST.toLocaleString('pt-PT')} 🪙`}</button>`;
+    const b = $('ex-enter'); if (b && !locked) b.addEventListener('click', () => expEnter(T));
+    expLoadRanking($('ex-rank-box'));
+    return;
+  }
+  const ps = effectiveStats(p), hpPct = clamp(p.hp / ps.hp * 100, 0, 100);
+  const fams = Object.keys(EXP_FAMILIES).map(f => [f, expFamCount(t, f)]).filter(x => x[1]);
+  const relics = t.relics.map(k => { const d = EXP_RELICS[k]; return `<span class="spc ex-relic" style="--fc:${EXP_FAMILIES[d.fam].color}" title="${esc(d.desc)}">${d.icon} ${d.name}</span>`; }).join('');
+  const stats = [['dmg', '🗡️ Dano', 1], ['crit', '🎯 Crítico', 1], ['ls', '🩸 Roubo', 1], ['red', '🛡️ Redução', 1], ['breath', '💨 Fôlego', 1]].map(([k, l]) => { const v = expStat(t, k); return v ? `<span>${l} <b>+${Math.round(v * 100)}%</b></span>` : ''; }).join('');
+  body.innerHTML = `
+    <div class="ex-run">
+      <div class="row between"><b class="sp-run-t">🗺️ Etapa ${Math.min(EXP_ROWS, t.row + 2)}/${EXP_ROWS}</b><span class="pill">🏆 ${expScore(t, false).toLocaleString('pt-PT')}</span></div>
+      <div class="row between tiny" style="margin-top:8px;"><span>❤️ HP</span><span>${nxNum(p.hp)} / ${nxNum(ps.hp)}</span></div>
+      <div class="tower-bar"><i style="width:${hpPct}%;"></i></div>
+      <div class="ex-res"><span>🔖 <b>${t.selos}</b> Selos</span><span>🏺 <b>${t.relics.length}</b> Relíquias</span>${t.sharp ? `<span>⚒️ +${t.sharp * 5}%</span>` : ''}</div>
+      ${relics ? `<div class="sp-boons">${relics}</div>` : '<p class="tiny muted" style="margin-top:8px;">Ainda sem Relíquias — vence Elites, abre Tesouros ou compra no Mercador.</p>'}
+      ${fams.length ? `<div class="ex-fams">${fams.map(([f, n]) => `<span style="--fc:${EXP_FAMILIES[f].color}">${EXP_FAMILIES[f].icon} ${EXP_FAMILIES[f].name} ×${n}</span>`).join('')}</div>` : ''}
+      ${stats ? `<div class="ex-stats">${stats}</div>` : ''}
+      <div class="tower-loot"><span>🪙 ${t.loot.gold.toLocaleString('pt-PT')}</span><span>✨ ${t.loot.xp.toLocaleString('pt-PT')} XP</span>${t.loot.list.slice(-3).map(x => `<span>${rarLead(esc(x))}</span>`).join('')}</div>
+    </div>
+    ${t.offer ? `<button class="btn primary block sp-boon-btn" id="ex-offer" style="margin-top:10px;">🏺 Escolher Relíquia</button>` : `<p class="tiny muted" style="text-align:center; margin:10px 0 4px;">👇 Toca numa casa a brilhar para avançar.</p>`}
+    <div class="ex-map-wrap" id="ex-map-wrap">${expMapHtml(t, t.wk, true)}</div>
+    ${expLegendHtml()}
+    <button class="btn ghost block" id="ex-giveup" style="margin-top:10px;">🏳️ Terminar Expedição</button>`;
+  els('[data-exnode]').forEach(b => b.addEventListener('click', () => { const [r, c] = b.dataset.exnode.split(',').map(Number); expChoose(r, c); }));
+  const of = $('ex-offer'); if (of) of.addEventListener('click', expOpenOffer);
+  $('ex-giveup').addEventListener('click', expGiveUp);
+  const cur = body.querySelector('.ex-node.reach') || body.querySelector('.ex-node.cur');
+  if (cur) setTimeout(() => { try { cur.scrollIntoView({ block: 'center' }); } catch (e) {} }, 60);
+  if (t.offer && !App._exOfferAuto) { App._exOfferAuto = true; setTimeout(() => { App._exOfferAuto = false; const tt = expRun(App.player); if (tt && tt.offer && !document.querySelector('[data-exrel]')) expOpenOffer(); }, 350); }
+}
+let expRankCache = null;
+async function expLoadRanking(box) {
+  if (!box) return;
+  if (expRankCache && Date.now() - expRankCache.at < 120000) { box.innerHTML = expRankHtml(expRankCache.rows); return; }
+  if (!cloudClient || !cloudUser) { box.innerHTML = '<p class="tiny muted">Inicia sessão para veres o ranking.</p>'; return; }
+  box.innerHTML = '<p class="tiny muted">A carregar ranking…</p>';
+  try {
+    const { data, error } = await cloudClient.rpc('get_expedition_ranking', { p_week: isoWeekKey() });
+    if (error) throw error;
+    expRankCache = { at: Date.now(), rows: Array.isArray(data) ? data : [] };
+    if (document.body.contains(box)) box.innerHTML = expRankHtml(expRankCache.rows);
+  } catch (e) { if (document.body.contains(box)) box.innerHTML = '<p class="tiny muted">Não foi possível carregar o ranking agora.</p>'; }
+}
+function expRankHtml(rows) {
+  if (!rows.length) return '<p class="tiny muted">Ainda ninguém partiu em Expedição esta semana. Sê o primeiro!</p>';
+  const medal = i => ['🥇', '🥈', '🥉'][i] || `<b>${i + 1}</b>`;
+  return `<div class="sp-rank">${rows.map((r, i) => `<div class="sp-rank-row${r.is_me ? ' me' : ''}" data-pf-name="${esc(r.name || '')}" role="button" tabindex="0"><span class="sp-rank-pos">${medal(i)}</span><span class="sp-rank-n">${esc(r.name || 'Herói')}<small>P${r.paragon || 1} · ${CLASSES[r.class] ? CLASSES[r.class].name : ''}</small></span><span class="sp-rank-f">🏆 ${Number(r.score || 0).toLocaleString('pt-PT')}</span></div>`).join('')}</div>`;
+}
+function expWikiHtml(T) {
+  return `<p class="muted" style="margin:14px 0 10px;">Mapa → Desafios. A ${T.icon} ${T.name} é o desafio dos heróis Paragon: um mapa de caminhos que muda todas as semanas e é igual para todos.</p>
+    <div class="card raised">
+      <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Paragon 1+</span></div>
+      <p class="tiny" style="margin-top:6px; line-height:1.5;">${EXP_ROWS} etapas. Casas: ${Object.values(EXP_NODE).map(n => n.icon + ' ' + n.name).join(' · ')}. ${EXP_DAILY} Expedição grátis por dia (extra: ${EXP_EXTRA_COST.toLocaleString('pt-PT')} 🪙).</p>
+      <p class="tiny" style="margin-top:6px; line-height:1.5;">🏺 Relíquias (só duram na Expedição): ${Object.values(EXP_RELICS).map(d => `${d.icon} <b>${d.name}</b> — ${d.desc}`).join(' · ')}</p>
+      <p class="tiny" style="margin-top:6px; line-height:1.5;">👑 Chefe: 2 Únicos + 1 Lendário (Nv. 200), 30% Pergaminho ➕, 8% 💠 Divino; a primeira vitória da semana dá ainda um Baú de Equipamento superior.</p>
+    </div>`;
+}
+
 function spiralWikiHtml(T) {
   return `<p class="muted" style="margin:14px 0 10px;">Mapa → Torres. Na ${T.icon} ${T.name} sobes andares sem fim. A Espiral é igual para todos e há ranking semanal do andar mais alto.</p>
     <div class="card raised">
@@ -5195,7 +5656,7 @@ const WM_POS = {
   'dg:cripta': [355, 1395], 'dg:vulcao': [95, 1170], 'dg:cidadela': [905, 930], 'dg:abismo': [330, 880], 'dg:reino_fe': [665, 815],
   'dg:luar': [110, 470], 'dg:oasis': [90, 790], 'dg:inverno': [900, 1210], 'dg:eclipse': [255, 330],
   'cat:demonio_t1': [425, 455], 'cat:morte_t2': [870, 670], 'cat:templo_almas': [760, 330],
-  'tower:abismo': [620, 680], 'tower:cripta': [880, 430], 'tower:pactos': [625, 440], 'tower:espiral': [370, 200], 'soberano': [500, 80], 'halloween': [175, 1330], 'natal': [175, 1330], 'cidade': [680, 1385]
+  'tower:abismo': [620, 680], 'tower:cripta': [880, 430], 'tower:pactos': [625, 440], 'tower:espiral': [370, 200], 'tower:expedicao': [760, 140], 'soberano': [500, 80], 'halloween': [175, 1330], 'natal': [175, 1330], 'cidade': [680, 1385]
 };
 function wmSvg(p) {
   const regs = REGIONS.map((r, i) => Object.assign({ key: r.key, i, locked: i > p.regionIndex }, WM_REG[r.key] || { x: 500, y: 750, r: 150, c: '#555' }));
@@ -8022,7 +8483,7 @@ function renderWikiBody() {
     const divineRows = []
       .concat(CATACUMBAS.filter(c => c.divinoChance).map(c => `${c.icon} ${c.name} (chefe final): ${pc(c.divinoChance)} · Nv. ${c.bossLv}`))
       .concat(DUNGEONS.filter(d => d.divineChance).map(d => `${d.icon} ${d.name} (chefe final): ${pc(d.divineChance)} · nível da recompensa`))
-      .concat(TOWERS.map(T => `${T.icon} ${T.name} (chefe final): ${T.spiral ? 'Baús de Marco: 3% (andar 20) até 35% (andar 120+)' : T.pact ? `${pc(pactDivinoChance(0))}–${pc(pactDivinoChance(99))} (sobe com o Peso ⚖️)` : pc(T.divineChance)} · Nv. ${T.bossLv}`))
+      .concat(TOWERS.filter(T => !T.exped).map(T => `${T.icon} ${T.name} (chefe final): ${T.spiral ? 'Baús de Marco: 3% (andar 20) até 35% (andar 120+)' : T.pact ? `${pc(pactDivinoChance(0))}–${pc(pactDivinoChance(99))} (sobe com o Peso ⚖️)` : pc(T.divineChance)} · Nv. ${T.bossLv}`))
       .concat([`🌀 Armas da Cripta: ${pc(CRYPT_DIVINO_CHANCE)} nos tesouros do Labirinto · ${pc(CRYPT_DIVINO_CHANCE_BOSS)} no chefe final`])
       .concat(diffs.filter(d => d.divineItemChance).map(d => `${d.icon} Qualquer chefe na dificuldade ${d.name}: ${pc(d.divineItemChance)} · nível do chefe`))
       .concat([`⭐ Baú da Temporada 1: ${pc(SEASON_CHEST_RARITY_TABLE.find(r => r.key === 'divino').chance)} · teu nível`]);
@@ -8077,7 +8538,7 @@ function renderWikiBody() {
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🗼 Torres</span>
-        ${TOWERS.filter(T => !T.pact && !T.spiral).map(T => `<p class="tiny" style="margin-top:6px;">${T.icon} ${T.name}: salas de 🎁 Tesouro (45% equipamento do nível do andar, 2 rolos), Elites e ${T.maze ? 'Guardiões' : 'mini-chefes'} também dão tesouro, e o chefe final dá 1 equipamento Nv. ${T.bossLv} garantido com 3 rolos. A dificuldade escolhida soma rolos extra (como na Batalha). Rara: Pergaminhos ➕ (bónus ➕ amarelo).</p>`).join('')}
+        ${TOWERS.filter(T => !T.pact && !T.spiral && !T.exped).map(T => `<p class="tiny" style="margin-top:6px;">${T.icon} ${T.name}: salas de 🎁 Tesouro (45% equipamento do nível do andar, 2 rolos), Elites e ${T.maze ? 'Guardiões' : 'mini-chefes'} também dão tesouro, e o chefe final dá 1 equipamento Nv. ${T.bossLv} garantido com 3 rolos. A dificuldade escolhida soma rolos extra (como na Batalha). Rara: Pergaminhos ➕ (bónus ➕ amarelo).</p>`).join('')}
         <p class="tiny" style="margin-top:6px;">🌀 <b>Armas da Cripta</b> (só no Labirinto da Cripta): Espada, Cajado e Arco com imagem própria, de Comum a Divino, com +${CRYPT_MEDIO_MIN}% a ${CRYPT_MEDIO_MAX}% de Dano Médio extra. ${Math.round(CRYPT_WEAPON_TREASURE_CHANCE * 100)}% do equipamento dos tesouros · ${Math.round(CRYPT_WEAPON_BOSS_CHANCE * 100)}% no chefe final.</p>
       </div>
       <div class="card raised">
@@ -8244,7 +8705,7 @@ function renderWikiBody() {
         <table class="wiki-table" style="margin-top:6px;"><tr><th>Patente</th><th>Renome</th><th>Graus</th></tr>${pc}</table></div>
       <div class="card raised"><span style="font-weight:700;">🏅 Loja do Caçador</span>${HUNT_SHOP.map(x => `<p class="tiny" style="margin-top:6px;">${x.icon} <b>${x.name}</b> (${x.cost} Insígnias) — ${x.desc}</p>`).join('')}</div>`;
   } else if (t === 'torres') {
-    body.innerHTML = TOWERS.map(T => T.spiral ? spiralWikiHtml(T) : T.pact ? pactWikiHtml(T) : T.maze ? mazeWikiHtml(T) : `
+    body.innerHTML = TOWERS.map(T => T.exped ? expWikiHtml(T) : T.spiral ? spiralWikiHtml(T) : T.pact ? pactWikiHtml(T) : T.maze ? mazeWikiHtml(T) : `
       <p class="muted" style="margin-bottom:10px;">Mapa → Torres. Na ${T.icon} ${T.name} sobes andar a andar e escolhes a porta em cada um. O mapa é gerado ao acaso em cada subida.</p>
       <div class="card raised">
         <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
@@ -17850,9 +18311,12 @@ function mapaGroups(p) {
     { title: 'Dungeons · Tier 1', tiles: tier1 },
     { title: 'Dungeons · Tier 2', tiles: tier2 },
     { title: 'Catacumbas', tiles: catTiles },
-    { title: 'Desafios', tiles: [{ key: 'soberano', kind: 'soberano', icon: nxCreature(SOBERANOS[0].name, '👑'), label: 'Boss Soberano', sub: `Nv. ${SOBERANOS[0].minLv}+`, scene: 'montanhas',
+    { title: 'Desafios · Bosses Soberanos', tiles: [{ key: 'soberano', kind: 'soberano', icon: nxCreature(SOBERANOS[0].name, '👑'), label: 'Boss Soberano', sub: `Nv. ${SOBERANOS[0].minLv}+`, scene: 'montanhas',
       locked: (p.level || 1) < SOBERANOS[0].minLv, badge: (() => { const t = soberanoTriesSummary(p); return `${t.left}/${t.max}`; })() }] },
-    { title: 'Torres', tiles: TOWERS.map(T => {
+    { title: 'Desafios · Paragon', tiles: TOWERS.filter(T => T.challenge).map(T => { const run = p.tower && p.tower.key === T.key ? p.tower : null, es = expState(p);
+      return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: nxEnt(T.img && NX_ICON_IMG.has(T.img) ? T.img : 'dungeon-torre', T.icon), label: T.name, sub: 'Paragon 1+', scene: 'torre',
+        locked: paragonOf(p) < 1, badge: run ? `🗺️${(run.path || []).length}/${EXP_ROWS}` : `${Math.max(0, EXP_DAILY - es.n)}/${EXP_DAILY}` }; }) },
+    { title: 'Torres', tiles: TOWERS.filter(T => !T.challenge).map(T => {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
       return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: nxEnt(T.img && NX_ICON_IMG.has(T.img) ? T.img : 'dungeon-torre', T.icon), label: T.name, sub: `Nv. ${T.minLv}+`, scene: 'torre',
@@ -21191,6 +21655,7 @@ function fxSlash(crit) {
 // Entrada dos chefes: faixas de cinema e o nome a entrar de lado.
 function fxBossTitle(c) {
   if (c.isSpiral) return `${c.isMiniBoss ? 'Guardião' : 'Senhor do Ciclo'} · Andar ${c.spiralFloor}`;
+  if (c.isExped) return c.isElite ? `Elite · Etapa ${c.expRow + 1}` : 'Chefe da Semana · Expedição';
   if (c.isSoberano) return 'Soberano';
   if (c.isCatacumba && c.catacumbaDef) return `Senhor de ${c.catacumbaDef.name}`;
   if (c.isDungeon && c.dungeonDef) return `Guardião de ${c.dungeonDef.name}`;
@@ -21322,6 +21787,7 @@ const SCENES = {
   ymir:          { sky: ['#0e1a2b', '#2f4d6b', '#9fc3d9'], sun: null, layers: [['peaks', '#4f6f88', 0.50, 46], ['hills', '#dfeaf2', 0.80, 8]], fx: 'snow' }, // v210
   submerso:      { sky: ['#2a8f94', '#0c3d4e', '#03131b'], sun: '#bff7ee', layers: [['ruins', '#0e3b45', 0.52, 0], ['hills', '#0a2b34', 0.72, 12], ['hills', '#04171d', 0.86, 8]], fx: 'bubbles' }, // v201
   espiral:       { sky: ['#04030c', '#0d0a24', '#1c1240'], sun: null, layers: [['arches', '#2a2350', 0.20, 0], ['floor', '#120e24', 0.80, 0]], fx: 'motes' },
+  expedicao:     { sky: ['#140d1c', '#3a2433', '#8a5a3a'], sun: null, layers: [['arches', '#2a2030', 0.20, 0], ['floor', '#2a1e14', 0.80, 0]], fx: 'motes' },
   pactos:        { sky: ['#050206', '#0c0610', '#160a12'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'embers' },
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
   arena:         { sky: ['#0a0503', '#2a120a', '#6a2a12'], sun: null, layers: [['arches', '#3a2618', 0.22, 0], ['floor', '#24170e', 0.80, 0]], fx: 'torches' }, // v223
@@ -21459,7 +21925,7 @@ function sceneLayer(type, color, base, amp, R, W, H) {
 }
 const sceneCache = {};
 // v204: fundos pintados (icons/cena-<chave>.webp); sem imagem, fica o cenário desenhado em código.
-const SCENE_IMG = ['ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo', 'chama', 'arena', 'pactos', 'espiral'];
+const SCENE_IMG = ['ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo', 'chama', 'arena', 'pactos', 'espiral', 'expedicao'];
 function sceneArt(key) {
   if (SCENE_IMG.includes(key)) return `<div class="scene-img" style="background-image:url(icons/cena-${key}.webp?v=${NX_ICON_REV['cena-' + key] || NX_ICON_VER});"></div>`;
   return sceneSvg(key);
@@ -21496,6 +21962,7 @@ function combatSceneKey(c) {
   if (c.isCultBoss) return 'eclipse';
   if (c.isPact) return 'pactos'; // v250
   if (c.isSpiral) return 'espiral'; // v251
+  if (c.isExped) return NX_ICON_IMG.has('cena-expedicao') ? 'expedicao' : 'espiral'; // v258
   if (c.isTower) return 'torre';
   if (c.isSoberano) return (c.soberanoDef && c.soberanoDef.scene) || 'soberano'; // v205: arena do trono · v210: cada Soberano a sua
   if (c.isHalloween) return 'halloween';
@@ -21765,7 +22232,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v257</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v258</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -22964,7 +23431,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 187;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).

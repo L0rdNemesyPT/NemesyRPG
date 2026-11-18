@@ -4638,3 +4638,41 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .tal-actions{gap:6px; flex-wrap:wrap; margin-top:10px;}
 .tal-bar{height:6px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:8px;}
 .tal-bar i{display:block; height:100%; background:linear-gradient(90deg, #8a6a1e, #f2c94c);}
+
+/* ===== v258: Expedição Semanal ===== */
+.ex-hero{display:flex; align-items:center; gap:12px; padding:12px; border-radius:14px; margin-bottom:10px; background:linear-gradient(135deg, rgba(196,154,82,.18), rgba(40,30,20,.6)); border:1px solid rgba(196,154,82,.45);}
+.ex-hero-ic{font-size:40px; width:60px; height:60px; display:flex; align-items:center; justify-content:center; border-radius:14px; background:radial-gradient(circle, rgba(255,214,140,.25), transparent 70%);}
+.ex-map-wrap{position:relative; border-radius:14px; padding:6px 0; overflow:hidden;
+  background:radial-gradient(ellipse at 50% 0%, rgba(255,214,140,.10), transparent 60%), repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 2px, transparent 2px 6px), linear-gradient(180deg, #2a2016, #17110b);
+  border:1px solid rgba(196,154,82,.4); box-shadow:inset 0 0 30px rgba(0,0,0,.6);}
+.ex-map{position:relative; width:100%; max-width:380px; margin:0 auto;}
+.ex-map svg{position:absolute; inset:0; width:100%; height:100%;}
+.ex-map line{stroke:rgba(214,190,150,.28); stroke-width:2.2; stroke-dasharray:5 5;}
+.ex-map line.on{stroke:#f2c94c; stroke-dasharray:none; stroke-width:3;}
+.ex-map line.nx{stroke:rgba(242,201,76,.75); stroke-width:2.6; animation:exDash 1.2s linear infinite;}
+@keyframes exDash{to{stroke-dashoffset:-20;}}
+.ex-node{position:absolute; transform:translate(-50%, -50%); width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:19px; line-height:1; padding:0;
+  background:radial-gradient(circle at 35% 30%, #4a3b28, #22190f); border:2px solid rgba(214,190,150,.45); color:#fff; box-shadow:0 2px 6px rgba(0,0,0,.6); cursor:default;}
+.ex-node .nx-k{width:24px; height:24px;}
+.ex-node.elite{border-color:#c0504d;} .ex-node.mercador{border-color:#7ad97a;} .ex-node.fogueira{border-color:#ff9a45;} .ex-node.tesouro{border-color:#f2c94c;} .ex-node.evento{border-color:#9d8bff;}
+.ex-node.chefe{width:58px; height:58px; font-size:28px; border:3px solid #f2c94c; box-shadow:0 0 18px rgba(242,201,76,.5);}
+.ex-node.chefe .nx-k{width:44px; height:44px;}
+.ex-node.done{opacity:.55; filter:grayscale(.6); border-color:#f2c94c;}
+.ex-node.cur{opacity:1; filter:none; box-shadow:0 0 0 3px rgba(242,201,76,.6), 0 0 16px rgba(242,201,76,.6);}
+.ex-node.far{opacity:.35;}
+.ex-node.reach{cursor:pointer; border-color:#ffe08a; animation:exPulse 1.4s ease-in-out infinite; z-index:2;}
+@keyframes exPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,224,138,.6);} 50%{box-shadow:0 0 0 8px rgba(255,224,138,0);}}
+.ex-legend{display:flex; flex-wrap:wrap; gap:6px 10px; margin-top:8px; font-size:11px; color:var(--text-dim, #aaa);}
+.ex-run{padding:12px; border-radius:14px; background:linear-gradient(180deg, rgba(196,154,82,.12), rgba(0,0,0,.2)); border:1px solid rgba(196,154,82,.35);}
+.ex-res{display:flex; gap:12px; flex-wrap:wrap; margin-top:8px; font-size:13px;}
+.ex-res b{color:var(--gold-bright, #f2c94c);}
+.ex-relic{border-color:var(--fc) !important;}
+.ex-fams{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+.ex-fams span{font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px; color:var(--fc); border:1px solid var(--fc); background:rgba(0,0,0,.25);}
+.ex-stats{display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:8px; font-size:12px; color:var(--text-dim, #aaa);}
+.ex-stats b{color:#9ff09f;}
+.ex-rel-ic{flex:none; width:44px; height:44px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:24px; background:rgba(0,0,0,.35); border:2px solid var(--fc, rgba(255,255,255,.2));}
+.ex-rare{font-style:normal; font-size:10px; font-weight:800; padding:1px 6px; border-radius:8px; background:rgba(157,123,255,.25); color:#c9b8ff; margin-left:4px; vertical-align:middle;}
+.sp-card small{display:block; margin-top:3px; font-size:11px; font-weight:700;}
+.sp-card[disabled]{opacity:.45; pointer-events:none;}
+.ex-ev .sp-card-tx b{font-size:14px;}
