@@ -4676,3 +4676,12 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .sp-card small{display:block; margin-top:3px; font-size:11px; font-weight:700;}
 .sp-card[disabled]{opacity:.45; pointer-events:none;}
 .ex-ev .sp-card-tx b{font-size:14px;}
+
+/* ===== v259: Checkpoint da Espiral ===== */
+.cp-card{display:flex; gap:10px; align-items:flex-start; padding:10px 12px; margin:0 0 10px; border-radius:12px; border:1px solid rgba(127,230,160,.45); background:linear-gradient(135deg, rgba(90,200,130,.14), rgba(0,0,0,.2));}
+.cp-flag{font-size:26px; line-height:1;}
+.cp-card b{display:block; font-size:14px; color:#aef5c4;}
+.cp-card span{font-size:12px; color:var(--text-dim, #aaa); line-height:1.45;}
+.cp-sum{display:flex; gap:14px; margin:8px 0; font-weight:700; color:var(--gold-bright, #f2c94c);}
+.cp-list{max-height:280px; overflow:auto; margin:0; padding-left:18px; font-size:12px; line-height:1.5;}
+.sp-boon-hd b small{font-size:11px; color:var(--text-dim, #aaa); font-weight:600;}

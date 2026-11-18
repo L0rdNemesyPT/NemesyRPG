@@ -2712,8 +2712,8 @@ function isoWeekKey(d) {
   return `${y}-W${String(w).padStart(2, '0')}`;
 }
 function spiralState(p) {
-  const s = p.spiral = Object.assign({ wk: '', best: 0, allBest: 0, day: '', n: 0, marcos: [] }, p.spiral || {});
-  const wk = isoWeekKey(); if (s.wk !== wk) { s.wk = wk; s.best = 0; }
+  const s = p.spiral = Object.assign({ wk: '', best: 0, allBest: 0, day: '', n: 0, marcos: [], cp: 0 }, p.spiral || {});
+  const wk = isoWeekKey(); if (s.wk !== wk) { s.wk = wk; s.best = 0; s.cp = 0; } // v259: o checkpoint recomeça com o ranking (segunda-feira)
   const day = dgDayKey(); if (s.day !== day) { s.day = day; s.n = 0; }
   return s;
 }
@@ -2751,7 +2751,7 @@ function spiralMarcoText(f) {
   if (m.astral) parts.push(`💎 ${String(Math.round(m.astral * 1000) / 10).replace('.', ',')}%`);
   return parts.join(' + ');
 }
-async function spiralEnter(T) {
+async function spiralEnter(T, fromCp) {
   const p = App.player, s = spiralState(p);
   if (p.tower) { sfx.error(); const O = towerDef(p.tower.key); toast(`Já estás numa subida: ${O ? O.name : 'outra torre'}. Termina-a primeiro.`); renderTabMapa(); return; }
   if ((p.level || 1) < T.minLv) { sfx.error(); toast(`Precisas de nível ${T.minLv}.`); return; }
@@ -2763,8 +2763,50 @@ async function spiralEnter(T) {
   }
   s.n++;
   p.tower = { key: T.key, spiral: true, floor: 0, boons: {}, boonOffer: null, sanct: false, rested: false, mons: {}, loot: { gold: 0, xp: 0, list: [] }, startedAt: Date.now() };
+  const cp = fromCp ? Math.floor((s.cp || 0) / 10) * 10 : 0;
+  if (cp >= 10) { spiralStartFromCheckpoint(p, p.tower, cp); return; }
   saveGame(); sfx.questdone(); renderStatusBar(); renderTabMapa();
   toast(`🌀 Entraste na ${T.name}. Até onde consegues subir?`);
+}
+// v259: 🚩 Checkpoint — começa no andar seguinte ao último Senhor do Ciclo vencido esta semana e recebe logo
+// as recompensas dos andares saltados (ouro, XP e Baús de Marco) e as Bênçãos desses ciclos (2 por ciclo, escolhidas a seguir).
+function spiralGrantMarco(p, f, drops, lv) {
+  const m = spiralMarcoLoot(f);
+  m.items.forEach(rar => { const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
+    const it = generateItem(slot, lv, null, 2, RARITIES.find(r => r.key === rar)); p.inventory.push(it);
+    drops.push(`${rarIc(it.rarity, it.rarityIcon)} ${it.name} (${it.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${lv})`); });
+  if (m.scrolls) { p.scrolls.feitico += m.scrolls; drops.push('📜 Pergaminho de Feitiço'); }
+  if (m.reforco) { p.scrolls.reforco += m.reforco; drops.push('🔧 Pergaminho de Reforço'); }
+  if (m.plus) { const isF = Math.random() < 0.5; if (isF) p.scrolls.feiticoPlus = (p.scrolls.feiticoPlus || 0) + 1; else p.scrolls.reforcoPlus = (p.scrolls.reforcoPlus || 0) + 1; drops.push(isF ? '📜➕ Pergaminho de Feitiço ➕' : '🔧➕ Pergaminho de Reforço ➕'); }
+  if (m.prisma) { if (!Array.isArray(p.gems.prisma)) p.gems.prisma = Array(GEM_TIERS).fill(0); p.gems.prisma[0] += m.prisma; drops.push(`🌈 ${m.prisma}× Pedra Prismática T1`); }
+  if (m.divino && Math.random() < m.divino) { const ds = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const d = generateItem(ds, lv, null, false, DIVINO_RARITY); p.inventory.push(d); drops.push(`💠✨ ITEM DIVINO! ${d.name}!`); }
+  if (m.shards) { p.astralShards = (p.astralShards || 0) + m.shards; drops.push(`✴️ +${m.shards} Estilhaço${m.shards > 1 ? 's' : ''} Astra${m.shards > 1 ? 'is' : 'l'} (tens ${p.astralShards}/${ASTRAL_FORGE_COST})`); }
+  if (m.astral && Math.random() < m.astral) { const as = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const a = generateItem(as, lv, null, false, ASTRAL_RARITY); p.inventory.push(a); drops.push(`💎✨ ITEM ASTRAL! ${a.name}!`); }
+}
+function spiralStartFromCheckpoint(p, t, cp) {
+  const T = towerDef('espiral'), lv = T.bossLv, pStats = effectiveStats(p), drops = [];
+  let gold = 0, xp = 0;
+  for (let f = 1; f <= cp; f++) {
+    const boss = f % 5 === 0, mult = (1 + 0.025 * (f - 1));
+    let xg = Math.round((boss ? (35 + lv * 4.5) : (10 + lv * 2.4)) * mult), gg = Math.round((boss ? (30 + lv * 4) : (8 + Math.floor(lv * 0.8))) * (1 + (pStats.goldPct || 0)) * mult);
+    if (f % 10 === 0) { xg = Math.round(xg * 1.5); gg = Math.round(gg * 1.5); }
+    xp += xg; gold += gg;
+  }
+  xp = pgXp(xp);
+  p.gold += gold; grantXp(xp);
+  t.loot.gold += gold; t.loot.xp += xp;
+  for (let f = 10; f <= cp; f += 10) { drops.push(`🎁 Baú de Marco · Andar ${f}`); spiralGrantMarco(p, f, drops, lv); }
+  for (let f = 5; f <= cp; f += 10) drops.push(...towerTreasure(p, lv, 2)); // tesouros dos Guardiões
+  t.floor = cp; t.fromCp = cp; t.boonPending = true; t.boonQueue = (cp / 10) * 2 - 1; t.boonOffer = null;
+  p.hp = pStats.hp;
+  saveGame(); sfx.evolve(); renderStatusBar(); renderTabMapa();
+  const list = drops.map(d => `<li>${d}</li>`).join('');
+  openModal(`<div class="sp-boon-hd"><div class="sp-boon-ic">🚩</div><div><b>Checkpoint · Andar ${cp}</b><span>Recompensas dos andares 1–${cp}:</span></div></div>
+    <div class="cp-sum"><span>🪙 +${gold.toLocaleString('pt-PT')}</span><span>✨ +${xp.toLocaleString('pt-PT')} XP</span></div>
+    <ul class="cp-list">${list}</ul>
+    <p class="tiny muted" style="margin-top:8px;">Agora escolhe as <b>${(cp / 10) * 2} Bênçãos</b> dos ciclos que saltaste (2 por ciclo). Começas no andar ${cp + 1} com o HP cheio.</p>
+    <button class="btn primary block" id="cp-go" style="margin-top:10px;">✨ Escolher Bênçãos</button>`);
+  $('cp-go').addEventListener('click', () => { closeModal(); spiralOpenBoons(); });
 }
 function spiralMakeBoonOffer(t) {
   if (t.boonOffer && t.boonOffer.length) return t.boonOffer;
@@ -2775,16 +2817,18 @@ function spiralOpenBoons() {
   const p = App.player, t = spiralRun(p); if (!t || !t.boonPending) return;
   const offer = spiralMakeBoonOffer(t);
   openModal(`
-    <div class="sp-boon-hd"><div class="sp-boon-ic">✨</div><div><b>Bênção da Espiral</b><span>Escolhe uma. Fica contigo até ao fim desta subida.</span></div></div>
+    <div class="sp-boon-hd"><div class="sp-boon-ic">✨</div><div><b>Bênção da Espiral${t.boonQueue > 0 ? ` <small>(faltam ${t.boonQueue + 1})</small>` : ''}</b><span>Escolhe uma. Fica contigo até ao fim desta subida.</span></div></div>
     ${offer.map(k => { const b = SPIRAL_BOONS[k], n = (t.boons[k] || 0);
       return `<button type="button" class="sp-card" data-boon="${k}"><div class="sp-card-ic">${b.icon}</div><div class="sp-card-tx"><b>${b.name}${n ? ` <em>×${n + 1}</em>` : ''}</b><span>${b.desc}</span></div></button>`; }).join('')}`);
   els('[data-boon]').forEach(btn => btn.addEventListener('click', () => {
     const k = btn.dataset.boon, b = SPIRAL_BOONS[k]; if (!b) return;
-    t.boons[k] = (t.boons[k] || 0) + 1; t.boonPending = false; t.boonOffer = null;
+    t.boons[k] = (t.boons[k] || 0) + 1; t.boonOffer = null;
+    if (t.boonQueue > 0) { t.boonQueue--; t.boonPending = true; } else t.boonPending = false; // v259: várias Bênçãos seguidas (checkpoint)
     const ps = effectiveStats(p);
     if (k === 'fonte') { const before = p.hp; p.hp = Math.min(ps.hp, p.hp + Math.round(ps.hp * 0.5)); toast(`⛲ +${nxNum(p.hp - before)} HP`); }
     if (k === 'alforge') { p.potions.hp2 = (p.potions.hp2 || 0) + 2; toast('🧪 +2 Poções de HP Maior'); }
     sfx.levelup(); closeModal(); saveGame(); renderStatusBar(); renderTabMapa();
+    if (t.boonPending) setTimeout(spiralOpenBoons, 200);
   }));
 }
 function startSpiralCombat() {
@@ -2840,18 +2884,9 @@ function finishSpiralFight() {
     if (boss) { t.boonPending = true; t.boonOffer = null; drops.push('✨ Ganhaste uma Bênção da Espiral: escolhe-a ao voltar.'); }
     if (c.isMiniBoss) drops.push(...towerTreasure(p, lv, 2));
     if (c.isBoss) {
-      const m = spiralMarcoLoot(f);
       drops.push(`🎁 Baú de Marco · Andar ${f}`);
-      m.items.forEach(rar => { const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
-        const it = generateItem(slot, lv, null, 2, RARITIES.find(r => r.key === rar)); p.inventory.push(it);
-        drops.push(`${rarIc(it.rarity, it.rarityIcon)} ${it.name} (${it.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${lv})`); });
-      if (m.scrolls) { p.scrolls.feitico += m.scrolls; drops.push('📜 Pergaminho de Feitiço'); }
-      if (m.reforco) { p.scrolls.reforco += m.reforco; drops.push('🔧 Pergaminho de Reforço'); }
-      if (m.plus) { const isF = Math.random() < 0.5; if (isF) p.scrolls.feiticoPlus = (p.scrolls.feiticoPlus || 0) + 1; else p.scrolls.reforcoPlus = (p.scrolls.reforcoPlus || 0) + 1; drops.push(isF ? '📜➕ Pergaminho de Feitiço ➕' : '🔧➕ Pergaminho de Reforço ➕'); }
-      if (m.prisma) { if (!Array.isArray(p.gems.prisma)) p.gems.prisma = Array(GEM_TIERS).fill(0); p.gems.prisma[0] += m.prisma; drops.push(`🌈 ${m.prisma}× Pedra Prismática T1`); }
-      if (m.divino && Math.random() < m.divino) { const ds = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const d = generateItem(ds, lv, null, false, DIVINO_RARITY); p.inventory.push(d); drops.push(`💠✨ ITEM DIVINO! ${d.name}!`); }
-      if (m.shards) { p.astralShards = (p.astralShards || 0) + m.shards; drops.push(`✴️ +${m.shards} Estilhaço${m.shards > 1 ? 's' : ''} Astra${m.shards > 1 ? 'is' : 'l'} (tens ${p.astralShards}/${ASTRAL_FORGE_COST})`); }
-      if (m.astral && Math.random() < m.astral) { const as = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const a = generateItem(as, lv, null, false, ASTRAL_RARITY); p.inventory.push(a); drops.push(`💎✨ ITEM ASTRAL! ${a.name}!`); }
+      spiralGrantMarco(p, f, drops, lv);
+      if (f > (s.cp || 0)) { s.cp = f; drops.push(`🚩 Checkpoint guardado: na próxima subida desta semana podes começar no andar ${f + 1}.`); }
       s.marcos = s.marcos || [];
       if (!s.marcos.includes(f)) { s.marcos.push(f); p.chests.push(newChest('equip', lv, 3)); drops.push(`🏅 Primeira vez no andar ${f}: ${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} de qualidade superior!`); }
       t.sanct = true; t.rested = false;
@@ -2932,6 +2967,7 @@ function renderSpiralBody(body, T) {
         <div><small>Recorde</small><b>🏆 ${s.allBest || 0}</b></div>
         <div><small>Subidas hoje</small><b>${left}/${SPIRAL_DAILY}</b></div>
       </div>
+      ${s.cp >= 10 ? `<div class="cp-card"><div class="cp-flag">🚩</div><div><b>Checkpoint: andar ${s.cp}</b><span>Podes começar no andar ${s.cp + 1} e recebes logo as recompensas dos andares 1–${s.cp} (ouro, XP, Baús de Marco) e ${(s.cp / 10) * 2} Bênçãos para escolher. Recomeça à segunda-feira.</span></div></div>` : `<p class="tiny muted" style="margin:0 0 10px;">🚩 Vence um Senhor do Ciclo (andar 10, 20, 30…) para guardares um <b>Checkpoint</b> desta semana.</p>`}
       <div class="card raised">
         <p class="tiny" style="line-height:1.55;">Os andares nunca acabam e cada um é mais forte que o anterior. A Espiral é <b>igual para todos</b>: quem sobe mais alto fica no topo do ranking da semana.</p>
         <p class="tiny" style="line-height:1.55; margin-top:6px;">🔁 <b>Ciclos de 10 andares.</b> Cada ciclo tem um elemento — todos os inimigos são desse elemento:</p>
@@ -2946,8 +2982,10 @@ function renderSpiralBody(body, T) {
       <p class="tiny muted" style="margin-top:4px;">A partir do andar 50, o Divino sobe +3% a cada 10 andares (até 35%) e o 💎 Astral +1% (até 10%). 🏅 A primeira vez que chegas a cada marco dá ainda um Baú de Equipamento extra.</p>
       <div class="section-title" style="margin:14px 0 6px;">🏆 Ranking da semana</div>
       <div id="sp-rank-box"></div>
-      <button class="btn primary block" id="sp-enter" style="margin-top:12px;"${locked ? ' disabled' : ''}>${locked ? `🔒 Precisas de nível ${T.minLv}` : left ? `🌀 Entrar · grátis (${left} hoje)` : `🌀 Entrar · ${SPIRAL_EXTRA_COST.toLocaleString('pt-PT')} 🪙`}</button>`;
+      ${!locked && s.cp >= 10 ? `<button class="btn primary block" id="sp-enter-cp" style="margin-top:12px;">🚩 Começar no andar ${s.cp + 1} · ${left ? `grátis (${left} hoje)` : `${SPIRAL_EXTRA_COST.toLocaleString('pt-PT')} 🪙`}</button>` : ''}
+      <button class="btn ${!locked && s.cp >= 10 ? '' : 'primary '}block" id="sp-enter" style="margin-top:${!locked && s.cp >= 10 ? 8 : 12}px;"${locked ? ' disabled' : ''}>${locked ? `🔒 Precisas de nível ${T.minLv}` : `🌀 ${s.cp >= 10 ? 'Começar no andar 1' : 'Entrar'} · ${left ? `grátis (${left} hoje)` : `${SPIRAL_EXTRA_COST.toLocaleString('pt-PT')} 🪙`}`}</button>`;
     const b = $('sp-enter'); if (b && !locked) b.addEventListener('click', () => spiralEnter(T));
+    const bc = $('sp-enter-cp'); if (bc) bc.addEventListener('click', () => spiralEnter(T, true));
     wireAstralForge(body, T);
     spiralLoadRanking($('sp-rank-box'));
     return;
@@ -2982,7 +3020,7 @@ function renderSpiralBody(body, T) {
   const bb = $('sp-boon'); if (bb) bb.addEventListener('click', spiralOpenBoons);
   const r = $('sp-rest'); if (r) r.addEventListener('click', spiralRest);
   const l = $('sp-leave'); if (l) l.addEventListener('click', towerLeave);
-  if (t.boonPending && !App._spBoonAuto) { App._spBoonAuto = true; setTimeout(() => { App._spBoonAuto = false; if (spiralRun(App.player) && spiralRun(App.player).boonPending && !document.querySelector('.sp-card')) spiralOpenBoons(); }, 350); }
+  if (t.boonPending && !App._spBoonAuto) { App._spBoonAuto = true; setTimeout(() => { App._spBoonAuto = false; if (spiralRun(App.player) && spiralRun(App.player).boonPending && !document.querySelector('.sp-card') && !document.querySelector('#cp-go')) spiralOpenBoons(); }, 350); }
 }
 // ============================================================
 // 🗺️ EXPEDIÇÃO SEMANAL (v258) — Desafio Paragon (P1+). Um mapa de caminhos (estilo roguelike),
@@ -22232,7 +22270,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v258</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v259</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
