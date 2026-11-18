@@ -10795,6 +10795,7 @@ function renderPassivasBody() {
 
   body.innerHTML = `
     <div class="pv-top"><div class="pv-pts"><b>${left}</b><span>de ${total}<br>livres</span></div><div class="pv-brs">${branches}</div></div>
+    ${heroRealHtml(p, 'pass', 'As tuas passivas dão ao herói:', 'box')}
     <p class="tiny muted" style="margin:8px 0 10px;">Ganhas 1 ponto a cada 10 níveis (máx. ${Math.floor(MAX_LEVEL / 10)} no nível ${MAX_LEVEL})${p.level < MAX_LEVEL ? ` — próximo ponto no nível ${nextLv}` : ''}. Toca num nó para ver o que dá e o caminho até lá. Os pontos gastos são permanentes.</p>
     <div class="pv-tree${art ? ' has-art' : ''}"${art ? ` style="--pv-art:url('${nxImgUrl('fundo-passivas')}')"` : ''}>
       <div class="pv-zone" style="left:66px; top:6px; color:${C.r};">FÚRIA</div>
@@ -11710,6 +11711,7 @@ function renderHoTrofeus(p, h) {
   const toNext = TROPHY_STEP - (got % TROPHY_STEP);
   return `<p class="muted" style="margin-bottom:8px;">Cada chefe de região, dungeon e catacumba que já venceste ganha um lugar na sala. A cada ${TROPHY_STEP} troféus: <b>+1% Dano e +1% HP</b>, para sempre.</p>
     <div class="ho-note">${nxIconSvg('trofeu-vitoria', 'nx-inline') || '🏆'} ${got}/${list.length} troféus · bónus atual: +${bonus}% Dano e +${bonus}% HP${got < list.length ? ` · faltam ${toNext} para o próximo` : ''}</div>
+    ${heroRealHtml(p, 'hide', 'Os troféus dão ao herói:', 'box')}
     <div class="ho-trophies">${list.map(t => `<div class="ho-trophy${t.got ? '' : ' off'}"><span class="ho-trophy-ic">${t.got ? t.ic : '❔'}</span><b>${t.got ? esc(t.name) : '???'}</b><span class="tiny">${esc(t.sub)}</span></div>`).join('')}</div>`;
 }
 
@@ -12227,6 +12229,7 @@ function renderCartasBody() {
     </div>
     <div class="cd-bar"><i style="width:${Math.round(have / all * 100)}%"></i></div>
     <div class="cd-bar-t"><span>${next ? `Próximo bónus: ${next.txt}` : 'Álbum completo!'}</span><span>${next ? `faltam ${cardMsNeed(next) - cardMsHave(p, next)}` : '🏆'}</span></div>
+    ${heroRealHtml(p, 'card', 'As cartas dão ao herói:', 'box')}
     <div class="cd-tabs" role="tablist">${tabs.map(([k, l]) => { const tot = list.filter(x => k === 'todas' || x.tab === k), got = tot.filter(x => (s[x.name] || 0) > 0).length;
       return `<button type="button" role="tab" aria-selected="${tab === k}" class="${tab === k ? 'on' : ''}" data-cd-tab="${k}">${l} <small>${got}/${tot.length}</small></button>`; }).join('')}</div>
     <div class="cd-grid">${shown.map(x => cardHtml(p, x)).join('')}</div>
@@ -13895,6 +13898,7 @@ function renderProfissoesBody() {
           </div>
         </div>
         ${profProgressHtml(p)}
+        ${heroRealHtml(p, 'prof')}
       </div>
     `;
     const others = Object.keys(PROFESSIONS).filter(k => k !== p.profession);
@@ -14079,17 +14083,28 @@ function renderFullStatsSheet(stats) {
   </div>`;
 }
 
-// v261: De onde vem o poder — soma por camadas. As Gemas e a Alquimia entram no fim porque multiplicam o resto,
-// e os menus Gemas e Alquimia usam esta mesma conta (mostram sempre o mesmo valor que o Perfil).
-const POWER_LAYERS = [['base', 'Base (nível e classe)', '#8a7a60'], ['eq', 'Equipamento', '#d6822e'], ['pass', 'Passivas', '#b48cff'], ['pet', 'Mascote', '#8ee06a'], ['hide', 'Esconderijo', '#e4bf4a'], ['tal', 'Talismã', '#5fa05f'], ['gem', 'Gemas', '#e05aa8'], ['alch', 'Alquimia', '#4da3ff']];
+// v261/v262: De onde vem o poder — soma por camadas. As Gemas, a Alquimia e o Paragon entram no fim porque multiplicam o resto,
+// e os menus de cada fonte usam esta mesma conta (mostram sempre o mesmo valor que o Perfil).
+const POWER_LAYERS = [['base', 'Base (nível e classe)', '#8a7a60'], ['eq', 'Equipamento', '#d6822e'], ['pass', 'Passivas', '#b48cff'], ['pet', 'Mascote', '#8ee06a'], ['hide', 'Esconderijo', '#e4bf4a'], ['tal', 'Talismã', '#5fa05f'], ['prof', 'Profissão', '#c9a37a'], ['card', 'Cartas', '#6fd3d3'], ['meal', 'Refeição', '#e08a5a'], ['gem', 'Gemas', '#e05aa8'], ['alch', 'Alquimia', '#4da3ff'], ['pg', 'Paragon', '#9fd8ff']];
 function heroPowerParts(p) {
   const noGems = {}; Object.keys(p.equipment || {}).forEach(sl => { const it = p.equipment[sl]; noGems[sl] = it && typeof it === 'object' && it.sockets ? Object.assign({}, it, { sockets: [] }) : it; });
-  const apply = { base: {}, eq: { equipment: noGems }, pass: { passives: p.passives }, pet: { activePet: p.activePet }, hide: { hideout: p.hideout }, tal: { talismans: p.talismans }, gem: { equipment: p.equipment }, alch: { alchemySlots: p.alchemySlots, alchemyCore: p.alchemyCore } };
-  const cur = Object.assign({}, p, { equipment: {}, alchemySlots: [], alchemyCore: null, passives: ['start'], activePet: null, hideout: null, talismans: [] });
+  const apply = { base: {}, eq: { equipment: noGems }, pass: { passives: p.passives }, pet: { activePet: p.activePet }, hide: { hideout: p.hideout }, tal: { talismans: p.talismans }, prof: { profession: p.profession },
+    card: { cards: p.cards }, meal: { activeMeal: p.activeMeal }, gem: { equipment: p.equipment }, alch: { alchemySlots: p.alchemySlots, alchemyCore: p.alchemyCore }, pg: { paragonTal: p.paragonTal } };
+  const cur = Object.assign({}, p, { equipment: {}, alchemySlots: [], alchemyCore: null, passives: ['start'], activePet: null, hideout: null, talismans: [], profession: null, cards: {}, activeMeal: null, paragonTal: {} });
   const parts = { dmg: {}, hp: {}, def: {}, crit: {} }; let prev = null;
   POWER_LAYERS.forEach(([k]) => { Object.assign(cur, apply[k]); const st = effectiveStats(cur), v = { dmg: st.dmg, hp: st.hp, def: st.def, crit: st.crit * 100 };
-    Object.keys(parts).forEach(x => { parts[x][k] = Math.max(0, prev ? v[x] - prev[x] : v[x]); }); prev = v; });
+    Object.keys(parts).forEach(x => { parts[x][k] = prev ? v[x] - prev[x] : v[x]; }); prev = v; }); // pode ser negativo (ex.: Berserker −15% Defesa)
   return parts;
+}
+// v262: linha "No teu herói" com o que uma fonte dá em números reais — a mesma conta do Perfil.
+function heroRealHtml(p, layer, label, cls) {
+  let g; try { const pp = heroPowerParts(p); g = { dmg: pp.dmg[layer], hp: pp.hp[layer], def: pp.def[layer], crit: pp.crit[layer] }; } catch (e) { return ''; }
+  const out = [], n = v => (v > 0 ? '+' : '−') + Math.round(Math.abs(v)).toLocaleString('pt-PT'), neg = v => v < 0 ? ' class="neg"' : '';
+  if (Math.abs(g.dmg) >= 1) out.push(`<b${neg(g.dmg)}>${n(g.dmg)}</b> dano`);
+  if (Math.abs(g.hp) >= 1) out.push(`<b${neg(g.hp)}>${n(g.hp)}</b> HP`);
+  if (Math.abs(g.def) >= 1) out.push(`<b${neg(g.def)}>${n(g.def)}</b> defesa`);
+  if (Math.abs(g.crit) >= 0.05) out.push(`<b${neg(g.crit)}>${g.crit > 0 ? '+' : '−'}${String(Math.round(Math.abs(g.crit) * 10) / 10).replace('.', ',')}%</b> crítico`);
+  return out.length ? `<div class="hero-real${cls ? ' ' + cls : ''}"><small>${label || 'No teu herói:'}</small> ${out.join(' · ')}</div>` : '';
 }
 function renderHeroiPerfilBody(part) {
   const p = App.player;
@@ -14185,7 +14200,7 @@ function renderHeroiPerfilBody(part) {
         ${petFx ? Array.from({ length: Math.min(6, 2 + petFx.n) }, (_, i) => `<i class="pt-heart" style="left:${15 + (i * 37) % 80}px; top:${20 + (i * 23) % 50}px; animation-delay:${i * 0.08}s;">♥</i>`).join('') : ''}</div>
       <div class="pt-info"><small>● Ativa${busy ? ' · 🗺️ em expedição' : ''}</small><b>${d.name}</b><span class="role">${d.role} · ${b.adult ? '🌟 adulta' : '🥚 bebé'}</span>
         <div class="pt-grow">${actPet.level < 15 ? 'Cresce no <b>Nv. 15</b> (os bónus quase dobram)' : actPet.level < 50 ? `Até ao Nv. 50: faltam ${50 - actPet.level} níveis` : 'Nível máximo'}<div class="gb"><i style="width:${actPet.level / 50 * 100}%"></i><s></s></div></div>
-        <div class="pt-chips">${petChips(b)}</div></div></div>
+        <div class="pt-chips">${petChips(b)}</div>${heroRealHtml(p, 'pet')}</div></div>
       <div class="pt-feed"><button class="btn primary" data-feed-pet="${actPet.id}" data-feed-n="1" ${actPet.level < 50 ? '' : 'disabled'}>🐟 Alimentar · ${feedCostN(actPet.level, 1).toLocaleString('pt-PT')} 🪙</button>
         <button class="btn" data-feed-pet="${actPet.id}" data-feed-n="10" ${actPet.level < 50 ? '' : 'disabled'}>×${n10 || 10} · ${feedCostN(actPet.level, 10).toLocaleString('pt-PT')} 🪙</button></div>
       ${petFx && petFx.grew ? `<div class="pt-grown"><div><b>🌟 Cresceu!</b><span>${d.name} agora é adulta — os bónus quase dobram.</span></div></div>` : ''}`;
@@ -14252,9 +14267,10 @@ function renderHeroiPerfilBody(part) {
     const parts = heroPowerParts(p);
     const rows = [['Dano', 'dmg', stats.dmg, ''], ['HP', 'hp', stats.hp, ''], ['Defesa', 'def', stats.def, ''], ['Crítico', 'crit', stats.crit * 100, '%']];
     const f = (v, u) => (u === '%' ? String(Math.round(v * 10) / 10).replace('.', ',') : Math.round(v).toLocaleString('pt-PT')) + u;
-    pfSrcHtml = `<div class="pf-src-l">${pfLayers.map(([k, l, c]) => `<span style="--c:${c};">${l}</span>`).join('')}</div>` + rows.map(([n, key, tot, u]) => { const pr = parts[key], sum = Object.values(pr).reduce((a, b) => a + b, 0) || 1;
+    const pfOn = pfLayers.filter(([k]) => k === 'base' || Object.keys(parts).some(x => Math.abs(parts[x][k]) > 0.05));
+    pfSrcHtml = `<div class="pf-src-l">${pfOn.map(([k, l, c]) => `<span style="--c:${c};">${l}</span>`).join('')}</div>` + rows.map(([n, key, tot, u]) => { const pr = parts[key], sum = Object.values(pr).reduce((a, b) => a + Math.max(0, b), 0) || 1;
       return `<div class="pf-srow"><div class="h"><span>${n}</span><b>${f(tot, u)}</b></div><div class="pf-stack">${pfLayers.filter(([k]) => pr[k] > 0.05).map(([k, l, c]) => `<i style="--c:${c}; width:${pr[k] / sum * 100}%"></i>`).join('')}</div>
-        <div class="d">${pfLayers.filter(([k]) => pr[k] > 0.05).map(([k, l]) => `${l.split(' (')[0]} ${k === 'base' ? '' : '+'}${f(pr[k], u)}`).join(' · ')}</div></div>`; }).join('');
+        <div class="d">${pfLayers.filter(([k]) => Math.abs(pr[k]) > 0.05).map(([k, l]) => pr[k] < 0 ? `<span class="neg">${l.split(' (')[0]} −${f(-pr[k], u)}</span>` : `${l.split(' (')[0]} ${k === 'base' ? '' : '+'}${f(pr[k], u)}`).join(' · ')}</div></div>`; }).join('');
   } catch (e) { pfSrcHtml = ''; }
   const pfTips = [];
   if (p.level >= 10 && typeof passivePointsLeft === 'function' && passivePointsLeft(p) > 0) pfTips.push(['🌳', `<b>${passivePointsLeft(p)} ${passivePointsLeft(p) === 1 ? 'ponto' : 'pontos'} de Passivas</b> por gastar`, 'passivas', 'Passivas']);
@@ -14491,15 +14507,16 @@ async function paragonResetTalents() {
 function paragonStatParts(p) {
   const st = effectiveStats(p), L = heroLv(p), b = statsAtLevel(p.class, L), b200 = statsAtLevel(p.class, MAX_LEVEL);
   const f = 1 + PG_VAL.furia / 100 * paragonRank(p, 'furia'), g = 1 + PG_VAL.egide / 100 * paragonRank(p, 'egide');
-  const split = (tot, base, k) => { const pg = Math.round(tot - tot / k), rest = Math.max(0, tot - pg - base); return [Math.min(base, tot - pg), rest, pg]; };
+  let pp = null; try { pp = heroPowerParts(p); } catch (e) {} // v262: a parte do Paragon é a mesma conta do Perfil
+  const split = (tot, base, k, key) => { const pg = pp ? Math.round(pp[key].pg) : Math.round(tot - tot / k), rest = Math.max(0, tot - pg - base); return [Math.min(base, tot - pg), rest, pg]; };
   const ref = Object.assign({}, p, { paragon: 0, paragonTal: {} });
   const st0 = effectiveStats(ref); // como estaria no Nv. 200 sem Paragon
   return {
     st, st0,
     rows: [
-      { k: 'dmg', ic: '⚔️', l: 'Dano', v: st.dmg, parts: split(st.dmg, b.dmg, f), ref: st0.dmg, b200: b200.dmg },
-      { k: 'hp', ic: '❤️', l: 'HP', v: st.hp, parts: split(st.hp, b.hp, g), ref: st0.hp },
-      { k: 'def', ic: '🛡️', l: 'Defesa', v: st.def, parts: split(st.def, b.def, g), ref: st0.def },
+      { k: 'dmg', ic: '⚔️', l: 'Dano', v: st.dmg, parts: split(st.dmg, b.dmg, f, 'dmg'), ref: st0.dmg, b200: b200.dmg },
+      { k: 'hp', ic: '❤️', l: 'HP', v: st.hp, parts: split(st.hp, b.hp, g, 'hp'), ref: st0.hp },
+      { k: 'def', ic: '🛡️', l: 'Defesa', v: st.def, parts: split(st.def, b.def, g, 'def'), ref: st0.def },
       { k: 'crit', ic: '🎯', l: 'Crítico', v: Math.round(st.crit * 100), pct: true, parts: [0, Math.round(st.crit * 100) - PG_VAL.golpeCrit * paragonRank(p, 'golpe'), PG_VAL.golpeCrit * paragonRank(p, 'golpe')], ref: Math.round(st0.crit * 100) }
     ]
   };
@@ -15058,6 +15075,7 @@ function renderTalismasBody(body, p) {
           <div class="item-name">${esc(d.name)} ${n > 1 ? `<span class="tal-n">×${n}</span>` : ''}</div>
           <div class="item-stats">${talismanStatsLabel(d)}</div>
           <div class="tiny">${d.permanent ? 'Não expira' : `${eq ? 'Equipado' : 'O próximo'}: ${shown.battlesRemaining}/${d.duration} batalhas`}${eq ? ' · <b style="color:var(--success);">equipado</b>' : ''}</div>
+          ${eq ? heroRealHtml(p, 'tal') : ''}
         </div>
         <button class="btn small ${eq ? '' : 'primary'}" data-tal-eq="${esc(eq ? eq.id : shown.id)}">${eq ? 'Desequipar' : 'Equipar'}</button>
       </div>
@@ -15670,15 +15688,14 @@ function renderAlchemyBody(body, p) {
 
   // v103: resumo do bónus total (em % e no valor real que isso dá ao herói).
   const tot = alchemyTotals(p);
-  const withA = effectiveStats(p);
-  const noA = effectiveStats(Object.assign({}, p, { alchemySlots: [] }));
+  let alR = { dmg: 0, hp: 0, def: 0 }; try { const pp = heroPowerParts(p); alR = { dmg: Math.round(pp.dmg.alch), hp: Math.round(pp.hp.alch), def: Math.round(pp.def.alch) }; } catch (e) {} // v262: a mesma conta do Perfil
   const sumRow = (type, label, pctV, real) => `<div class="alch-sum-cell tinted${pctV ? '' : ' off'}" style="${alchColVars(type)}"><div class="alch-sum-ic">${nxEnt(alchIconKey(type, 1), ALCHEMY_STONE_DEFS[type].icon)}</div><div class="alch-sum-pct">+${alchPctText(pctV)}</div><div class="alch-sum-lbl">${label}</div>${real ? `<div class="alch-sum-real">${real}</div>` : ''}</div>`;
   const summaryHtml = `<div class="card raised alch-sum">
     <div class="row between"><span style="font-weight:700;">🔮 Bónus total da Alquimia</span><span class="tiny muted">${p.alchemySlots.filter(Boolean).length}/${ALCHEMY_SLOT_COUNT} slots</span></div>
     <div class="alch-sum-grid">
-      ${sumRow('rubi', 'Dano', tot.dmg, tot.dmg ? `+${(withA.dmg - noA.dmg).toLocaleString('pt-PT')} dano` : '')}
-      ${sumRow('granada', 'HP', tot.hp, tot.hp ? `+${(withA.hp - noA.hp).toLocaleString('pt-PT')} HP` : '')}
-      ${sumRow('safira', 'Defesa', tot.def, tot.def ? `+${(withA.def - noA.def).toLocaleString('pt-PT')} def` : '')}
+      ${sumRow('rubi', 'Dano', tot.dmg, tot.dmg ? `+${alR.dmg.toLocaleString('pt-PT')} dano` : '')}
+      ${sumRow('granada', 'HP', tot.hp, tot.hp ? `+${alR.hp.toLocaleString('pt-PT')} HP` : '')}
+      ${sumRow('safira', 'Defesa', tot.def, tot.def ? `+${alR.def.toLocaleString('pt-PT')} def` : '')}
       ${sumRow('ametista', 'Crítico', tot.crit, '')}
     </div>
     ${coreDef(p) ? `<div class="tiny alch-core-sum${coreIsOpen(p) ? '' : ' off'}">${nxEnt(coreDef(p).img, coreDef(p).icon)} Núcleo: <b>${coreDef(p).name}</b> · ${coreIsOpen(p) ? coreStatText(p.alchemyCore, coreBonusFor(p, p.alchemyCore)) : `inativo (${ALCHEMY_SLOT_COUNT - alchemyFilledCount(p) === 1 ? 'falta 1 pedra' : `faltam ${ALCHEMY_SLOT_COUNT - alchemyFilledCount(p)} pedras`})`}</div>` : ''}
@@ -16335,16 +16352,7 @@ function gemActiveTotalsHtml(p) {
   return `<div class="card raised gem-act"><div class="row between"><b>💠 Bónus ativos das gemas</b><span class="tiny muted">já contam no herói</span></div>
     <div class="gem-act-list">${keys.map(k => { const atCap = gt[k] >= GEM_CAPS[k] - 1e-9; return `<span class="${atCap ? 'cap' : ''}">${GEM_FX_LABEL[k](gt[k])}${atCap ? ' <em>máx.</em>' : ` <small>/ ${gemCapTxt(k)}</small>`}</span>`; }).join('')}</div>${gemRealHtml(p)}</div>`;
 }
-// v261: o que as gemas dão ao herói em números reais (a mesma conta do "De onde vem o teu poder" no Perfil).
-function gemRealHtml(p) {
-  let g; try { const pp = heroPowerParts(p); g = { dmg: pp.dmg.gem, hp: pp.hp.gem, def: pp.def.gem, crit: pp.crit.gem }; } catch (e) { return ''; }
-  const out = [];
-  if (g.dmg >= 1) out.push(`<b>+${Math.round(g.dmg).toLocaleString('pt-PT')}</b> dano`);
-  if (g.hp >= 1) out.push(`<b>+${Math.round(g.hp).toLocaleString('pt-PT')}</b> HP`);
-  if (g.def >= 1) out.push(`<b>+${Math.round(g.def).toLocaleString('pt-PT')}</b> defesa`);
-  if (g.crit >= 0.05) out.push(`<b>+${String(Math.round(g.crit * 10) / 10).replace('.', ',')}%</b> crítico`);
-  return out.length ? `<div class="gem-act-real"><small>No teu herói:</small> ${out.join(' · ')}</div>` : '';
-}
+function gemRealHtml(p) { return heroRealHtml(p, 'gem'); }
 function renderGemsBody(body, p) {
   const types = Object.keys(GEM_DEFS);
   const total = types.reduce((sum, t) => sum + p.gems[t].reduce((a, b) => a + b, 0), 0);
@@ -22299,7 +22307,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v261</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v262</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
