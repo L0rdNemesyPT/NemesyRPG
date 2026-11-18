@@ -4691,4 +4691,7 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .gem-act-list{display:flex; flex-direction:column; gap:3px; margin-top:8px; font-size:12.5px;}
 .gem-act-list span small{color:var(--text-dim, #999); font-size:11px;}
 .gem-act-list span.cap{color:var(--gold-bright, #f2c94c);}
+.gem-act-real{margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08); font-size:12.5px; color:var(--text, #eee);}
+.gem-act-real small{color:var(--text-dim, #999); font-size:11px; margin-right:2px;}
+.gem-act-real b{color:#f08ac4;}
 .gem-act-list em{font-style:normal; font-size:10px; font-weight:800; padding:0 5px; border-radius:6px; background:rgba(242,201,76,.18);}

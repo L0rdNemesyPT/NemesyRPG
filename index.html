@@ -14079,6 +14079,18 @@ function renderFullStatsSheet(stats) {
   </div>`;
 }
 
+// v261: De onde vem o poder — soma por camadas. As Gemas e a Alquimia entram no fim porque multiplicam o resto,
+// e os menus Gemas e Alquimia usam esta mesma conta (mostram sempre o mesmo valor que o Perfil).
+const POWER_LAYERS = [['base', 'Base (nível e classe)', '#8a7a60'], ['eq', 'Equipamento', '#d6822e'], ['pass', 'Passivas', '#b48cff'], ['pet', 'Mascote', '#8ee06a'], ['hide', 'Esconderijo', '#e4bf4a'], ['tal', 'Talismã', '#5fa05f'], ['gem', 'Gemas', '#e05aa8'], ['alch', 'Alquimia', '#4da3ff']];
+function heroPowerParts(p) {
+  const noGems = {}; Object.keys(p.equipment || {}).forEach(sl => { const it = p.equipment[sl]; noGems[sl] = it && typeof it === 'object' && it.sockets ? Object.assign({}, it, { sockets: [] }) : it; });
+  const apply = { base: {}, eq: { equipment: noGems }, pass: { passives: p.passives }, pet: { activePet: p.activePet }, hide: { hideout: p.hideout }, tal: { talismans: p.talismans }, gem: { equipment: p.equipment }, alch: { alchemySlots: p.alchemySlots, alchemyCore: p.alchemyCore } };
+  const cur = Object.assign({}, p, { equipment: {}, alchemySlots: [], alchemyCore: null, passives: ['start'], activePet: null, hideout: null, talismans: [] });
+  const parts = { dmg: {}, hp: {}, def: {}, crit: {} }; let prev = null;
+  POWER_LAYERS.forEach(([k]) => { Object.assign(cur, apply[k]); const st = effectiveStats(cur), v = { dmg: st.dmg, hp: st.hp, def: st.def, crit: st.crit * 100 };
+    Object.keys(parts).forEach(x => { parts[x][k] = Math.max(0, prev ? v[x] - prev[x] : v[x]); }); prev = v; });
+  return parts;
+}
 function renderHeroiPerfilBody(part) {
   const p = App.player;
   const stats = effectiveStats(p);
@@ -14233,14 +14245,11 @@ function renderHeroiPerfilBody(part) {
   const pfEqN = EQUIP_SLOTS.filter(s => p.equipment[s]).length;
   const pfEqRow = `<div class="card raised pf-eq" data-eq-go="1"><div class="row between" style="align-items:baseline;"><span style="font-weight:700;">🛡️ Equipamento</span><span class="tiny muted">${pfEqN}/${EQUIP_SLOTS.length} · toca para abrir</span></div>
     <div class="pf-eqrow">${EQUIP_SLOTS.map(sl => { const it = p.equipment[sl]; return it ? `<div class="pf-eqs" style="--rc:${it.rarityColor};">${it.upgrade ? `<i>+${it.upgrade}</i>` : ''}${itemIconHtml(it)}</div>` : `<div class="pf-eqs empty">${slotIconHtml(sl)}</div>`; }).join('')}</div></div>`;
-  // De onde vem o poder: soma por camadas (base → +equipamento → +alquimia → +passivas → +mascote → +esconderijo → +talismã).
-  const pfLayers = [['base', 'Base (nível e classe)', '#8a7a60', []], ['eq', 'Equipamento', '#d6822e', ['equipment']], ['alch', 'Alquimia', '#4da3ff', ['alchemySlots', 'alchemyCore']], ['pass', 'Passivas', '#b48cff', ['passives']], ['pet', 'Mascote', '#8ee06a', ['activePet']], ['hide', 'Esconderijo', '#e4bf4a', ['hideout']], ['tal', 'Talismã', '#5fa05f', ['talismans']]];
+  // De onde vem o poder: soma por camadas (base → +equipamento → +passivas → +mascote → +esconderijo → +talismã → +alquimia).
+  const pfLayers = POWER_LAYERS;
   let pfSrcHtml = '';
   try {
-    let cur = Object.assign({}, p, { equipment: {}, alchemySlots: [], alchemyCore: null, passives: ['start'], activePet: null, hideout: null, talismans: [] });
-    let prev = null; const parts = { dmg: {}, hp: {}, def: {}, crit: {} };
-    pfLayers.forEach(([k, , , keys]) => { keys.forEach(x => { cur[x] = p[x]; }); const st = effectiveStats(cur), v = { dmg: st.dmg, hp: st.hp, def: st.def, crit: st.crit * 100 };
-      Object.keys(parts).forEach(s => { parts[s][k] = Math.max(0, prev ? v[s] - prev[s] : v[s]); }); prev = v; });
+    const parts = heroPowerParts(p);
     const rows = [['Dano', 'dmg', stats.dmg, ''], ['HP', 'hp', stats.hp, ''], ['Defesa', 'def', stats.def, ''], ['Crítico', 'crit', stats.crit * 100, '%']];
     const f = (v, u) => (u === '%' ? String(Math.round(v * 10) / 10).replace('.', ',') : Math.round(v).toLocaleString('pt-PT')) + u;
     pfSrcHtml = `<div class="pf-src-l">${pfLayers.map(([k, l, c]) => `<span style="--c:${c};">${l}</span>`).join('')}</div>` + rows.map(([n, key, tot, u]) => { const pr = parts[key], sum = Object.values(pr).reduce((a, b) => a + b, 0) || 1;
@@ -15667,7 +15676,7 @@ function renderAlchemyBody(body, p) {
   const summaryHtml = `<div class="card raised alch-sum">
     <div class="row between"><span style="font-weight:700;">🔮 Bónus total da Alquimia</span><span class="tiny muted">${p.alchemySlots.filter(Boolean).length}/${ALCHEMY_SLOT_COUNT} slots</span></div>
     <div class="alch-sum-grid">
-      ${sumRow('rubi', 'Dano', tot.dmg, tot.dmg ? `+${(withA.dmgMax - noA.dmgMax).toLocaleString('pt-PT')} dano` : '')}
+      ${sumRow('rubi', 'Dano', tot.dmg, tot.dmg ? `+${(withA.dmg - noA.dmg).toLocaleString('pt-PT')} dano` : '')}
       ${sumRow('granada', 'HP', tot.hp, tot.hp ? `+${(withA.hp - noA.hp).toLocaleString('pt-PT')} HP` : '')}
       ${sumRow('safira', 'Defesa', tot.def, tot.def ? `+${(withA.def - noA.def).toLocaleString('pt-PT')} def` : '')}
       ${sumRow('ametista', 'Crítico', tot.crit, '')}
@@ -16324,7 +16333,17 @@ function gemActiveTotalsHtml(p) {
   const gt = gemTotals(p), keys = Object.keys(GEM_CAPS).filter(k => gt[k] > 1e-9);
   if (!keys.length) return '';
   return `<div class="card raised gem-act"><div class="row between"><b>💠 Bónus ativos das gemas</b><span class="tiny muted">já contam no herói</span></div>
-    <div class="gem-act-list">${keys.map(k => { const atCap = gt[k] >= GEM_CAPS[k] - 1e-9; return `<span class="${atCap ? 'cap' : ''}">${GEM_FX_LABEL[k](gt[k])}${atCap ? ' <em>máx.</em>' : ` <small>/ ${gemCapTxt(k)}</small>`}</span>`; }).join('')}</div></div>`;
+    <div class="gem-act-list">${keys.map(k => { const atCap = gt[k] >= GEM_CAPS[k] - 1e-9; return `<span class="${atCap ? 'cap' : ''}">${GEM_FX_LABEL[k](gt[k])}${atCap ? ' <em>máx.</em>' : ` <small>/ ${gemCapTxt(k)}</small>`}</span>`; }).join('')}</div>${gemRealHtml(p)}</div>`;
+}
+// v261: o que as gemas dão ao herói em números reais (a mesma conta do "De onde vem o teu poder" no Perfil).
+function gemRealHtml(p) {
+  let g; try { const pp = heroPowerParts(p); g = { dmg: pp.dmg.gem, hp: pp.hp.gem, def: pp.def.gem, crit: pp.crit.gem }; } catch (e) { return ''; }
+  const out = [];
+  if (g.dmg >= 1) out.push(`<b>+${Math.round(g.dmg).toLocaleString('pt-PT')}</b> dano`);
+  if (g.hp >= 1) out.push(`<b>+${Math.round(g.hp).toLocaleString('pt-PT')}</b> HP`);
+  if (g.def >= 1) out.push(`<b>+${Math.round(g.def).toLocaleString('pt-PT')}</b> defesa`);
+  if (g.crit >= 0.05) out.push(`<b>+${String(Math.round(g.crit * 10) / 10).replace('.', ',')}%</b> crítico`);
+  return out.length ? `<div class="gem-act-real"><small>No teu herói:</small> ${out.join(' · ')}</div>` : '';
 }
 function renderGemsBody(body, p) {
   const types = Object.keys(GEM_DEFS);
@@ -22280,7 +22299,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v260</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v261</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
