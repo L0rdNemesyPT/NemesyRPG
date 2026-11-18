@@ -2066,7 +2066,7 @@ function mazeStartCombat(i) {
     enemy.dmg = Math.round(enemy.dmg * td.dmg);
     enemy.def = Math.round(enemy.def * td.def);
   }
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'tower', towerDiff: td.key, isTower: true, towerKey: T.key, mazeCell: i, towerLane: null, towerRoom: type, isElite,
     name, icon, level: lv, isBoss, isMiniBoss: isMini, monsterName,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
@@ -2218,7 +2218,7 @@ function startTowerCombat(lane) {
     enemy.dmg = Math.round(enemy.dmg * td.dmg);
     enemy.def = Math.round(enemy.def * td.def);
   }
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'tower', towerDiff: td.key, isTower: true, towerKey: T.key, towerLane: lane, towerRoom: type, isElite,
     name, icon, level: lv, isBoss, isMiniBoss: isMini, monsterName,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
@@ -2503,7 +2503,7 @@ function startPactCombat() {
   t.pacts.forEach(k => { const e = PACTS[k] && PACTS[k].enemy; if (e) { hm *= e.hp || 1; dm *= e.dmg || 1; df *= e.def || 1; } });
   enemy.hp = Math.round(enemy.hp * hm); enemy.maxHp = enemy.hp; enemy.dmg = Math.round(enemy.dmg * dm); enemy.def = Math.round(enemy.def * df);
   const bless = t.pacts.reduce((a, k) => a + ((PACTS[k] && PACTS[k].dmg) || 0), 0);
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'tower', isTower: true, isPact: true, towerKey: T.key, towerLane: 0, towerRoom: foe.type, isElite,
     name: isElite ? `${foe.name} · Elite` : foe.name, icon: foe.icon, level: lv, isBoss, isMiniBoss: isMini, monsterName: isBoss || isMini ? null : foe.name,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1,
@@ -2844,7 +2844,7 @@ function startSpiralCombat() {
   Object.assign(enemy, { element: el, _elInit: true, critImmune: false, category: foe.category || 'outro' });
   if (el === 'terra') enemy.def = Math.round(enemy.def * 1.15);
   const curses = spiralCursesFor(f);
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'tower', isTower: true, isSpiral: true, spiralFloor: f, towerKey: T.key, towerLane: 0, towerRoom: foe.type,
     name: foe.name, icon: foe.icon, level: T.bossLv, isBoss, isMiniBoss: isMini, monsterName: isBoss || isMini ? null : foe.name,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1, enemy,
@@ -3297,7 +3297,7 @@ function startExpCombat() {
   enemy.dmg = Math.round(enemy.dmg * m.dmg * Math.pow(EXP_GROW_DMG, r));
   enemy.def = Math.round(enemy.def * m.def * Math.pow(1.02, r));
   Object.assign(enemy, { critImmune: false, category: foe.category || 'outro' });
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'tower', isTower: true, isExped: true, expRow: r, expType: type, towerKey: T.key, towerLane: 0, towerRoom: type,
     name: foe.name, icon: foe.icon, level: 200, isBoss, isMiniBoss: false, isElite, monsterName: isBoss ? null : foe.name,
     regionIndexForBoss: null, isGateBoss: false, isDungeon: false, gapMult: 1, enemy,
@@ -5245,7 +5245,7 @@ function startSoberano(key) {
   sfx.click();
   { const st = soberanoState(p); st.triesBy[B.key] = (st.triesBy[B.key] || 0) + 1; }
   saveGame();
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'soberano', isSoberano: true, soberanoDef: B, name: B.name, icon: B.icon, level: B.lv, isBoss: true, isDungeon: false,
     enemy: Object.assign(soberanoStats(B), { element: null, critImmune: false, category: B.category }),
     battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0 },
@@ -6247,7 +6247,7 @@ function startObelisk(id) {
   const diff = obDiff(p), lvl = Math.min(MAX_LEVEL, p.level || 1);
   const e = obDiffScale(enemyStatsFor(lvl, true), diff);
   e.hp = Math.round(e.hp * OB.HP_MULT); e.maxHp = e.hp; e.def = Math.round(e.def * OB.DEF_MULT);
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'obelisk', isObelisk: true, obId: id, obRegion: sp.region, name: OB.NAME, icon: OB.ICON, level: lvl, isBoss: false, monsterName: null,
     difficulty: diff.key, gapMult: 1, isDungeon: false,
     enemy: Object.assign(e, { element: null, critImmune: false, category: 'outro' }),
@@ -10360,7 +10360,7 @@ function startArenaFight(opp) {
   App.btSheet = null; btSheetMount('');
   sfx.click();
   App.tab = 'arena';
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'arena', isArena: true, arena: { opp, hpBefore }, name: opp.name, icon: opp.bot ? '👤' : arenaClassIc(opp.cls),
     level: ARENA.NORM_LV, isBoss: false, monsterName: null, difficulty: 'comum', gapMult: 1, isDungeon: false,
     dungeonWaveSkill: ARENA_SKILLS[opp.cls] || { chance: 0.25, type: 'crit_guaranteed', icon: '🗡️', label: 'Golpe Certeiro' },
@@ -16279,12 +16279,12 @@ function tutCheck(ctx) {
 // Nunca vende: 🔒 bloqueados, Sets, itens com bónus especiais, efeitos únicos, Míticos
 // e qualquer item ▲ Melhor do que o que tens equipado.
 // ============================================================
-const AUTOSELL_OPTS = [['off', 'Desligada'], ['comum', 'Comuns'], ['incomum', 'Até Incomuns'], ['raro', 'Até Raros']];
-const AUTOSELL_RANK = { comum: 1, incomum: 2, raro: 3 };
+const AUTOSELL_OPTS = [['off', 'Desligada'], ['comum', 'Comuns'], ['incomum', 'Até Incomuns'], ['raro', 'Até Raros'], ['lendario', 'Até Lendários']];
+const AUTOSELL_RANK = { comum: 1, incomum: 2, raro: 3, lendario: 4 }; // v263: + Lendários
 function autoSellWould(p, item) {
   const lim = AUTOSELL_RANK[p.autoSell] || 0, r = AUTOSELL_RANK[item && item.rarity] || 0;
   if (!lim || !r || r > lim) return false;
-  if (item.locked || item.setKey || (item.bonuses && item.bonuses.length) || item.uniqueEffect || item.mythic || item.hwSkin) return false;
+  if (item.locked || item.setKey || (item.bonuses && item.bonuses.length) || item.uniqueEffect || item.mythic || item.hwSkin || item.plusBonus) return false; // v263: Lendário+ (➕) nunca
   return compareToEquipped(item, p).cls !== 'better';
 }
 function autoSellTake(p, item) {
@@ -16295,11 +16295,23 @@ function autoSellTake(p, item) {
   p.gold += g; p.stats.autoSold = (p.stats.autoSold || 0) + 1;
   return g;
 }
+// v263: também nas batalhas — no fim do combate vende os itens novos que caíram e cumprem a regra.
+function autoSellInvIds() { const p = App.player; return new Set(((p && p.inventory) || []).map(it => it && it.id)); }
+function autoSellAfterCombat(p, c) {
+  if (!p || !c || !c._inv0 || !(AUTOSELL_RANK[p.autoSell] > 0)) return null;
+  const fresh = (p.inventory || []).filter(it => it && !c._inv0.has(it.id));
+  let n = 0, g = 0; const by = {}, names = [];
+  fresh.forEach(it => { const v = autoSellTake(p, it); if (v) { n++; g += v; by[it.rarity] = (by[it.rarity] || 0) + 1; names.push(it.name); } });
+  c._inv0 = autoSellInvIds();
+  if (!n) return null;
+  const parts = Object.keys(AUTOSELL_RANK).filter(k => by[k]).map(k => `${by[k]} ${rarIc(k, '')}`).join(' ');
+  return { line: `🧹 Venda automática: ${n} ite${n === 1 ? 'm' : 'ns'} (${parts}) vendido${n === 1 ? '' : 's'} por <b>${nxNum(g)} 🪙</b>`, names };
+}
 function autoSellCardHtml(p) {
   const cur = AUTOSELL_RANK[p.autoSell] ? p.autoSell : 'off';
-  return `<div class="card raised as-card"><div class="as-top"><b>🧹 Venda automática</b><span class="tiny muted">ao abrir baús</span></div>
+  return `<div class="card raised as-card"><div class="as-top"><b>🧹 Venda automática</b><span class="tiny muted">baús e batalhas</span></div>
     <div class="as-ch">${AUTOSELL_OPTS.map(([k, l]) => `<button type="button" class="tab-chip${cur === k ? ' active' : ''}" data-autosell="${k}">${k === 'off' ? l : `${rarIc(k === 'comum' ? 'comum' : k, '')} ${l}`}</button>`).join('')}</div>
-    <p class="tiny muted">Nunca vende: 🔒 bloqueados, Sets, itens com bónus especiais e itens ▲ Melhores do que os teus.${p.stats && p.stats.autoSold ? ` · Já vendeu ${nxNum(p.stats.autoSold)} itens.` : ''}</p></div>`;
+    <p class="tiny muted">Vende ao abrir baús e no fim das batalhas. Nunca vende: 🔒 bloqueados, Sets, Lendários ➕, itens com bónus especiais e itens ▲ Melhores do que os teus.${p.stats && p.stats.autoSold ? ` · Já vendeu ${nxNum(p.stats.autoSold)} itens.` : ''}</p></div>`;
 }
 function autoSellBind(root) {
   els('[data-autosell]', root).forEach(b => b.addEventListener('click', () => { const p = App.player; p.autoSell = b.dataset.autosell; sfx.tab(); saveGame();
@@ -19100,7 +19112,7 @@ function startCombat(opts) {
     hordeExtra.push(Object.assign(e, { element: rollElement(), critImmune: false, category: opts.category || 'outro' }));
   }
 
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: opts.kind, name: opts.name, icon: opts.icon, level: opts.level, isBoss, regionKey: opts.regionKey || null,
     monsterName: isBoss ? null : opts.name,
     regionIndexForBoss: opts.regionIndex, isGateBoss: !!opts.isGate, isDungeon: false, gapMult, difficulty: diff.key, paragon: pgP,
@@ -19253,7 +19265,7 @@ function startHunt(src, idx) {
   App.huntSel = null;
   saveGame();
   const bd = huntBossDef(ct.boss);
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'hunt', isHunt: true, huntDef: ct, huntRegion: bd.region.key, waveIndex: 0,
     totalWaves: HUNT_RASTOS + (huntSealsOf(ct).includes('matilha') ? 1 : 0) + 1,
     battleState: {}, cooldowns: {}, log: [], eventApplied: null, ended: false
@@ -19688,7 +19700,7 @@ function startDungeon(key) {
   const p = App.player, day = dgDaily(p);
   if (day.n >= DG_DAILY_MAX) { sfx.error(); toast(`⏳ Já fizeste as ${DG_DAILY_MAX} Dungeons de hoje. Volta daqui a ${dgMidnightTxt()}.`); return; }
   day.n++; saveGame(); // v240: conta ao entrar
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'dungeon', isDungeon: true, dungeonDef: d, waveIndex: 0, totalWaves: d.waves,
     battleState: {}, cooldowns: {}, log: [], eventApplied: null, ended: false
   };
@@ -19752,7 +19764,7 @@ function startCatacumba(key) {
   sfx.click();
   p.catacumbKeys[key]--;
   saveGame();
-  App.combat = {
+  App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'catacumba', isDungeon: true, isCatacumba: true, catacumbaDef: cat, waveIndex: 0, totalWaves: catacumbaTotalWaves(cat),
     battleState: {}, cooldowns: {}, log: [], eventApplied: null, ended: false
   };
@@ -21235,6 +21247,8 @@ function showCombatEnd(won, info) {
     const inv = (App.player.inventory || []).length;
     if (inv >= INVENTORY_WARN) cm.push(`⚠️ Mochila quase cheia: ${inv}/${INVENTORY_MAX} itens. Vende alguns (Mochila → Itens → 🧹 Venda rápida).`);
     if (cm.length) { info = info || {}; if (won) info.drops = (info.drops || []).concat(cm); else setTimeout(() => toast(cm.join(' · ')), 600); } }
+  if (won && App.player) { const asl = autoSellAfterCombat(App.player, c); if (asl) { info = info || {}; const left = asl.names.slice(); // v263: marca na lista os itens vendidos
+    info.drops = (info.drops || []).map(d => { const i = left.findIndex(nm => String(d).includes(nm)); if (i < 0) return d; left.splice(i, 1); return `<s style="opacity:.6">${d}</s> 🧹`; }).concat([asl.line]); saveGame(); } }
   if (won && App.player) { // v196: XP de profissão
     const lu = profGainXp(App.player, (info && info.isBoss) || c.isBoss || c.isMiniBoss || c.isSoberano ? PROF_XP_BOSS : PROF_XP_WIN);
     if (lu) { info = info || {}; info.drops = (info.drops || []).concat([`🎉 ${lu}`]); setTimeout(() => sfx.levelup(), 400); }
@@ -22307,7 +22321,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v262</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v263</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
