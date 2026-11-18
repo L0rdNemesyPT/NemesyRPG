@@ -1078,12 +1078,24 @@ const TALISMAN_DEFS = {
   soberano: { name: '[Talismã do Soberano 👑]', icon: '👑', hp: 300, def: 0, bossPct: 0.08, bossRed: 0.05, dropLuck: 0, duration: 100, noTrade: true,
     source: 'Moloch, o Rei Devorador (Mapa → Desafios → Boss Soberano) — 12% de hipótese por vitória. Não se pode vender.' }
 };
+// v257: Níveis de Talismã (Fundir 5 iguais → nível acima). II = stats ×1,5 e duração ×2; III = stats ×2 e duração ×4.
+const TAL_TIERS = [null, { stat: 1, dur: 1, roman: '' }, { stat: 1.5, dur: 2, roman: 'II' }, { stat: 2, dur: 4, roman: 'III' }];
+const TAL_FUSE_NEED = 5, TAL_SELL_GOLD = 1500;
+function talTier(t) { const n = Math.floor(Number(t && t.tier) || 1); return n >= 1 && n <= 3 ? n : 1; }
+function talDef(t) { // definição já com o nível aplicado
+  const d = TALISMAN_DEFS[t && t.key]; if (!d) return null;
+  const tr = TAL_TIERS[talTier(t)]; if (tr.stat === 1) return d;
+  const o = Object.assign({}, d, { name: d.name.replace(/\]$/, ` ${tr.roman}]`), duration: d.permanent ? d.duration : d.duration * tr.dur });
+  ['hp', 'def'].forEach(k => { if (d[k]) o[k] = Math.round(d[k] * tr.stat); });
+  ['crit', 'xpPct', 'dmgPct', 'bossPct', 'bossRed', 'dropLuck'].forEach(k => { if (d[k]) o[k] = +(d[k] * tr.stat).toFixed(3); });
+  return o;
+}
 function talismanIsActive(t) {
   const d = t && TALISMAN_DEFS[t.key];
   return !!d && (d.permanent || Number(t.battlesRemaining) > 0);
 }
 function talismanDurationLabel(t) {
-  const d = TALISMAN_DEFS[t.key];
+  const d = talDef(t);
   return d.permanent ? 'Não expira' : `${t.battlesRemaining}/${d.duration} batalhas`;
 }
 function talismanStatsLabel(d) {
@@ -4056,7 +4068,7 @@ function getEquippedTalisman(player) {
 // Bónus de XP das batalhas: Milho comido neste combate + Talismã (ex.: Sabedoria +5%).
 function battleXpBonus(c) {
   const t = getEquippedTalisman(App.player);
-  return foodBonus('xp') + ((t && TALISMAN_DEFS[t.key].xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp') + todXp() + (effectiveStats(App.player).itemXpPct || 0); // v244: Saque (Elmo) · v224: Amuleto da Estrela · v227: Cartas
+  return foodBonus('xp') + ((t && talDef(t).xpPct) || 0) + hideoutXpBonus(App.player) + craftXpPct(App.player) + xmEquipXp(App.player) + cardBonus(App.player, 'xp') + todXp() + (effectiveStats(App.player).itemXpPct || 0); // v244: Saque (Elmo) · v224: Amuleto da Estrela · v227: Cartas
 }
 function grantTalisman(player, key) {
   const definition = TALISMAN_DEFS[key];
@@ -4150,18 +4162,18 @@ function effectiveStats(player) {
   const evoBonus = getEvoBonus(player);
   let hp = base.hp + evoBonus.hp;
   const talisman = getEquippedTalisman(player);
-  if (talisman) hp += TALISMAN_DEFS[talisman.key].hp;
+  if (talisman) hp += talDef(talisman).hp;
   let dmg = base.dmg + evoBonus.dmg;
   // Intervalo de dano (mín–máx) do golpe, alimentado sobretudo pela arma equipada;
   // começa igual ao dano fixo (base de classe/evolução não tem variação própria).
   let dmgMin = dmg, dmgMax = dmg;
   let def = base.def + evoBonus.def;
-  if (talisman) def += TALISMAN_DEFS[talisman.key].def || 0;
+  if (talisman) def += talDef(talisman).def || 0;
   let crit = 0.05;
   const gt = gemTotals(player); // v186: gemas
   let gemBossPct = gt.bossPct; // v104: Pedra do Caça-Chefes
   let gemEsPct = gt.esPct; // v150: Pedra do Escudo Mágico
-  if (talisman) crit += TALISMAN_DEFS[talisman.key].crit || 0;
+  if (talisman) crit += talDef(talisman).crit || 0;
   let dodge = 0;
   let lifesteal = 0;
   let es = 0; // v147: Escudo Mágico
@@ -4291,9 +4303,9 @@ function effectiveStats(player) {
   let dmgPctTotal = itemDmgPct / 100 + gt.dmgPct, hpPctTotal = gt.hpPct + craftHpPct, defPctTotal = itemPlus2DefPct + gt.defPct, setRegenPct = 0, poisonImmune = false, setDmgTaken = 0;
   crit += gt.crit; lifesteal += gt.lifesteal; itemRegenPct += gt.regen; itemDmgReducedFromBossPct += gt.bossRed; // v186
   let professionRegenPct = 0, dropLuckBonus = itemCraftLuck;
-  if (talisman) dropLuckBonus += TALISMAN_DEFS[talisman.key].dropLuck || 0;
-  if (talisman) dmgPctTotal += TALISMAN_DEFS[talisman.key].dmgPct || 0;
-  if (talisman) { itemDmgVsBossPct += TALISMAN_DEFS[talisman.key].bossPct || 0; itemDmgReducedFromBossPct += TALISMAN_DEFS[talisman.key].bossRed || 0; }
+  if (talisman) dropLuckBonus += talDef(talisman).dropLuck || 0;
+  if (talisman) dmgPctTotal += talDef(talisman).dmgPct || 0;
+  if (talisman) { itemDmgVsBossPct += talDef(talisman).bossPct || 0; itemDmgReducedFromBossPct += talDef(talisman).bossRed || 0; }
   setBonuses.forEach(b => {
     if (b.dmgPct) dmgPctTotal += b.dmgPct;
     if (b.hpPct) hpPctTotal += b.hpPct;
@@ -9093,7 +9105,7 @@ function tradeOwnedGoods(p) {
   const eqTal = (p.equipment || {}).talisman;
   (p.talismans || []).forEach(t => {
     const d = TALISMAN_DEFS[t.key];
-    if (!d || d.permanent || d.noTrade || t.id === eqTal || !(Number(t.battlesRemaining) >= 1)) return;
+    if (!d || d.permanent || d.noTrade || t.id === eqTal || talTier(t) > 1 || !(Number(t.battlesRemaining) >= 1)) return; // v257: só os de nível I
     add('talisma', t.key, 0, 1, { talId: t.id, battles: t.battlesRemaining });
   });
   return out.map(g => Object.assign(g, tradeGoodInfo(g)));
@@ -14280,7 +14292,7 @@ function equipDollHtml(p, talisman) {
       <span class="doll-lbl">${dualItem ? '2.ª Arma' : SLOT_NAMES[s]}</span>${wide ? '' : `<span class="doll-band">Nv. ${it.itemLevel || 1}</span>`}</button>`;
   };
   const clsName = p.evolution ? EVOLUTIONS[p.class].find(e => e.key === p.evolution).name : CLASSES[p.class].name;
-  const tl = talisman ? TALISMAN_DEFS[talisman.key] : null;
+  const tl = talisman ? talDef(talisman) : null;
   const art = NX_ICON_IMG.has('fundo-armaria');
   return `<div class="doll${art ? ' has-art' : ''}" style="--aura:${aura};${art ? `--doll-art:url('${nxImgUrl('fundo-armaria')}');` : ''}">
     <div class="doll-col">${['head', 'chest', 'gloves', 'boots'].map(s => slot(s)).join('')}</div>
@@ -14510,34 +14522,75 @@ function renderMochilaBody() {
   }
 }
 
+// v257: Talismãs agrupados (tipo + nível), com Fundir 5 → nível acima, vender os que sobram e troca automática.
 function renderTalismasBody(body, p) {
   const talismans = p.talismans || [];
   if (!talismans.length) {
     body.innerHTML = `<div class="empty-hint">🍀 Ainda não tens Talismãs.<br>O Djinn do Oásis pode deixar cair o [Talismã da Fortuna 🍀] ao ser derrotado, e a Temporada dá o [Talismã Protetor ⭐].</div>`;
     return;
   }
-  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Os Talismãs não têm raridade. As batalhas de duração só contam enquanto estiverem equipados (os Talismãs da Temporada não expiram).</p>` + talismans.map(talisman => {
-    const definition = TALISMAN_DEFS[talisman.key];
-    const equipped = p.equipment.talisman === talisman.id;
-    return `<div class="item-row">
-      <div class="item-ic">${nxEnt('talisma-' + talisman.key, definition.icon)}</div>
-      <div class="item-mid">
-        <div class="item-name">${esc(definition.name)}</div>
-        <div class="item-stats">${talismanStatsLabel(definition)}</div>
-        <div class="tiny">${definition.permanent ? 'Não expira' : `${talisman.battlesRemaining}/${definition.duration} batalhas restantes`}${equipped ? ' · equipado' : ''}</div>
+  const eqId = p.equipment.talisman, groups = {};
+  talismans.forEach(t => { const k = t.key + '|' + talTier(t); (groups[k] = groups[k] || { key: t.key, tier: talTier(t), list: [] }).list.push(t); });
+  const order = Object.keys(TALISMAN_DEFS);
+  const gl = Object.values(groups).sort((x, y) => (y.list.some(t => t.id === eqId) - x.list.some(t => t.id === eqId)) || order.indexOf(x.key) - order.indexOf(y.key) || y.tier - x.tier);
+  body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Os Talismãs iguais ficam juntos. Quando o equipado se gasta, equipa-se logo outro igual. Junta <b>${TAL_FUSE_NEED} iguais</b> para os fundir num de nível acima (II: stats ×1,5 e o dobro das batalhas · III: stats ×2 e ×4 batalhas).</p>` + gl.map(g => {
+    const d0 = TALISMAN_DEFS[g.key], d = talDef({ key: g.key, tier: g.tier }), n = g.list.length;
+    const eq = g.list.find(t => t.id === eqId);
+    const shown = eq || g.list.slice().sort((a, b2) => (a.battlesRemaining || 0) - (b2.battlesRemaining || 0))[0];
+    const canFuse = !d0.permanent && g.tier < 3 && n >= TAL_FUSE_NEED;
+    const spare = n - (eq ? 1 : 0);
+    const nextD = g.tier < 3 ? talDef({ key: g.key, tier: g.tier + 1 }) : null;
+    return `<div class="card raised tal-card${eq ? ' on' : ''}">
+      <div class="row" style="gap:10px; align-items:center;">
+        <div class="item-ic tal-ic">${nxEnt('talisma-' + g.key, d0.icon)}${g.tier > 1 ? `<i class="tal-tier">${TAL_TIERS[g.tier].roman}</i>` : ''}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="item-name">${esc(d.name)} ${n > 1 ? `<span class="tal-n">×${n}</span>` : ''}</div>
+          <div class="item-stats">${talismanStatsLabel(d)}</div>
+          <div class="tiny">${d.permanent ? 'Não expira' : `${eq ? 'Equipado' : 'O próximo'}: ${shown.battlesRemaining}/${d.duration} batalhas`}${eq ? ' · <b style="color:var(--success);">equipado</b>' : ''}</div>
+        </div>
+        <button class="btn small ${eq ? '' : 'primary'}" data-tal-eq="${esc(eq ? eq.id : shown.id)}">${eq ? 'Desequipar' : 'Equipar'}</button>
       </div>
-      <button class="btn small ${equipped ? '' : 'primary'}" data-talisman-toggle="${esc(talisman.id)}">${equipped ? 'Desequipar' : 'Equipar'}</button>
+      ${!d0.permanent ? `<div class="row tal-actions">
+        ${g.tier < 3 ? `<button class="btn small${canFuse ? ' primary' : ''}" data-tal-fuse="${g.key}|${g.tier}|1"${canFuse ? '' : ' disabled'}>⚗️ Fundir ${TAL_FUSE_NEED} → ${TAL_TIERS[g.tier + 1].roman}</button>${n >= TAL_FUSE_NEED * 2 ? `<button class="btn small" data-tal-fuse="${g.key}|${g.tier}|${Math.floor(n / TAL_FUSE_NEED)}">⚗️ Fundir todos (${Math.floor(n / TAL_FUSE_NEED)}×)</button>` : ''}` : '<span class="tiny muted">Nível máximo</span>'}
+        ${!d0.noTrade && spare > 0 ? `<button class="btn small ghost" data-tal-sell="${g.key}|${g.tier}">🪙 Vender 1 · ${nxNum(TAL_SELL_GOLD * g.tier)}</button>` : ''}
+      </div>
+      ${g.tier < 3 ? `<div class="tal-bar"><i style="width:${Math.min(100, n / TAL_FUSE_NEED * 100)}%"></i></div><p class="tiny muted" style="margin-top:3px;">${n >= TAL_FUSE_NEED ? `Podes fundir agora.` : `Faltam ${TAL_FUSE_NEED - n} para fundir.`} Nível ${TAL_TIERS[g.tier + 1].roman}: ${esc(talismanStatsLabel(nextD))} · ${nextD.duration} batalhas.</p>` : ''}` : ''}
     </div>`;
   }).join('');
-  els('[data-talisman-toggle]').forEach(button => button.addEventListener('click', () => {
-    const id = button.dataset.talismanToggle;
+  const pick = (key, tier, n, exceptEquipped) => { const l = (p.talismans || []).filter(t => t.key === key && talTier(t) === tier && (!exceptEquipped || t.id !== p.equipment.talisman)).sort((a, b) => (b.battlesRemaining || 0) - (a.battlesRemaining || 0)); return l.slice(0, n); };
+  els('[data-tal-eq]').forEach(button => button.addEventListener('click', () => {
+    const id = button.dataset.talEq;
     p.equipment.talisman = p.equipment.talisman === id ? null : id;
-    saveGame();
-    renderMochilaBody();
-    renderStatusBar();
-    toast(p.equipment.talisman ? `${TALISMAN_DEFS[talismans.find(t => t.id === id).key].name} equipado.` : 'Talismã desequipado.');
+    saveGame(); liveRefresh();
+    const t = talismans.find(x => x.id === id);
+    toast(p.equipment.talisman ? `${talDef(t).name} equipado.` : 'Talismã desequipado.');
+  }));
+  els('[data-tal-fuse]').forEach(button => button.addEventListener('click', async () => {
+    const [key, ts, ks] = button.dataset.talFuse.split('|'), tier = Number(ts);
+    const all = (p.talismans || []).filter(t => t.key === key && talTier(t) === tier);
+    const k = Math.min(Math.floor(all.length / TAL_FUSE_NEED), Math.max(1, Number(ks) || 1)); if (!k) return;
+    const nextName = talDef({ key, tier: tier + 1 }).name;
+    if (!await nxConfirm(`Fundir ${k * TAL_FUSE_NEED} × ${talDef({ key, tier }).name} em ${k} × ${nextName}?\n(${talismanStatsLabel(talDef({ key, tier: tier + 1 }))} · ${talDef({ key, tier: tier + 1 }).duration} batalhas cada)`, { title: '⚗️ Fundir Talismãs', icon: d0Icon(key), confirmLabel: 'Fundir' })) return;
+    // gasta primeiro os mais gastos; o equipado só se não houver outros
+    const use = all.slice().sort((a, b) => (a.id === p.equipment.talisman) - (b.id === p.equipment.talisman) || (a.battlesRemaining || 0) - (b.battlesRemaining || 0)).slice(0, k * TAL_FUSE_NEED);
+    const usedIds = new Set(use.map(t => t.id)), wasEq = usedIds.has(p.equipment.talisman);
+    p.talismans = p.talismans.filter(t => !usedIds.has(t.id));
+    let last = null;
+    for (let i = 0; i < k; i++) { last = grantTalisman(p, key); last.tier = tier + 1; last.battlesRemaining = talDef(last).duration; }
+    if (wasEq) p.equipment.talisman = last.id;
+    saveGame(); sfx.evolve(); liveRefresh();
+    toast(`⚗️ ${k > 1 ? k + ' × ' : ''}${nextName} criado${k > 1 ? 's' : ''}!`);
+  }));
+  els('[data-tal-sell]').forEach(button => button.addEventListener('click', async () => {
+    const [key, ts] = button.dataset.talSell.split('|'), tier = Number(ts);
+    const t = pick(key, tier, 1, true)[0]; if (!t) return;
+    if (!await nxConfirm(`Vender 1 × ${talDef(t).name} por ${nxNum(TAL_SELL_GOLD * tier)} de ouro?`, { title: 'Vender Talismã', icon: '🪙', confirmLabel: 'Vender' })) return;
+    p.talismans = p.talismans.filter(x => x.id !== t.id);
+    p.gold += TAL_SELL_GOLD * tier;
+    saveGame(); sfx.coin ? sfx.coin() : sfx.click(); liveRefresh();
   }));
 }
+function d0Icon(key) { return (TALISMAN_DEFS[key] || {}).icon || '🔮'; }
 
 function pearlsSummaryHtml(p) {
   if (!p.pearls) return '';
@@ -20245,8 +20298,11 @@ function consumeTalismanBattle() {
   if (talisman.battlesRemaining <= 0) {
     p.talismans = p.talismans.filter(owned => owned.id !== talisman.id);
     p.equipment.talisman = null;
+    // v257: equipa logo outro igual (mesmo tipo e nível), se houver — o mais gasto primeiro.
+    const next = p.talismans.filter(o => o.key === talisman.key && talTier(o) === talTier(talisman) && talismanIsActive(o)).sort((a, b) => (a.battlesRemaining || 0) - (b.battlesRemaining || 0))[0];
+    if (next) { p.equipment.talisman = next.id; toast(`${talDef(talisman).name} gastou-se — equipei outro igual (${next.battlesRemaining} batalhas).`); }
+    else toast(`${talDef(talisman).name} desapareceu após ${talDef(talisman).duration} batalhas.`);
     p.hp = Math.min(p.hp, effectiveStats(p).hp);
-    toast(`${TALISMAN_DEFS[talisman.key].name} desapareceu após ${TALISMAN_DEFS[talisman.key].duration} batalhas.`);
   }
 }
 
@@ -21709,7 +21765,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v256</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v257</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -21940,8 +21996,9 @@ function applyPlayerMigrations(player) {
     .map(talisman => ({
       id: typeof talisman.id === 'string' && talisman.id ? talisman.id : `tal_${Math.random().toString(36).slice(2, 10)}`,
       key: talisman.key,
+      ...(talTier(talisman) > 1 ? { tier: talTier(talisman) } : {}),
       battlesRemaining: TALISMAN_DEFS[talisman.key].permanent ? null
-        : clamp(Math.floor(Number(talisman.battlesRemaining) || TALISMAN_DEFS[talisman.key].duration), 1, TALISMAN_DEFS[talisman.key].duration)
+        : clamp(Math.floor(Number(talisman.battlesRemaining) || talDef(talisman).duration), 1, talDef(talisman).duration)
     }));
   ensureSeason(player);
   ensurePassives(player);

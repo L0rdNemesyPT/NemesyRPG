@@ -4628,3 +4628,13 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .opf-recs{display:flex; flex-direction:column; gap:4px; margin-top:8px;}
 .opf-recs div{display:flex; justify-content:space-between; gap:8px; font-size:13px; padding:6px 10px; border-radius:8px; background:rgba(255,255,255,.04);}
 .opf-recs b{color:var(--gold-bright, #f2c94c);}
+
+/* ===== v257: Talismãs agrupados ===== */
+.tal-card{margin-bottom:10px;}
+.tal-card.on{border-color:var(--success, #5fbf6a) !important; box-shadow:0 0 10px rgba(95,191,106,.25);}
+.tal-ic{position:relative;}
+.tal-tier{position:absolute; right:-4px; bottom:-4px; font-style:normal; font-size:10px; font-weight:900; padding:1px 4px; border-radius:6px; background:#2a1f10; color:var(--gold-bright, #f2c94c); border:1px solid var(--gold-dim, #8a6a1e);}
+.tal-n{display:inline-block; margin-left:4px; padding:1px 7px; border-radius:10px; background:rgba(242,201,76,.15); color:var(--gold-bright, #f2c94c); font-size:12px; font-weight:800;}
+.tal-actions{gap:6px; flex-wrap:wrap; margin-top:10px;}
+.tal-bar{height:6px; border-radius:4px; background:rgba(255,255,255,.08); overflow:hidden; margin-top:8px;}
+.tal-bar i{display:block; height:100%; background:linear-gradient(90deg, #8a6a1e, #f2c94c);}
