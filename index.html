@@ -2678,7 +2678,7 @@ function renderPactBody(body, T) {
 // p.tower = { key:'espiral', spiral:true, floor (andares vencidos), boons:{chave:n}, curses:[afixos], boonOffer:[3]|null, sanct, rested, loot }
 // p.spiral = { wk, best (desta semana), allBest, day, n (subidas hoje) }
 // ============================================================
-const SPIRAL_DAILY = 3, SPIRAL_EXTRA_COST = 30000;
+const SPIRAL_DAILY = 3, SPIRAL_EXTRA_COST = 30000, SPIRAL_CP_RATE = 0.5; // v264: ouro e XP do checkpoint a 50%
 const SPIRAL_GROW_HP = 1.042, SPIRAL_GROW_DMG = 1.038, SPIRAL_GROW_DEF = 1.02;
 const SPIRAL_MULT = { mob: { hp: 0.75, dmg: 0.72, def: 0.85 }, mini: { hp: 1.05, dmg: 0.82, def: 0.95 }, boss: { hp: 1.1, dmg: 0.72, def: 0.95 } };
 const SPIRAL_BREATH = 0.10, SPIRAL_SANCT_HEAL = 0.50;
@@ -2768,10 +2768,11 @@ async function spiralEnter(T, fromCp) {
   saveGame(); sfx.questdone(); renderStatusBar(); renderTabMapa();
   toast(`🌀 Entraste na ${T.name}. Até onde consegues subir?`);
 }
-// v259: 🚩 Checkpoint — começa no andar seguinte ao último Senhor do Ciclo vencido esta semana e recebe logo
-// as recompensas dos andares saltados (ouro, XP e Baús de Marco) e as Bênçãos desses ciclos (2 por ciclo, escolhidas a seguir).
-function spiralGrantMarco(p, f, drops, lv) {
-  const m = spiralMarcoLoot(f);
+// v259: 🚩 Checkpoint — começa no andar seguinte ao último Senhor do Ciclo vencido esta semana, com as Bênçãos desses ciclos (2 por ciclo).
+// v264: as recompensas dos andares saltados ficam num pacote (t.cpPack) entregue só ao vencer o Senhor do andar cp+10.
+function spiralGrantMarco(p, f, drops, lv, slim) {
+  const m = Object.assign({}, spiralMarcoLoot(f));
+  if (slim) { m.shards = 0; m.divino = 0; m.astral = 0; } // v264: Baú do checkpoint — sem Estilhaços, Divino nem Astral
   m.items.forEach(rar => { const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
     const it = generateItem(slot, lv, null, 2, RARITIES.find(r => r.key === rar)); p.inventory.push(it);
     drops.push(`${rarIc(it.rarity, it.rarityIcon)} ${it.name} (${it.rarityName} · ${SLOT_NAMES[slot]} · Nv. ${lv})`); });
@@ -2792,18 +2793,17 @@ function spiralStartFromCheckpoint(p, t, cp) {
     if (f % 10 === 0) { xg = Math.round(xg * 1.5); gg = Math.round(gg * 1.5); }
     xp += xg; gold += gg;
   }
-  xp = pgXp(xp);
-  p.gold += gold; grantXp(xp);
-  t.loot.gold += gold; t.loot.xp += xp;
-  for (let f = 10; f <= cp; f += 10) { drops.push(`🎁 Baú de Marco · Andar ${f}`); spiralGrantMarco(p, f, drops, lv); }
-  for (let f = 5; f <= cp; f += 10) drops.push(...towerTreasure(p, lv, 2)); // tesouros dos Guardiões
+  // v264: o pacote dos andares saltados (ouro e XP a 50%, Baús de Marco sem Estilhaços/Divino/Astral) fica guardado
+  // e só é entregue ao vencer o próximo Senhor do Ciclo (andar cp+10). Quem morrer ou sair antes, perde-o.
+  gold = Math.round(gold * SPIRAL_CP_RATE); xp = Math.round(pgXp(xp) * SPIRAL_CP_RATE);
+  t.cpPack = { gold, xp, cp, until: cp + 10 };
   t.floor = cp; t.fromCp = cp; t.boonPending = true; t.boonQueue = (cp / 10) * 2 - 1; t.boonOffer = null;
   p.hp = pStats.hp;
   saveGame(); sfx.evolve(); renderStatusBar(); renderTabMapa();
-  const list = drops.map(d => `<li>${d}</li>`).join('');
-  openModal(`<div class="sp-boon-hd"><div class="sp-boon-ic">🚩</div><div><b>Checkpoint · Andar ${cp}</b><span>Recompensas dos andares 1–${cp}:</span></div></div>
-    <div class="cp-sum"><span>🪙 +${gold.toLocaleString('pt-PT')}</span><span>✨ +${xp.toLocaleString('pt-PT')} XP</span></div>
-    <ul class="cp-list">${list}</ul>
+  openModal(`<div class="sp-boon-hd"><div class="sp-boon-ic">🚩</div><div><b>Checkpoint · Andar ${cp}</b><span>Recompensas dos andares 1–${cp} guardadas:</span></div></div>
+    <div class="cp-sum"><span>🪙 ${gold.toLocaleString('pt-PT')}</span><span>✨ ${xp.toLocaleString('pt-PT')} XP</span><span>🎁 ${cp / 10} Baú${cp > 10 ? 's' : ''} de Marco</span></div>
+    <div class="cp-lock">📦 Recebes este pacote quando venceres o <b>Senhor do Ciclo do andar ${cp + 10}</b>. Se morreres ou saíres antes, perdes o pacote.</div>
+    <p class="tiny muted" style="margin-top:6px;">No checkpoint, o ouro e o XP valem 50% e os Baús de Marco não dão Estilhaços Astrais, Divinos nem Astrais — esses só a subir.</p>
     <p class="tiny muted" style="margin-top:8px;">Agora escolhe as <b>${(cp / 10) * 2} Bênçãos</b> dos ciclos que saltaste (2 por ciclo). Começas no andar ${cp + 1} com o HP cheio.</p>
     <button class="btn primary block" id="cp-go" style="margin-top:10px;">✨ Escolher Bênçãos</button>`);
   $('cp-go').addEventListener('click', () => { closeModal(); spiralOpenBoons(); });
@@ -2886,6 +2886,13 @@ function finishSpiralFight() {
     if (c.isBoss) {
       drops.push(`🎁 Baú de Marco · Andar ${f}`);
       spiralGrantMarco(p, f, drops, lv);
+      if (t.cpPack && f >= t.cpPack.until) { // v264: entrega o pacote do checkpoint
+        const k = t.cpPack; delete t.cpPack;
+        p.gold += k.gold; grantXp(k.xp); t.loot.gold += k.gold; t.loot.xp += k.xp;
+        drops.push(`📦 Pacote do checkpoint (andares 1–${k.cp}): +${nxNum(k.gold)} 🪙 · +${nxNum(k.xp)} XP`);
+        for (let g = 10; g <= k.cp; g += 10) { drops.push(`🎁 Baú de Marco · Andar ${g} (checkpoint)`); spiralGrantMarco(p, g, drops, lv, true); }
+        for (let g = 5; g <= k.cp; g += 10) drops.push(...towerTreasure(p, lv, 2));
+      }
       if (f > (s.cp || 0)) { s.cp = f; drops.push(`🚩 Checkpoint guardado: na próxima subida desta semana podes começar no andar ${f + 1}.`); }
       s.marcos = s.marcos || [];
       if (!s.marcos.includes(f)) { s.marcos.push(f); p.chests.push(newChest('equip', lv, 3)); drops.push(`🏅 Primeira vez no andar ${f}: ${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} de qualidade superior!`); }
@@ -2967,7 +2974,7 @@ function renderSpiralBody(body, T) {
         <div><small>Recorde</small><b>🏆 ${s.allBest || 0}</b></div>
         <div><small>Subidas hoje</small><b>${left}/${SPIRAL_DAILY}</b></div>
       </div>
-      ${s.cp >= 10 ? `<div class="cp-card"><div class="cp-flag">🚩</div><div><b>Checkpoint: andar ${s.cp}</b><span>Podes começar no andar ${s.cp + 1} e recebes logo as recompensas dos andares 1–${s.cp} (ouro, XP, Baús de Marco) e ${(s.cp / 10) * 2} Bênçãos para escolher. Recomeça à segunda-feira.</span></div></div>` : `<p class="tiny muted" style="margin:0 0 10px;">🚩 Vence um Senhor do Ciclo (andar 10, 20, 30…) para guardares um <b>Checkpoint</b> desta semana.</p>`}
+      ${s.cp >= 10 ? `<div class="cp-card"><div class="cp-flag">🚩</div><div><b>Checkpoint: andar ${s.cp}</b><span>Podes começar no andar ${s.cp + 1} com ${(s.cp / 10) * 2} Bênçãos para escolher. As recompensas dos andares 1–${s.cp} (ouro e XP a 50%, Baús de Marco sem Estilhaços, Divinos nem Astrais) ficam guardadas e recebes-as ao vencer o Senhor do andar ${s.cp + 10}. Recomeça à segunda-feira.</span></div></div>` : `<p class="tiny muted" style="margin:0 0 10px;">🚩 Vence um Senhor do Ciclo (andar 10, 20, 30…) para guardares um <b>Checkpoint</b> desta semana.</p>`}
       <div class="card raised">
         <p class="tiny" style="line-height:1.55;">Os andares nunca acabam e cada um é mais forte que o anterior. A Espiral é <b>igual para todos</b>: quem sobe mais alto fica no topo do ranking da semana.</p>
         <p class="tiny" style="line-height:1.55; margin-top:6px;">🔁 <b>Ciclos de 10 andares.</b> Cada ciclo tem um elemento — todos os inimigos são desse elemento:</p>
@@ -3003,6 +3010,7 @@ function renderSpiralBody(body, T) {
       <div class="row between tiny" style="margin-top:10px;"><span>❤️ HP</span><span>${nxNum(p.hp)} / ${nxNum(ps.hp)}</span></div>
       <div class="tower-bar"><i style="width:${hpPct}%;"></i></div>
       <div class="sp-recs"><span>Esta semana <b>${s.best}</b></span><span>Recorde <b>${s.allBest || 0}</b></span><span>Próximo marco <b>${nextMarco}</b></span></div>
+      ${t.cpPack ? `<div class="cp-lock">📦 Pacote do checkpoint à espera: <b>${nxNum(t.cpPack.gold)} 🪙 · ${nxNum(t.cpPack.xp)} XP · ${t.cpPack.cp / 10} Baú${t.cpPack.cp > 10 ? 's' : ''}</b> — vence o Senhor do andar ${t.cpPack.until}.</div>` : ''}
       ${curses.length ? `<div class="sp-curses">${curses.map(k => `<span class="spc" title="${esc(ELITE_AFF[k].desc)}">${ELITE_AFF[k].icon} ${ELITE_AFF[k].name}</span>`).join('')}</div>` : ''}
       ${boonList ? `<div class="sp-boons">${boonList}</div>` : '<p class="tiny muted" style="margin-top:8px;">Sem Bênçãos ainda — vence o Guardião do andar 5.</p>'}
       <div class="tower-loot"><span>🪙 ${t.loot.gold.toLocaleString('pt-PT')}</span><span>✨ ${t.loot.xp.toLocaleString('pt-PT')} XP</span>${t.loot.list.slice(-3).map(x => `<span>${rarLead(esc(x))}</span>`).join('')}</div>
@@ -22321,7 +22329,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v263</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v264</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
