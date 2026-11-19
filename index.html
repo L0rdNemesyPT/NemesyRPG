@@ -3509,13 +3509,17 @@ function spiralWikiHtml(T) {
   return `<p class="muted" style="margin:14px 0 10px;">Mapa → Torres. Na ${T.icon} ${T.name} sobes andares sem fim. A Espiral é igual para todos e há ranking semanal do andar mais alto.</p>
     <div class="card raised">
       <div class="row between"><span style="font-weight:700;">${T.icon} ${T.name}</span><span class="pill">Nv. ${T.minLv}+</span></div>
-      <p class="tiny" style="margin-top:6px;">${SPIRAL_DAILY} subidas grátis por dia (extra: ${SPIRAL_EXTRA_COST.toLocaleString('pt-PT')} de ouro). Ciclos de 10 andares, cada um com um elemento (${SPIRAL_ELEM_ORDER.map(elName).join(' → ')}). Andar 5: Guardião e Bênção. Andar 10: Senhor do Ciclo, Bênção, Baú de Marco e Santuário. Cada ciclo novo junta uma Maldição.</p>
+      <p class="tiny" style="margin-top:6px;">${SPIRAL_DAILY} subidas grátis por dia (extra: ${SPIRAL_EXTRA_COST.toLocaleString('pt-PT')} de ouro). Ciclos de 10 andares, cada um com um elemento (${SPIRAL_ELEM_ORDER.map(e => ELEMENT_INFO[e] ? ELEMENT_INFO[e].name : e).join(' → ')}). Andar 5: Guardião e Bênção. Andar 10: Senhor do Ciclo, Bênção, Baú de Marco e Santuário. Cada ciclo novo junta uma Maldição.</p>
       <div class="wiki-group-title" style="margin-top:10px;">Bênçãos</div>
       ${Object.values(SPIRAL_BOONS).map(b => `<p class="tiny" style="margin-top:4px;">${b.icon} <b>${b.name}</b>: ${b.desc}</p>`).join('')}
       <div class="wiki-group-title" style="margin-top:10px;">Maldições (por ordem)</div>
       ${SPIRAL_CURSE_ORDER.map((k, i) => `<p class="tiny" style="margin-top:4px;">Ciclo ${i + 2}: ${ELITE_AFF[k].icon} <b>${ELITE_AFF[k].name}</b> — ${ELITE_AFF[k].desc}</p>`).join('')}
       <div class="wiki-group-title" style="margin-top:10px;">Baús de Marco</div>
       ${[10, 20, 30, 40, 50].map(f => `<p class="tiny" style="margin-top:4px;">Andar ${f}${f === 50 ? '+' : ''}: ${spiralMarcoText(f)}</p>`).join('')}
+      <p class="tiny" style="margin-top:4px;">💍 A partir do andar 40 os Baús de Marco podem dar Anéis; o Astral a partir do andar 60 e o Anel Mítico Ouroboros nos Senhores do andar 80+.</p>
+      <div class="wiki-group-title" style="margin-top:10px;">🚩 Checkpoint</div>
+      <p class="tiny" style="margin-top:4px;">Vencer um Senhor do Ciclo guarda um checkpoint da semana (recomeça à segunda-feira). Podes começar no andar seguinte, com 2 Bênçãos por ciclo saltado.</p>
+      <p class="tiny" style="margin-top:4px;">As recompensas dos andares saltados ficam num 📦 pacote, entregue só quando venceres o Senhor seguinte: ouro e XP a ${Math.round(SPIRAL_CP_RATE * 100)}% e Baús de Marco sem Estilhaços Astrais, Divinos nem Astrais. Se morreres ou saíres antes, perdes o pacote.</p>
     </div>`;
 }
 // Nº total de combates de uma catacumba: monstros + mini-chefes + chefe final.
@@ -8647,6 +8651,7 @@ const WIKI_GROUPS = [
     { key: 'sets', label: 'Sets', icon: '🛡️' },
     { key: 'miticos', label: 'Míticos', icon: '❇️', nxKey: 'rar-mitico' },
     { key: 'talismas', label: 'Talismãs', icon: '🔮' },
+    { key: 'aneis', label: 'Anéis', icon: '💍', nxKey: 'anel-rubi' },
     { key: 'gemas', label: 'Gemas', icon: '💠' },
     { key: 'alquimia', label: 'Alquimia', icon: '⚗️' }
   ] },
@@ -8947,10 +8952,40 @@ function renderWikiBody() {
     };
     ['wcalc-slot', 'wcalc-rar', 'wcalc-lv'].forEach(id => $(id).addEventListener(id === 'wcalc-lv' ? 'input' : 'change', calc));
     calc();
+  } else if (t === 'aneis') { // v270
+    const rn = k => { const r = RARITIES.find(x => x.key === k); return r ? `${rarIc(r.key, r.icon)} ${r.name}` : k; };
+    const pc = v => ringFmt(v) + '%';
+    body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Mochila → 💍 Anéis. Um anel equipado, no espaço por cima da Arma. É uma peça à parte: não conta para os Sets, a Constelação Astral, o Ferreiro (+1…+9) nem as gemas. Os anéis não têm nível: os valores são em %, por isso valem o mesmo em qualquer nível. Podes guardar até ${RING_MAX}.</p>
+      <div class="card raised"><span style="font-weight:700;">💎 Engaste (a pedra do anel)</span>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Raridade</th>${RING_GEM_KEYS.map(k => `<th>${nxEnt(RING_GEMS[k].img, RING_GEMS[k].icon)}<br><small>${RING_GEMS[k].label}</small></th>`).join('')}</tr>
+          ${RING_RAR.map((rk, i) => `<tr><td>${rn(rk)}</td>${RING_GEM_KEYS.map(k => `<td>+${ringFmt(RING_GEMS[k].vals[i])}%${RING_GEMS[k].luck ? `<br><small>🍀 +${RING_GEMS[k].luck[i]}%</small>` : ''}</td>`).join('')}</tr>`).join('')}</table>
+        <p class="tiny muted" style="margin-top:6px;">Rubi = Dano · Esmeralda = HP · Safira = Defesa · Ametista = Crítico · Topázio = Ouro e Sorte (drops).</p></div>
+      <div class="card raised"><span style="font-weight:700;">✍️ Gravações</span>
+        <p class="tiny" style="margin-top:6px;">Efeitos extra sorteados, todos diferentes: Comum 0 · Incomum e Raro 1 · Lendário, Único e Demoníaco 2 · Divino e Astral 3. Cada valor sai entre 70% e 100% do máximo da raridade.</p>
+        <table class="wiki-table" style="margin-top:6px; font-size:11px;"><tr><th>Gravação (máx.)</th><th>Raro</th><th>Lendário</th><th>Divino</th><th>Astral</th></tr>
+          ${Object.values(RING_ENGR).map(d => `<tr><td>${d.icon} ${d.label}</td>${[2, 3, 6, 7].map(i => `<td>${pc(d.base * RING_ENGR_F[i])}</td>`).join('')}</tr>`).join('')}</table></div>
+      <div class="card raised"><span style="font-weight:700;">🌟 Poder do Anel (Único ou melhor)</span>
+        ${Object.values(RING_POWERS).map(P => `<p class="tiny" style="margin-top:4px;">${P.icon} <b>${P.name}</b> — ${P.desc}</p>`).join('')}</div>
+      <div class="card raised"><span style="font-weight:700;">${rarIc('mitico', '❇️')} Anéis Míticos</span>
+        <p class="tiny" style="margin-top:6px;">Engaste de Divino (+10%), sem Gravações nem Poder normal, mas com um efeito Mítico e um custo. Lapidam-se com anéis Divinos.</p>
+        ${Object.values(RING_MYTHS).map(M => `<div class="myth-cx on" style="margin-top:8px;"><div class="myth-ic">${nxEnt(M.img, '💍')}</div><div class="myth-tx"><b>${M.name}</b><span class="myth-up">✦ ${M.up}</span><span class="myth-dn">▼ ${M.dn}</span><span class="myth-src">Cai de: ${M.src} (${M.img === 'anel-ouroboros' ? Math.round(RING_MYTH_SPIRAL * 100) + '% por Senhor' : RING_MYTH_SOB.slice(2).map(v => Math.round(v * 100) + '%').join(' / ') + ' na Ameaça III / IV / V'})</span></div></div>`).join('')}</div>
+      <div class="card raised"><span style="font-weight:700;">🔨 Lapidação (Ferreiro → 💍 Lapidar)</span>
+        <p class="tiny" style="margin-top:6px;">De +0 até +${RING_LAP_MAX}. Cada nível dá +${Math.round(RING_LAP_STEP * 100)}% ao Engaste e às Gravações (até +${Math.round(RING_LAP_STEP * 100 * RING_LAP_MAX)}%). O Poder não muda. Nunca falha.</p>
+        <p class="tiny" style="margin-top:4px;">Custo: outro anel da mesma raridade (é destruído; os 🔒 e o equipado nunca são usados) + ouro: ${RING_LAP_GOLD.map((g, i) => `+${i + 1} ${nxNum(g)}`).join(' · ')}.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🎁 Onde caem</span>
+        <p class="tiny" style="margin-top:6px;">⚔️ Chefes das regiões (Nv. 20+): ${(Math.round(RING_BOSS_CHANCE * 1000) / 10).toLocaleString('pt-PT')}% + sorte, até Lendário (até Único nas dificuldades Único e Divino).</p>
+        <p class="tiny" style="margin-top:4px;">👑 Soberanos: ${RING_SOB_CHANCE.map((v, i) => `Ameaça ${SOB_TIERS[i].n} ${Math.round(v * 100)}%`).join(' · ')} — Lendário a Divino.</p>
+        <p class="tiny" style="margin-top:4px;">🌀 Espiral, Baús de Marco: andar 40+ 25% (Único a Divino) · 💎 Astral só aqui, a partir do andar 60 (3%, +1% a cada 10 andares, até 8%).</p>
+        <p class="tiny" style="margin-top:4px;">💰 Venda: ${RING_RAR.map((rk, i) => `${rn(rk)} ${nxNum(RING_SELL[i])}`).join(' · ')} (+20% por nível de Lapidação). A Venda automática também vende anéis sem Poder.</p></div>`;
   } else if (t === 'soberano') {
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Mapa → Desafios → Boss Soberano. Um combate só, contra um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e várias fases. Cada Soberano tem ${SOBERANO_DAILY_TRIES} tentativas por dia (renovam à meia-noite); perder não tira ouro.</p>
       <div class="card raised"><span style="font-weight:700;">💢 Como funcionam as fases</span>
         <p class="tiny" style="margin-top:6px;">Cada Soberano tem as suas fases (vê os cartões abaixo). Em geral, usa as suas habilidades em cerca de ${Math.round(SOBERANOS[0].skillChance * 100)}% das vezes. Ao mudar de fase, muda de forma, fica mais forte, livra-se de venenos, sangramentos e outros efeitos e ganha habilidades novas. Não tem a fúria dos 30% dos outros chefes, mas continua a fazer um ataque especial a cada 3 ações.</p></div>
+      <div class="card raised"><span style="font-weight:700;">🔥 Níveis de Ameaça</span>
+        <p class="tiny" style="margin-top:6px;">Cada Soberano tem 5 níveis. Começas na Ameaça I (o Soberano de sempre); vencer um nível abre o seguinte. Escolhe o nível no cartão antes de desafiar.</p>
+        <table class="wiki-table" style="margin-top:6px;"><tr><th>Ameaça</th><th>HP</th><th>Dano</th><th>Defesa</th><th>Prémios</th></tr>
+          ${SOB_TIERS.map((T, i) => `<tr><td>${T.n}</td><td>×${String(T.hp).replace('.', ',')}</td><td>×${String(T.dmg).replace('.', ',')}</td><td>×${String(T.def).replace('.', ',')}</td><td>×${String(T.rew).replace('.', ',')}${i ? ` · +${i} rolo${i > 1 ? 's' : ''}` : ''}</td></tr>`).join('')}</table>
+        <p class="tiny muted" style="margin-top:6px;">Os prémios multiplicam o ouro, o XP e a hipótese de cada prémio (até 100%). Na Ameaça III+ o Moloch e o Ymir podem deixar cair Anéis Míticos (Wiki → Anéis).</p></div>
       ${SOBERANOS.map(B => soberanoCardHtml(B, App.player, false)).join('')}`;
   } else if (t === 'obeliscos') {
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">O Vazio crava obeliscos nas regiões. Aparecem sozinhos no mapa do separador Batalha (a partir do Nv. ${OB.MIN_LV}): um novo a cada ${OB.GAP_MIN / 60000}–${OB.GAP_MAX / 60000} minutos, no máximo ${OB.MAX_ACTIVE} de cada vez, e cada um desaparece ao fim de ${OB.LIFE_MS / 60000} minutos. Podes destruir <b>${OB.DAILY} por dia</b>.</p>
@@ -8975,7 +9010,8 @@ function renderWikiBody() {
     body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Itens com nome próprio e um <b>Poder Mítico</b> fixo, que muda a forma de jogar — muitos têm também um preço a pagar. Cada Mítico cai de <b>um chefe certo</b>: ${(MYTHIC_CHANCE * 100).toLocaleString('pt-PT')}% por vitória e ${(MYTHIC_HUNT_CHANCE * 100).toLocaleString('pt-PT')}% quando esse chefe é a presa de um Contrato de Caça. Cai sempre <b>ao teu nível</b>.</p>
       <div class="card raised"><span style="font-weight:700;">${rarIc('mitico', '❇️')} Como funcionam</span>
         <p class="tiny" style="margin-top:6px;">Atributos de Lendário (×3,0) para o nível do item. Ferreiro, gemas e Feitiços funcionam como nos outros itens, e o Poder Mítico nunca muda nem se perde.</p>
-        <p class="tiny" style="margin-top:4px;">Podes usar vários Míticos ao mesmo tempo (um por espaço) e combinar os poderes. Podem ser vendidos e trocados.</p></div>
+        <p class="tiny" style="margin-top:4px;">Podes usar vários Míticos ao mesmo tempo (um por espaço) e combinar os poderes. Podem ser vendidos e trocados.</p>
+        <p class="tiny" style="margin-top:4px;">💍 Há também ${Object.keys(RING_MYTHS).length} Anéis Míticos: ${Object.values(RING_MYTHS).map(M => M.name).join(', ')} (Wiki → Anéis).</p></div>
       <div class="myth-prog"><span>Coleção Mítica</span><b>${found.length}/${MYTHIC_KEYS.length}</b></div>
       <div class="myth-bar"><i style="width:${Math.round(found.length / MYTHIC_KEYS.length * 100)}%"></i></div>
       <div class="myth-codex">${MYTHIC_KEYS.map(k => { const d = MYTHIC_DEFS[k], got = found.includes(k), lv = bossLv(d.boss);
@@ -9203,6 +9239,9 @@ function renderWikiBody() {
         <span style="font-weight:700;">Chances de drop (combate)</span>
         <p class="tiny" style="margin-top:6px;">Equipamento: 35% (monstro) / 90% (chefe). Pedras: 6% / 30%. Feitiço: 3% / 15%. Multiplicam por 2 com a Poção da Fortuna ativa.</p>
       </div>
+      <div class="card raised"><span style="font-weight:700;">🧹 Venda automática</span>
+        <p class="tiny" style="margin-top:6px;">Mochila → Baús. Escolhe até onde vender (Comuns, Até Incomuns, Até Raros ou Até Lendários). Vende ao abrir baús e no fim das batalhas; no Espólio os itens vendidos aparecem riscados com 🧹.</p>
+        <p class="tiny" style="margin-top:4px;">Nunca vende: 🔒 bloqueados, Sets, Míticos, Lendários ➕, itens com bónus especiais e itens ▲ melhores do que os teus. Nos anéis, nunca vende os que têm Poder.</p></div>
     `;
   } else if (t === 'regioes') {
     body.innerHTML = `
@@ -9253,6 +9292,12 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:4px;">▸ O 📙 Livro da Amnésia desce a Mestra de V para IV, para escolheres outra. Os livros gastos não voltam.</p>
         <p class="tiny muted" style="margin-top:4px;">O atordoar tem um limite de ${Math.round(STUN_ON_HIT_CAP * 100)}% por golpe, para os chefes não ficarem presos.</p>
       </div>
+      <div class="card raised" style="margin-bottom:12px;"><span style="font-weight:700;">✦ Domínio</span>
+        <p class="tiny" style="margin-top:6px;">Depois do IV (ou da Mestra), cada habilidade sobe até ★${AB_DOM_MAX} com livros: ${AB_DOM_COST.join(', ')} livros (${AB_DOM_COST.reduce((a, b) => a + b, 0)} no total).</p>
+        <p class="tiny" style="margin-top:4px;">▸ Cada ★: +${Math.round(AB_DOM_STEP * 100)}% de efeito (dano, cura, defesa…). ▸ ✦ ★5: +1 ronda de efeito (ou +10% se a habilidade não tem rondas). ▸ ✦ ★10: −1 recarga (ou +10% se a recarga já é 2; no Divino é sempre +10%).</p></div>
+      <div class="card raised" style="margin-bottom:12px;"><span style="font-weight:700;">📚 Encadernador</span>
+        <p class="tiny" style="margin-top:6px;">No fim do menu Habilidades: troca Livros de Habilidades por outros recursos, até ${ENC_DAILY} de cada por dia.</p>
+        <p class="tiny" style="margin-top:4px;">${ENC_TRADES.map(t => `${t.icon} ${t.name}: 📖 ${t.cost}`).join(' · ')}</p></div>
       ${Object.keys(CLASSES).map(ck => {
         const cls = CLASSES[ck];
         const evos = EVOLUTIONS[ck] || [];
@@ -9369,6 +9414,9 @@ function renderWikiBody() {
   } else if (t === 'talismas') {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">Talismãs são equipamento especial sem raridade. Existe um único espaço de Talismã, separado dos slots normais.</p>
+      <div class="card raised"><span style="font-weight:700;">⚗️ Fundir talismãs</span>
+        <p class="tiny" style="margin-top:6px;">Junta ${TAL_FUSE_NEED} talismãs iguais do mesmo nível para criar 1 do nível acima: <b>II</b> (stats ×${String(TAL_TIERS[2].stat).replace('.', ',')}, duração ×${TAL_TIERS[2].dur}) e <b>III</b> (stats ×${TAL_TIERS[3].stat}, duração ×${TAL_TIERS[3].dur}). Há também o botão "Fundir todos".</p>
+        <p class="tiny" style="margin-top:4px;">Os que sobram vendem-se por ${nxNum(TAL_SELL_GOLD)} de ouro × nível. Quando um talismã acaba, equipa-se sozinho outro igual se tiveres. No mercado só se trocam talismãs de nível I.</p></div>
       ${Object.keys(TALISMAN_DEFS).map(key => {
         const talisman = TALISMAN_DEFS[key];
         return `<div class="card raised">
@@ -9500,7 +9548,15 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:4px;">Se conseguires, o inimigo perde a ronda. Monstros normais anunciam em ~${Math.round(INT.WILD_CHANCE * 100)}% das rondas, os Elites em ~${Math.round(INT.ELITE_CHANCE * 100)}% e os chefes a cada ${INT.BOSS_EVERY} rondas. Numa horda, só um anuncia de cada vez: muda o alvo para ele (as habilidades em área interrompem todos). Não há intenções no Obelisco, na Arena nem nos Soberanos.</p></div>
       <div class="card raised"><span style="font-weight:700;">⭐ Monstros Elite</span>
         <p class="tiny" style="margin-top:6px;">${Math.round(ELITE.CHANCE * 100)}% dos monstros (Nv. ${ELITE.MIN_LV}+) aparecem como Elite, com moldura laranja: vida ×${ELITE.HP}, dano ×${ELITE.DMG} e 1 afixo (2 a partir do Nv. ${ELITE.TWO_AFF_LV} e no Paragon). Em troca dão <b>XP e ouro ×2</b>, um <b>Baú de Elite</b> garantido e o dobro da hipótese de carta. De noite há o dobro de Elites (×3 na Lua Cheia).</p>
-        ${affs}</div>`;
+        ${affs}</div>
+      <div class="card raised"><span style="font-weight:700;">⚔️ Chefes</span>
+        <p class="tiny" style="margin-top:6px;">Os chefes (e os Soberanos) furam melhor a defesa: fazem sempre pelo menos ${Math.round(BOSS_MIN_DMG * 100)}% do dano, por muita Defesa que tenhas (os monstros normais, 10%).</p>
+        <p class="tiny" style="margin-top:4px;">😡 <b>Furor</b>: a partir da ronda ${BOSS_FUROR_ROUND + 1}, o chefe ganha +${Math.round(BOSS_FUROR_STEP * 100)}% de dano por ronda (até ×${BOSS_FUROR_MAX}). Não acontece na Espiral.</p>
+        <p class="tiny" style="margin-top:4px;">💥 <b>Golpe Devastador</b>: ${Math.round(BOSS_DEV_CHANCE * 100)}% de hipótese, em cada golpe do chefe, de te tirar mais ${Math.round(BOSS_DEV_PCT * 100)}% da tua vida máxima, sem contar a Defesa.</p></div>
+      <div class="card raised"><span style="font-weight:700;">⭐ Dificuldade recomendada</span>
+        <p class="tiny" style="margin-top:6px;">No separador Batalha, o menu de dificuldade marca a ⭐ Recomendada: a mais alta (já aberta) em que um monstro normal ainda aguenta pelo menos 2 golpes teus. Quanto mais alta a dificuldade, mais ouro, XP e qualidade de drops (Wiki → Itens e Drops).</p>
+        <p class="tiny" style="margin-top:4px;">🥱 <b>Combate trivial</b>: se um só golpe teu chega para matar o monstro e já tens uma dificuldade acima aberta, o ouro, o XP e a hipótese de baú desse combate ficam a ${Math.round(TRIVIAL_REWARD * 100)}%.</p>
+        <p class="tiny" style="margin-top:4px;">Os monstros e chefes ficam mais fortes com o nível, para acompanharem o equipamento (até +${Math.round(MON_CURVE.hp * 100)}% de HP e +${Math.round(MON_CURVE.dmg * 100)}% de dano no Nv. ${MAX_LEVEL}).</p></div>`;
   } else if (t === 'diaenoite') { // v242
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">O mundo segue a hora do teu telemóvel. A faixa no topo do separador Batalha mostra a fase atual e quanto falta para mudar. Podes desligar o ciclo em ⚙️ Definições (aí fica sempre de dia, sem bónus nem desvantagens).</p>
@@ -9514,6 +9570,7 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">No Paragon os golpes dos monstros são mais elementais e as tuas resistências contam menos (podem até ficar negativas, até ${RES_FLOOR}%: aí levas mais dano).</p>
         ${PARAGON_ELEM.slice(1).map((e, i) => `<p class="tiny" style="margin-top:4px;"><b>P${i + 1}</b> — ${Math.round(e.share * 100)}% do golpe é elemental · resistências −${e.pen}% (precisas de ${RES_CAP + e.pen}% para chegar a ${RES_CAP}%)</p>`).join('')}
         <p class="tiny" style="margin-top:4px;">Para compensar: itens de Nv. 200 têm 10–15% de resistência própria, Bónus+ de resistência até 16%, a 🌈 Pedra Prismática e as Coleções Elementais do Álbum de Cartas. Vê o valor efetivo em Mochila → Equipamento.</p></div>
+      <div class="card raised"><span style="font-weight:700;">👹 Monstros no Paragon</span><p class="tiny" style="margin-top:6px;">Os monstros e chefes das regiões mantêm o nível, mas ganham a força do Paragon: no fim de cada caminho (Nv. ${MAX_LEVEL}) ficam ×${String(PARAGON_BASE_POWER).replace('.', ',')} mais fortes do que no Nv. ${MAX_LEVEL} normal, e +${Math.round(PARAGON_P2_POWER * 100)}% por cada Paragon acima do 1. O espólio é sempre do Nv. ${MAX_LEVEL}.</p></div>
       <div class="card raised"><span style="font-weight:700;">🔥 Chama Imortal</span><p class="tiny" style="margin-top:6px;">A Dungeon T3 só abre a partir do Paragon 1. O chefe dá sempre uma peça do Set da Chama.</p></div>`;
   } else if (t === 'cartas') { // v242
     const n = cardList().length, ch = c => Math.round(c * 100);
@@ -22709,7 +22766,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v269</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v270</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
