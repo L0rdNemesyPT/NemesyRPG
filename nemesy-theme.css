@@ -1828,7 +1828,7 @@ body.ui-modern .wiki-current{font-family:var(--font-body); font-weight:800; lett
 /* botões */
 body.ui-modern .btn{border-radius:12px; font-family:var(--font-body); font-weight:700; letter-spacing:.01em; text-shadow:none; box-shadow:0 2px 8px rgba(0,0,0,.3) !important;}
 body.ui-modern .btn.primary{background:linear-gradient(180deg,var(--gold-bright),var(--gold)); color:#1B1405; border:1px solid rgba(var(--acc-rgb),.6);}
-body.ui-modern .btn.ghost,body.ui-modern .btn:not(.primary):not(.danger):not(.hw-btn):not(.asc-btn):not(.ho-btn-green){background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:var(--parchment);}
+body.ui-modern .btn.ghost,body.ui-modern .btn:not(.primary):not(.danger):not(.hw-btn):not(.asc-btn):not(.ho-btn-green):not(.dm-btn){background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); color:var(--parchment);}
 body.ui-modern .btn.danger{background:linear-gradient(180deg,#E0564F,#A9302B); border:1px solid rgba(255,150,140,.5);}
 body.ui-modern .tab-chip{border-radius:999px !important; font-family:var(--font-body) !important; font-weight:700; background:rgba(255,255,255,.05) !important; border:1px solid rgba(255,255,255,.09) !important; text-shadow:none !important;}
 body.ui-modern .tab-chip.active{background:linear-gradient(180deg,var(--gold-bright),var(--gold)) !important; color:#1B1405 !important; border-color:transparent !important;}
@@ -4705,3 +4705,30 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 /* v264: pacote do checkpoint da Espiral */
 .cp-lock{margin-top:8px; padding:8px 10px; border-radius:10px; font-size:12.5px; line-height:1.45; background:rgba(242,201,76,.08); border:1px dashed rgba(242,201,76,.45); color:var(--text, #eee);}
 .cp-lock b{color:var(--gold-bright, #f2c94c);}
+
+/* v265: ✦ Domínio das habilidades e 📚 Encadernador */
+.dm{margin-top:10px; padding:10px; border-radius:12px; background:rgba(120,90,200,.10); border:1px solid rgba(170,140,255,.35); cursor:default;}
+.dm-h{display:flex; justify-content:space-between; align-items:center; font-size:13px; color:#e9dcff;}
+.dm-h b{font-family:var(--font-display, Cinzel, serif); letter-spacing:.5px;}
+.dm-st{display:flex; gap:3px; margin:8px 0 6px;}
+.dm-st i{flex:1; height:22px; border-radius:6px; display:grid; place-items:center; font-style:normal; font-size:12px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); color:#776c90;}
+.dm-st i.on{background:linear-gradient(180deg,#b79bff,#7a55d6); color:#fff; border-color:#cdb8ff; box-shadow:0 0 8px rgba(160,120,255,.5);}
+.dm-st i.m{outline:1px dashed #f2c94c; outline-offset:1px;}
+.dm-fx{font-size:12px; color:#cfc4e6; line-height:1.45;}
+.dm-fx b{color:#d9c8ff;}
+.dm-row{display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:8px;}
+.dm-nx{font-size:12px; color:#bdb2d6;}
+.dm-nx b{color:#fff;}
+.dm-full{font-size:12px; color:#f2c94c;}
+.dm .btn.dm-btn, .dm .btn.dm-btn.small, body.ui-modern .dm .btn.dm-btn{background:linear-gradient(180deg,#9b7af0,#6a46c9); border:1px solid #cbb6ff; color:#fff; white-space:nowrap;}
+.dm .btn.dm-btn.off{filter:saturate(.3) brightness(.75);}
+.enc{margin:14px 0; padding:12px; border-radius:14px; background:linear-gradient(180deg,rgba(60,40,20,.55),rgba(25,18,12,.8)); border:1px solid rgba(214,170,90,.45);}
+.enc-hd b{display:flex; align-items:center; gap:6px; font-family:var(--font-display, Cinzel, serif); color:#f2c94c; font-size:16px;}
+.enc-hd span{display:block; margin:2px 0 10px; font-size:12px; color:#c9b99a;}
+.enc-g{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.enc-i{text-align:left; padding:9px; border-radius:10px; background:rgba(0,0,0,.3); border:1px solid rgba(255,255,255,.1); font-size:12.5px; color:#eee; font:inherit; cursor:pointer;}
+.enc-i:active{transform:scale(.98);}
+.enc-i b{display:block; font-size:13px; margin-bottom:3px; color:#eee;}
+.enc-i .c{color:#f2c94c; font-weight:700;}
+.enc-i small{display:block; color:#9a8f7a; font-size:11px; margin-top:2px;}
+.enc-i.off{opacity:.5;}

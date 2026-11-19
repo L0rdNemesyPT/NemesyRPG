@@ -6593,7 +6593,7 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
   const aoeMult = extraMult || 1;
   const ab = ABILITIES[abilityKey];
   const lvlIdx = abilityLevelOf(player, abilityKey);
-  const eff = ab.levels[lvlIdx];
+  const eff = abilityEffFor(player, abilityKey, lvlIdx); // v265: com o Domínio
   const msgs = [];
   const critChance = pStats.crit + (battleState.critBuffActive || battleState.mythCritNext ? 1.0 : 0) + (eff.critChanceBonus || 0);
 
@@ -10586,8 +10586,8 @@ function renderTabBatalha() {
 // TAB: HERÓI
 // ============================================================
 // v97: texto curto com o efeito de uma habilidade num nível (0=I … 4=V).
-function abilityLevelText(key, lvlIdx) {
-  const ab = ABILITIES[key], e = ab && ab.levels[lvlIdx];
+function abilityLevelText(key, lvlIdx, p) {
+  const ab = ABILITIES[key], e = ab && (p ? abilityEffFor(p, key, lvlIdx) : ab.levels[lvlIdx]); // v265: com Domínio quando há herói
   if (!e) return '';
   const pc = v => `${Math.round(v * 100)}%`;
   const x = v => `×${String(Math.round(v * 100) / 100).replace('.', ',')}`;
@@ -10616,6 +10616,89 @@ function romanDots(levelIdx) {
 const ROMAN = ['I', 'II', 'III', 'IV', 'V'];
 // Custo em Livros de Habilidades por nível atual da habilidade (0=I, 1=II, 2=III, 3=IV).
 const SKILL_BOOK_COST = [1, 3, 20, 35];
+// v265: ✦ Domínio — depois do IV, cada habilidade sobe até ★10 com Livros de Habilidades.
+// Cada ★ dá +3% de efeito; ★5 dá +1 ronda (ou +10% se a habilidade não tem rondas); ★10 dá −1 recarga
+// (ou +10% se a recarga já é 2 ou se é o Divino, para o crítico garantido nunca ficar permanente).
+const AB_DOM_COST = [4, 6, 8, 10, 12, 14, 16, 18, 20, 22], AB_DOM_MAX = 10, AB_DOM_STEP = 0.03;
+function abDom(p, key) { const n = p && p.abDom && p.abDom[key]; return Math.max(0, Math.min(AB_DOM_MAX, Math.floor(Number(n) || 0))); }
+function abDomInfo(key, n) {
+  const ab = ABILITIES[key], e = ab && ab.levels[ABILITY_MAX_NORMAL]; if (!e) return { pct: 0, dur: 0, cd: 0, hasDur: false, cdOk: false };
+  const hasDur = e.duration != null && e.type !== 'crit_buff', cdOk = (ab.cooldown || 2) >= 3 && e.type !== 'crit_buff';
+  let pct = AB_DOM_STEP * n; if (n >= 5 && !hasDur) pct += 0.10; if (n >= 10 && !cdOk) pct += 0.10;
+  return { pct, dur: n >= 5 && hasDur ? 1 : 0, cd: n >= 10 && cdOk ? 1 : 0, hasDur, cdOk };
+}
+// Efeito de uma habilidade num nível, já com o Domínio do herói.
+function abilityEffFor(p, key, lvlIdx) {
+  const ab = ABILITIES[key], e = ab && ab.levels[lvlIdx]; if (!e) return e;
+  const n = abDom(p, key); if (!n || ab.craft || lvlIdx < ABILITY_MAX_NORMAL) return e;
+  const d = abDomInfo(key, n), m = 1 + d.pct, o = Object.assign({}, e);
+  if (o.dmgMult) o.dmgMult *= m; else if (o.type === 'lifesteal' || o.type === 'debuff_def_enemy_dot') o.dmgMult = m;
+  if (o.dotMult) o.dotMult *= m;
+  if (['heal', 'buff_def', 'lifesteal', 'vortex'].includes(o.type)) o.pct *= m;
+  if (o.type === 'debuff_def_enemy') o.pct = Math.min(1, o.pct * m);
+  if (o.shieldPct) o.shieldPct *= m;
+  if (o.type === 'crit_buff') o.critDmgBonus = (o.critDmgBonus || 0) + d.pct;
+  if (d.dur && o.duration) o.duration += 1;
+  return o;
+}
+function abDomFxText(key, n) {
+  if (!n) return 'Ainda sem estrelas.';
+  const d = abDomInfo(key, n), t = ABILITIES[key].levels[ABILITY_MAX_NORMAL].type;
+  const what = t === 'heal' ? 'cura' : t === 'buff_def' ? 'defesa' : t === 'crit_buff' ? 'dano crítico' : t === 'debuff_def_enemy' ? 'efeito' : 'dano';
+  return `${what === 'dano' ? 'Dano' : what === 'cura' ? 'Cura' : what === 'defesa' ? 'Defesa' : what === 'dano crítico' ? 'Dano crítico' : 'Efeito'} da habilidade <b>+${Math.round(d.pct * 100)}%</b>${d.dur ? ' · <b>+1 ronda</b> de efeito' : ''}${d.cd ? ' · <b>−1 recarga</b>' : ''}`;
+}
+function abDomNextText(key, n) {
+  const d = abDomInfo(key, 1);
+  if (n + 1 === 5) return d.hasDur ? '+3% · +1 ronda' : '+13% efeito';
+  if (n + 1 === 10) return d.cdOk ? '+3% · −1 recarga' : '+13% efeito';
+  return '+3% efeito';
+}
+function abDomHtml(p, key) {
+  const n = abDom(p, key), books = p.skillBooks || 0, cost = AB_DOM_COST[n];
+  const stars = AB_DOM_COST.map((_, i) => `<i class="${i < n ? 'on' : ''}${i === 4 || i === 9 ? ' m' : ''}">${i === 4 || i === 9 ? '✦' : '★'}</i>`).join('');
+  const row = n < AB_DOM_MAX ? `<span class="dm-nx">Próx.: <b>★${n + 1}</b> · ${abDomNextText(key, n)}</span><button class="btn small dm-btn${books >= cost ? '' : ' off'}" data-ab-dom="${key}">📖 ${cost}</button>`
+    : '<span class="dm-full">✦ Domínio completo</span>';
+  return `<div class="dm"><div class="dm-h"><b>✦ Domínio</b><span>★ ${n}/${AB_DOM_MAX}</span></div><div class="dm-st">${stars}</div><div class="dm-fx">${abDomFxText(key, n)}</div><div class="dm-row">${row}</div></div>`;
+}
+function abDomUp(key) {
+  const p = App.player; if (!p || !ABILITIES[key]) return;
+  const lv = p.abilities[key] ? p.abilities[key].level : 0, n = abDom(p, key);
+  if (lv < ABILITY_MAX_NORMAL) { sfx.error(); toast('O Domínio abre quando a habilidade chega ao IV.'); return; }
+  if (n >= AB_DOM_MAX) return;
+  const cost = AB_DOM_COST[n];
+  if ((p.skillBooks || 0) < cost) { sfx.error(); toast(`Precisas de ${cost} Livros de Habilidades (tens ${p.skillBooks || 0}).`); return; }
+  p.skillBooks -= cost; p.abDom = p.abDom || {}; p.abDom[key] = n + 1;
+  App.abFx = { key, lv: lv };
+  sfx.levelup();
+  toast(`✦ ${ABILITIES[key].name}: Domínio ★${n + 1}!`);
+  saveGame(); liveRefresh();
+}
+// v265: 📚 Encadernador — troca Livros de Habilidades por outros livros e pergaminhos (5 de cada por dia).
+const ENC_DAILY = 5;
+const ENC_TRADES = [
+  { key: 'feitico', name: 'Pergaminho de Feitiço', icon: '📜', cost: 6, get: p => p.scrolls.feitico || 0, cap: 500, give: p => { p.scrolls.feitico = (p.scrolls.feitico || 0) + 1; } },
+  { key: 'reforco', name: 'Pergaminho de Reforço', icon: '🔧', cost: 8, get: p => p.scrolls.reforco || 0, cap: 500, give: p => { p.scrolls.reforco = (p.scrolls.reforco || 0) + 1; } },
+  { key: 'ferreiro', name: 'Livro do Ferreiro', icon: '📕', cost: 12, get: p => p.smithBooks || 0, cap: 30, give: p => { p.smithBooks = (p.smithBooks || 0) + 1; } },
+  { key: 'profissao', name: 'Livro das Profissões', icon: '📗', cost: 20, get: p => p.professionBooks || 0, cap: 10, give: p => { p.professionBooks = (p.professionBooks || 0) + 1; } },
+  { key: 'amnesia', name: 'Livro da Amnésia', icon: '📘', cost: 30, get: p => p.amnesiaBooks || 0, cap: 10, give: p => { p.amnesiaBooks = (p.amnesiaBooks || 0) + 1; } },
+  { key: 'feiticoPlus', name: 'Pergaminho de Feitiço ➕', icon: '📜➕', cost: 45, get: p => p.scrolls.feiticoPlus || 0, cap: 99, give: p => { p.scrolls.feiticoPlus = (p.scrolls.feiticoPlus || 0) + 1; } }
+];
+function encState(p) { const d = new Date().toISOString().slice(0, 10); if (!p.enc || p.enc.d !== d) p.enc = { d, n: {} }; return p.enc; }
+function encHtml(p) {
+  const st = encState(p), books = p.skillBooks || 0;
+  return `<div class="enc"><div class="enc-hd"><b>📚 Encadernador</b><span>Troca Livros de Habilidades por outros livros e pergaminhos. Até ${ENC_DAILY} de cada por dia.</span></div>
+    <div class="enc-g">${ENC_TRADES.map(t => { const used = st.n[t.key] || 0, have = t.get(p), full = have >= t.cap, ok = used < ENC_DAILY && !full && books >= t.cost;
+      return `<button class="enc-i${ok ? '' : ' off'}" data-enc="${t.key}"><b>${t.icon} ${t.name}</b><span class="c">📖 ${t.cost}</span><small>${full ? `Cheio (${have}/${t.cap})` : `Tens ${have} · hoje ${used}/${ENC_DAILY}`}</small></button>`; }).join('')}</div></div>`;
+}
+function encTrade(key) {
+  const p = App.player, t = ENC_TRADES.find(x => x.key === key); if (!p || !t) return;
+  const st = encState(p), used = st.n[key] || 0;
+  if (used >= ENC_DAILY) { sfx.error(); toast(`Já trocaste ${ENC_DAILY} hoje. Volta amanhã.`); return; }
+  if (t.get(p) >= t.cap) { sfx.error(); toast(`Já tens o máximo de ${t.name} (${t.cap}).`); return; }
+  if ((p.skillBooks || 0) < t.cost) { sfx.error(); toast(`Precisas de ${t.cost} Livros de Habilidades.`); return; }
+  p.skillBooks -= t.cost; t.give(p); st.n[key] = used + 1;
+  sfx.questdone(); toast(`📚 +1 ${t.icon} ${t.name}`); saveGame(); liveRefresh();
+}
 // v97: todas as habilidades vão até ao IV; só UMA pode ser Mestra (nível V), a partir do nível 100.
 const ABILITY_MAX_NORMAL = 3;   // índice do nível IV
 const ABILITY_MASTER_LEVEL = 4; // índice do nível V (Mestra)
@@ -14174,20 +14257,20 @@ function renderHeroiPerfilBody(part) {
     const el = ELEMENT_ABILITY[key] ? `<span class="el" style="--ec:${ELEMENT_INFO[ELEMENT_ABILITY[key]].color};">${elIc(ELEMENT_ABILITY[key])} ${ELEMENT_INFO[ELEMENT_ABILITY[key]].name}</span>` : '';
     return `<div class="ab-card${isMaster ? ' mst' : ''}${fx ? ' flash' : ''}" data-ab-open="${key}" style="--cc:${col};">
       <div class="ab-ch"><span class="ab-art">${nxEnt('habilidade-' + key, ab.icon)}<i>${isMaster ? 'V 👑' : ROMAN[lvlIdx]}</i></span>
-        <div class="ab-t"><b>${ab.name}</b><div class="ab-tags"><span class="cl">${ci.name}</span><span>recarga ${ab.cooldown} ${ab.cooldown === 1 ? 'ronda' : 'rondas'}</span>${el}</div></div><span class="ab-chev">${open ? '▴' : '▾'}</span></div>
+        <div class="ab-t"><b>${ab.name}</b><div class="ab-tags"><span class="cl">${ci.name}</span><span>recarga ${Math.max(2, ab.cooldown - abDomInfo(key, abDom(p, key)).cd)} rondas</span>${el}</div></div><span class="ab-chev">${open ? '▴' : '▾'}</span></div>
       <p class="ab-desc tiny">${ab.desc}</p>
-      <p class="ab-now">▸ <b>${abilityLevelText(key, lvlIdx)}</b></p>
+      <p class="ab-now">▸ <b>${abilityLevelText(key, lvlIdx, p)}</b></p>
       <div class="ab-ladder">${rungs}</div>
-      <div class="ab-foot">${prog}${action}</div>${table}</div>`;
+      <div class="ab-foot">${prog}${action}</div>${lvlIdx >= ABILITY_MAX_NORMAL ? abDomHtml(p, key) : ''}${table}</div>`;
   }).join('');
   const abNeed = allAbilities.reduce((sum, key) => { const lv = p.abilities[key] ? p.abilities[key].level : 0; let t = 0; for (let i = lv; i < ABILITY_MAX_NORMAL; i++) t += SKILL_BOOK_COST[i]; return sum + t; }, 0);
   const abArt = NX_ICON_IMG.has('fundo-habilidades');
   const abHall = `<div class="ab-hall${abArt ? ' has-art' : ''}"${abArt ? ` style="--ab-art:url('${nxImgUrl('fundo-habilidades')}')"` : ''}>
     <div class="ab-hall-bar"><div class="ab-books"><span class="ic">${nxEnt('livro-habilidades', '📖')}</span><div><b>${p.skillBooks || 0}</b><small>${(p.skillBooks || 0) === 1 ? 'Livro' : 'Livros'}</small></div></div>
-    <div class="ab-need"><p>${abNeed ? `Para pôr tudo no <b>IV</b> faltam <b>${abNeed}</b> livros.` : 'Tens tudo no <b>IV</b>.'}${p.masteredAbility ? '' : `<span>A Mestra (V) custa mais <b>${SKILL_BOOK_COST[ABILITY_MAX_NORMAL]}</b>.</span>`}</p></div></div></div>`;
+    <div class="ab-need"><p>${abNeed ? `Para pôr tudo no <b>IV</b> faltam <b>${abNeed}</b> livros.` : 'Tens tudo no <b>IV</b> ✔ — usa os livros no <b>✦ Domínio</b> e no <b>📚 Encadernador</b>.'}${p.masteredAbility ? '' : `<span>A Mestra (V) custa mais <b>${SKILL_BOOK_COST[ABILITY_MAX_NORMAL]}</b>.</span>`}</p></div></div></div>`;
   const abElig = allAbilities.filter(k => (p.abilities[k] ? p.abilities[k].level : 0) === ABILITY_MAX_NORMAL);
   const abM = p.masteredAbility && ABILITIES[p.masteredAbility] ? p.masteredAbility : null;
-  const abMaster = abM ? `<div class="ab-master has"><span class="crown">${nxEnt('habilidade-' + abM, ABILITIES[abM].icon)}</span><div><b>👑 ${ABILITIES[abM].name} · Mestra</b><span>${abilityLevelText(abM, ABILITY_MASTER_LEVEL)}</span></div></div>`
+  const abMaster = abM ? `<div class="ab-master has"><span class="crown">${nxEnt('habilidade-' + abM, ABILITIES[abM].icon)}</span><div><b>👑 ${ABILITIES[abM].name} · Mestra</b><span>${abilityLevelText(abM, ABILITY_MASTER_LEVEL, p)}</span></div></div>`
     : `<div class="ab-master"><span class="crown">👑</span><div><b>Habilidade Mestra</b><span>${!abHeroLvOk ? `Abre no nível ${ABILITY_MASTER_MIN_HERO_LV} do herói. Só uma habilidade pode ser Mestra (V).` : abElig.length ? `Pode ser Mestra: ${abElig.map(k => ABILITIES[k].name).join(', ')}. Só uma, e é permanente.` : 'Por escolher. Sobe uma habilidade até ao IV para a poderes tornar Mestra (V).'}</span></div></div>`;
 
   // v217: estábulo com a ativa em destaque, as tuas mascotes, coleção das 18 e ficha com barras.
@@ -14315,7 +14398,7 @@ function renderHeroiPerfilBody(part) {
   let html;
   if (part === 'habilidades') {
     html = `<p class="muted" style="margin-bottom:10px;">Usa 📖 Livros de Habilidades para subir as tuas habilidades até ao nível IV. A partir do nível ${ABILITY_MASTER_MIN_HERO_LV}, escolhe UMA para ser a tua Mestra (nível V 👑). Toca numa carta para ver todos os níveis.</p>
-      ${abHall}${abMaster}<div class="ab-cards">${abilitiesHtml}</div>${craftAbilityKeys(p).map(key => { const ab = ABILITIES[key], lv = craftAbilityLevel(p); return `
+      ${abHall}${abMaster}<div class="ab-cards">${abilitiesHtml}</div>${encHtml(p)}${craftAbilityKeys(p).map(key => { const ab = ABILITIES[key], lv = craftAbilityLevel(p); return `
       <div class="ability-row craft-ab">
         <div class="top"><span style="font-weight:700; font-size:13.5px;">${ab.icon} ${ab.name} <span class="tiny">Nv. ${ROMAN[lv]}</span></span><span class="pill craft-pill">CRAFT</span></div>
         <p class="tiny" style="margin-top:6px;">${ab.desc}. Vem do bónus de Craft do teu Peitoral e fica sempre com o nível da tua habilidade mais alta.</p>
@@ -14333,6 +14416,9 @@ function renderHeroiPerfilBody(part) {
 
   els('[data-confirm-evolve]').forEach(b => b.addEventListener('click', () => evolveClass(b.dataset.confirmEvolve)));
   els('[data-levelup-ability]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); levelUpAbility(b.dataset.levelupAbility); }));
+  els('[data-ab-dom]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); abDomUp(b.dataset.abDom); })); // v265
+  els('[data-enc]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); encTrade(b.dataset.enc); }));
+  els('.dm').forEach(b => b.addEventListener('click', e => e.stopPropagation()));
   els('[data-ab-open]').forEach(c => c.addEventListener('click', e => { if (e.target.closest('button')) return; sfx.click(); App.abOpen = App.abOpen === c.dataset.abOpen ? null : c.dataset.abOpen; renderTabHeroi(); })); // v215
   els('[data-feed-pet]').forEach(b => b.addEventListener('click', () => feedPet(b.dataset.feedPet, parseInt(b.dataset.feedN) || 1)));
   els('[data-pet-sel]').forEach(b => b.addEventListener('click', () => { sfx.click(); App.petSel = b.dataset.petSel; renderTabHeroi(); })); // v217
@@ -19957,7 +20043,7 @@ function useAbilityAction(key) {
   sfx.ability(key, hasCrit);
   if (c.enemy.hp < hpBefore) { ymirAfterHit(c, p, key); rollStunOnHit(pStats, c); rollPoisonOnHit(pStats, c); mythAfterAttack(c, p, pStats, hasCrit); gemEsLeech(c, pStats, hpBefore - Math.max(0, c.enemy.hp)); }
   else if (c.battleState.mythCritNext && pStats.myth && pStats.myth.arco_suspiro && !c.mythFirstDone) c.battleState.mythCritNext = false;
-  c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0) - (pStats.pgCd || 0)); // v219: Ímpeto
+  c.cooldowns[key] = Math.max(2, (ABILITIES[key].cooldown || 2) - (pStats.myth && pStats.myth.ampulheta ? 1 : 0) - (pStats.pgCd || 0) - abDomInfo(key, abDom(p, key)).cd); // v219: Ímpeto · v265: Domínio ★10
   c.battleState.roundAbility = true; // v231: interrompe feitiços
   (c.cdMax = c.cdMax || {})[key] = c.cooldowns[key]; // v232: relógio da recarga
   postPlayerAction();
@@ -22329,7 +22415,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v264</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v265</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
