@@ -4732,3 +4732,14 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .enc-i .c{color:#f2c94c; font-weight:700;}
 .enc-i small{display:block; color:#9a8f7a; font-size:11px; margin-top:2px;}
 .enc-i.off{opacity:.5;}
+
+/* v266: dificuldade recomendada */
+.bt-rec{font-style:normal; font-size:10.5px; font-weight:700; color:#1a1206; background:var(--gold-bright, #f2c94c); border-radius:999px; padding:1px 7px; margin-left:4px; vertical-align:middle;}
+.bt-rec-n{margin:8px 4px 2px; color:var(--text-dim, #bbb); line-height:1.45;}
+.bt-rec-n b{color:var(--gold-bright, #f2c94c);}
+/* v266: Níveis de Ameaça dos Soberanos */
+.sob-tiers{display:flex; align-items:center; gap:5px; margin-top:10px; flex-wrap:wrap;}
+.sob-tl{font-size:12px; color:var(--text-dim, #bbb); margin-right:2px;}
+.sob-tier{min-width:38px; padding:5px 8px; border-radius:8px; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.12); color:#ddd;}
+.sob-tier.on{background:linear-gradient(180deg,#e0603a,#9e2a1a); border-color:#ff9a6a; color:#fff; box-shadow:0 0 10px rgba(255,110,60,.4);}
+.sob-tier.lock{opacity:.45; cursor:default;}

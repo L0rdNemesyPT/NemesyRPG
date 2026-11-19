@@ -988,8 +988,8 @@ const MONSTER_DIFFICULTY = ['comum', 'incomum', 'raro', 'lendario', 'unico'].map
   return {
     key, name: r.name, icon: r.icon, color: r.color,
     statMult: [1, 1.7, 2.8, 4.2, 6.5][i],
-    goldMult: [1, 1.3, 1.6, 2.0, 2.5][i], // v56: antes 1 / 1,5 / 2,2 / 3,5 / 5,5
-    xpMult: [1, 1.05, 1.10, 1.15, 1.20][i],
+    goldMult: [1, 1.4, 2.0, 2.8, 3.8][i], // v266: a dificuldade compensa mais (era 1 / 1,3 / 1,6 / 2 / 2,5)
+    xpMult: [1, 1.08, 1.16, 1.25, 1.35][i], // v266: era 1 / 1,05 / 1,10 / 1,15 / 1,20
     qualityBoost: i
   };
 });
@@ -1002,10 +1002,29 @@ const MONSTER_DIFFICULTY = ['comum', 'incomum', 'raro', 'lendario', 'unico'].map
   MONSTER_DIFFICULTY.push({
     key: 'divino', name: r.name, icon: r.icon, color: r.color,
     statMult: 10, hpMult: 10, dmgMult: 8, defMult: 9,
-    goldMult: 3, xpMult: 1.25, qualityBoost: 5,
+    goldMult: 5, xpMult: 1.5, qualityBoost: 5, // v266: era ouro ×3 e XP ×1,25
     divineItemChance: 0.005, minLevel: 150, unlockBoss: 'Soberano da Floresta Negra'
   });
 })();
+// v266: 🥱 Combate trivial — se um só golpe teu chega para matar o monstro e já tens uma dificuldade acima
+// aberta, as recompensas deste combate ficam a metade (ouro, XP e hipótese de baú). Sobe a dificuldade!
+const TRIVIAL_REWARD = 0.5;
+function combatTrivial(p, enemy, diff) {
+  const i = MONSTER_DIFFICULTY.indexOf(diff), nx = MONSTER_DIFFICULTY[i + 1];
+  if (!nx || !difficultyUnlocked(p, nx) || !enemy) return false;
+  const st = effectiveStats(p);
+  const hit = applyDamage((st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0))), enemy.def || 0, p.level);
+  return hit >= (enemy.maxHp || enemy.hp || 1);
+}
+// Dificuldade recomendada: a mais alta (já aberta) em que um monstro normal ainda aguenta pelo menos 2 golpes teus.
+function recommendedDifficulty(p, level) {
+  const st = effectiveStats(p), base = p && paragonOf(p) ? paragonEnemyStats(level, false, paragonOf(p)) : enemyStatsFor(level, false);
+  const hit = applyDamage((st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0))), base.def, p.level);
+  let best = MONSTER_DIFFICULTY[0];
+  MONSTER_DIFFICULTY.forEach(d => { if (!difficultyUnlocked(p, d)) return; const hp = base.hp * (d.hpMult || d.statMult), def = base.def * (d.defMult || d.statMult);
+    const h = applyDamage((st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0))), def, p.level); if (hp >= h * 2) { best = d; } });
+  return best;
+}
 function difficultyUnlocked(p, d) {
   if (!d || !d.minLevel) return true;
   return (p.level || 1) >= d.minLevel && !!p.divinoUnlocked;
@@ -2497,7 +2516,7 @@ function startPactCombat() {
   const T = towerDef(t.key), f = t.floor + 1, lv = towerFloorLv(T, f), foe = pactFloorFoe(T, t, f);
   const isBoss = foe.type === 'chefe', isMini = foe.type === 'mini', isElite = foe.type === 'monstro' && pactHas(t, 'legiao');
   const mm = isBoss ? T.bossMult : isMini ? T.miniMult : T.mobMult;
-  const enemy = enemyStatsFor(lv, isBoss || isMini);
+  const enemy = enemyStatsFor(lv, isBoss || isMini, true);
   let hm = mm.hp, dm = mm.dmg, df = mm.def;
   if (isElite) { hm *= T.eliteMult.hp; dm *= T.eliteMult.dmg; df *= T.eliteMult.def; }
   t.pacts.forEach(k => { const e = PACTS[k] && PACTS[k].enemy; if (e) { hm *= e.hp || 1; dm *= e.dmg || 1; df *= e.def || 1; } });
@@ -2837,7 +2856,7 @@ function startSpiralCombat() {
   const T = towerDef(t.key), f = t.floor + 1, foe = spiralFoe(T, t, f), el = spiralElem(f);
   const isBoss = foe.type === 'chefe', isMini = foe.type === 'mini';
   const mm = isBoss ? SPIRAL_MULT.boss : isMini ? SPIRAL_MULT.mini : SPIRAL_MULT.mob;
-  const enemy = enemyStatsFor(T.bossLv, isBoss || isMini);
+  const enemy = enemyStatsFor(T.bossLv, isBoss || isMini, true);
   enemy.hp = Math.round(enemy.hp * mm.hp * Math.pow(SPIRAL_GROW_HP, f - 1)); enemy.maxHp = enemy.hp;
   enemy.dmg = Math.round(enemy.dmg * mm.dmg * Math.pow(SPIRAL_GROW_DMG, f - 1));
   enemy.def = Math.round(enemy.def * mm.def * Math.pow(SPIRAL_GROW_DEF, f - 1));
@@ -3299,7 +3318,7 @@ function startExpCombat() {
   let foe;
   if (isBoss) foe = M.boss;
   else { const rng = expNodeRng(t, r, c); { const TM = towerDef('espiral'); foe = TM.monsters[Math.floor(rng() * TM.monsters.length)]; }; }
-  const enemy = enemyStatsFor(200, isBoss);
+  const enemy = enemyStatsFor(200, isBoss, true);
   const m = isBoss ? EXP_MULT.boss : isElite ? EXP_MULT.elite : EXP_MULT.mob;
   enemy.hp = Math.round(enemy.hp * m.hp * Math.pow(EXP_GROW_HP, r)); enemy.maxHp = enemy.hp;
   enemy.dmg = Math.round(enemy.dmg * m.dmg * Math.pow(EXP_GROW_DMG, r));
@@ -5199,9 +5218,20 @@ function soberanoState(p) {
 }
 function soberanoTriesLeft(p, key) { return SOBERANO_DAILY_TRIES - (soberanoState(p).triesBy[key || 'moloch'] || 0); }
 function soberanoTriesSummary(p) { const L = SOBERANOS.filter(B => (p.level || 1) >= B.minLv); return { left: L.reduce((a, B) => a + soberanoTriesLeft(p, B.key), 0), max: L.length * SOBERANO_DAILY_TRIES, n: L.length }; }
-function soberanoStats(B) {
-  const e = enemyStatsFor(B.lv, true), m = B.mult || {};
-  e.hp = Math.round(e.hp * (m.hp || 1)); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * (m.dmg || 1)); e.def = Math.round(e.def * (m.def || 1));
+// v266: 🔥 Níveis de Ameaça dos Soberanos (I–V). O I é o Soberano de sempre; cada nível acima abre depois de
+// venceres o anterior e dá mais ouro/XP e mais hipótese em todos os prémios (+1 rolo de raridade por nível).
+const SOB_TIERS = [
+  { n: 'I', hp: 1, dmg: 1, def: 1, rew: 1 },
+  { n: 'II', hp: 2, dmg: 1.5, def: 1.25, rew: 1.5 },
+  { n: 'III', hp: 3.6, dmg: 2.2, def: 1.5, rew: 2.2 },
+  { n: 'IV', hp: 6, dmg: 3.1, def: 1.8, rew: 3.1 },
+  { n: 'V', hp: 10, dmg: 4.3, def: 2.2, rew: 4.4 }
+];
+function sobTierMax(p, key) { const st = soberanoState(p); st.tierMax = st.tierMax && typeof st.tierMax === 'object' ? st.tierMax : {}; return clamp(Math.floor(Number(st.tierMax[key]) || 0), 0, SOB_TIERS.length - 1); }
+function sobTierSel(p, key) { const st = soberanoState(p); st.tierSel = st.tierSel && typeof st.tierSel === 'object' ? st.tierSel : {}; return clamp(Math.floor(Number(st.tierSel[key]) || 0), 0, sobTierMax(p, key)); }
+function soberanoStats(B, ti) {
+  const e = enemyStatsFor(B.lv, true, true), m = B.mult || {}, T = SOB_TIERS[ti || 0] || SOB_TIERS[0];
+  e.hp = Math.round(e.hp * (m.hp || 1) * T.hp); e.maxHp = e.hp; e.dmg = Math.round(e.dmg * (m.dmg || 1) * T.dmg); e.def = Math.round(e.def * (m.def || 1) * T.def);
   return e;
 }
 function soberanoRewardsText(B) {
@@ -5210,7 +5240,7 @@ function soberanoRewardsText(B) {
     `💎 Pedra Nephalen (${pc(r.nephalem)})`, `✨ Pedra do Núcleo (${pc(r.core)})`, `📜➕ Pergaminho ➕ (${pc(r.plus)})`].join(' · ');
 }
 function soberanoCardHtml(B, p, withButton) {
-  const e = soberanoStats(B), locked = (p.level || 1) < B.minLv, kills = soberanoState(p).kills[B.key] || 0, left = soberanoTriesLeft(p, B.key);
+  const ti = sobTierSel(p, B.key), tmax = sobTierMax(p, B.key), e = soberanoStats(B, ti), locked = (p.level || 1) < B.minLv, kills = soberanoState(p).kills[B.key] || 0, left = soberanoTriesLeft(p, B.key);
   return `<div class="card raised sob-card">
       <div class="sob-head">
         <div class="sob-ic">${nxCreature(B.name, B.icon)}</div>
@@ -5219,6 +5249,8 @@ function soberanoCardHtml(B, p, withButton) {
           <div class="tiny"><span class="pill">Nv. ${B.lv}</span> ${CATEGORY_INFO[B.category].icon} ${CATEGORY_INFO[B.category].name}${kills ? ` · <span style="color:var(--gold-bright);">👑 Derrotado ${kills}×</span>` : ''}</div>
         </div>
       </div>
+      ${withButton ? `<div class="sob-tiers"><span class="sob-tl">🔥 Ameaça</span>${SOB_TIERS.map((T, i) => `<button type="button" class="sob-tier${i === ti ? ' on' : ''}${i > tmax ? ' lock' : ''}" data-sob-tier="${B.key}:${i}"${i > tmax ? ' disabled' : ''}>${T.n}${i > tmax ? ' 🔒' : ''}</button>`).join('')}</div>
+      <p class="tiny muted" style="margin:4px 0 0;">${ti ? `Ameaça ${SOB_TIERS[ti].n}: ouro/XP ×${String(SOB_TIERS[ti].rew).replace('.', ',')}, prémios mais prováveis e +${ti} rolo${ti > 1 ? 's' : ''} de raridade.` : 'Vence-o para abrir a Ameaça seguinte (mais forte, prémios melhores).'}</p>` : ''}
       <div class="sob-stats"><span>❤️ ${nxNum(e.hp)}</span><span>⚔️ ${nxNum(e.dmg)}</span><span>🛡️ ${nxNum(e.def)}</span></div>
       ${B.ymir ? ymirCardStagesHtml(B) : `<div class="sob-stage"><div class="sob-st-h">Fase 1 · 100% → ${Math.round(B.stage2.atPct * 100)}% de HP</div>
         ${B.skills1.map(k => `<p class="tiny">${k.icon} <b>${k.label}</b> — ${k.desc}</p>`).join('')}</div>
@@ -5244,6 +5276,7 @@ function renderSoberanoBody(body) {
   body.innerHTML = `<p class="muted" style="margin-bottom:10px;">Desafia um Soberano: um chefe muito mais forte do que os outros do mesmo nível, com habilidades próprias e várias fases de combate. Cada Soberano tem <b>${SOBERANO_DAILY_TRIES} tentativas por dia</b>.</p>
     ${SOBERANOS.map(B => soberanoCardHtml(B, p, true)).join('')}`;
   els('[data-sob-fight]').forEach(b => b.addEventListener('click', () => startSoberano(b.dataset.sobFight)));
+  els('[data-sob-tier]').forEach(b => b.addEventListener('click', () => { const [k, i] = b.dataset.sobTier.split(':'); const st = soberanoState(p); sobTierSel(p, k); st.tierSel[k] = clamp(+i, 0, sobTierMax(p, k)); sfx.click(); saveGame(); renderSoberanoBody(body); })); // v266
 }
 function startSoberano(key) {
   if (!guardAllowsFight(() => startSoberano(key))) return;
@@ -5255,14 +5288,14 @@ function startSoberano(key) {
   saveGame();
   App.combat = { _inv0: autoSellInvIds(), // v263
     kind: 'soberano', isSoberano: true, soberanoDef: B, name: B.name, icon: B.icon, level: B.lv, isBoss: true, isDungeon: false,
-    enemy: Object.assign(soberanoStats(B), { element: null, critImmune: false, category: B.category }),
+    sobTier: sobTierSel(p, B.key), enemy: Object.assign(soberanoStats(B, sobTierSel(p, B.key)), { element: null, critImmune: false, category: B.category }),
     battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0 },
     cooldowns: {}, log: [], eventApplied: null, ended: false
   };
   resetCombatScreenChrome();
   showScreen('screen-combat');
   if (B.ymir) App.combat.ymir = { layers: YMIR.LAYERS, phase: 1, rounds: 0 }; // v210
-  addCombatLog({ text: `👑 ${B.name} (Nv. ${B.lv}) aceita o teu desafio! Muito mais forte do que um chefe normal.`, cls: 'hit' });
+  addCombatLog({ text: `👑 ${B.name} (Nv. ${B.lv}${App.combat.sobTier ? ` · Ameaça ${SOB_TIERS[App.combat.sobTier].n}` : ''}) aceita o teu desafio! Muito mais forte do que um chefe normal.`, cls: 'hit' });
   if (B.ymir) addCombatLog({ text: `🧊 Está coberto por ${YMIR.LAYERS} camadas de gelo (−${Math.round(YMIR.LAYERS * YMIR.RED * 100)}% ao teu dano). Cada golpe parte uma; o Fogo parte duas.`, cls: 'hit' });
   renderCombat();
 }
@@ -5281,13 +5314,17 @@ function soberanoStageCheck(c) {
   if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
 }
 function finishSoberano() {
-  const c = App.combat, p = App.player, B = c.soberanoDef, r = B.rewards;
-  const xpGain = pgXp(Math.round((35 + B.lv * 4.5) * r.xpMult * (1 + battleXpBonus(c))));
-  const goldGain = Math.round((30 + B.lv * 4) * r.goldMult * (1 + (effectiveStats(p).goldPct || 0)));
+  const c = App.combat, p = App.player, B = c.soberanoDef, ti = c.sobTier || 0, T = SOB_TIERS[ti] || SOB_TIERS[0];
+  // v266: Ameaça — multiplica ouro/XP e as hipóteses dos prémios (até 100%); +1 rolo de raridade por nível.
+  const r0 = B.rewards, ch = v => Math.min(1, v * T.rew);
+  const r = Object.assign({}, r0, { heart: ch(r0.heart), talisman: ch(r0.talisman), divino: ch(r0.divino), nephalem: ch(r0.nephalem), core: ch(r0.core), plus: ch(r0.plus), rolls: (r0.rolls || 0) + ti });
+  const xpGain = pgXp(Math.round((35 + B.lv * 4.5) * r.xpMult * T.rew * (1 + battleXpBonus(c))));
+  const goldGain = Math.round((30 + B.lv * 4) * r.goldMult * T.rew * (1 + (effectiveStats(p).goldPct || 0)));
   p.gold += goldGain; grantXp(xpGain);
   p.stats.wins++; p.stats.bossesKilled = (p.stats.bossesKilled || 0) + 1;
   const st = soberanoState(p); const first = !st.kills[B.key]; st.kills[B.key] = (st.kills[B.key] || 0) + 1;
   const drops = [`${xpGain} XP`, `${goldGain} 🪙 Ouro`];
+  if (ti >= sobTierMax(p, B.key) && ti < SOB_TIERS.length - 1) { st.tierMax[B.key] = ti + 1; drops.push(`🔥 Abriste a Ameaça ${SOB_TIERS[ti + 1].n} de ${B.name}!`); } // v266
   if (first || Math.random() < r.heart) { p.soberanoHearts = (p.soberanoHearts || 0) + 1; drops.push(`${nxEnt('coracao-soberano', '❤️‍🔥')} Coração do Soberano!${first ? ' (1.ª vitória)' : ''} — Ascende um item +9 no Ferreiro`); }
   if (Math.random() < r.talisman) { const t = grantTalisman(p, 'soberano'); if (t) drops.push(`${nxEnt('talisma-soberano', '👑')} ${TALISMAN_DEFS.soberano.name}!`); }
   const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
@@ -5832,7 +5869,12 @@ function upgradeMaterialOwned(p, m) { return m.kind === 'pearl' ? ((p.pearls || 
 function spendUpgradeMaterial(p, m) { if (m.kind === 'pearl') p.pearls[m.key]--; else p.lunar[m.key]--; }
 function socketSlotCost(item) { return 250 * (item.socketSlots || 1); }
 
-function enemyStatsFor(level, isBoss) {
+// v266: Curva de equipamento — os monstros passam a acompanhar o equipamento que o herói costuma ter em cada nível
+// (raridade, +9, gemas, alquimia…). Quase nada no início, forte no fim. Não se aplica ao conteúdo já afinado
+// à parte (Espiral, Expedição, Pactos, Arena e Soberanos — estes têm os Níveis de Ameaça). raw = sem a curva.
+const MON_CURVE = { hp: 0.4, dmg: 0.2, def: 0.15, pow: 1.5, bossHp: 1.15 }; // bossHp: os chefes aguentam mais 15% (combates de chefe mais longos)
+function monsterCurve(level) { const t = Math.pow(Math.min(Math.max(level || 1, 1), MAX_LEVEL) / MAX_LEVEL, MON_CURVE.pow); return { hp: 1 + MON_CURVE.hp * t, dmg: 1 + MON_CURVE.dmg * t, def: 1 + MON_CURVE.def * t }; }
+function enemyStatsFor(level, isBoss, raw) {
   const ref = statsAtLevel('guerreiro', level);
   // Curva suave que acelera com o nível: compensa o facto do poder do jogador crescer
   // de forma composta (equipamento, gemas, alquimia, sets, feitiços) enquanto os
@@ -5849,6 +5891,7 @@ function enemyStatsFor(level, isBoss) {
   let dmg = Math.round(ref.dmg * 0.60 * dmgCurve);
   let def = Math.round(ref.def * 0.65);
   if (isBoss) { hp = Math.round(hp * 2.8); dmg = Math.round(dmg * 2.6); def = Math.round(def * 1.6); }
+  if (!raw) { const k = monsterCurve(level); hp = Math.round(hp * k.hp * (isBoss ? MON_CURVE.bossHp : 1)); dmg = Math.round(dmg * k.dmg); def = Math.round(def * k.def); }
   return { hp, maxHp: hp, dmg: Math.max(1, dmg), def: Math.max(0, def), critChance: isBoss ? 0.18 : 0.05 };
 }
 
@@ -6515,13 +6558,22 @@ function elementAttackMult(p, enemy, abilityKey) {
 function resFor(pStats, el) { const pen = (pStats && pStats.resPen) || 0; return Math.min(RES_CAP, Math.max(pen ? RES_FLOOR : 0, Math.round(((pStats && pStats.res && pStats.res[el]) || 0) - pen))); }
 function resPenTxt(pStats) { return pStats && pStats.resPen ? ` (−${pStats.resPen}% Paragon)` : ''; }
 // Golpe de um inimigo: 70% físico (defesa normal) + 30% elemental (2/3 da defesa, depois resistência).
+// v266: ⚔️ Chefes a sério — furam a defesa (mín. 22% do dano), entram em 😡 Furor a partir da ronda 12
+// (+10% de dano por ronda) e têm o 💥 Golpe Devastador (20%: +6% da tua vida máxima, sem defesa).
+const BOSS_MIN_DMG = 0.22, BOSS_FUROR_ROUND = 12, BOSS_FUROR_STEP = 0.10, BOSS_FUROR_MAX = 3, BOSS_DEV_CHANCE = 0.20, BOSS_DEV_PCT = 0.06;
+function combatIsBossFight(c) { return !!(c && (c.isBoss || c.isMiniBoss || c.isSoberano) && !c.isObelisk && !c.isArena); }
+function bossFurorMult(c) { const r = (c && c.round) || 0; return combatIsBossFight(c) && !c.spiralFloor && r > BOSS_FUROR_ROUND ? Math.min(BOSS_FUROR_MAX, 1 + BOSS_FUROR_STEP * (r - BOSS_FUROR_ROUND)) : 1; }
 function enemyHitDamage(c, p, pStats, raw, defEff) {
-  const el = c.enemy && c.enemy.element;
-  if (!el || !ELEMENT_INFO[el]) return { dmg: applyDamage(raw, defEff, p.level), el: 0 };
+  const el = c.enemy && c.enemy.element, boss = combatIsBossFight(c), minPct = boss ? BOSS_MIN_DMG : 0.10;
+  raw *= bossFurorMult(c);
+  if (boss && !c.spiralFloor && c.round === BOSS_FUROR_ROUND + 1 && !c._furorSaid) { c._furorSaid = true; addCombatLog({ text: `😡 Furor: ${c.enemy.name || c.name || 'o chefe'} fica mais forte a cada ronda!`, cls: 'hit' }); }
+  let dev = 0;
+  if (boss && Math.random() < BOSS_DEV_CHANCE) { dev = Math.max(1, Math.round((pStats.hp || 1) * BOSS_DEV_PCT)); addCombatLog({ text: `💥 Golpe Devastador: +${dev} de dano que ignora a defesa!`, cls: 'hit' }); }
+  if (!el || !ELEMENT_INFO[el]) return { dmg: applyDamage(raw, defEff, p.level, minPct) + dev, el: 0 };
   const res = resFor(pStats, el) / 100, share = pStats.elShare || ELEMENT_HIT_SHARE; // v234: Fúria Elemental
-  const phys = applyDamage(raw * (1 - share), defEff, p.level);
-  const elem = Math.round(applyDamage(raw * share, defEff * ELEMENT_DEF_SHARE, p.level) * (1 - res));
-  return { dmg: Math.max(1, phys + elem), el: elem };
+  const phys = applyDamage(raw * (1 - share), defEff, p.level, minPct);
+  const elem = Math.round(applyDamage(raw * share, defEff * ELEMENT_DEF_SHARE, p.level, minPct) * (1 - res));
+  return { dmg: Math.max(1, phys + elem) + dev, el: elem };
 }
 // ---------- Resistências e elemento nos itens (derivados do id do item: não se guardam no save) ----------
 const RES_RARITY_MULT = { comum: 1, incomum: 1, raro: 1.1, lendario: 1.2, unico: 1.3, demoniaco: 1.3, set: 1.3, temporada: 1.3, mitico: 1.3, divino: 1.4, astral: 1.5 };
@@ -6581,10 +6633,10 @@ const STATUS_INFO = {
 function defMitigationK(level) {
   return 80 + Math.max(1, level || 1) * 6;
 }
-function applyDamage(dmg, def, level) {
+function applyDamage(dmg, def, level, minPct) {
   const k = defMitigationK(level);
   const mitigated = dmg * (k / (k + Math.max(0, def)));
-  const floor = dmg * 0.10;
+  const floor = dmg * (minPct || 0.10); // v266: os chefes furam mais a defesa (BOSS_MIN_DMG)
   return Math.max(1, Math.round(Math.max(mitigated, floor)));
 }
 
@@ -10360,7 +10412,7 @@ function startArenaFight(opp) {
   const a = arenaState(), p = App.player;
   if (!a.me || a.me.fights_left <= 0) { sfx.error(); toast(`Já fizeste as ${ARENA.DAILY} lutas de hoje.`); return; }
   if (!guardAllowsFight(() => startArenaFight(opp))) return;
-  const e = enemyStatsFor(ARENA.NORM_LV, false);
+  const e = enemyStatsFor(ARENA.NORM_LV, false, true);
   Object.assign(e, arenaEnemyStats(p, opp.snapshot || {}));
   e.maxHp = e.hp; e.element = null; e._elInit = true; e.critImmune = false; e.category = 'humano';
   const hpBefore = p.hp;
@@ -10461,8 +10513,10 @@ function renderTabBatalha() {
       `;
   }
 
+  let recDiff = null; try { recDiff = recommendedDifficulty(p, heroLv(p)); } catch (e) {} // v266
   const diffPop = MONSTER_DIFFICULTY.map(d => { const lk = !difficultyUnlocked(p, d); return `
-    <button type="button" class="bt-dopt${d.key === activeDiff.key ? ' on' : ''}${lk ? ' lock' : ''}" data-set-difficulty="${d.key}" style="--c:${d.color};"><i class="rar-dot">${rarIc(d.key, '')}</i><div><b>${d.name}${lk ? ' 🔒' : ''}</b><span>${diffDesc(d)}</span></div></button>`; }).join('');
+    <button type="button" class="bt-dopt${d.key === activeDiff.key ? ' on' : ''}${lk ? ' lock' : ''}" data-set-difficulty="${d.key}" style="--c:${d.color};"><i class="rar-dot">${rarIc(d.key, '')}</i><div><b>${d.name}${lk ? ' 🔒' : ''}${recDiff && recDiff.key === d.key ? ' <em class="bt-rec">⭐ Recomendada</em>' : ''}</b><span>${diffDesc(d)}</span></div></button>`; }).join('')
+    + (recDiff && MONSTER_DIFFICULTY.indexOf(recDiff) > MONSTER_DIFFICULTY.indexOf(activeDiff) ? `<p class="tiny bt-rec-n">🥱 Estás forte demais para ${activeDiff.name}: se matares monstros com um só golpe, ouro, XP e baús ficam a metade. Experimenta <b>${recDiff.name}</b>.</p>` : '');
 
   // v221: barra de atividades (Hoje, Tarefa, Evento, Obelisco) + folha de detalhe por cima do mapa.
   const tdL = todayItems(p), tdLeft = tdL.filter(x => x.state !== 'done').length;
@@ -14504,7 +14558,7 @@ const PARAGON_MAX = 2;
 const PARAGON_PTS = 2;
 const PARAGON_XP_MULT = [1, 1.5, 1.25];
 const PARAGON_GOLD_PER_P = 0.25;
-const PARAGON_P2_POWER = 0.20;
+const PARAGON_P2_POWER = 0.20, PARAGON_BASE_POWER = 1.1; // v266: no Paragon os monstros das regiões são mais fortes do que no Nv. 200 normal
 // Valores por nível de talento (em %). Afinar aqui.
 const PG_VAL = { furia: 6, egide: 6, golpeCrit: 4, golpeCd: 15, fortGold: 10, fortLuck: 5, sab: 20, impMin: 2 };
 const PARAGON_TALENTS = [
@@ -14533,7 +14587,7 @@ function paragonRank(p, k) { return paragonOf(p) ? (paragonTal(p)[k] || 0) : 0; 
 function paragonPointsLeft(p) { if (!paragonOf(p)) return 0; const t = paragonTal(p); return paragonOf(p) * PARAGON_PTS - PARAGON_TALENTS.reduce((a, d) => a + t[d.key], 0); }
 function paragonCanReborn(p) { return !!p && paragonOf(p) < PARAGON_MAX && (p.level || 1) >= MAX_LEVEL && heroLv(p) >= MAX_LEVEL; }
 // Força Paragon de um monstro/chefe de região (mantém o nível; o P dá a força).
-function paragonPowerMult(lv, P) { return (0.55 + 0.45 * Math.min(Math.max(lv, 1), MAX_LEVEL) / MAX_LEVEL) * (1 + PARAGON_P2_POWER * (P - 1)); }
+function paragonPowerMult(lv, P) { return (0.55 + 0.45 * Math.min(Math.max(lv, 1), MAX_LEVEL) / MAX_LEVEL) * PARAGON_BASE_POWER * (1 + PARAGON_P2_POWER * (P - 1)); }
 function paragonEnemyStats(lv, isBoss, P) {
   const e = enemyStatsFor(Math.max(lv, MAX_LEVEL), isBoss), k = paragonPowerMult(lv, P);
   e.hp = Math.round(e.hp * k); e.maxHp = e.hp; e.dmg = Math.max(1, Math.round(e.dmg * k)); e.def = Math.round(e.def * k);
@@ -19209,7 +19263,7 @@ function startCombat(opts) {
   App.combat = { _inv0: autoSellInvIds(), // v263
     kind: opts.kind, name: opts.name, icon: opts.icon, level: opts.level, isBoss, regionKey: opts.regionKey || null,
     monsterName: isBoss ? null : opts.name,
-    regionIndexForBoss: opts.regionIndex, isGateBoss: !!opts.isGate, isDungeon: false, gapMult, difficulty: diff.key, paragon: pgP,
+    regionIndexForBoss: opts.regionIndex, isGateBoss: !!opts.isGate, isDungeon: false, gapMult, difficulty: diff.key, paragon: pgP, trivial: !opts.noDiff && combatTrivial(p, enemy, diff), // v266
     enemy: Object.assign(enemy, { element, critImmune: false, category: opts.category || 'outro' }),
     battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, enemyTurnCount: 0, bossEnraged: false },
     cooldowns: {}, log: [], eventApplied, ended: false
@@ -20973,7 +21027,7 @@ function wildRewardRoll(c) {
   const killRg = regionOfCombat(c); // v201
   const lootLv = combatLootLv(c); // v219: em Paragon o espólio é sempre do Nv. 200
   const goldGain = Math.round((isBoss ? (30 + lootLv * 4) : (4 + Math.floor(Math.random() * 8) + Math.floor(lootLv * 0.8))) * diff.goldMult * (1 + (pStats.goldPct || 0)) * ((killRg && killRg.goldMult) || 1) * (1 + PARAGON_GOLD_PER_P * (c.paragon || 0)));
-  const eliteM = (c.elite ? 2 : 1) * (c.eventApplied && c.eventApplied.rewardMult ? c.eventApplied.rewardMult : 1); // v231: Elite = XP e ouro ×2 · v256: Ascendentes +50%
+  const eliteM = (c.elite ? 2 : 1) * (c.eventApplied && c.eventApplied.rewardMult ? c.eventApplied.rewardMult : 1) * (c.trivial ? TRIVIAL_REWARD : 1); // v231: Elite = XP e ouro ×2 · v256: Ascendentes +50% · v266: trivial ×0,5
   const todGm = 1 + todGold(); // v233: ☀️ Dia
   p.gold += Math.round(goldGain * eliteM * todGm);
   grantXp(xpGain * eliteM);
@@ -20981,11 +21035,12 @@ function wildRewardRoll(c) {
   progressQuest(isBoss);
 
   const drops = [];
+  if (c.trivial && !c._trivSaid) { c._trivSaid = true; drops.push('🥱 Combate fácil demais para ti: ouro, XP e baús a metade. Sobe a dificuldade no separador Batalha!'); }
   const fortuneMult = p.fortuneBattlesLeft > 0 ? 2 : 1;
   // Dificuldade escolhida também sobe a própria chance de cair algo (não só a
   // qualidade quando cai) — um monstro mais difícil tem de valer mesmo a pena.
   const diffDropBonus = diff.qualityBoost * 0.05;
-  const dropChance = ((isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus) * (pStats.mythDropMult || 1) * (1 + todChest()); // v233: 🌇
+  const dropChance = ((isBoss ? 0.9 : 0.35) * fortuneMult + luck + diffDropBonus) * (pStats.mythDropMult || 1) * (1 + todChest()) * (c.trivial ? TRIVIAL_REWARD : 1); // v233: 🌇 · v266: trivial
   if (Math.random() < dropChance) {
     // Chests de chefe usam a "qualidade melhorada" (+1 tentativa extra de raridade);
     // a dificuldade escolhida pelo jogador soma tentativas extra por cima disso.
@@ -22415,7 +22470,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v265</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v266</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
