@@ -4111,6 +4111,8 @@ const BONUS_PLUS2_POOL = [
   { key: 'pp_crit', name: 'Crítico', icon: '💥', min: 2, max: 5, slots: PLUS2_SLOTS_OTHER, label: v => `+${v}% Crítico` }
 ];
 function plus2Pool(slot) { return BONUS_PLUS2_POOL.filter(b => b.slots.includes(slot)); }
+// v273: uma 2.ª arma (Lâminas Gémeas) na Secundária usa os bónus ➕ de arma.
+function plus2SlotOf(slot, item) { return item && item.slot === 'weapon' ? 'weapon' : slot; }
 function plus2Label(b) { const d = BONUS_PLUS2_POOL.find(x => x.key === b.key); return d ? `${d.icon} ${d.label(b.value)}` : `${b.key} ${b.value}`; }
 function plus2Roll(slot) {
   const pool = plus2Pool(slot);
@@ -4951,7 +4953,7 @@ function effectiveStats(player) {
     }
     // Feitiço "Dano Médio +X%": só em armas, multiplica o dano (e o intervalo) desta
     // arma específica, antes de somar ao total do jogador.
-    if (slot === 'weapon') {
+    if (item.slot === 'weapon') { // v273: também na 2.ª arma (Lâminas Gémeas)
       const dmgMedioBonus = (item.bonuses || []).find(b => b.key === 'dano_medio_pct');
       const medioPct = (dmgMedioBonus ? dmgMedioBonus.value : 0) + itemInnateMedio(item);
       if (medioPct) {
@@ -15875,7 +15877,7 @@ function renderFeiticosBody(body, p) {
   const pool = ftPoolFor(item), have = bonuses.map(b => b.key), resP = pool.filter(b => RES_BONUS_EL[b.key]);
   const poolList = pool.filter(b => !RES_BONUS_EL[b.key]).map(d => `<span class="${have.includes(d.key) ? 'has' : ''}">${d.icon} ${d.name}</span><span>${d.min}–${d.max}%</span>`).join('')
     + (resP.length ? `<span>🛡️ Resistência a um elemento (ao acaso)</span><span>${resBonusRange(item.itemLevel || 100).join('–')}%</span>` : '');
-  const plusPool = plus2Pool(slot).map(d => `${d.icon} ${d.name} ${d.min}–${d.max}${d.key === 'pp_hp' ? '' : '%'}`).join(' · ');
+  const plusPool = plus2Pool(plus2SlotOf(slot, item)).map(d => `${d.icon} ${d.name} ${d.min}–${d.max}${d.key === 'pp_hp' ? '' : '%'}`).join(' · ');
   const weak = bonuses.some(b => ftQuality(b, false, item).q < 0.34);
   const panel = `<div class="card raised ft-panel">
     <div class="ft-ph"><span class="ic">${itemIconHtml(item)}</span><div><b style="color:${item.rarityColor};">${esc(item.name)}</b><span class="tiny muted">${item.rarityName || ''} · Nv. ${item.itemLevel || 1} · ${SLOT_NAMES[slot]}</span></div></div>
@@ -15928,7 +15930,7 @@ function ftFx(opts) {
     el.innerHTML = `<div class="ft-circle"><div class="r1"></div><div class="r2"></div><div class="ic">${nxIconSvg('livro-feitico') || '📜'}</div></div><h4 class="ft-fx-t">${plus ? 'Feitiço ➕' : 'Feitiço'}…</h4>`;
     setTimeout(result, 1300);
   } else {
-    const pool = plus ? plus2Pool(opts.slot) : ftPoolFor(item);
+    const pool = plus ? plus2Pool(plus2SlotOf(opts.slot, item)) : ftPoolFor(item);
     const lbl = d => { const v = d.min + Math.floor(Math.random() * (d.max - d.min + 1)); return plus ? `➕ ${d.icon} ${d.label(v)}` : `${d.icon} ${d.label(v)}`; };
     const N = 14;
     el.innerHTML = `<h4 class="ft-fx-t">🎲 ${plus ? 'Reforço ➕' : 'Reforço'}…</h4>` + after.map((b, j) => {
@@ -15951,7 +15953,7 @@ function castPlus2OnItem(slot, kind) {
     if (before) { sfx.error(); toast('Este item já tem um bónus ➕. Usa um Reforço ➕ para o trocar.'); return; }
   } else if (!before) { sfx.error(); toast('Este item ainda não tem bónus ➕. Usa primeiro um Feitiço ➕.'); return; }
   p.scrolls[kind]--;
-  item.plusBonus = plus2Roll(slot);
+  item.plusBonus = plus2Roll(plus2SlotOf(slot, item));
   saveGame();
   sfx.evolve();
   ftFx({ kind: before ? 'reroll' : 'cast', plus: true, item, slot, before: before ? [before] : [], after: [item.plusBonus] }); // v213
@@ -17229,7 +17231,7 @@ function openEquipSlotModal(slot) {
   if (item) {
     html += `
       ${itemSheetHtml(item, slot, p)}
-      ${slot === 'weapon' && !item.nephalemBonus && (item.upgrade || 0) >= 9 ? renderNephalemSection(item, p) : ''}
+      ${item.slot === 'weapon' && (slot === 'weapon' || slot === 'offhand') && !item.nephalemBonus && (item.upgrade || 0) >= 9 ? renderNephalemSection(item, p) : ''}
       <div class="row" style="gap:8px; margin-bottom:8px;"><button class="btn ghost" id="btn-unequip" style="flex:1;">Desequipar</button>
         <button class="btn ${item.locked ? 'lock-on' : 'ghost'}" id="btn-eq-lock" style="flex:1;">${item.locked ? '🔓 Desbloquear' : '🔒 Bloquear'}</button></div>
     `;
@@ -22831,7 +22833,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v272</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v273</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
