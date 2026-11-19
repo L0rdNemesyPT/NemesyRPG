@@ -4780,3 +4780,10 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .rg-lapln b.bad, .rg-lapln .bad{color:var(--blood-bright, #ff6b6b);}
 .rg-max{margin:-4px 0 12px; text-align:center; font-weight:700; color:var(--gold-bright, #f2c94c);}
 .doll-mid .doll-anel{width:92px; margin:10px auto 0;}
+/* v269: Anéis Míticos */
+.rg-ic.myth{box-shadow:0 0 14px color-mix(in srgb, var(--rc, #ff7a3a) 70%, transparent), inset 0 0 10px color-mix(in srgb, var(--rc, #ff7a3a) 30%, transparent); animation:rgMyth 2.2s ease-in-out infinite;}
+@keyframes rgMyth{50%{box-shadow:0 0 22px color-mix(in srgb, var(--rc, #ff7a3a) 90%, transparent), inset 0 0 14px color-mix(in srgb, var(--rc, #ff7a3a) 45%, transparent);}}
+.rg-myth{padding:7px 9px; border-radius:9px; background:rgba(255,140,60,.08); border:1px dashed rgba(255,170,90,.55);}
+.rg-myth p{margin:0; line-height:1.45;}
+.rg-myth .up{color:#9be38f;}
+.rg-myth .dn{color:#ff8a8a; margin-top:3px;}
