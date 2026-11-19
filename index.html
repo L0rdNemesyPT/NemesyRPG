@@ -4714,11 +4714,11 @@ const RING_ENGR = {
   ouro: { icon: '🪙', label: 'Ouro', base: 5 }
 };
 const RING_POWERS = {
-  eclipse: { icon: '🌑', name: 'Eclipse', desc: 'Abaixo de 30% de HP: crítico garantido durante 2 rondas (1× por combate).' },
+  eclipse: { icon: '🌑', name: 'Eclipse', desc: 'Abaixo de 30% de HP: crítico garantido e +50% de dano crítico durante 3 rondas (1× por combate).' },
   fenix: { icon: '🔥', name: 'Fénix', desc: 'Sobrevives a um golpe mortal e ficas com 10% do HP (1× por combate).' },
-  vampiro: { icon: '🩸', name: 'Vampiro', desc: 'Os teus críticos curam-te 15% do dano feito.' },
-  tempestade: { icon: '⚡', name: 'Tempestade', desc: '20% de hipótese de um golpe extra com 50% do dano.' },
-  bastiao: { icon: '🛡️', name: 'Bastião', desc: 'Nas 2 primeiras rondas recebes −40% de dano.' },
+  vampiro: { icon: '🩸', name: 'Vampiro', desc: 'Os teus críticos curam-te 6% do dano feito (no máx. 4% da tua vida por golpe).' },
+  tempestade: { icon: '⚡', name: 'Tempestade', desc: '25% de hipótese de um golpe extra com 50% do dano.' },
+  bastiao: { icon: '🛡️', name: 'Bastião', desc: 'Nas 3 primeiras rondas recebes −40% de dano.' },
   ganancia: { icon: '👑', name: 'Ganância', desc: 'Ao venceres chefes: +25% de ouro e +1 rolo de raridade no baú.' }
 };
 const RING_POWER_MIN = 4; // Único
@@ -4797,7 +4797,7 @@ function ringSpiralDrop(p, f, drops) {
   if (Math.random() < 0.25) grantRing(p, newRing(ringPickRarity({ unico: 60, demoniaco: 25, divino: 15 })), drops);
 }
 // ---------- Poderes em combate ----------
-function ringBastiaoMult(c) { return c && (c.round || 0) < 2 && ringHasPower(App.player, 'bastiao') ? 0.6 : 1; }
+function ringBastiaoMult(c) { return c && (c.round || 0) < 3 && ringHasPower(App.player, 'bastiao') ? 0.6 : 1; }
 function ringFenixSave(c, p) {
   if (!c || !c.battleState || c.battleState.ringFenixUsed || !ringHasPower(p, 'fenix')) return false;
   c.battleState.ringFenixUsed = true; p.hp = Math.max(1, Math.round(effectiveStats(p).hp * 0.10));
@@ -4806,13 +4806,13 @@ function ringFenixSave(c, p) {
 function ringEclipseCheck(c, p) {
   if (!c || c.ended || !c.battleState || c.battleState.ringEclipseUsed || !ringHasPower(p, 'eclipse') || p.hp <= 0) return;
   const mx = effectiveStats(p).hp; if (p.hp >= mx * 0.30) return;
-  c.battleState.ringEclipseUsed = true; c.battleState.critBuff = { rounds: 2, fresh: true, dmgBonus: 0 }; c.battleState.critBuffActive = true;
-  addCombatLog({ text: '🌑 Anel do Eclipse: crítico garantido nas próximas 2 rondas!', cls: 'crit' });
+  c.battleState.ringEclipseUsed = true; c.battleState.critBuff = { rounds: 3, fresh: true, dmgBonus: 0.5 }; c.battleState.critBuffActive = true;
+  addCombatLog({ text: '🌑 Anel do Eclipse: crítico garantido e +50% de dano crítico nas próximas 3 rondas!', cls: 'crit' });
 }
 function ringAfterHit(c, p, pStats, dealt, crit) {
   if (!c || c.ended || !(dealt > 0)) return;
-  if (crit && ringHasPower(p, 'vampiro')) { const h = Math.min(pStats.hp - p.hp, Math.max(1, Math.round(dealt * 0.15))); if (h > 0) { p.hp += h; addCombatLog({ text: `🩸 Anel Vampiro: +${h} HP.`, cls: 'good' }); } }
-  if (c.enemy && c.enemy.hp > 0 && ringHasPower(p, 'tempestade') && Math.random() < 0.20) {
+  if (crit && ringHasPower(p, 'vampiro')) { const h = Math.min(pStats.hp - p.hp, Math.max(1, Math.min(Math.round(dealt * 0.06), Math.round(pStats.hp * 0.04)))); if (h > 0) { p.hp += h; addCombatLog({ text: `🩸 Anel Vampiro: +${h} HP.`, cls: 'good' }); } }
+  if (c.enemy && c.enemy.hp > 0 && ringHasPower(p, 'tempestade') && Math.random() < 0.25) {
     const z = applyDamage(pStats.dmg * 0.5, c.enemy.def, p.level); c.enemy.hp -= z;
     addCombatLog({ text: `⚡ Anel da Tempestade: golpe extra de ${z} de dano.`, cls: 'hit' });
   }
@@ -22687,7 +22687,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v267</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v268</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
