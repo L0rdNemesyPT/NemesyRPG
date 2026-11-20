@@ -4791,3 +4791,5 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .ak-tag.prim-tag{border-color:#2fd6c3;color:#c9fff7;background:linear-gradient(90deg,rgba(47,214,195,.22),rgba(20,90,95,.28));text-shadow:0 0 6px rgba(80,240,220,.55);box-shadow:0 0 8px rgba(47,214,195,.25) inset;}
 .prim-txt{color:#5ff0dc;font-weight:700;}
 .nx-k.prim-ic{filter:drop-shadow(0 0 4px rgba(70,235,215,.55));}
+/* v274 ☄️ Supercrítico */
+.crit-over{font-size:11px;color:#ff9a3c;font-weight:700;margin-left:4px;}

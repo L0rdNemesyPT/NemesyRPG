@@ -1013,16 +1013,16 @@ function combatTrivial(p, enemy, diff) {
   const i = MONSTER_DIFFICULTY.indexOf(diff), nx = MONSTER_DIFFICULTY[i + 1];
   if (!nx || !difficultyUnlocked(p, nx) || !enemy) return false;
   const st = effectiveStats(p);
-  const hit = applyDamage((st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0))), enemy.def || 0, p.level);
+  const hit = applyDamage((st.dmg || 0) * critExpMult(st), enemy.def || 0, p.level);
   return hit >= (enemy.maxHp || enemy.hp || 1);
 }
 // Dificuldade recomendada: a mais alta (já aberta) em que um monstro normal ainda aguenta pelo menos 2 golpes teus.
 function recommendedDifficulty(p, level) {
   const st = effectiveStats(p), base = p && paragonOf(p) ? paragonEnemyStats(level, false, paragonOf(p)) : enemyStatsFor(level, false);
-  const hit = applyDamage((st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0))), base.def, p.level);
+  const hit = applyDamage((st.dmg || 0) * critExpMult(st), base.def, p.level);
   let best = MONSTER_DIFFICULTY[0];
   MONSTER_DIFFICULTY.forEach(d => { if (!difficultyUnlocked(p, d)) return; const hp = base.hp * (d.hpMult || d.statMult), def = base.def * (d.defMult || d.statMult);
-    const h = applyDamage((st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0))), def, p.level); if (hp >= h * 2) { best = d; } });
+    const h = applyDamage((st.dmg || 0) * critExpMult(st), def, p.level); if (hp >= h * 2) { best = d; } });
   return best;
 }
 function difficultyUnlocked(p, d) {
@@ -4133,6 +4133,15 @@ const STUN_ON_HIT_CAP = 0.50;
 const REGEN_CAP = 15; // % de HP máximo por ronda — soma de item+set+profissão
 const DMG_PCT_CAP = 1.50; // +150% de dano no total (item + vs_animais/humanos + altar + profissão)
 const CRIT_CAP = 1.0; // chance de crítico pode chegar aos 100%
+// v274: ☄️ Supercrítico — o Crítico acima de 100% (o "excesso") passa a ser a chance de um
+// crítico virar Supercrítico (×CRIT_SUPER_MULT em cima do crítico). Com o crítico garantido
+// (habilidade), quem já tem 100% ganha +CRIT_SUPER_BUFF. Contra inimigos imunes a críticos,
+// o excesso vira dano direto (+CRIT_IMMUNE_K por cada 1% de excesso).
+let CRIT_SUPER_CAP = 0.50, CRIT_SUPER_MULT = 1.5, CRIT_SUPER_BUFF = 0.25, CRIT_IMMUNE_K = 0.5;
+function critOverflow(st, extra) { return Math.max(0, (st.critRaw != null ? st.critRaw : (st.crit || 0)) + (extra || 0) - CRIT_CAP); }
+function critSuperChance(st, extra, buff) { const o = critOverflow(st, extra); const raw = (st.critRaw != null ? st.critRaw : (st.crit || 0)) + (extra || 0); return Math.min(CRIT_SUPER_CAP, o + (buff && raw >= CRIT_CAP ? CRIT_SUPER_BUFF : 0)); }
+function critExpMult(st) { const c = Math.min(1, st.crit || 0), m = 1.8 + (st.critDmgBonus || 0); return 1 + c * (m - 1) + c * critSuperChance(st) * m * (CRIT_SUPER_MULT - 1); } // média por golpe (estimativas)
+function critImmuneMult(st, extra) { return 1 + Math.min(CRIT_SUPER_CAP, critOverflow(st, extra)) * CRIT_IMMUNE_K; }
 
 // Bónus especial da Pedra Nephalen: só em armas já em +9 (upgrade máximo), um por arma.
 const NEPHALEM_BONUS_POOL = [
@@ -5151,9 +5160,11 @@ function effectiveStats(player) {
   const stunOnHitChance = Math.min(itemStunChance, STUN_ON_HIT_CAP * 100);
   hp = Math.max(1, hp);
   const regenPct = Math.min(itemRegenPct + setRegenPct + professionRegenPct, REGEN_CAP) * (myMori ? 0.5 : 1);
+  const critRaw = Math.max(0, crit); // v274: antes do teto, para o ☄️ Supercrítico
   crit = Math.max(0, Math.min(crit, CRIT_CAP));
 
   return {
+    critRaw,
     hp, dmg, dmgMin, dmgMax, def, es: Math.max(0, Math.round(es * (1 + gemEsPct + coreT.esPct))), crit, dodge, lifesteal, critImmune, bonusDmgFlat, setBonuses, poisonImmune, bleedImmune,
     dmgVsAnimaisPct: Math.min(itemDmgVsAnimais, DMG_PCT_CAP * 100), dmgVsHumanosPct: Math.min(itemDmgVsHumanos, DMG_PCT_CAP * 100),
     dmgVsDemoniosPct: Math.min(itemDmgVsDemonios, DMG_PCT_CAP * 100), dmgVsMortosPct: Math.min(itemDmgVsMortos, DMG_PCT_CAP * 100), skillDmgPct: Math.min(itemSkillDmg, 20) + Math.round(gt.skillPct * 100) + Math.round(rgT.skill * 10) / 10 + (prD && prD.stat === 'skill' ? prV : 0),
@@ -6935,11 +6946,14 @@ function useAbility(abilityKey, player, pStats, enemy, battleState, isBossTarget
   const critChance = pStats.crit + (battleState.critBuffActive || battleState.mythCritNext ? 1.0 : 0) + (eff.critChanceBonus || 0);
 
   const skillMult = 1 + (pStats.skillDmgPct || 0) / 100;
+  const superCh = critSuperChance(pStats, eff.critChanceBonus, battleState.critBuffActive), immK = critImmuneMult(pStats, eff.critChanceBonus); // v274
   function dealHit(mult, forceCrit) {
     let dmg = pStats.dmg * mult * skillMult * aoeMult;
     if (profTalent(player, 'lenhador') && Math.random() < 0.08) { dmg *= 2; if (!msgs.some(m => m.brutal)) msgs.push({ text: '🪓 Golpe Brutal: dano a dobrar!', cls: 'hit', brutal: true }); } // v196
     const crit = forceCrit || Math.random() < critChance;
     if (crit && !enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
+    if (enemy.critImmune) dmg *= immK; // v274: excesso de Crítico contra imunes
+    else if (crit && superCh > 0 && Math.random() < superCh) { dmg *= CRIT_SUPER_MULT; if (App.combat) App.combat._fxSuper = true; if (!msgs.some(m => m.sup)) msgs.push({ text: '☄️ Supercrítico!', cls: 'crit', sup: true }); }
     if (isBossTarget && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
     const defMult = (battleState.enemyDefDebuff ? (1 - battleState.enemyDefDebuff.pct) : 1) * (1 - (pStats.defPen || 0)) * primJuizoRoll(player); // v186 · v272: Juízo Divino
     let final = applyDamage(dmg, enemy.def * defMult, player.level);
@@ -9266,7 +9280,14 @@ function renderWikiBody() {
       </div>
       <div class="card raised">
         <span style="font-weight:700;">🛡️ Limites de segurança</span>
-        <p class="tiny" style="margin-top:6px;">Por muitos itens de Esquiva que juntes, nunca passas de ${Math.round(DODGE_CAP * 100)}% de esquiva total. O Atordoamento (de itens ou habilidades) nunca passa de ${Math.round(STUN_ON_HIT_CAP * 100)}% de chance numa única fonte, a Regeneração nunca passa de ${REGEN_CAP}% de HP por ronda, o Crítico pode mesmo chegar aos ${Math.round(CRIT_CAP * 100)}% de chance com itens e bónus suficientes, e os bónus de % de Dano (item + vs. Animais/Humanos) nunca passam de +${Math.round(DMG_PCT_CAP * 100)}% — para o combate se manter sempre um risco real.</p>
+        <p class="tiny" style="margin-top:6px;">Por muitos itens de Esquiva que juntes, nunca passas de ${Math.round(DODGE_CAP * 100)}% de esquiva total. O Atordoamento (de itens ou habilidades) nunca passa de ${Math.round(STUN_ON_HIT_CAP * 100)}% de chance numa única fonte, a Regeneração nunca passa de ${REGEN_CAP}% de HP por ronda, o Crítico pode mesmo chegar aos ${Math.round(CRIT_CAP * 100)}% de chance com itens e bónus suficientes (e o que passar disso vira ☄️ Supercrítico — ver abaixo), e os bónus de % de Dano (item + vs. Animais/Humanos) nunca passam de +${Math.round(DMG_PCT_CAP * 100)}% — para o combate se manter sempre um risco real.</p>
+      </div>
+      <div class="card raised">
+        <span style="font-weight:700;">☄️ Supercrítico</span>
+        <p class="tiny" style="margin-top:6px;">O Crítico vai até ${Math.round(CRIT_CAP * 100)}%, mas o que juntares acima disso não se perde: esse <b>excesso</b> é a hipótese de cada crítico virar <b>Supercrítico</b>, com ×${String(CRIT_SUPER_MULT).replace('.', ',')} de dano em cima do crítico (máx. ${Math.round(CRIT_SUPER_CAP * 100)}% de hipótese). Ex.: 130% de Crítico → 100% de crítico e 30% de Supercrítico.</p>
+        <p class="tiny" style="margin-top:4px;">⚡ Se já tens ${Math.round(CRIT_CAP * 100)}%, o crítico garantido das habilidades dá mais +${Math.round(CRIT_SUPER_BUFF * 100)}% de Supercrítico enquanto durar.</p>
+        <p class="tiny" style="margin-top:4px;">🛡️ Contra inimigos imunes a críticos, cada 1% de excesso dá +${String(CRIT_IMMUNE_K).replace('.', ',')}% de dano (máx. +${Math.round(CRIT_SUPER_CAP * CRIT_IMMUNE_K * 100)}%).</p>
+        <p class="tiny muted" style="margin-top:4px;">O excesso aparece em Herói → Stats. O anel 🌑 Olho do Abismo (Crítico máx. 50%) não chega ao excesso; o mítico Olho do Ciclope corta o Crítico a metade antes de contar o excesso.</p>
       </div>
       <div class="card raised">
         <span style="font-weight:700;">📜 Feitiço vs. 🔧 Reforço</span>
@@ -12500,7 +12521,7 @@ function vilaBadge(p) { const v = p && p.vila; if (!v) return null; return v.exp
 // ============================================================
 function heroPower(p) {
   const st = effectiveStats(p), r = st.res || {}, ra = ELEMENT_KEYS.reduce((a, k) => a + Math.min(RES_CAP, Math.max(0, r[k] || 0)), 0) / ELEMENT_KEYS.length;
-  const hit = (st.dmg || 0) * (1 + Math.min(1, st.crit || 0) * (0.8 + (st.critDmgBonus || 0)));
+  const hit = (st.dmg || 0) * critExpMult(st);
   return Math.max(1, Math.round((hit * 4 + (st.hp || 0) * 0.4 + (st.es || 0) * 0.3 + (st.def || 0) * 2.5) * (1 + ra / 300) * (1 + Math.min(0.5, st.dodge || 0))));
 }
 // Guarda o Poder visto, para a próxima vez mostrar quanto subiu (ou desceu).
@@ -14480,7 +14501,8 @@ const STAT_HELP = {
   'HP máximo': 'A tua vida. Se chegar a 0, perdes o combate. Sobe com o equipamento, as Pedras da Vida, as Passivas, as refeições e a Sala de Troféus.',
   'Dano': 'O dano de cada Ataque Normal, antes da Defesa do inimigo. As habilidades usam este valor multiplicado pela força de cada uma.',
   'Defesa': 'Reduz o dano de cada golpe que recebes. Quanto maior a tua Defesa face ao dano do inimigo, mais o golpe é amortecido (passa sempre pelo menos 10% do dano).',
-  'Crítico': 'Hipótese de um golpe ser crítico. Um crítico faz ×1,8 de dano, mais o bónus de Dano Crítico.',
+  'Crítico': 'Hipótese de um golpe ser crítico. Um crítico faz ×1,8 de dano, mais o bónus de Dano Crítico. O máximo é 100% — o que juntares acima disso (o excesso) vira ☄️ Supercrítico.',
+  'Supercrítico': 'O teu Crítico acima de 100% (o excesso) é a hipótese de cada crítico virar Supercrítico: ×1,5 de dano em cima do crítico (máx. 50%). Com o crítico garantido de uma habilidade ganhas mais 25%. Contra inimigos imunes a críticos, cada 1% de excesso dá +0,5% de dano.',
   'Escudo Mágico': 'Uma segunda vida, azul: leva o dano antes do HP (depois da Defesa). Enche-se no início de cada batalha e, nas dungeons, recupera 25% entre salas.',
   'Esquiva': 'Hipótese de evitares por completo um golpe do inimigo.',
   'Regeneração de HP por ronda': 'Recuperas esta percentagem da vida máxima no fim de cada ronda. O veneno impede a regeneração enquanto durar.',
@@ -14527,7 +14549,9 @@ function statSheetRow(icon, label, valueText, current, cap, capText, color) {
 
 function renderFullStatsSheet(stats) {
   const rows = [];
-  rows.push(statSheetRow('💥', 'Crítico', pct(stats.crit), stats.crit, CRIT_CAP, pct(CRIT_CAP)));
+  const critOver = critOverflow(stats); // v274
+  rows.push(statSheetRow('💥', 'Crítico', pct(stats.crit), stats.crit, CRIT_CAP, pct(CRIT_CAP) + (critOver > 0.0005 ? ` · <span class="crit-over">+${pct(critOver)} excesso</span>` : '')));
+  if (critOver > 0.0005) rows.push(statSheetRow('☄️', 'Supercrítico', pct(critSuperChance(stats)), critSuperChance(stats), CRIT_SUPER_CAP, pct(CRIT_SUPER_CAP), '#ff9a3c'));
   rows.push(statSheetRow('🌀', 'Esquiva', pct(stats.dodge), stats.dodge, DODGE_CAP, pct(DODGE_CAP)));
   rows.push(statSheetRow('💚', 'Regeneração de HP por ronda', (Math.round(stats.regenPct * 10) / 10).toLocaleString('pt-PT') + '%', stats.regenPct, REGEN_CAP, REGEN_CAP + '%', 'var(--success)')); // v260: sem casas decimais a mais
   rows.push(statSheetRow('💫', 'Atordoar ao atacar (itens)', pct(stats.stunOnHitChance / 100), stats.stunOnHitChance / 100, STUN_ON_HIT_CAP, pct(STUN_ON_HIT_CAP)));
@@ -20360,7 +20384,8 @@ function applyTempBuffsToStats(stats, bs, enemyCategory) {
     if (sp.first && c && !(c.round > 0)) dmg *= (1 + sp.first);
     if (sp.exec && c && c.enemy && c.enemy.hp / Math.max(1, c.enemy.maxHp) < 0.30) dmg *= (1 + sp.exec);
   }
-  return Object.assign({}, stats, { dmg, crit, critDmgBonus, lifesteal });
+  const critRaw = (stats.critRaw != null ? stats.critRaw : (stats.crit || 0)) + (crit - (stats.crit || 0)); // v274
+  return Object.assign({}, stats, { dmg, crit, critRaw, critDmgBonus, lifesteal });
 }
 // v97: escudo de vida (Cura nível V) — absorve dano dos ataques do inimigo até se gastar.
 // v147: Escudo Mágico em combate. Enche-se no início de cada batalha; nas dungeons/catacumbas
@@ -20476,6 +20501,9 @@ function useNormalAttackAction() {
   c.profFirstDone = true;
   let dmg = pStats.dmg * elementAttackMult(p, c.enemy) * mythHitMult(c, p, pStats) * (myth.tempestade_presa ? 0.85 : 1); // v181: elemento · v184: Míticos
   if (crit && !c.enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
+  let superHit = false; // v274: ☄️ Supercrítico
+  if (c.enemy.critImmune) dmg *= critImmuneMult(pStats);
+  else if (crit && Math.random() < critSuperChance(pStats, 0, c.battleState.critBuffActive)) { dmg *= CRIT_SUPER_MULT; superHit = true; c._fxSuper = true; }
   const brutal = profTalent(p, 'lenhador') && Math.random() < 0.08; // v196: Golpe Brutal
   if (brutal) dmg *= 2;
   if ((c.isBoss || c.isMiniBoss) && pStats.dmgVsBossPct) dmg *= (1 + pStats.dmgVsBossPct);
@@ -20488,7 +20516,7 @@ function useNormalAttackAction() {
     const healLs = Math.min(pStats.hp - p.hp, Math.max(1, Math.round(final * pStats.lifesteal)));
     if (healLs > 0) { p.hp += healLs; addCombatLog({ text: `🩸 Roubo de vida: +${healLs} HP.`, cls: 'good' }); }
   }
-  addCombatLog({ text: `🗡️ Ataque normal: ${final} de dano${crit ? ' — crítico!' : ''}.`, cls: crit ? 'crit' : 'hit' });
+  addCombatLog({ text: `🗡️ Ataque normal: ${final} de dano${superHit ? ' — ☄️ Supercrítico!' : crit ? ' — crítico!' : '.'}`, cls: crit ? 'crit' : 'hit' });
   if (hawk && crit) addCombatLog({ text: '🏹 Olho de Falcão: o primeiro golpe é sempre crítico.', cls: 'good' });
   if (brutal) addCombatLog({ text: '🪓 Golpe Brutal: dano a dobrar!', cls: 'crit' });
   if (myth.tempestade_presa && c.enemy.hp > 0 && Math.random() < 0.25) { // v184: Tempestade Presa
@@ -22059,6 +22087,7 @@ function fxAfterCombatRender(c, p, pStats) {
     fxCombatExtras(c, p, pStats, true, txt);
     return;
   }
+  const fxSup = !!c._fxSuper; c._fxSuper = false; // v274
   const eDiff = (c._fxEnemyHp ?? c.enemy.hp) - c.enemy.hp;
   const pDiff = p.hp - (c._fxPlayerHp ?? p.hp);
   c._fxEnemyHp = c.enemy.hp; c._fxPlayerHp = p.hp;
@@ -22066,6 +22095,7 @@ function fxAfterCombatRender(c, p, pStats) {
   if (eDiff > 0) {
     fxHitNumber(glyph, eDiff, crit, elem); // v248
     fxCombo(c, true);
+    if (fxSup) { fxCallout('☄️ SUPERCRÍTICO!', 'gold'); fxVibrate([30, 30, 40]); } // v274
     if (crit) { fxShakeScreen(false); fxVibrate(25); fxBurst(glyph, '✦', 7, 40); if (fxFull()) { fxSpawn('fx-flash cbx-wf', 0, 0, '', 360); const sc = $('cb-scene'); if (sc) { sc.classList.remove('cbx-zoom'); void sc.offsetWidth; sc.classList.add('cbx-zoom'); } } }
     else if (fxFull()) fxBurst(glyph, '✦', 4, 34); // v241
   } else if (eDiff < 0) fxNumber(glyph, `+${-eDiff}`, 'heal');
@@ -22833,7 +22863,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v273</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v274</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
