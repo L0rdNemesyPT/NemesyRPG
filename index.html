@@ -803,7 +803,7 @@ function enemyNamesByCategory(cat) {
   const add = (n, c) => { if (n && (c || 'outro') === cat && !names.includes(n)) names.push(n); };
   REGIONS.forEach(r => { (r.monsters || []).forEach(m => add(m.name, m.category)); (r.bosses || []).forEach(b => add(b.name, b.category)); });
   DUNGEONS.forEach(d => { (d.monsters || []).forEach(m => add(m.name, m.category)); if (!d.monsters && (d.category || 'outro') === cat) add(`ondas da ${d.name}`, cat); dungeonMiniBosses(d).forEach(m => add(m.name, m.category)); add(d.bossName, d.bossCategory); });
-  CATACUMBAS.forEach(c => { (c.monsters || []).forEach(m => add(m.name, m.category)); dungeonMiniBosses(c).forEach(m => add(m.name, m.category)); add(c.bossName, c.bossCategory); if (c.bossPhase2) add(c.bossPhase2.name, c.bossPhase2.category); });
+  CATACUMBAS.forEach(c => { (c.monsters || []).forEach(m => add(m.name, m.category)); dungeonMiniBosses(c).forEach(m => add(m.name, m.category)); add(c.bossName, c.bossCategory); if (c.bossPhase2) add(c.bossPhase2.name, c.bossPhase2.category); (c.bossPhases || []).forEach(ph => add(ph.name, ph.category)); });
   (typeof TOWERS !== 'undefined' ? TOWERS : []).forEach(T => { (T.monsters || []).forEach(m => add(m.name, m.category)); [].concat(...Object.values(T.minis || {})).forEach(m => add(m.name, m.category)); if (T.boss) add(T.boss.name, T.boss.category); });
   return names;
 }
@@ -898,7 +898,14 @@ const MOB_SKILLS = {
   'Arqueiro Kyudo': { chance: 0.18, type: 'crit_guaranteed', icon: '🏹', label: 'Flecha Certeira' },
   'Kitsune Demoníaca': { chance: 0.18, type: 'burn', icon: '🦊', label: 'Fogo-Fátuo' },
   'Monge Sohei': { chance: 0.18, type: 'defbreak', icon: '🙏', label: 'Golpe de Naginata' },
-  'Alma Penada': { chance: 0.18, type: 'lifesteal', icon: '👻', label: 'Roubo de Alma' }
+  'Alma Penada': { chance: 0.18, type: 'lifesteal', icon: '👻', label: 'Roubo de Alma' },
+  // v275: Ninho do Dragão Ancestral
+  'Draconato Guerreiro': { chance: 0.18, type: 'crit_guaranteed', icon: '🦎', label: 'Lança Dracónica' },
+  'Wyvern Selvagem': { chance: 0.18, type: 'poison', icon: '🐉', label: 'Cauda Venenosa' },
+  'Cultista Dracónico': { chance: 0.18, type: 'defbreak', icon: '🧙', label: 'Maldição das Escamas' },
+  'Guardião de Escamas': { chance: 0.18, type: 'buff_def', icon: '🛡️', label: 'Muralha de Escamas' },
+  'Cria de Dragão': { chance: 0.18, type: 'burn', icon: '🐲', label: 'Faúlha' },
+  'Sacerdotisa das Cinzas': { chance: 0.18, type: 'lifesteal', icon: '🔥', label: 'Bênção das Cinzas' }
 };
 
 const DUNGEON_WAVE_SKILLS = {
@@ -956,7 +963,13 @@ const BOSS_SKILLS = {
   'Ronin Sem Mestre': { chance: BOSS_SKILL_CHANCE, type: 'bleed', icon: '🎭', label: 'Corte Sem Honra' },
   'General Oni': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '👹', label: 'Kanabō Esmagador' },
   'Xogum Demoníaco': { chance: BOSS_SKILL_CHANCE, type: 'crit_guaranteed', icon: '🏯', label: 'Iaijutsu do Xogum' },
-  'Xogum Demoníaco Desperto': { chance: BOSS_SKILL_CHANCE * 1.5, type: 'lifesteal', icon: '👹', label: 'Devorar Almas' }
+  'Xogum Demoníaco Desperto': { chance: BOSS_SKILL_CHANCE * 1.5, type: 'lifesteal', icon: '👹', label: 'Devorar Almas' },
+  // v275: Ninho do Dragão Ancestral
+  'Wyvern Matriarca': { chance: BOSS_SKILL_CHANCE, type: 'multi', icon: '🐉', label: 'Rajada de Asas' },
+  'Alto Sacerdote Dracónico': { chance: BOSS_SKILL_CHANCE, type: 'burn', icon: '🧙‍♂️', label: 'Chama Ritual' },
+  'Dragão Ancestral': { chance: BOSS_SKILL_CHANCE, type: 'heavy', icon: '🐉', label: 'Garra Ancestral' },
+  'Dragão Ancestral Incandescente': { chance: BOSS_SKILL_CHANCE * 1.5, type: 'burn', icon: '🔥', label: 'Sopro de Fogo' },
+  'Dragão Ancestral Enfurecido': { chance: BOSS_SKILL_CHANCE * 1.5, type: 'multi', icon: '🐲', label: 'Fúria Ancestral' }
 };
 
 const RARITIES = [
@@ -1520,8 +1533,48 @@ const CATACUMBAS = [
       { name: 'Kitsune Demoníaca', icon: '🦊', category: 'demonio' },
       { name: 'Monge Sohei', icon: '🙏', category: 'humano' },
       { name: 'Alma Penada', icon: '👻', category: 'morto_vivo' }
+    ] },
+  // v275: 🐉 Ninho do Dragão Ancestral T4 — fim de jogo (Nv. 200 e Paragon). 30 monstros + mini-chefes nas
+  // rondas 12 e 24 + chefe de 3 fases na ronda 33. Os monstros acompanham o Paragon do herói (como as regiões).
+  // Chave: chefes Nv. 200 no Divino ou em Paragon, Soberanos e Senhores da Espiral (andar 100+).
+  { key: 'dragao_t4', name: 'Ninho do Dragão Ancestral T4', icon: '🐉', keyName: 'Chave do Ninho do Dragão', scene: 'ninho',
+    monsterLvMin: 200, monsterLvMax: 215, monsterWaves: 30, bossLv: 220, minLv: 200, paragonScale: true,
+    keyMinLv: 200, keyEndgame: true,
+    miniBosses: [
+      { atWave: 12, name: 'Wyvern Matriarca', icon: '🐉', lv: 208, category: 'animal', mult: { hp: 1.7, dmg: 1.45, def: 1.2 } },
+      { atWave: 24, name: 'Alto Sacerdote Dracónico', icon: '🧙‍♂️', lv: 214, category: 'humano', mult: { hp: 1.9, dmg: 1.55, def: 1.25 } }
+    ],
+    bossName: 'Dragão Ancestral', bossIcon: '🐉', bossCategory: 'animal',
+    bossPhases: [
+      { atPct: 0.66, name: 'Dragão Ancestral Incandescente', icon: '🔥', category: 'outro', mult: { dmg: 1.2, def: 1.1 },
+        msg: 'as escamas do {old} ficam em brasa! Torna-se {icon} {name} — mais dano e defesa, sopra fogo e livra-se de todos os efeitos.' },
+      { atPct: 0.33, name: 'Dragão Ancestral Enfurecido', icon: '🐲', category: 'demonio', mult: { dmg: 1.3, def: 0.85 },
+        msg: 'o {old} solta um rugido ancestral! Torna-se {icon} {name} — muito mais dano, menos defesa, e livra-se de todos os efeitos.' }
+    ],
+    noEnrage: true, // as 3 fases substituem a Fúria normal dos 30%
+    bossPet: 'dragaoancestral',
+    // Simulado com os perfis reais (Nv. 200 · P1): os monstros caem em 1–2 golpes, o chefe aguenta ~10–15 ações
+    // e passa pelas 3 fases. O mais forte ganha quase sempre; o 2.º ~75% das vezes.
+    waveExtraMult: { hp: 6, dmg: 2, def: 2.5 },
+    bossExtraMult: { hp: 12, dmg: 1.0, def: 3 },
+    divinoChance: 0.08,
+    rewards: { xpMult: 2, goldMult: 2, equipChance: 1, equipLv: 200, pedrasChance: 0.30, skillBookChance: 0.35, nephalemChance: 0.15, smithBookChance: 0.03, coreChance: 0.10, ringRare: true },
+    monsters: [
+      { name: 'Draconato Guerreiro', icon: '🦎', category: 'outro' },
+      { name: 'Wyvern Selvagem', icon: '🐉', category: 'animal' },
+      { name: 'Cultista Dracónico', icon: '🧙', category: 'humano' },
+      { name: 'Guardião de Escamas', icon: '🛡️', category: 'outro' },
+      { name: 'Cria de Dragão', icon: '🐲', category: 'animal' },
+      { name: 'Sacerdotisa das Cinzas', icon: '🔥', category: 'humano' }
     ] }
 ];
+// v275: chave da T4 — fontes de fim de jogo (ver CATACUMBAS.dragao_t4).
+const CAT_T4_KEY_SOB = 0.05, CAT_T4_KEY_SPIRAL = 0.08, CAT_T4_KEY_SPIRAL_FLOOR = 100;
+function grantCatKey(p, key, drops) {
+  const cat = CATACUMBAS.find(x => x.key === key); if (!cat) return;
+  p.catacumbKeys = p.catacumbKeys || {}; p.catacumbKeys[key] = (p.catacumbKeys[key] || 0) + 1;
+  if (drops) drops.push(`🗝️ Item raro: ${cat.keyName}!`);
+}
 
 // ============================================================
 // 🗼 TORRES (v83) — subida andar a andar, escolhendo a porta em cada andar (como um
@@ -2802,6 +2855,7 @@ function spiralGrantMarco(p, f, drops, lv, slim) {
   if (m.divino && Math.random() < m.divino) { const ds = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const d = generateItem(ds, lv, null, false, DIVINO_RARITY); p.inventory.push(d); drops.push(`💠✨ ITEM DIVINO! ${d.name}!`); }
   if (m.shards) { p.astralShards = (p.astralShards || 0) + m.shards; drops.push(`✴️ +${m.shards} Estilhaço${m.shards > 1 ? 's' : ''} Astra${m.shards > 1 ? 'is' : 'l'} (tens ${p.astralShards}/${ASTRAL_FORGE_COST})`); }
   if (!slim) ringSpiralDrop(p, f, drops); // v267: 💍
+  if (!slim && f >= CAT_T4_KEY_SPIRAL_FLOOR && Math.random() < CAT_T4_KEY_SPIRAL) grantCatKey(p, 'dragao_t4', drops); // v275
   if (m.astral && Math.random() < m.astral) { const as = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)]; const a = generateItem(as, lv, null, false, ASTRAL_RARITY); p.inventory.push(a); drops.push(`💎✨ ITEM ASTRAL! ${a.name}!`); }
 }
 function spiralStartFromCheckpoint(p, t, cp) {
@@ -3525,6 +3579,7 @@ function spiralWikiHtml(T) {
 // Nº total de combates de uma catacumba: monstros + mini-chefes + chefe final.
 function catacumbaTotalWaves(cat) { return cat.monsterWaves + dungeonMiniBosses(cat).length + 1; }
 function catacumbaKeyText(cat) {
+  if (cat.keyEndgame) return `cai de chefes de nível ${cat.keyMinLv}+ na dificuldade 💠 Divino ou em Paragon (${Math.round(CATACUMB_KEY_DROP_CHANCE * 100)}%), dos 👑 Soberanos (${Math.round(CAT_T4_KEY_SOB * 100)}%) e dos Senhores da 🌀 Espiral do andar ${CAT_T4_KEY_SPIRAL_FLOOR}+ (${Math.round(CAT_T4_KEY_SPIRAL * 100)}%)`;
   return cat.keyMaxLv ? `cai de chefes de nível ${cat.keyMinLv} a ${cat.keyMaxLv}` : `cai de chefes de nível ${cat.keyMinLv || 80}+`;
 }
 function catacumbaRewardsText(cat) {
@@ -3535,6 +3590,9 @@ function catacumbaRewardsText(cat) {
   if (rw.skillBookChance) parts.push(`📖 Livro de Habilidades (${pc(rw.skillBookChance)})`);
   if (rw.nephalemChance) parts.push(`💎 Pedra Nephalen (${pc(rw.nephalemChance)})`);
   if (cat.divinoChance) parts.push(`💠 item Divino Nv. ${cat.bossLv} (${pc(cat.divinoChance)})`);
+  if (rw.coreChance) parts.push(`✨ Pedra do Núcleo (${pc(rw.coreChance)})`);
+  if (rw.ringRare) parts.push('💍 Anel Lendário ou melhor (garantido)');
+  if (cat.paragonScale) parts.push('👑 no Paragon: monstros mais fortes, +25% ouro e +1% Divino por nível de Paragon');
   if (rw.smithBookChance) parts.push(`📕 Livro do Ferreiro (${pc(rw.smithBookChance)})`);
   if (cat.bossPet && PET_DEFS[cat.bossPet]) parts.push(`🐾 mascote ${PET_DEFS[cat.bossPet].icon} ${PET_DEFS[cat.bossPet].name} (~${pc(PET_DROP_CHANCE)}, uma vez)`);
   return parts.join(' · ');
@@ -3712,7 +3770,8 @@ const PET_DEFS = {
   kitsune:     { name: 'Kitsune',      icon: '🦊', role: 'Ilusão',      mult: { hp: 0.6, def: 0.3, crit: 0.9, dmg: 1.0, dodge: 0.6 } }, // v166: Templo das Almas
   abobora:     { name: 'Abobrinha',    icon: '🎃', role: 'Travessa',    mult: { hp: 1.0, def: 0.4, crit: 0.8, dmg: 0.8, dodge: 0.4 } }, // v174: loja da Noite das Abóboras
   tubarao:     { name: 'Tubarão Abissal', icon: '🦈', role: 'Predador', mult: { hp: 0.7, def: 0.3, crit: 1.2, dmg: 1.1 } }, // v201: Reino Submerso
-  pinguim:     { name: 'Pinguim',      icon: '🐧', role: 'Gelado',      mult: { hp: 1.2, def: 0.8, crit: 0.5, dmg: 0.6, dodge: 0.5 } } // v224: loja do Natal Gelado
+  pinguim:     { name: 'Pinguim',      icon: '🐧', role: 'Gelado',      mult: { hp: 1.2, def: 0.8, crit: 0.5, dmg: 0.6, dodge: 0.5 } }, // v224: loja do Natal Gelado
+  dragaoancestral: { name: 'Dragonete Ancestral', icon: '🐉', role: 'Ancestral', mult: { hp: 1.0, def: 0.7, crit: 0.6, dmg: 1.0 } } // v275: Ninho do Dragão Ancestral T4
 };
 
 // Bónus que um mascote dá ao herói (só quando está ativo): depende do nível, de ser
@@ -5630,6 +5689,7 @@ function finishSoberano() {
   if (Math.random() < r.nephalem) { p.nephalemStones = (p.nephalemStones || 0) + 1; drops.push('💎 Pedra Nephalen!'); }
   { const cs = rollCoreStoneDrop(p, B.lv, r.core); if (cs) drops.push(cs); }
   ringSoberanoDrop(p, ti, drops, B.key); // v267: 💍 · v269: Míticos
+  if (Math.random() < CAT_T4_KEY_SOB) grantCatKey(p, 'dragao_t4', drops); // v275
   if (Math.random() < r.plus) {
     const isF = Math.random() < 0.5;
     if (isF) p.scrolls.feiticoPlus = (p.scrolls.feiticoPlus || 0) + 1; else p.scrolls.reforcoPlus = (p.scrolls.reforcoPlus || 0) + 1;
@@ -8371,7 +8431,7 @@ const ADMIN_ADD_KEYS = [
   ['profession_book', '📗 Livro das Profissões'], ['amnesia_book', '📘 Livro da Amnésia'], ['altar_charge', '🔥 Tentativa no Altar'],
   ['potion_hp', '🧪 Poção de HP'], ['potion_hp2', '⚗️ Poção de HP Maior'], ['potion_def', '🔵 Poção da Defesa'],
   ['potion_atk', '🔴 Poção do Ataque'], ['potion_fortune', '🍀 Poção da Fortuna'],
-  ['key_demonio_t1', '🗝️ Chave da Catacumba do Demônio'], ['key_morte_t2', '🗝️ Chave das Catacumbas da Morte'], ['key_templo_almas', '🗝️ Chave do Templo das Almas'],
+  ['key_demonio_t1', '🗝️ Chave da Catacumba do Demônio'], ['key_morte_t2', '🗝️ Chave das Catacumbas da Morte'], ['key_templo_almas', '🗝️ Chave do Templo das Almas'], ['key_dragao_t4', '🗝️ Chave do Ninho do Dragão'],
   ['astral_shards', '✴️ Estilhaço Astral'], ['soberano_heart', '❤️‍🔥 Coração do Soberano'],
   ['po_estelar', '✨ Pó Estelar'], ['pearl_branca', '⚪ Pérola Branca'], ['pearl_azul', '🔵 Pérola Azul'], ['pearl_vermelha', '🔴 Pérola Vermelha'], ['pearl_verde', '🟢 Pérola Verde']
 ];
@@ -9460,7 +9520,8 @@ function renderWikiBody() {
           <p class="tiny" style="margin-top:6px;">${cat.monsterWaves} monstros (Nv.${cat.monsterLvMin}–${cat.monsterLvMax})${dungeonMiniBosses(cat).map(m => ` · ronda ${m.atWave}: mini-chefe ${m.icon} ${m.name} (Nv.${m.lv})`).join('')} · ronda ${catacumbaTotalWaves(cat)}: chefe final ${cat.bossIcon} ${cat.bossName} (Nv.${cat.bossLv})</p>
           <p class="tiny" style="margin-top:6px; color:var(--muted);">Monstros: ${cat.monsters.map(m => `${m.icon} ${m.name}`).join(' · ')}</p>
           ${cat.bossPhase2 ? `<p class="tiny" style="margin-top:6px; color:#ff8a7a;">💢 Chefe de 2 fases: o ${cat.bossName} (${CATEGORY_NAMES[cat.bossCategory]}) aos ${Math.round(cat.bossPhase2.atPct * 100)}% de HP torna-se ${cat.bossPhase2.icon} ${cat.bossPhase2.name} (${CATEGORY_NAMES[cat.bossPhase2.category]}): +${Math.round(((cat.bossPhase2.mult.dmg || 1) - 1) * 100)}% dano, +${Math.round(((cat.bossPhase2.mult.def || 1) - 1) * 100)}% defesa e livra-se de venenos, sangramentos e outros efeitos.</p>` : ''}
-          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🗝️ ${cat.keyName}: ${catacumbaKeyText(cat)}, com ${Math.round(CATACUMB_KEY_DROP_CHANCE * 1000) / 10}% de hipótese por chefe (a sorte no drop de itens soma-se a isto).</p>
+          ${cat.bossPhases ? `<p class="tiny" style="margin-top:6px; color:#ff8a7a;">💢 Chefe de ${cat.bossPhases.length + 1} fases: o ${cat.bossName} (${CATEGORY_NAMES[cat.bossCategory]})${cat.bossPhases.map(ph => ` aos ${Math.round(ph.atPct * 100)}% de HP torna-se ${ph.icon} ${ph.name} (${CATEGORY_NAMES[ph.category]}: ${ph.mult.dmg > 1 ? '+' : ''}${Math.round((ph.mult.dmg - 1) * 100)}% dano, ${ph.mult.def >= 1 ? '+' : ''}${Math.round((ph.mult.def - 1) * 100)}% defesa)`).join(';')}. Em cada fase livra-se de todos os efeitos negativos${cat.noEnrage ? ' (não tem a Fúria normal dos 30%)' : ''}.</p>` : ''}
+          <p class="tiny" style="margin-top:6px; color:var(--gold-bright);">🗝️ ${cat.keyName}: ${catacumbaKeyText(cat)}${cat.keyEndgame ? '' : `, com ${Math.round(CATACUMB_KEY_DROP_CHANCE * 1000) / 10}% de hipótese por chefe`} (a sorte no drop de itens soma-se a isto).</p>
           <p class="tiny" style="margin-top:6px;">🎁 Recompensas: ${catacumbaRewardsText(cat)}.</p>
         </div>
       `).join('')}
@@ -19069,13 +19130,14 @@ function renderMapaBody(tile) {
           <span class="pill" style="${hasKey ? 'color:var(--gold-bright);border-color:var(--gold);' : ''}">🗝️ ${keys}</span>
         </div>
         <div class="boss-line">${nxCreature(cat.bossName, cat.bossIcon)} ${cat.bossName} — muito mais forte que um chefe normal deste nível${cleared ? ' · já derrotado' : ''}</div>
-        ${cat.bossPhase2 ? `<div class="tiny" style="margin-top:4px; color:#ff8a7a;">💢 Fase 2 aos ${Math.round(cat.bossPhase2.atPct * 100)}% de HP: ${nxCreature(cat.bossPhase2.name, cat.bossPhase2.icon)} ${cat.bossPhase2.name} (${CATEGORY_NAMES[cat.bossPhase2.category]})</div>` : ''}
+        ${cat.paragonScale ? `<div class="tiny" style="margin-top:4px; color:var(--gold-bright);">👑 Fim de jogo (Nv. ${cat.minLv}+). ${paragonOf(p) ? `Estás em Paragon ${paragonOf(p)}: monstros ×${String(Math.round(paragonPowerMult(MAX_LEVEL, paragonOf(p)) * 100) / 100).replace('.', ',')} mais fortes, +${Math.round(PARAGON_GOLD_PER_P * paragonOf(p) * 100)}% ouro e +${paragonOf(p)}% Divino.` : 'Em Paragon os monstros ficam mais fortes, mas as recompensas também sobem.'}</div>` : ''}
+        ${catBossPhases(cat).map((ph, i) => `<div class="tiny" style="margin-top:4px; color:#ff8a7a;">💢 Fase ${i + 2} aos ${Math.round(ph.atPct * 100)}% de HP: ${nxCreature(ph.name, ph.icon)} ${ph.name} (${CATEGORY_NAMES[ph.category]})</div>`).join('')}
         ${dungeonMiniBosses(cat).map(m => `<div class="tiny muted" style="margin-top:4px;">${nxCreature(m.name, m.icon)} Mini-chefe (ronda ${m.atWave}): ${m.name}</div>`).join('')}
         <div class="monster-strip">${cat.monsters.map(m => `<span class="monster-chip" title="${m.name}">${nxCreature(m.name, m.icon)}</span>`).join('')}</div>
         <div class="tiny" style="margin-top:8px;">🎁 ${catacumbaRewardsText(cat)}</div>
         ${hasKey
           ? `<button class="btn small danger" style="margin-top:10px;" data-enter-catacumba="${cat.key}">🗝️ Usar chave e entrar</button>`
-          : `<p class="tiny muted" style="margin-top:10px;">Precisas de uma ${cat.keyName}. ${catacumbaKeyText(cat).replace(/^cai/, 'Cai')}, com ${Math.round(CATACUMB_KEY_DROP_CHANCE * 100)}% de hipótese.</p>`}
+          : `<p class="tiny muted" style="margin-top:10px;">Precisas de uma ${cat.keyName}. ${catacumbaKeyText(cat).replace(/^cai/, 'Cai')}${cat.keyEndgame ? '' : `, com ${Math.round(CATACUMB_KEY_DROP_CHANCE * 100)}% de hipótese`}.</p>`}
       </div>
     `;
     els('[data-enter-catacumba]').forEach(b => b.addEventListener('click', () => startCatacumba(b.dataset.enterCatacumba)));
@@ -20290,11 +20352,12 @@ function startCatacumba(key) {
   const cat = CATACUMBAS.find(x => x.key === key);
   if (!cat) return;
   if (!((p.catacumbKeys && p.catacumbKeys[key]) > 0)) { sfx.error(); toast(`Precisas de uma ${cat.keyName}.`); return; }
+  if (cat.minLv && heroLv(p) < cat.minLv && !paragonOf(p)) { sfx.error(); toast(`${cat.name} só abre no nível ${cat.minLv}.`); return; } // v275
   sfx.click();
   p.catacumbKeys[key]--;
   saveGame();
   App.combat = { _inv0: autoSellInvIds(), // v263
-    kind: 'catacumba', isDungeon: true, isCatacumba: true, catacumbaDef: cat, waveIndex: 0, totalWaves: catacumbaTotalWaves(cat),
+    kind: 'catacumba', isDungeon: true, isCatacumba: true, catacumbaDef: cat, waveIndex: 0, totalWaves: catacumbaTotalWaves(cat), paragon: cat.paragonScale ? paragonOf(p) : 0, // v275
     battleState: {}, cooldowns: {}, log: [], eventApplied: null, ended: false
   };
   resetCombatScreenChrome();
@@ -20342,6 +20405,10 @@ function spawnCatacumbaWave() {
     const m = cat.monsters[mobIdx % cat.monsters.length];
     name = `${m.name} · ${cat.name} (${mobIdx + 1}/${cat.monsterWaves})`; icon = m.icon;
     monsterName = m.name; category = m.category || 'outro';
+  }
+  if (cat.paragonScale && c.paragon) { // v275: acompanha o Paragon do herói (como as regiões)
+    const k = paragonPowerMult(MAX_LEVEL, c.paragon);
+    enemy.hp = Math.round(enemy.hp * k); enemy.maxHp = enemy.hp; enemy.dmg = Math.max(1, Math.round(enemy.dmg * k)); enemy.def = Math.round(enemy.def * k);
   }
   c.enemy = Object.assign(enemy, { element: null, critImmune: false, category });
   c.level = lvl; c.isBoss = isLastWave; c.isMiniBoss = !!mini;
@@ -20938,11 +21005,13 @@ function tickPlayerDots(c, p) {
 }
 // v166: chefes de 2 fases (Templo das Almas). Ao descer dos X% de HP, o chefe muda de forma:
 // nome/ícone/raça novos, mais dano e defesa, e limpa os efeitos negativos que tinha.
+function catBossPhases(cat) { return cat ? (cat.bossPhases || (cat.bossPhase2 ? [Object.assign({ msg: 'o {old} liberta o demónio interior! Torna-se {icon} {name} — mais dano e defesa, e livra-se de todos os efeitos.' }, cat.bossPhase2)] : [])) : []; }
+// v275: generalizado para N fases (o Dragão Ancestral tem 3). c.bossPhaseN = fases já ativadas.
 function bossPhaseCheck(c) {
   const cat = c && c.isCatacumba && c.isBoss ? c.catacumbaDef : null;
-  const ph = cat && cat.bossPhase2;
-  if (!ph || c.bossPhase2 || c.enemy.hp <= 0 || c.enemy.hp > c.enemy.maxHp * (ph.atPct || 0.5)) return false;
-  c.bossPhase2 = true;
+  const phases = catBossPhases(cat), n = c ? (c.bossPhaseN || 0) : 0, ph = phases[n];
+  if (!ph || c.enemy.hp <= 0 || c.enemy.hp > c.enemy.maxHp * (ph.atPct || 0.5)) return false;
+  c.bossPhaseN = n + 1; c.bossPhase2 = true;
   const m = ph.mult || {};
   c.enemy.dmg = Math.round(c.enemy.dmg * (m.dmg || 1));
   c.enemy.def = Math.round(c.enemy.def * (m.def || 1));
@@ -20950,7 +21019,8 @@ function bossPhaseCheck(c) {
   const old = c.name;
   c.name = ph.name; c.icon = ph.icon;
   if (c.battleState) { c.battleState.enemyStatus = []; c.battleState.enemyDefDebuff = null; c.battleState.enemyStunned = false; }
-  addCombatLog({ text: `💢 ${old} liberta o demónio interior! Torna-se ${ph.icon} ${ph.name} — mais dano e defesa, e livra-se de todos os efeitos.`, cls: 'hit' });
+  const txt = (ph.msg || '').replace('{old}', old).replace('{icon}', ph.icon).replace('{name}', ph.name);
+  addCombatLog({ text: `💢 ${phases.length > 1 ? `Fase ${n + 2}/${phases.length + 1}: ` : ''}${txt.charAt(0).toUpperCase() + txt.slice(1)}`, cls: 'hit' });
   try { sfx.evolve(); } catch (e) {}
   const g = document.getElementById('cb-enemy-glyph');
   if (g) { g.classList.remove('fx-phase2'); void g.offsetWidth; g.classList.add('fx-phase2'); }
@@ -20983,7 +21053,7 @@ function resolveEnemyTurnCore(opts) {
 
   // Fúria: ao cair abaixo de 30% de HP, o boss entra em fúria pela primeira vez
   // e o dano dele sobe permanentemente — combates deixam de "acalmar" no fim.
-  if (isBossFight && !c.isSoberano && !c.battleState.bossEnraged && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.3) {
+  if (isBossFight && !c.isSoberano && !(c.isBoss && c.isCatacumba && c.catacumbaDef && c.catacumbaDef.noEnrage) && !c.battleState.bossEnraged && c.enemy.hp > 0 && c.enemy.hp <= c.enemy.maxHp * 0.3) {
     c.battleState.bossEnraged = true;
     c.enemy.dmg = Math.round(c.enemy.dmg * 1.35);
     addCombatLog({ text: `😡 ${cName} entra em fúria! O dano dele aumenta drasticamente.`, cls: 'hit' });
@@ -21459,6 +21529,7 @@ function wildRewardRoll(c) {
     CATACUMBAS.forEach(cat => {
       // Cada catacumba tem o seu intervalo de níveis de chefe que deixam cair a chave.
       if (c.level < (cat.keyMinLv || 80) || (cat.keyMaxLv && c.level > cat.keyMaxLv)) return;
+      if (cat.keyEndgame && !(c.difficulty === 'divino' || c.paragon)) return; // v275: T4 só no Divino ou em Paragon
       if (Math.random() < CATACUMB_KEY_DROP_CHANCE + luck) {
         p.catacumbKeys = p.catacumbKeys || {};
         p.catacumbKeys[cat.key] = (p.catacumbKeys[cat.key] || 0) + 1;
@@ -21622,7 +21693,7 @@ function finishCatacumba() {
   // Recompensas de cada catacumba em cat.rewards (a T1 dá ~3,5× um chefe normal do mesmo nível).
   const rw = cat.rewards || {};
   const xpGain = pgXp(Math.round((35 + cat.bossLv * 4.5) * (rw.xpMult || 1) * (1 + battleXpBonus(c))));
-  const goldGain = Math.round((40 + cat.bossLv * 6) * (rw.goldMult || 1) * (1 + (effectiveStats(p).goldPct || 0)));
+  const goldGain = Math.round((40 + cat.bossLv * 6) * (rw.goldMult || 1) * (1 + (effectiveStats(p).goldPct || 0)) * (1 + PARAGON_GOLD_PER_P * (c.paragon || 0)));
   p.gold += goldGain;
   grantXp(xpGain);
   p.stats.wins++;
@@ -21650,13 +21721,14 @@ function finishCatacumba() {
     drops.push('📕 Livro do Ferreiro! (+5% de sucesso numa melhoria no Ferreiro)');
   }
   // Item Divino: muito raro (cat.divinoChance), só possível no chefe final de uma catacumba.
-  if (cat.divinoChance && Math.random() < cat.divinoChance) {
+  if (cat.divinoChance && Math.random() < cat.divinoChance + 0.01 * (c.paragon || 0)) {
     const divSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
     const divineItem = generateItem(divSlot, cat.bossLv, null, false, DIVINO_RARITY);
     p.inventory.push(divineItem);
     drops.push(`💠✨ ITEM DIVINO! ${divineItem.name}!`);
   }
-  { const cs = rollCoreStoneDrop(p, cat.bossLv, CORE_STONE_DUNGEON_CHANCE); if (cs) drops.push(cs); }
+  { const cs = rollCoreStoneDrop(p, cat.bossLv, rw.coreChance || CORE_STONE_DUNGEON_CHANCE); if (cs) drops.push(cs); }
+  if (rw.ringRare) grantRing(p, newRing(ringPickRarity({ lendario: 45, unico: 32, demoniaco: 15, divino: 8 })), drops); // v275: 💍 garantido
   // v166: mascote do chefe (uma vez por tipo).
   if (cat.bossPet && PET_DEFS[cat.bossPet] && !(p.pets || []).find(pp => pp.type === cat.bossPet)
     && Math.random() < PET_DROP_CHANCE + (effectiveStats(p).dropLuckBonus || 0)) {
@@ -22311,11 +22383,11 @@ function fxBossIntro(c) {
   if (g) { g.classList.remove('fx-enter', 'fx-boss-in'); void g.offsetWidth; g.classList.add('fx-boss-in'); }
   setTimeout(() => { fxShakeScreen(true); fxVibrate([50, 40, 30]); }, 380);
 }
-function fxPhase2Banner(name) {
+function fxPhase2Banner(name, n) {
   if (!fxOn()) return;
   const s = document.getElementById('screen-combat'); if (!s) return;
   const r = s.getBoundingClientRect();
-  fxCallout(String(name || '').toUpperCase() + ' · FASE 2', 'fury big', 1500); // v249: na mesma fila das outras palavras
+  fxCallout(String(name || '').toUpperCase() + ' · FASE ' + (n || 2), 'fury big', 1500); // v249: na mesma fila das outras palavras
   fxShakeScreen(true); fxVibrate([40, 50, 80]);
 }
 // Chamado no fim de fxAfterCombatRender.
@@ -22326,7 +22398,8 @@ function fxCombatExtras(c, p, pStats, isNew, txt) {
     if (c.isBoss && !c._fxIntro) { c._fxIntro = true; fxBossIntro(c); }
   }
   const ph2 = !!(c.bossPhase2 || c.soberanoStage2);
-  if (ph2 && !c._fxPh2) { c._fxPh2 = true; fxPhase2Banner(c.name); }
+  const phN = c.soberanoStage2 ? 1 : (c.bossPhaseN || (c.bossPhase2 ? 1 : 0)); // v275: um aviso por fase
+  if (ph2 && (c._fxPh2 || 0) < phN) { c._fxPh2 = phN; fxPhase2Banner(c.name, phN + 1); }
   s.classList.toggle('fx-phase2-screen', fxOn() && ph2 && !c.ended);
   s.classList.toggle('fx-lowhp', fxOn() && !c.ended && p.hp > 0 && p.hp < pStats.hp * 0.25);
   if (!isNew && /Esquivaste/.test(txt || '')) {
@@ -22423,6 +22496,7 @@ const SCENES = {
   torre:         { sky: ['#030204', '#0a0609', '#140a10'], sun: null, layers: [['arches', '#3a2833', 0.20, 0], ['floor', '#1a1117', 0.80, 0]], fx: 'torches' },
   arena:         { sky: ['#0a0503', '#2a120a', '#6a2a12'], sun: null, layers: [['arches', '#3a2618', 0.22, 0], ['floor', '#24170e', 0.80, 0]], fx: 'torches' }, // v223
   chama:         { sky: ['#0a0403', '#2e0f08', '#7a2a10'], sun: null, layers: [['arches', '#3a1a10', 0.22, 0], ['floor', '#1e0e08', 0.80, 0]], fx: 'embers' }, // v223: a Chama Imortal usa a sua cena
+  ninho:         { sky: ['#0a0302', '#3a0d06', '#b8461a'], sun: '#ff9a3a', layers: [['peaks', '#2a0c08', 0.42, 80], ['volcano', '#1c0805', 0.56, 0], ['peaks', '#0e0403', 0.78, 30]], fx: 'embers' }, // v275: Ninho do Dragão
   cripta:        { sky: ['#010302', '#040a07', '#08130e'], sun: null, layers: [['arches', '#24362e', 0.25, 0], ['floor', '#101a15', 0.80, 0]], fx: 'candles' },
   eclipse:       { sky: ['#05030a', '#1c1026', '#4a2a1a'], sun: null, eclipse: true, layers: [['ruins', '#2a1d2e', 0.50, 0], ['hills', '#140c18', 0.80, 10]], fx: 'motes' },
   natal:         { sky: ['#050a14', '#0f2238', '#3d6a8f'], sun: '#dff1ff', layers: [['hills', '#1a2c40', 0.55, 16], ['pines', '#0e1c2a', 0.70, 0], ['hills', '#dfeaf2', 0.86, 6]], fx: 'snow' }, // v224
@@ -22556,7 +22630,7 @@ function sceneLayer(type, color, base, amp, R, W, H) {
 }
 const sceneCache = {};
 // v204: fundos pintados (icons/cena-<chave>.webp); sem imagem, fica o cenário desenhado em código.
-const SCENE_IMG = ['ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo', 'chama', 'arena', 'pactos', 'espiral', 'expedicao'];
+const SCENE_IMG = ['ninho', 'ymir', 'soberano', 'planicies', 'montanhas', 'tundra', 'planalto', 'corrompidas', 'florestanegra', 'pinaculo', 'submerso', 'cripta', 'torre', 'eclipse', 'templo', 'chama', 'arena', 'pactos', 'espiral', 'expedicao'];
 function sceneArt(key) {
   if (SCENE_IMG.includes(key)) return `<div class="scene-img" style="background-image:url(icons/cena-${key}.webp?v=${NX_ICON_REV['cena-' + key] || NX_ICON_VER});"></div>`;
   return sceneSvg(key);
@@ -22657,7 +22731,7 @@ function renderCombat() {
   c._lastEnemyHp = c.enemy.hp;
   $('cb-enemy-name').textContent = hordeLabel(c);
   renderHordeRow(c);
-  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.paragon ? ' · P' + c.paragon : '') + (c.ymir && c.ymir.phase < 3 ? ` · 🧊 ${c.ymir.layers}/${YMIR.LAYERS}` : '') + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.ymir && c.ymir.phase >= 3 ? ' · Soberano · Fase 3' : c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ' · Fase 2' : ' · Chefe') : '');
+  $('cb-enemy-lv').textContent = 'Nv. ' + c.level + (c.paragon ? ' · P' + c.paragon : '') + (c.ymir && c.ymir.phase < 3 ? ` · 🧊 ${c.ymir.layers}/${YMIR.LAYERS}` : '') + (c.isObelisk ? (c.horde ? ` · Onda ${c.ob.next}/${OB.WAVES.length}` : ` · Obelisco${c.ob.fury ? ' · Fúria' : ''}`) : '') + (c.isMiniBoss ? ' · Mini-Chefe' : c.isSoberano ? (c.ymir && c.ymir.phase >= 3 ? ' · Soberano · Fase 3' : c.soberanoStage2 ? ' · Soberano · Fase 2' : ' · Soberano') : c.isBoss ? (c.bossPhase2 ? ` · Fase ${(c.bossPhaseN || 1) + 1}` : ' · Chefe') : '');
   // Categoria do inimigo (Animal/Humano/Outro) — mostrada para o jogador perceber
   // na hora porque é que os bónus "Contra Animais"/"Contra Humanos" procam ou não.
   const catInfo = CATEGORY_INFO[c.enemy.category] || CATEGORY_INFO.outro;
@@ -22863,7 +22937,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v274</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v275</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -24070,7 +24144,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["primordial-espada","primordial-cajado","primordial-arco","nucleo-rubi","nucleo-granada","nucleo-harmonia","anel-ouroboros","anel-abismo","anel-moribundo","anel-rubi","anel-esmeralda","anel-safira","anel-ametista","anel-topazio","astral-anel","slot-anel","dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["chefe-dragao-ancestral-incandescente","pet-dragaoancestral","chefe-dragao-ancestral","monstro-sacerdotisa-das-cinzas","monstro-cria-de-dragao","dungeon-dragao-t4","monstro-guardiao-de-escamas","monstro-cultista-draconico","monstro-wyvern-selvagem","monstro-draconato-guerreiro","chefe-alto-sacerdote-draconico","chefe-wyvern-matriarca","chefe-dragao-ancestral-enfurecido","primordial-espada","primordial-cajado","primordial-arco","nucleo-rubi","nucleo-granada","nucleo-harmonia","anel-ouroboros","anel-abismo","anel-moribundo","anel-rubi","anel-esmeralda","anel-safira","anel-ametista","anel-topazio","astral-anel","slot-anel","dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 187;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
