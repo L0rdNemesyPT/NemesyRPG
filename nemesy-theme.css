@@ -4830,3 +4830,13 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .sm-rev-r{font-size:13px;margin:4px 0 6px;}
 @keyframes smShake{0%,100%{transform:rotate(0)}25%{transform:rotate(-8deg)}75%{transform:rotate(8deg)}}
 @keyframes smPop{0%{transform:scale(.2);opacity:0}100%{transform:scale(1);opacity:1}}
+/* v278 🏕️ Acampamento */
+.camp{text-align:center;}
+.camp-art{width:100%;max-width:300px;margin:0 auto 10px;border-radius:16px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.45),0 0 0 1px rgba(242,201,76,.25);font-size:64px;}
+.camp-art img{display:block;width:100%;height:auto;}
+.camp h3{margin:4px 0 6px;}
+.camp-lead{font-size:14px;margin-bottom:10px;}
+.camp-max{color:#F2C94C;font-size:12px;}
+.camp-rw{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:8px;}
+.camp-rw span{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;background:rgba(242,201,76,.10);border:1px solid rgba(242,201,76,.30);font-size:13px;}
+.camp-rw .nx-k,.camp-rw .nx-inline{width:20px;height:20px;}
