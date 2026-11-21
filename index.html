@@ -5207,22 +5207,23 @@ function effectiveStats(player) {
   // v184: Míticos equipados
   const myth = mythicSet(player);
   { let dk = 1, hk = 1;
-    if (myth.coracao_vidro) { dk *= 1.35; hk *= 0.75; }
+    const F = k => mythF(myth, k);
+    if (myth.coracao_vidro) { dk *= 1.35; hk *= 1 - 0.25 * F('coracao_vidro'); }
     if (myth.pacto_sangue) dk *= 1.40;
-    if (myth.mil_feridas) dk *= 0.80;
-    if (myth.tridente_mares) dk *= 0.90; // v201
-    if (myth.coroa_afogada) hk *= 0.85; // v201
-    if (myth.bastiao_martir) dk *= 0.85;
+    if (myth.mil_feridas) dk *= 1 - 0.20 * F('mil_feridas');
+    if (myth.tridente_mares) dk *= 1 - 0.10 * F('tridente_mares'); // v201
+    if (myth.coroa_afogada) hk *= 1 - 0.15 * F('coroa_afogada'); // v201
+    if (myth.bastiao_martir) dk *= 1 - 0.15 * F('bastiao_martir');
     if (myth.coracao_tita) hk *= 1.40;
-    if (myth.capa_sombras) hk *= 0.90;
-    if (myth.ampulheta) hk *= 0.85;
+    if (myth.capa_sombras) hk *= 1 - 0.10 * F('capa_sombras');
+    if (myth.ampulheta) hk *= 1 - 0.15 * F('ampulheta');
     if (dk !== 1) { dmg = Math.round(dmg * dk); dmgMin = Math.max(1, Math.round(dmgMin * dk)); dmgMax = Math.max(dmgMin, Math.round(dmgMax * dk)); }
     if (hk !== 1) hp = Math.round(hp * hk);
-    if (myth.coroa_avarento) def = Math.round(def * 0.8);
-    if (myth.olho_ciclope) crit *= 0.5;
+    if (myth.coroa_avarento) def = Math.round(def * (1 - 0.2 * F('coroa_avarento')));
+    if (myth.olho_ciclope) crit *= 1 - 0.5 * F('olho_ciclope');
     if (myth.botas_vento) dodge += 0.08;
-    if (myth.sandalias_peregrino) dodge = Math.max(0, dodge - 0.10);
-    if (myth.egide_montanha) dodge = 0;
+    if (myth.sandalias_peregrino) dodge = Math.max(0, dodge - 0.10 * F('sandalias_peregrino'));
+    if (myth.egide_montanha) dodge = F('egide_montanha') === 1 ? 0 : dodge * 0.5;
     if (myth.luvas_sanguessuga) lifesteal = (lifesteal + 0.05) * 2; }
   // v219: Talentos Paragon (à parte do limite de dano %).
   const pgT = paragonOf(player) ? paragonTal(player) : {};
@@ -5271,7 +5272,7 @@ function playerResTotals(player) {
   });
   { const gr = Math.round((gemTotals(player).resAll || 0) * 1000) / 10 + Math.round(ringTotals(player).res * 10) / 10, cr = cardResBonus(player); ELEMENT_KEYS.forEach(el => { out[el] += gr + (cr[el] || 0); }); } // v267: + Anel // v235: Pedra Prismática e Coleções de cartas
   if ((player.elemPotionBattles || 0) > 0) ELEMENT_KEYS.forEach(el => { out[el] += ELEMENT_POTION_RES; });
-  if (mythicSet(player).prisma_errante) ELEMENT_KEYS.forEach(el => { out[el] -= 10; }); // v184: Prisma Errante
+  { const pf = mythF(mythicSet(player), 'prisma_errante'); if (pf) ELEMENT_KEYS.forEach(el => { out[el] -= 10 * pf; }); } // v184: Prisma Errante
   return out;
 }
 const RES_BONUS_EL = { res_fogo: 'fogo', res_gelo: 'gelo', res_eletricidade: 'eletricidade', res_terra: 'terra' };
@@ -6562,10 +6563,33 @@ function mythicSet(player) {
     const it = eq[slot];
     if (!it || !it.mythic || !MYTHIC_DEFS[it.mythic]) return;
     if (slot === 'offhand' && it.slot === 'weapon' && !dualWieldActive(player)) return;
-    out[it.mythic] = true;
+    out[it.mythic] = 1;
   });
+  mythShrinePowers(player).forEach(k => { out[k] = 1; }); // v283: Santuário Mítico — poder igual ao do item (conta só uma vez)
   return out;
 }
+// v283: ❇️ Santuário Mítico — sacrifica um Mítico para aprender o poder dele. 2 vagas (podem ficar vazias); o poder é igual ao do item.
+const MYTH_SHRINE_SLOTS = 2;
+function mythShrine(p) {
+  const h = p && p.hideout;
+  if (!h || typeof h !== 'object') return null;
+  if (!h.myth || typeof h.myth !== 'object') h.myth = { learned: [], slots: [] };
+  const m = h.myth;
+  m.learned = [...new Set((Array.isArray(m.learned) ? m.learned : []).filter(k => MYTHIC_DEFS[k]))];
+  const sl = Array.isArray(m.slots) ? m.slots : [];
+  m.slots = Array.from({ length: MYTH_SHRINE_SLOTS }, (_, i) => (sl[i] && m.learned.includes(sl[i]) && sl.indexOf(sl[i]) === i) ? sl[i] : null);
+  return m;
+}
+function mythShrinePowers(p) {
+  const h = p && p.hideout;
+  if (!h || !h.myth || hideoutLevel(p) < (hoStation('santuario') || { lv: 99 }).lv) return [];
+  const m = mythShrine(p);
+  return m ? m.slots.filter(Boolean) : [];
+}
+function mythDnLines(k) { const d = MYTHIC_DEFS[k]; return d ? d.dn : []; }
+// Fator do preço: 1 = com o poder, 0 = sem o poder.
+function mythF(m, k) { return m && m[k] ? (m[k] === 0.5 ? 0.5 : 1) : 0; }
+function mythPotMult(m) { return (1 - 0.3 * mythF(m, 'manto_fenix')) * (mythF(m, 'luvas_sanguessuga') === 0.5 ? 0.5 : 1); }
 function hasMyth(p, k) { return !!mythicSet(p)[k]; }
 // v185: ícone próprio de cada Mítico (icons/mitico-<nome>.webp); sem imagem usa o ícone do tipo.
 function mythicIconKey(k) { const d = MYTHIC_DEFS[k]; if (!d) return 'sword'; const key = 'mitico-' + nxSlug(d.name); return NX_ICON_IMG.has(key) ? key : d.ic; }
@@ -6597,14 +6621,15 @@ function mythicRollDrop(p, key, chance, drops) {
 function mythicLinesHtml(item) {
   const d = item && item.mythic && MYTHIC_DEFS[item.mythic];
   if (!d) return '';
-  return `<div class="tt-myth"><div class="tt-lbl">❇️ Poder Mítico</div>${d.up.map(x => `<div class="tt-my">${x}</div>`).join('')}${d.dn.map(x => `<div class="tt-bad tt-mydn">${x}</div>`).join('')}</div>
+  const lrn = App.player && App.player.hideout && App.player.hideout.myth && (App.player.hideout.myth.learned || []).includes(item.mythic); // v283
+  return `${lrn ? '<div class="tt-note" style="color:#C4F23A;">❇️ Já aprendeste este poder no Santuário.</div>' : ''}<div class="tt-myth"><div class="tt-lbl">❇️ Poder Mítico</div>${d.up.map(x => `<div class="tt-my">${x}</div>`).join('')}${d.dn.map(x => `<div class="tt-bad tt-mydn">${x}</div>`).join('')}</div>
     <div class="tt-flav">"${d.flav}"</div><div class="tt-note">Cai de <b>${d.boss}</b>${d.cult ? ' (evento Culto do Eclipse, 3%)' : ` (${(MYTHIC_CHANCE * 100).toLocaleString('pt-PT')}% · ${(MYTHIC_HUNT_CHANCE * 100).toLocaleString('pt-PT')}% nos Contratos de Caça)`}.</div>`;
 }
 // Multiplicador de dano dos Míticos num golpe do jogador (Arco, Carrasco contra chefes, Berserker).
 function mythHitMult(c, p, pStats) {
   const m = (pStats && pStats.myth) || {};
   let k = 1;
-  if (m.arco_suspiro) { if (!c.mythFirstDone) k *= 2; else if ((c.battleState.enemyTurnCount || 0) >= 5) k *= 0.8; }
+  if (m.arco_suspiro) { if (!c.mythFirstDone) k *= 2; else if ((c.battleState.enemyTurnCount || 0) >= 5) k *= 1 - 0.2 * mythF(m, 'arco_suspiro'); }
   if (m.sede_carrasco && (c.isBoss || c.isMiniBoss || c.isSoberano) && c.enemy.hp < c.enemy.maxHp * 0.3) k *= 1.3;
   if (m.garras_berserker && pStats.hp > 0) { const miss = 1 - clamp(p.hp / pStats.hp, 0, 1); k *= 1 + Math.min(0.5, miss / 2); }
   if (c.ymir) k *= ymirArmorMult(c); // v210: Armadura de Gelo
@@ -6629,7 +6654,7 @@ function mythAfterAttack(c, p, pStats, crit) {
     addCombatLog({ text: `🗡️ Mil Feridas: veneno ×${st.stacks} (${st.dmg} por ronda).`, cls: 'good' });
   }
   if (m.pacto_sangue && p.hp > 1) {
-    const cost = Math.max(1, Math.round(pStats.hp * 0.03));
+    const cost = Math.max(1, Math.round(pStats.hp * 0.03 * mythF(m, 'pacto_sangue')));
     p.hp = Math.max(1, p.hp - cost);
     addCombatLog({ text: `🩸 Pacto de Sangue: pagaste ${cost} HP.`, cls: 'hit' });
   }
@@ -9310,6 +9335,8 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">Atributos de Lendário (×3,0) para o nível do item. Ferreiro, gemas e Feitiços funcionam como nos outros itens, e o Poder Mítico nunca muda nem se perde.</p>
         <p class="tiny" style="margin-top:4px;">Podes usar vários Míticos ao mesmo tempo (um por espaço) e combinar os poderes. Podem ser vendidos e trocados.</p>
         <p class="tiny" style="margin-top:4px;">💍 Há também ${Object.keys(RING_MYTHS).length} Anéis Míticos: ${Object.values(RING_MYTHS).map(M => M.name).join(', ')} (Wiki → Anéis).</p></div>
+      <div class="card raised"><span style="font-weight:700;">❇️ Santuário Mítico</span>
+        <p class="tiny" style="margin-top:6px;">No Esconderijo (Nv. 4) → Santuário → Míticos: sacrifica um Mítico para <b>aprender o poder dele para sempre</b>. Tens ${MYTH_SHRINE_SLOTS} vagas (de espaços diferentes); os poderes nas vagas funcionam <b>tal e qual o item</b> (com o mesmo preço), trocam-se quando quiseres e podes deixar as vagas vazias. Assim podes usar um item mais forte nesse espaço sem perder o poder.</p></div>
       <div class="myth-prog"><span>Coleção Mítica</span><b>${found.length}/${MYTHIC_KEYS.length}</b></div>
       <div class="myth-bar"><i style="width:${Math.round(found.length / MYTHIC_KEYS.length * 100)}%"></i></div>
       <div class="myth-codex">${MYTHIC_KEYS.map(k => { const d = MYTHIC_DEFS[k], got = found.includes(k), lv = bossLv(d.boss);
@@ -9862,7 +9889,7 @@ function renderWikiBody() {
     body.innerHTML = `
       <p class="muted" style="margin-bottom:10px;">Herói → Esconderijo. Abre no nível ${HIDEOUT_MIN_LEVEL} por ${HIDEOUT_COST.toLocaleString('pt-PT')} de ouro. É um pequeno mapa de pedra: toca numa estação para o herói ir até lá e depois em "Abrir".</p>
       <div class="card raised"><span style="font-weight:700;">🏰 Níveis</span>
-        <p class="tiny" style="margin-top:6px;">6 níveis. Nv. 1: Expedições, Lareira, Desmanche e Craft · Nv. 2 (${HIDEOUT_UPGRADE_COST[2].toLocaleString('pt-PT')}): Baú do Jogador · Nv. 3 (${HIDEOUT_UPGRADE_COST[3].toLocaleString('pt-PT')}): Boneco de Treino · Nv. 4 (${HIDEOUT_UPGRADE_COST[4].toLocaleString('pt-PT')}): Santuário e 2.ª vaga de Expedição · Nv. 5 (${HIDEOUT_UPGRADE_COST[5].toLocaleString('pt-PT')}): Sala de Troféus · Nv. 6 (${HIDEOUT_UPGRADE_COST[6].toLocaleString('pt-PT')}): lugar de Amigo na Lareira.</p></div>
+        <p class="tiny" style="margin-top:6px;">6 níveis. Nv. 1: Expedições, Lareira, Desmanche e Craft · Nv. 2 (${HIDEOUT_UPGRADE_COST[2].toLocaleString('pt-PT')}): Baú do Jogador · Nv. 3 (${HIDEOUT_UPGRADE_COST[3].toLocaleString('pt-PT')}): mais espaço e bónus · Nv. 4 (${HIDEOUT_UPGRADE_COST[4].toLocaleString('pt-PT')}): Santuário (Bênçãos e Míticos) e 2.ª vaga de Expedição · Nv. 5 (${HIDEOUT_UPGRADE_COST[5].toLocaleString('pt-PT')}): Sala de Troféus · Nv. 6 (${HIDEOUT_UPGRADE_COST[6].toLocaleString('pt-PT')}): lugar de Amigo na Lareira.</p></div>
       <div class="card raised"><span style="font-weight:700;">🍺 Bar e Amigos <span class="tiny muted">· Nv. ${ALLY_HIDEOUT_LV}</span></span>
         <p class="tiny" style="margin-top:6px;">No Nv. ${ALLY_HIDEOUT_LV}, a Lareira ganha 1 lugar para um amigo, recrutado no Bar da Cidade. Só podes ter 1: para trocar, manda-o embora (perdes o amigo e o ouro) e recruta outro.</p>
         ${Object.keys(ALLY_DEFS).map(k => { const d = ALLY_DEFS[k]; return `<p class="tiny" style="margin-top:4px;">${d.icon} <b>${d.name}</b> (${d.cls}, ${d.price.toLocaleString('pt-PT')} 🪙): ${d.desc}</p>`; }).join('')}
@@ -11643,10 +11670,9 @@ const HIDEOUT_STATIONS = [
     desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja qualquer peça do teu equipamento +9 com um item de sacrifício do mesmo tipo e 30 peças: melhorar os stats ou ganhar um bónus de Craft (20% / 15% de sucesso).' },
   { key: 'desmanche', name: 'Bancada de Desmanche', short: 'Desmanche', icon: '🔨', img: 'hammer', lv: 1, x: 17, y: 84,
     desc: 'Desmancha itens que não queres e recebe peças da mesma raridade, para usar na Bancada de Craft.' },
-  { key: 'boneco', name: 'Boneco de Treino', short: 'Boneco', icon: '🎯', img: 'swords', lv: 3, x: 50, y: 86,
-    desc: 'Testa o teu dano: 20 ataques normais contra um boneco sem defesa. Mostra a média, o maior golpe e os críticos.' },
-  { key: 'santuario', name: 'Santuário', short: 'Santuário', icon: '🔮', img: 'orb', lv: 4, x: 83, y: 84,
-    desc: 'Uma vez por dia escolhes 1 de 3 bênçãos (ouro, XP, dano, defesa, crítico ou sorte) para as próximas 20 batalhas.' }
+  // v283: o Boneco de Treino saiu; o Santuário passou para o lugar dele.
+  { key: 'santuario', name: 'Santuário', short: 'Santuário', icon: '🔮', img: 'orb', lv: 4, x: 50, y: 86,
+    desc: 'Uma vez por dia escolhes 1 de 3 bênçãos (ouro, XP, dano, defesa, crítico ou sorte) para as próximas 20 batalhas. No altar Mítico sacrificas Míticos para aprender o poder deles.' }
 ];
 function hoStation(key) { return HIDEOUT_STATIONS.find(s => s.key === key) || null; }
 function hoStationImg(st) { const k = 'esconderijo-' + st.key; return st.key !== 'trofeus' && NX_ICON_IMG.has(k) ? k : st.img; }
@@ -12670,6 +12696,65 @@ function pickShrineAction(key) {
   renderTabHeroi();
 }
 function renderHoSantuario(p, h) {
+  const tab = App.hoShrTab === 'mitico' ? 'mitico' : 'bencao'; // v283
+  return `<div class="tab-strip ho-tabs" style="padding-bottom:10px;">
+      <button class="tab-chip${tab === 'bencao' ? ' active' : ''}" data-ho-shr-tab="bencao">🔮 Bênçãos</button>
+      <button class="tab-chip${tab === 'mitico' ? ' active' : ''}" data-ho-shr-tab="mitico">${nxEnt('altar-mitico', '❇️')} Míticos</button>
+    </div>${tab === 'mitico' ? renderHoMythShrine(p, h) : renderHoBlessings(p, h)}`;
+}
+function mythPowerCard(k, extra) {
+  const d = MYTHIC_DEFS[k];
+  return `<div class="ms-pw"><span class="ms-ic">${nxEnt(mythicIconKey(k), d.emo)}</span><div class="ms-tx"><b>${d.name}</b>
+    ${d.up.map(x => `<div class="ms-up">▲ ${x}</div>`).join('')}${mythDnLines(k).map(x => `<div class="ms-dn">▼ ${x}</div>`).join('')}${extra || ''}</div></div>`;
+}
+function renderHoMythShrine(p, h) {
+  const m = mythShrine(p), sel = Number.isInteger(App.msSlot) ? App.msSlot : -1;
+  const eqIds = new Set(EQUIP_SLOTS.map(sl => p.equipment && p.equipment[sl] && p.equipment[sl].id).filter(Boolean));
+  const sac = (p.inventory || []).filter(it => it && it.rarity === 'mitico' && MYTHIC_DEFS[it.mythic] && !eqIds.has(it.id));
+  const slots = m.slots.map((k, i) => `<div class="ms-slot${k ? ' on' : ''}${sel === i ? ' sel' : ''}" data-ms-slot="${i}">
+      <div class="ms-slot-h"><span>Vaga ${i + 1}</span>${k ? `<button class="btn small" data-ms-clear="${i}" type="button">Desativar</button>` : ''}</div>
+      ${k ? mythPowerCard(k) : `<div class="ms-empty">${sel === i ? 'Escolhe um poder aprendido em baixo.' : 'Vazia (nenhum poder ativo) — toca para escolher.'}</div>`}</div>`).join('');
+  const learned = MYTHIC_KEYS.map(k => { const d = MYTHIC_DEFS[k], got = m.learned.includes(k), on = m.slots.includes(k);
+    return `<button type="button" class="ms-lr${got ? ' got' : ''}${on ? ' on' : ''}" ${got ? `data-ms-pick="${k}"` : 'disabled'}><span class="ms-ic">${got ? nxEnt(mythicIconKey(k), d.emo) : '❔'}</span><b>${got ? d.name : '???'}</b><small>${got ? SLOT_NAMES[d.slot] : 'de ' + d.boss}</small>${on ? '<i>Ativo</i>' : ''}</button>`; }).join('');
+  return `<p class="muted" style="margin-bottom:10px;">Sacrifica um item Mítico no altar: o item desaparece, mas o herói <b>aprende o poder dele para sempre</b>. Põe até ${MYTH_SHRINE_SLOTS} poderes nas vagas: funcionam <b>tal e qual o item</b> (com o mesmo preço ▼). Podes trocá-los ou deixar as vagas vazias quando quiseres.</p>
+    <div class="ms-slots">${slots}</div>
+    <p class="tiny muted" style="margin:6px 0 12px;">Os 2 poderes têm de ser de espaços diferentes (ex.: não dá para ter 2 amuletos). Se também tiveres o item equipado, o poder conta só uma vez.</p>
+    <div class="section-title"><span class="ms-altar-ic">${nxEnt('altar-mitico', '🔥')}</span> Sacrificar no altar</div>
+    ${sac.length ? `<div class="ms-sac">${sac.map(it => { const got = m.learned.includes(it.mythic);
+      return `<div class="ms-sac-row">${mythPowerCard(it.mythic, `<div class="tiny muted">Nv. ${it.itemLevel || 1}${it.upgrade ? ' · +' + it.upgrade : ''}${it.locked ? ' · 🔒 bloqueado' : ''}</div>`)}
+        <button class="btn small ${got ? '' : 'primary'}" type="button" data-ms-sac="${it.id}"${got || it.locked ? ' disabled' : ''}>${got ? 'Já aprendido' : it.locked ? '🔒' : 'Sacrificar'}</button></div>`; }).join('')}</div>`
+      : `<div class="ho-note">Não tens Míticos na Mochila. Os itens equipados não aparecem aqui — tira-o primeiro.</div>`}
+    <div class="row between" style="align-items:baseline; margin-top:14px;"><div class="section-title" style="margin:0;">❇️ Poderes aprendidos</div><span class="tiny muted">${m.learned.length}/${MYTHIC_KEYS.length}</span></div>
+    <div class="ms-learned">${learned}</div>`;
+}
+async function mythSacrificeAction(id) {
+  const p = App.player, m = mythShrine(p), it = (p.inventory || []).find(x => x && x.id === id);
+  if (!m || !it || it.rarity !== 'mitico' || !MYTHIC_DEFS[it.mythic] || it.locked || m.learned.includes(it.mythic)) return;
+  const d = MYTHIC_DEFS[it.mythic];
+  const ok = await nxConfirm('', { title: `Sacrificar ${d.name}?`, icon: '🔥', confirmLabel: 'Sacrificar',
+    html: `O item desaparece para sempre (Nv. ${it.itemLevel || 1}${it.upgrade ? ', +' + it.upgrade : ''}).${(it.sockets || []).some(Boolean) ? '<br>💎 As gemas voltam para a bolsa.' : ''}<br><br>Em troca aprendes o poder <b>${d.name}</b> e podes pô-lo numa vaga do Santuário quando quiseres.` });
+  if (!ok) return;
+  const idx = p.inventory.indexOf(it); if (idx < 0) return;
+  (it.sockets || []).forEach(g => { if (g && GEM_DEFS[g.type]) { if (!Array.isArray(p.gems[g.type])) p.gems[g.type] = Array(GEM_TIERS).fill(0); p.gems[g.type][g.tier] = (p.gems[g.type][g.tier] || 0) + 1; } });
+  p.inventory.splice(idx, 1);
+  m.learned.push(it.mythic);
+  sfx.evolve(); saveGame(); renderStatusBar();
+  toast(`❇️ Aprendeste o poder ${d.name}! Põe-no numa vaga para o ativares.`);
+  renderTabHeroi();
+}
+function mythSlotClash(m, i, k) { const sl = MYTHIC_DEFS[k].slot; return m.slots.some((o, j) => j !== i && o && MYTHIC_DEFS[o].slot === sl); }
+function mythPickAction(k) {
+  const p = App.player, m = mythShrine(p);
+  if (!m || !m.learned.includes(k)) return;
+  const cur = m.slots.indexOf(k);
+  let i = Number.isInteger(App.msSlot) ? App.msSlot : m.slots.indexOf(null);
+  if (cur >= 0 && i !== cur) { sfx.tab(); toast('Esse poder já está numa vaga.'); return; }
+  if (i < 0) { sfx.error(); toast('As 2 vagas estão ocupadas: toca numa vaga para a trocares.'); return; }
+  if (mythSlotClash(m, i, k)) { sfx.error(); toast(`Já tens um poder de ${SLOT_NAMES[MYTHIC_DEFS[k].slot]} na outra vaga.`); return; }
+  m.slots[i] = k; App.msSlot = null;
+  sfx.buff(); saveGame(); toast(`❇️ ${MYTHIC_DEFS[k].name} ativo na vaga ${i + 1}.`); renderTabHeroi();
+}
+function renderHoBlessings(p, h) {
   const act = shrineActive(p), picked = shrinePickedToday(p);
   const nextDay = (shrineDay() + 1) * 86400000;
   return `<p class="muted" style="margin-bottom:10px;">Todos os dias o Santuário oferece 3 bênçãos. Escolhe 1: dura ${SHRINE_BATTLES} batalhas. Uma escolha nova substitui a anterior.</p>
@@ -12690,7 +12775,7 @@ function tickHideoutBuffs(p) {
 
 // ---------- Mapa ----------
 const HIDEOUT_STATION_RENDER = { expedicoes: renderHoExpedicoes, lareira: renderHoLareira, desmanche: renderHoDesmanche, craft: renderHoCraft,
-  bau: renderHoBau, trofeus: renderHoTrofeus, boneco: renderHoBoneco, santuario: renderHoSantuario };
+  bau: renderHoBau, trofeus: renderHoTrofeus, santuario: renderHoSantuario }; // v283: sem Boneco
 function hoStationBadge(p, st) {
   if (!hoUnlocked(p, st)) return `<span class="ho-lock">🔒 Nv. ${st.lv}</span>`;
   if (st.key === 'expedicoes' && hoReadyCount(p)) return `<span class="ho-ready">Pronto</span>`;
@@ -12719,7 +12804,7 @@ function renderEsconderijoBody() {
     const lvOk = p.level >= HIDEOUT_MIN_LEVEL, goldOk = p.gold >= HIDEOUT_COST;
     body.innerHTML = `<div class="card ho-buy">
       <div class="row" style="gap:12px; align-items:flex-start;"><span class="ho-buy-ic">${nxIconSvg(NX_ICON_IMG.has('esconderijo') ? 'esconderijo' : 'fortress') || '🏰'}</span>
-        <div><b class="ho-title">Esconderijo</b><p class="tiny" style="margin-top:3px;">Uma gruta só tua, fora da cidade. Lá dentro há estações de trabalho — Expedições, Lareira, Desmanche e Craft — e, ao melhorares o Esconderijo, Baú, Boneco de Treino, Santuário e Troféus. Andas entre elas num pequeno mapa.</p></div></div>
+        <div><b class="ho-title">Esconderijo</b><p class="tiny" style="margin-top:3px;">Uma gruta só tua, fora da cidade. Lá dentro há estações de trabalho — Expedições, Lareira, Desmanche e Craft — e, ao melhorares o Esconderijo, Baú, Santuário e Troféus. Andas entre elas num pequeno mapa.</p></div></div>
       <div class="ho-req"><span class="${lvOk ? 'ok' : 'no'}">${lvOk ? '✔' : '✖'} Nível ${HIDEOUT_MIN_LEVEL}</span><span class="${goldOk ? 'ok' : 'no'}">${hoGold(HIDEOUT_COST)}</span></div>
       <button class="btn primary" id="btn-ho-buy" style="width:100%;"${lvOk && goldOk ? '' : ' disabled'}>Comprar Esconderijo · ${hoGold(HIDEOUT_COST)}</button>
     </div>`;
@@ -12828,6 +12913,11 @@ function bindHideoutStation(key) {
     const b = $('btn-ho-dummy'); if (b) b.addEventListener('click', () => { sfx.attack(); App.hoDummy = trainingDummyTest(App.player); rerender(); });
   } else if (key === 'santuario') {
     els('[data-ho-bless]').forEach(b => b.addEventListener('click', () => pickShrineAction(b.dataset.hoBless)));
+    els('[data-ho-shr-tab]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoShrTab = b.dataset.hoShrTab; App.msSlot = null; rerender(); })); // v283
+    els('[data-ms-slot]').forEach(b => b.addEventListener('click', e => { if (e.target.closest('[data-ms-clear]')) return; sfx.tab(); const i = Number(b.dataset.msSlot); App.msSlot = App.msSlot === i ? null : i; rerender(); }));
+    els('[data-ms-clear]').forEach(b => b.addEventListener('click', () => { const m = mythShrine(App.player); m.slots[Number(b.dataset.msClear)] = null; App.msSlot = Number(b.dataset.msClear); sfx.tab(); saveGame(); rerender(); }));
+    els('[data-ms-pick]').forEach(b => b.addEventListener('click', () => mythPickAction(b.dataset.msPick)));
+    els('[data-ms-sac]').forEach(b => b.addEventListener('click', () => mythSacrificeAction(b.dataset.msSac)));
   }
 }
 // Relógios das expedições/lareira/santuário: quando um chega a zero, volta a desenhar.
@@ -13273,7 +13363,7 @@ const VL_B = {
   quinta: { n: 'Quinta', img: 'vila-quinta', x: 18, y: 67, d: 'Onde os agricultores trabalham. A comida treina soldados e aldeões.', job: 'food', cost: vlGrow({ gold: 2000, wood: 200, stone: 80 }, 2), time: l => 15 * l },
   armazem: { n: 'Armazém', img: 'vila-armazem', x: 50, y: 67, d: 'Guarda a pedra, a madeira e a comida: 1 500 de cada por nível.', cost: vlGrow({ gold: 3000, wood: 300, stone: 200 }, 2), time: l => 20 * l },
   quartel: { n: 'Quartel', img: 'vila-quartel', x: 82, y: 67, d: 'Treina soldados. Nv. 1: 20 soldados, +10 por nível.', go: 'quartel', cost: vlGrow({ gold: 6000, wood: 400, stone: 400 }, 2), time: l => 30 * l },
-  antigo: { n: 'Esconderijo', img: 'esconderijo', x: 30, y: 86, d: 'Atalho para o teu Esconderijo, com todas as estações: Lareira, Expedições, Bancada de Craft, Desmanche, Santuário, Boneco de Treino e Sala de Troféus.', go: 'esconderijo' },
+  antigo: { n: 'Esconderijo', img: 'esconderijo', x: 30, y: 86, d: 'Atalho para o teu Esconderijo, com todas as estações: Lareira, Expedições, Bancada de Craft, Desmanche, Santuário e Sala de Troféus.', go: 'esconderijo' },
   muralha: { n: 'Muralha', img: 'vila-muralha', x: 70, y: 86, d: 'Diminui os estragos dos contra-ataques: −15% por nível. Danificada, protege metade.', cost: vlGrow({ gold: 5000, wood: 200, stone: 800 }, 2), time: l => 30 * l }
 };
 const VL_LEVELED = ['salao', 'serracao', 'pedreira', 'quinta', 'armazem', 'quartel', 'ferraria', 'muralha'];
@@ -14965,6 +15055,7 @@ function renderFullStatsSheet(stats) {
   if (stats.bleedImmune) badges.push('🩸🚫 Imune a Sangramento');
   if (stats.undying) badges.push('💀✨ Imortal (1× por combate)');
 
+  const shrP = mythShrinePowers(App.player); // v283
   const zeros = rows.filter(r => r.includes('pf-sc zero')).length;
   const shown = App.pfShowZero ? rows : rows.filter(r => !r.includes('pf-sc zero'));
   const res = stats.res || {};
@@ -14973,6 +15064,7 @@ function renderFullStatsSheet(stats) {
     <p class="tiny muted" style="margin:4px 0 0;">Toca num stat para saberes o que faz.</p>
     ${badges.length ? `<div class="row" style="gap:6px; flex-wrap:wrap; margin-top:8px;">${badges.map(b => `<span class="pill" style="border-color:var(--gold-bright); color:var(--gold-bright);">${b}</span>`).join('')}</div>` : ''}
     <div class="pf-sgrid">${shown.join('')}</div>
+    ${shrP.length ? `<div class="row between" style="align-items:baseline; margin-top:12px;"><span style="font-weight:700;">❇️ Poderes do Santuário</span><span class="tiny muted">iguais aos dos itens</span></div><div class="ms-stats">${shrP.map(k => mythPowerCard(k)).join('')}</div>` : ''}
     ${zeros ? `<button class="btn small block" data-pf-zero="1" style="margin-top:8px;">${App.pfShowZero ? 'Esconder os stats a 0' : `Mostrar os ${zeros} stats a 0`}</button>` : ''}
     <div class="row between" style="align-items:baseline; margin-top:12px;"><span style="font-weight:700;">🛡️ Resistências</span><span class="tiny muted">máx. ${RES_CAP}%</span></div>
     <div class="pf-res">${ELEMENT_KEYS.map(el => { const v = resFor(stats, el), I = ELEMENT_INFO[el]; return `<div class="pf-rs" style="--c:${I.color};"><span class="e">${elIc(el)}</span><b>${v}%</b><small>${I.name}</small><div class="mb"><i style="width:${Math.min(100, v / RES_CAP * 100)}%"></i></div></div>`; }).join('')}</div>
@@ -16075,7 +16167,7 @@ function renderConsumablesBody(body, p) {
   const pantry = `<div class="cs-pantry${art ? ' has-art' : ''}"${art ? ` style="--cs-art:url('${nxImgUrl('fundo-despensa')}')"` : ''}><div class="cs-tabs">${CONSUMABLE_SECTIONS.map(x => `<button type="button" class="cs-tb${sec === x.key ? ' on' : ''}${counts[x.key] ? '' : ' empty'}" data-cs-tab="${x.key}">${counts[x.key] ? `<i>${counts[x.key]}</i>` : ''}<span class="ic">${nxEnt(TI[x.key][0], TI[x.key][1])}</span><span>${TI[x.key][2]}</span></button>`).join('')}</div></div>`;
   let html = '';
   if (sec === 'pocoes') {
-    const st = effectiveStats(p), hp = Math.min(Math.round(p.hp), st.hp), fen = st.myth && st.myth.manto_fenix ? 0.7 : 1;
+    const st = effectiveStats(p), hp = Math.min(Math.round(p.hp), st.hp), fen = mythPotMult(st.myth);
     html = `<div class="cs-hp">❤️ Vida <div class="bar" id="cs-hpb"><i style="width:${Math.round(hp / Math.max(1, st.hp) * 100)}%"></i></div><b>${hp.toLocaleString('pt-PT')} / ${st.hp.toLocaleString('pt-PT')}</b></div>
       <div class="cs-shelf">${Object.keys(POTION_DEFS).map(key => {
         const d = POTION_DEFS[key], n = p.potions[key] || 0, cure = isHpPotion(key);
@@ -21023,7 +21115,7 @@ function useNormalAttackAction() {
   const critChance = pStats.crit + (c.battleState.critBuffActive || c.battleState.mythCritNext || hawk || (myth.arco_suspiro && !c.mythFirstDone) ? 1.0 : 0);
   const crit = Math.random() < critChance;
   c.profFirstDone = true;
-  let dmg = pStats.dmg * elementAttackMult(p, c.enemy) * mythHitMult(c, p, pStats) * (myth.tempestade_presa ? 0.85 : 1); // v181: elemento · v184: Míticos
+  let dmg = pStats.dmg * elementAttackMult(p, c.enemy) * mythHitMult(c, p, pStats) * (1 - 0.15 * mythF(myth, 'tempestade_presa')); // v181: elemento · v184: Míticos
   if (crit && !c.enemy.critImmune) dmg *= (1.8 + (pStats.critDmgBonus || 0));
   let superHit = false; // v274: ☄️ Supercrítico
   if (c.enemy.critImmune) dmg *= critImmuneMult(pStats);
@@ -21076,7 +21168,7 @@ function usePotionAction(key) {
     const pStats = effectiveStats(p);
     if (p.hp >= pStats.hp) { sfx.error(); toast('Já tens o HP cheio.'); return; }
     p.potions[key]--;
-    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * POTION_DEFS[key].heal * (pStats.myth.manto_fenix ? 0.7 : 1)));
+    const heal = Math.min(pStats.hp - p.hp, Math.round(pStats.hp * POTION_DEFS[key].heal * mythPotMult(pStats.myth)));
     p.hp += heal;
     saveGame();
     sfx.potion();
@@ -21087,7 +21179,7 @@ function usePotionAction(key) {
   }
   // Máximo de 2 Poções de HP por batalha: sem isto, dá para "spammar" cura e
   // tornar qualquer combate — incluindo bosses — trivial enquanto houver ouro.
-  if (isHpPotion(key) && hasMyth(p, 'luvas_sanguessuga')) { sfx.error(); toast('As Luvas da Sanguessuga não te deixam beber poções de HP em combate.'); return; } // v184
+  if (isHpPotion(key) && mythF(mythicSet(p), 'luvas_sanguessuga') === 1) { sfx.error(); toast('As Luvas da Sanguessuga não te deixam beber poções de HP em combate.'); return; } // v184
   if (isHpPotion(key) && (c.battleState.hpPotionsUsed || 0) >= HP_POTIONS_PER_BATTLE) {
     sfx.error(); toast(`Só podes usar ${HP_POTIONS_PER_BATTLE} Poções de HP por batalha.`); return;
   }
@@ -21097,7 +21189,7 @@ function usePotionAction(key) {
   const pStats = effectiveStats(p);
   if (isHpPotion(key)) {
     c.battleState.hpPotionsUsed = (c.battleState.hpPotionsUsed || 0) + 1;
-    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal * (huntHas(c, 'eclipse') ? 0.5 : 1) * (pStats.myth.manto_fenix ? 0.7 : 1) * (pStats.healMult || 1)); // v269: Fúria do Moribundo
+    const heal = Math.round(pStats.hp * POTION_DEFS[key].heal * (huntHas(c, 'eclipse') ? 0.5 : 1) * mythPotMult(pStats.myth) * (pStats.healMult || 1)); // v269: Fúria do Moribundo
     p.hp = Math.min(pStats.hp, p.hp + heal);
     addCombatLog({ text: `${huntHas(c, 'eclipse') ? '🌑 ' : ''}${POTION_DEFS[key].icon} Bebeste uma ${POTION_DEFS[key].name} (${c.battleState.hpPotionsUsed}/${HP_POTIONS_PER_BATTLE} nesta batalha): +${heal} HP.`, cls: 'good' });
   } else if (key === 'def') {
@@ -21411,7 +21503,7 @@ function combatRoundTail(c, p, tickEnemy) {
     if (pStats.esRegen > 0) { const bs = esEnsure(c); if (bs && bs.esMax > 0 && bs.es < bs.esMax) bs.es = Math.min(bs.esMax, bs.es + Math.max(1, Math.round(bs.esMax * pStats.esRegen))); } // v186
     const poisoned = c.battleState.playerPoison && c.battleState.playerPoison.duration > 0;
     const foodRegen = Math.round(foodBonus('regen') * 100);
-    const regenPct = pStats.myth && pStats.myth.garras_berserker ? 0 : Math.min(REGEN_CAP, (pStats.regenPct || 0) + foodRegen); // v184: Garras do Berserker
+    const regenPct = Math.min(REGEN_CAP, (pStats.regenPct || 0) + foodRegen) * (1 - mythF(pStats.myth, 'garras_berserker')); // v184: Garras do Berserker
     if (regenPct && !poisoned) {
       const heal = Math.round(pStats.hp * regenPct / 100);
       if (heal > 0 && p.hp < pStats.hp) {
@@ -21536,7 +21628,7 @@ function resolveEnemyTurnCore(opts) {
     }
   }
   const foodDodge = foodBonus('dodge');
-  const dodgeChance = myth.egide_montanha ? 0 : Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge);
+  const dodgeChance = mythF(myth, 'egide_montanha') === 1 ? 0 : Math.min(DODGE_CAP, (pStats.dodge || 0) + foodDodge) * (myth.egide_montanha ? 0.5 : 1); // v283
   if (dodgeChance && Math.random() < dodgeChance) {
     addCombatLog({ text: `Esquivaste do ataque de ${cName}!`, cls: 'good' });
     if (myth.botas_vento) { c.battleState.mythCritNext = true; addCombatLog({ text: '🌬️ Botas do Vento Errante: o teu golpe seguinte é crítico!', cls: 'good' }); }
@@ -23397,7 +23489,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v282</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v283</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -24610,7 +24702,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["conclave","rar-runico","peca-runico","runico-espada","runico-cajado","runico-arco","runico-escudo","runico-elmo","runico-couraca","runico-manto","runico-botas","runico-manoplas","runico-amuleto","runico-pedra","runico-anel","peca-astral","acampamento","npc-contrabandista","reliquia","caixa-selada","chefe-dragao-ancestral-incandescente","pet-dragaoancestral","chefe-dragao-ancestral","monstro-sacerdotisa-das-cinzas","monstro-cria-de-dragao","dungeon-dragao-t4","monstro-guardiao-de-escamas","monstro-cultista-draconico","monstro-wyvern-selvagem","monstro-draconato-guerreiro","chefe-alto-sacerdote-draconico","chefe-wyvern-matriarca","chefe-dragao-ancestral-enfurecido","primordial-espada","primordial-cajado","primordial-arco","nucleo-rubi","nucleo-granada","nucleo-harmonia","anel-ouroboros","anel-abismo","anel-moribundo","anel-rubi","anel-esmeralda","anel-safira","anel-ametista","anel-topazio","astral-anel","slot-anel","dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["altar-mitico","conclave","rar-runico","peca-runico","runico-espada","runico-cajado","runico-arco","runico-escudo","runico-elmo","runico-couraca","runico-manto","runico-botas","runico-manoplas","runico-amuleto","runico-pedra","runico-anel","peca-astral","acampamento","npc-contrabandista","reliquia","caixa-selada","chefe-dragao-ancestral-incandescente","pet-dragaoancestral","chefe-dragao-ancestral","monstro-sacerdotisa-das-cinzas","monstro-cria-de-dragao","dungeon-dragao-t4","monstro-guardiao-de-escamas","monstro-cultista-draconico","monstro-wyvern-selvagem","monstro-draconato-guerreiro","chefe-alto-sacerdote-draconico","chefe-wyvern-matriarca","chefe-dragao-ancestral-enfurecido","primordial-espada","primordial-cajado","primordial-arco","nucleo-rubi","nucleo-granada","nucleo-harmonia","anel-ouroboros","anel-abismo","anel-moribundo","anel-rubi","anel-esmeralda","anel-safira","anel-ametista","anel-topazio","astral-anel","slot-anel","dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 187;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
