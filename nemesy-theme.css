@@ -4840,3 +4840,14 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .camp-rw{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-bottom:8px;}
 .camp-rw span{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;background:rgba(242,201,76,.10);border:1px solid rgba(242,201,76,.30);font-size:13px;}
 .camp-rw .nx-k,.camp-rw .nx-inline{width:20px;height:20px;}
+/* v280 🔁 Junção automática + 🔨 Desmanche automático */
+.ho-aj{display:flex;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);}
+.ho-aj-t{flex:1;min-width:0;}
+.ho-aj-t b{display:block;font-size:13px;}
+.ho-aj-t small{display:block;font-size:11px;color:var(--muted,#b9b4a8);margin-top:2px;}
+.ho-sw{flex:0 0 46px;width:46px;height:26px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);position:relative;cursor:pointer;padding:0;transition:background .2s;}
+.ho-sw i{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#cfc8b8;transition:left .2s,background .2s;}
+.ho-sw.on{background:rgba(242,201,76,.35);border-color:rgba(242,201,76,.7);}
+.ho-sw.on i{left:23px;background:#F2C94C;}
+.as-mode{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px;}
+.as-mode .tab-chip[disabled]{opacity:.45;}

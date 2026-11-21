@@ -9711,7 +9711,9 @@ function renderWikiBody() {
       <div class="card raised"><span style="font-weight:700;">🗺️ Expedições</span>
         <p class="tiny" style="margin-top:6px;">Todas dão ouro, sementes e 1 Baú de Equipamento ao teu nível. ${Object.keys(EXPEDITION_TYPES).map(k => { const d = EXPEDITION_TYPES[k]; return `${d.name} (${d.hours} h, ${d.pets} ${d.pets === 1 ? 'mascote' : 'mascotes'}): ${d.chestLabel.toLowerCase()}, ${Math.round(d.extraChance * 100)}% de extra`; }).join(' · ')}. O extra é 1 Gema T1, 1 Pérola ou 1 Pedra de Alquimia. O ouro sobe com o teu nível e um pouco com o nível médio das mascotes (+0,5% por nível). Uma mascote em expedição não pode estar ativa.</p></div>
       <div class="card raised"><span style="font-weight:700;">🔨 Peças do Desmanche</span>
-        <p class="tiny" style="margin-top:6px;">Cada item dá peças da sua raridade (Comum, Incomum, Rara, Lendária, Única, Demoníaca, Set, Divina e Temporada): 1 por item, +1 por cada 3 níveis de melhoria e 25% de hipótese de mais 1. As peças ficam no Baú do Esconderijo (1 peça = 1 espaço): ${HIDEOUT_STORAGE_BASE} espaços no início, ${HIDEOUT_STORAGE_BY_LEVEL[2]} ao abrir o Baú do Jogador (Nv. 2) e até ${HIDEOUT_STORAGE_BY_LEVEL[6]} no Nv. 6. Vão servir para a Bancada de Craft.</p></div>
+        <p class="tiny" style="margin-top:6px;">Cada item dá peças da sua raridade (Comum, Incomum, Rara, Lendária, Única, Demoníaca, Set, Divina e Temporada): 1 por item, +1 por cada 3 níveis de melhoria e 25% de hipótese de mais 1. As peças ficam no Baú do Esconderijo (1 peça = 1 espaço): ${HIDEOUT_STORAGE_BASE} espaços no início, ${HIDEOUT_STORAGE_BY_LEVEL[2]} ao abrir o Baú do Jogador (Nv. 2) e até ${HIDEOUT_STORAGE_BY_LEVEL[6]} no Nv. 6. Vão servir para a Bancada de Craft.</p>
+        <p class="tiny" style="margin-top:4px;">🔁 <b>Junção automática</b> (ligada por defeito, na Bancada de Desmanche): ao desmanchar, as peças Comuns a Lendárias juntam-se sozinhas (${CRAFT_JOIN_COST} → 1) até Peças Únicas. O botão "Juntar tudo agora" junta as que já tens.</p>
+        <p class="tiny" style="margin-top:4px;">🔨 <b>Desmanche automático</b>: na Venda automática (Mochila) escolhe "Desmanchar" e os itens fracos dos baús e das batalhas viram peças em vez de ouro. Com o Baú cheio, são vendidos.</p></div>
       <div class="card raised"><span style="font-weight:700;">⚒️ Forjar equipamento (Bancada de Craft)</span>
         <p class="tiny" style="margin-top:6px;">Funciona com qualquer peça de equipamento equipada a +9 (Arma, Secundária, Capacete, Peitoral, Capa, Botas, Luvas, Amuleto e Artefacto): junta um item de sacrifício do mesmo tipo e raridade (±${CRAFT_FORGE_LEVEL_RANGE} níveis) e ${CRAFT_FORGE_PARTS} peças dessa raridade. 🔨 Tentar melhorar (${Math.round(CRAFT_IMPROVE_CHANCE * 100)}%): +${Math.round(CRAFT_IMPROVE_PCT * 100)}% nos stats, até ao máximo da raridade. ✨ Tentar bónus de Craft (${Math.round(CRAFT_BONUS_CHANCE * 100)}%): 1 bónus verde por item; um novo sucesso troca o anterior. O sacrifício e as peças gastam-se sempre; o item equipado nunca se perde.</p>
         <p class="tiny" style="margin-top:6px;">🔥 <b>Persistência da Forja</b>: cada falhança num item dá +${Math.round(CRAFT_PITY_STEP * 100)}% de hipótese na tentativa seguinte nesse item (melhorar ou bónus), até +${Math.round(CRAFT_PITY_MAX * CRAFT_PITY_STEP * 100)}%. Volta a 0 quando acertas. Fica guardada no item, mas perde-se se o item for vendido ou trocado.</p>
@@ -12049,10 +12051,24 @@ function dismantleItems(ids) {
     return false;
   });
   if (!n) { sfx.error(); return; }
+  const joined = hoAutoJoinOn(h) ? hoJoinTxt(hoJoinAll(h)) : ''; // v280
   sfx.equip(); saveGame();
-  toast(`🔨 Desmanchaste ${n} ${n === 1 ? 'item' : 'itens'}: ${Object.keys(got).map(r => `${got[r]}× ${hoPartName(r)}`).join(', ')}.${full || lost ? ' O Baú ficou cheio.' : ''}`);
+  toast(`🔨 Desmanchaste ${n} ${n === 1 ? 'item' : 'itens'}: ${Object.keys(got).map(r => `${got[r]}× ${hoPartName(r)}`).join(', ')}.${joined ? ` 🔁 Juntou-se em ${joined}.` : ''}${full || lost ? ' O Baú ficou cheio.' : ''}`);
   renderTabHeroi();
 }
+// v280: 🔁 Junção automática — as peças Comum→Lendária juntam-se sozinhas (3 → 1) em cadeia até
+// à Única, para não encherem o Baú. Ligada por defeito (h.autoJoin !== false). Mesma troca do Juntar manual.
+function hoAutoJoinOn(h) { return !!h && h.autoJoin !== false; }
+function hoJoinAll(h) {
+  const out = {}; if (!h || !h.parts) return out;
+  for (let i = 0; i < CRAFT_JOIN_CHAIN.length - 1; i++) {
+    const r = CRAFT_JOIN_CHAIN[i], nx = CRAFT_JOIN_CHAIN[i + 1], n = Math.floor((h.parts[r] || 0) / CRAFT_JOIN_COST);
+    if (n > 0) { h.parts[r] -= n * CRAFT_JOIN_COST; h.parts[nx] = (h.parts[nx] || 0) + n; out[nx] = (out[nx] || 0) + n; }
+  }
+  return out;
+}
+function hoJoinablesLeft(h) { return !!h && CRAFT_JOIN_CHAIN.slice(0, -1).some(r => (h.parts[r] || 0) >= CRAFT_JOIN_COST); }
+function hoJoinTxt(out) { const top = CRAFT_JOIN_CHAIN[CRAFT_JOIN_CHAIN.length - 1]; return out[top] ? `${out[top]}× ${hoPartName(top)}` : ''; }
 function hoPartsSummary(h, showAll) {
   const list = showAll ? HIDEOUT_PART_RARITIES : HIDEOUT_PART_RARITIES.filter(r => h.parts[r] > 0);
   if (!list.length) return `<p class="tiny muted">Ainda não tens peças.</p>`;
@@ -12070,6 +12086,11 @@ function renderHoDesmanche(p, h) {
     ${full ? `<div class="ho-note warn">O Baú está cheio. ${hideoutLevel(p) < 2 ? 'Melhora o Esconderijo para o Nv. 2 para abrir o Baú do Jogador (300 espaços).' : hideoutLevel(p) < HIDEOUT_MAX_LEVEL ? 'Melhora o Esconderijo para teres mais espaço.' : 'Usa peças na Bancada de Craft para libertar espaço.'}</div>` : ''}
     <div class="inv-label">As tuas peças</div>
     ${hoPartsSummary(h)}
+    <div class="ho-aj">
+      <div class="ho-aj-t"><b>🔁 Junção automática</b><small>Ao desmanchar, as peças Comuns a Lendárias juntam-se sozinhas (${CRAFT_JOIN_COST} → 1) até Peças Únicas. Poupa espaço no Baú.</small></div>
+      <button type="button" class="ho-sw${hoAutoJoinOn(h) ? ' on' : ''}" id="btn-ho-autojoin" aria-label="Junção automática"><i></i></button>
+    </div>
+    ${hoJoinablesLeft(h) ? `<button class="btn small ghost block" id="btn-ho-joinall" style="margin-top:6px;">🔁 Juntar tudo agora</button>` : ''}
     ${groups.length ? (() => { const sel = (App.hoDisMulti || []).filter(k => groups.some(x => x.key === k)); App.hoDisMulti = sel;
       const n = groups.filter(x => sel.includes(x.key)).reduce((a, x) => a + x.items.length, 0);
       return `<div class="inv-label" style="margin-top:12px;">Desmanche em massa</div>
@@ -12599,6 +12620,8 @@ function bindHideoutStation(key) {
     const b = $('btn-ho-rest'); if (b) b.addEventListener('click', restAction);
     const tb = $('btn-ho-to-bar'); if (tb) tb.addEventListener('click', () => { sfx.tab(); App.lojaTab = 'bar'; setTab('loja'); });
   } else if (key === 'desmanche') {
+    const aj = $('btn-ho-autojoin'); if (aj) aj.addEventListener('click', () => { const h = App.player.hideout; h.autoJoin = !hoAutoJoinOn(h); sfx.tab(); saveGame(); toast(h.autoJoin ? '🔁 Junção automática ligada.' : '🔁 Junção automática desligada.'); rerender(); }); // v280
+    const ja = $('btn-ho-joinall'); if (ja) ja.addEventListener('click', () => { const h = App.player.hideout, used0 = hoStorageUsed(h), out = hoJoinAll(h); const t = CRAFT_JOIN_CHAIN.slice(1).filter(r => out[r]).map(r => `${out[r]}× ${hoPartName(r)}`).join(', '); sfx.buff(); saveGame(); toast(t ? `🔁 Juntaste tudo: ${t}. Libertaste ${used0 - hoStorageUsed(h)} espaços.` : 'Não há peças para juntar.'); rerender(); });
     els('[data-ho-dis-r]').forEach(b => b.addEventListener('click', () => { sfx.tab(); App.hoDisRarity = b.dataset.hoDisR; rerender(); }));
     els('[data-ho-dis]').forEach(b => b.addEventListener('click', async () => {
       const it = App.player.inventory.find(x => x.id === b.dataset.hoDis);
@@ -15741,6 +15764,7 @@ function renderMochilaBody() {
       els('[data-sell-shown]', mc).forEach(b => b.addEventListener('click', () => { closeModal(); sellFilteredItems(list); }));
       els('[data-sell-rarity]', mc).forEach(b => b.addEventListener('click', () => { closeModal(); sellAllByRarity(b.dataset.sellRarity); }));
       els('[data-autosell]', mc).forEach(b => b.addEventListener('click', () => { p.autoSell = b.dataset.autosell; sfx.tab(); saveGame(); again(); document.querySelector('[data-iv-open="sell"]').click(); }));
+      asModeBind(mc, () => { again(); document.querySelector('[data-iv-open="sell"]').click(); }); // v280
       const x = $('btn-close-modal'); if (x) x.addEventListener('click', closeModal);
     };
     els('[data-iv-open]', body).forEach(b => b.addEventListener('click', () => { sfx.click(); openSheet(b.dataset.ivOpen); }));
@@ -16217,8 +16241,8 @@ function openChest(chestId) {
     const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
     const item = generateItem(slot, chest.level, null, chest.qualityBoost);
     p.inventory.push(item); revealItem = item;
-    const cmp = compareToEquipped(item, p), asGold = autoSellTake(p, item); // v233
-    resultHtml = (asGold ? `<p class="as-sold">🧹 Venda automática: vendido por <b>${nxNum(asGold)} 🪙</b></p>` : '') + `
+    const cmp = compareToEquipped(item, p), ap = autoProcess(p, item), asGold = ap && !ap.dis ? ap.gold : 0; // v233 · v280
+    resultHtml = (asGold ? `<p class="as-sold">🧹 Venda automática: vendido por <b>${nxNum(asGold)} 🪙</b></p>` : ap && ap.dis ? `<p class="as-sold">🔨 Desmanche automático: +${ap.q}× ${hoPartName(ap.r)}</p>` : '') + `
       <div class="item-row" style="${rarityBoxStyle(item)}">
         <div class="item-ic">${itemIconHtml(item)}</div>
         <div class="item-mid">
@@ -16335,7 +16359,7 @@ function performOpenAllChests(type, matching, totalCost) {
   const equipFound = [];
   const stonesFound = {};
   const pearlsFound = {};
-  let feiticoFound = 0, reforcoFound = 0, pedrasFound = 0, asN = 0, asG = 0;
+  let feiticoFound = 0, reforcoFound = 0, pedrasFound = 0, asN = 0, asG = 0, adN = 0; const adP = {}; // v280
   const voidLines = [];
 
   matching.forEach(chest => {
@@ -16343,8 +16367,8 @@ function performOpenAllChests(type, matching, totalCost) {
       const slot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
       const item = generateItem(slot, chest.level, null, chest.qualityBoost);
       p.inventory.push(item);
-      const ag = autoSellTake(p, item); // v233
-      if (ag) { asN++; asG += ag; } else equipFound.push(item);
+      const ap = autoProcess(p, item); // v233 · v280
+      if (ap && ap.dis) { adN++; adP[ap.r] = (adP[ap.r] || 0) + ap.q; } else if (ap) { asN++; asG += ap.gold; } else equipFound.push(item);
     } else if (chest.type === 'vazio' || chest.type === 'vazio2') { // v190
       const r = openVoidChest(p, chest);
       equipFound.push(r.item);
@@ -16373,7 +16397,7 @@ function performOpenAllChests(type, matching, totalCost) {
   saveGame();
   sfx.equip();
 
-  let resultHtml = asN ? `<p class="as-sold">🧹 Venda automática: ${asN} ite${asN === 1 ? 'm' : 'ns'} fraco${asN === 1 ? '' : 's'} vendido${asN === 1 ? '' : 's'} por <b>${nxNum(asG)} 🪙</b></p>` : '';
+  let resultHtml = (adN ? `<p class="as-sold">${autoDisLine(adN, adP)}</p>` : '') + (asN ? `<p class="as-sold">🧹 Venda automática: ${asN} ite${asN === 1 ? 'm' : 'ns'} fraco${asN === 1 ? '' : 's'} vendido${asN === 1 ? '' : 's'} por <b>${nxNum(asG)} 🪙</b></p>` : '');
   resultHtml += equipFound.map(item => {
     const cmp = compareToEquipped(item, p);
     return `<p class="tiny"><span class="rarity-ic">${rarIc(item.rarity, item.rarityIcon)}</span>${item.name} · ${item.rarityName} <span class="item-compare ${cmp.cls}" style="display:inline;">(${cmp.label})</span></p>`;
@@ -17004,33 +17028,58 @@ function autoSellWould(p, item) {
   if (item.locked || item.setKey || (item.bonuses && item.bonuses.length) || item.uniqueEffect || item.mythic || item.hwSkin || item.plusBonus) return false; // v263: Lendário+ (➕) nunca
   return compareToEquipped(item, p).cls !== 'better';
 }
-function autoSellTake(p, item) {
-  if (!autoSellWould(p, item)) return 0;
-  const i = p.inventory.indexOf(item); if (i < 0) return 0;
+function autoSellTake(p, item) { const r = autoProcess(p, item); return r && !r.dis ? r.gold : 0; }
+// v280: 🔨 Desmanche automático — p.autoSellMode 'desmanchar' transforma os itens em peças (com Junção
+// automática) em vez de os vender. Sem Esconderijo ou com o Baú cheio, vende como antes.
+function autoDisOn(p) { return p && p.autoSellMode === 'desmanchar' && !!p.hideout; }
+function autoProcess(p, item) {
+  if (!autoSellWould(p, item)) return null;
+  const i = p.inventory.indexOf(item); if (i < 0) return null;
+  if (autoDisOn(p)) {
+    const h = p.hideout, r = hoPartRarity(item), q = hoDismantleBase(item) + (Math.random() < 0.25 ? 1 : 0);
+    if (hoStorageFree(p) >= q) {
+      p.inventory.splice(i, 1);
+      h.parts[r] = (h.parts[r] || 0) + q;
+      if (hoAutoJoinOn(h)) hoJoinAll(h);
+      p.stats.autoDis = (p.stats.autoDis || 0) + 1;
+      return { dis: true, r, q, gold: 0 };
+    }
+  }
   p.inventory.splice(i, 1);
   const g = itemSellValue(item);
   p.gold += g; p.stats.autoSold = (p.stats.autoSold || 0) + 1;
-  return g;
+  return { dis: false, gold: g };
 }
+function autoDisLine(n, parts) { const t = Object.keys(parts).map(r => `${parts[r]}× ${hoPartName(r)}`).join(', '); return `🔨 Desmanche automático: ${n} ite${n === 1 ? 'm' : 'ns'} → ${t}`; }
 // v263: também nas batalhas — no fim do combate vende os itens novos que caíram e cumprem a regra.
 function autoSellInvIds() { const p = App.player; return new Set(((p && p.inventory) || []).map(it => it && it.id)); }
 function autoSellAfterCombat(p, c) {
   if (!p || !c || !c._inv0 || !(AUTOSELL_RANK[p.autoSell] > 0)) return null;
   const fresh = (p.inventory || []).filter(it => it && !c._inv0.has(it.id));
-  let n = 0, g = 0; const by = {}, names = [];
-  fresh.forEach(it => { const v = autoSellTake(p, it); if (v) { n++; g += v; by[it.rarity] = (by[it.rarity] || 0) + 1; names.push(it.name); } });
+  let n = 0, g = 0, dn = 0; const by = {}, names = [], dp = {};
+  fresh.forEach(it => { const v = autoProcess(p, it); if (!v) return; names.push(it.name); if (v.dis) { dn++; dp[v.r] = (dp[v.r] || 0) + v.q; } else { n++; g += v.gold; by[it.rarity] = (by[it.rarity] || 0) + 1; } });
   c._inv0 = autoSellInvIds();
-  if (!n) return null;
+  if (!n && !dn) return null;
   const parts = Object.keys(AUTOSELL_RANK).filter(k => by[k]).map(k => `${by[k]} ${rarIc(k, '')}`).join(' ');
-  return { line: `🧹 Venda automática: ${n} ite${n === 1 ? 'm' : 'ns'} (${parts}) vendido${n === 1 ? '' : 's'} por <b>${nxNum(g)} 🪙</b>`, names };
+  const lines = [];
+  if (dn) lines.push(autoDisLine(dn, dp));
+  if (n) lines.push(`🧹 Venda automática: ${n} ite${n === 1 ? 'm' : 'ns'} (${parts}) vendido${n === 1 ? '' : 's'} por <b>${nxNum(g)} 🪙</b>`);
+  return { line: lines.join('<br>'), names };
 }
 function autoSellCardHtml(p) {
   const cur = AUTOSELL_RANK[p.autoSell] ? p.autoSell : 'off';
   return `<div class="card raised as-card"><div class="as-top"><b>🧹 Venda automática</b><span class="tiny muted">baús e batalhas</span></div>
     <div class="as-ch">${AUTOSELL_OPTS.map(([k, l]) => `<button type="button" class="tab-chip${cur === k ? ' active' : ''}" data-autosell="${k}">${k === 'off' ? l : `${rarIc(k === 'comum' ? 'comum' : k, '')} ${l}`}</button>`).join('')}</div>
+    <div class="as-mode"><span class="tiny">Com os itens:</span>${[['vender', '🪙 Vender'], ['desmanchar', '🔨 Desmanchar']].map(([k, l]) => `<button type="button" class="tab-chip${(p.autoSellMode === 'desmanchar' ? 'desmanchar' : 'vender') === k ? ' active' : ''}" data-asmode="${k}"${k === 'desmanchar' && !p.hideout ? ' disabled' : ''}>${l}</button>`).join('')}</div>
+    ${p.autoSellMode === 'desmanchar' ? `<p class="tiny" style="margin:4px 0;">${p.hideout ? `🔨 Os itens viram peças no Baú do Esconderijo${hoAutoJoinOn(p.hideout) ? ' e juntam-se sozinhas até Únicas' : ''}. Com o Baú cheio são vendidos.` : '🔨 Precisas do Esconderijo (Bancada de Desmanche).'}${p.stats && p.stats.autoDis ? ` · Já desmanchou ${nxNum(p.stats.autoDis)}.` : ''}</p>` : ''}
     <p class="tiny muted">Vende ao abrir baús e no fim das batalhas. Nunca vende: 🔒 bloqueados, Sets, Lendários ➕, itens com bónus especiais e itens ▲ Melhores do que os teus.${p.stats && p.stats.autoSold ? ` · Já vendeu ${nxNum(p.stats.autoSold)} itens.` : ''}</p></div>`;
 }
+function asModeBind(root, after) {
+  els('[data-asmode]', root).forEach(b => b.addEventListener('click', () => { const p = App.player; if (b.dataset.asmode === 'desmanchar' && !p.hideout) { sfx.error(); toast('🔨 Precisas do Esconderijo para desmanchar.'); return; }
+    p.autoSellMode = b.dataset.asmode; sfx.tab(); saveGame(); toast(p.autoSellMode === 'desmanchar' ? '🔨 Os itens automáticos passam a ser desmanchados em peças.' : '🪙 Os itens automáticos passam a ser vendidos.'); after(); }));
+}
 function autoSellBind(root) {
+  asModeBind(root, () => renderMochilaBody());
   els('[data-autosell]', root).forEach(b => b.addEventListener('click', () => { const p = App.player; p.autoSell = b.dataset.autosell; sfx.tab(); saveGame();
     toast(p.autoSell === 'off' ? '🧹 Venda automática desligada.' : `🧹 Venda automática: ${AUTOSELL_OPTS.find(x => x[0] === p.autoSell)[1]}.`); renderMochilaBody(); }));
 }
@@ -23171,7 +23220,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v279</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v280</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
