@@ -5059,7 +5059,7 @@ function effectiveStats(player) {
     // Reforço (+10% do valor base por nível, até +9).
     if (slot === 'offhand' && offWeapon && !offWeaponOn) return;
     const up = itemUpLv(item);
-    if (item.stats.regenPct) itemRegenPct += item.stats.regenPct + Math.round((item.baseStats.regenPct || 0) * 0.10 * up);
+    if (item.stats.regenPct) itemRegenPct += item.stats.regenPct + regenAtUp(item.baseStats.regenPct, up);
     if (item.stats.dmgReducedFromBossPct) itemDmgReducedFromBossPct += item.stats.dmgReducedFromBossPct + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up;
     itemGoldPct += Number(item.stats.goldPct) || 0; itemXpPct += Number(item.stats.xpPct) || 0; itemBlockPct += Number(item.stats.blockPct) || 0; // v244
     if (item.plusBonus) {
@@ -5270,6 +5270,10 @@ const BONUS_SCORE_WEIGHTS = {
 // v173: Ascensão — um item +9 pode ser "Ascendido" com um Coração do Soberano. Continua a +9,
 // mas conta como mais ASCEND_EXTRA_LEVELS níveis de melhoria (+20% dos stats base) e mostra "✦ Ascendido".
 const ASCEND_EXTRA_LEVELS = 2;
+// v279: a Regeneração dos itens é arredondada até ao +9 (como sempre foi); a parte da Ascensão
+// (níveis acima do +9) soma sem arredondar — senão uma Regeneração de 2% nunca subia ao Ascender.
+function fmtRegen(v) { return (Math.round((Number(v) || 0) * 10) / 10).toLocaleString('pt-PT'); }
+function regenAtUp(base, up) { const b = Number(base) || 0, u = Math.max(0, up || 0); return Math.round(b * 0.10 * Math.min(9, u)) + b * 0.10 * Math.max(0, u - 9); }
 function itemUpLv(item) { return item ? (item.upgrade || 0) + (item.ascended ? ASCEND_EXTRA_LEVELS : 0) : 0; }
 function upBadge(item) { return item && item.ascended ? ' <span class="asc-badge">✦ Ascendido</span>' : item && item.upgrade ? ` <span class="upgrade-badge">+${Number(item.upgrade) || 0}</span>` : ''; }
 function itemBonusScore(item) {
@@ -5324,7 +5328,7 @@ function itemPowerScore(item) {
   const dmg = (item.stats.dmg || 0) + Math.round((item.baseStats.dmg || 0) * 0.10 * up);
   const def = (item.stats.def || 0) + Math.round((item.baseStats.def || 0) * 0.10 * up);
   const crit = (item.stats.crit || 0) + (item.baseStats.crit || 0) * 0.10 * up;
-  const regenPct = (item.stats.regenPct || 0) + Math.round((item.baseStats.regenPct || 0) * 0.10 * up);
+  const regenPct = (item.stats.regenPct || 0) + regenAtUp(item.baseStats.regenPct, up);
   const dmgReducedFromBossPct = (item.stats.dmgReducedFromBossPct || 0) + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up;
   const es = (item.stats.es || 0) + Math.round((item.baseStats.es || 0) * 0.10 * up);
   // v147: o Escudo vale 0,65× a Defesa da peça, por isso pesa 3/0,65 ≈ 4,6 (peça só Escudo ≈ peça só Defesa).
@@ -9848,7 +9852,7 @@ function tradeCompareHtml(item) {
     ['Defesa', (a.def || 0) - (b.def || 0), v => Math.round(v)],
     ['Escudo Mágico', (a.es || 0) - (b.es || 0), v => Math.round(v)],
     ['Crítico', (a.crit || 0) - (b.crit || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
-    ['Regeneração', (a.regenPct || 0) - (b.regenPct || 0), v => `${Math.round(v)}%`],
+    ['Regeneração', (a.regenPct || 0) - (b.regenPct || 0), v => `${fmtRegen(v)}%`],
     ['dano de Bosses', (a.dmgReducedFromBossPct || 0) - (b.dmgReducedFromBossPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
     ['Bloqueio', (a.blockPct || 0) - (b.blockPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
     ['Ouro', (a.goldPct || 0) - (b.goldPct || 0), v => `${(Math.round(v * 1000) / 10).toLocaleString('pt-PT')}%`],
@@ -15365,7 +15369,7 @@ function itemStatsAtUpgrade(item, upgradeLevel) {
     def: (item.stats.def || 0) + Math.round((item.baseStats.def || 0) * 0.10 * up),
     es: (item.stats.es || 0) + Math.round((item.baseStats.es || 0) * 0.10 * up),
     crit: (item.stats.crit || 0) + (item.baseStats.crit || 0) * 0.10 * up,
-    regenPct: (item.stats.regenPct || 0) + Math.round((item.baseStats.regenPct || 0) * 0.10 * up),
+    regenPct: (item.stats.regenPct || 0) + regenAtUp(item.baseStats.regenPct, up),
     dmgReducedFromBossPct: (item.stats.dmgReducedFromBossPct || 0) + (item.baseStats.dmgReducedFromBossPct || 0) * 0.10 * up,
     goldPct: item.stats.goldPct || 0, xpPct: item.stats.xpPct || 0, blockPct: item.stats.blockPct || 0 // v244: não sobem com o Reforço
   };
@@ -15379,7 +15383,7 @@ function formatStatTotals(s, html) {
   if (s.def) parts.push(html ? `<span class="st-def">+${s.def} Defesa</span>` : `+${s.def} Defesa`);
   if (s.es) parts.push(html ? `<span class="st-es">+${s.es} Escudo Mágico</span>` : `+${s.es} Escudo Mágico`);
   if (s.crit) parts.push(`+${pct(s.crit)} Crítico`);
-  if (s.regenPct) parts.push(`Regenera ${s.regenPct}% HP/ronda`);
+  if (s.regenPct) parts.push(`Regenera ${fmtRegen(s.regenPct)}% HP/ronda`);
   if (s.dmgReducedFromBossPct) parts.push(`-${pct(s.dmgReducedFromBossPct)} dano de Bosses`);
   if (s.blockPct) parts.push(`${pct(s.blockPct)} Bloqueio`);
   if (s.goldPct) parts.push(`+${pct(s.goldPct)} Ouro`);
@@ -15396,7 +15400,7 @@ function formatStatDeltas(cur, next) {
   if (next.def - cur.def > 0) parts.push(`+${next.def - cur.def} Defesa`);
   if ((next.es || 0) - (cur.es || 0) > 0) parts.push(`+${next.es - cur.es} Escudo Mágico`);
   if (next.crit - cur.crit > 0.0001) parts.push(`+${Math.round((next.crit - cur.crit) * 100)}% Crítico`);
-  if ((next.regenPct || 0) - (cur.regenPct || 0) > 0) parts.push(`+${next.regenPct - cur.regenPct}% Regeneração`);
+  if ((next.regenPct || 0) - (cur.regenPct || 0) > 0) parts.push(`+${fmtRegen(next.regenPct - cur.regenPct)}% Regeneração`);
   if ((next.dmgReducedFromBossPct || 0) - (cur.dmgReducedFromBossPct || 0) > 0.0001) parts.push(`+${Math.round((next.dmgReducedFromBossPct - cur.dmgReducedFromBossPct) * 100)}% dano de Bosses reduzido`);
   return parts.join(' · ') || '—';
 }
@@ -17348,7 +17352,7 @@ function itemSheetHtml(item, slot, p, ro) {
   addP('es', v => `+${v} <span class="st-es">Escudo Mágico</span>`, int);
   addP('hp', v => `+${v} HP`, int);
   addP('crit', v => `+${v} Crítico`, pc1);
-  addP('regenPct', v => `+${v} Regeneração`, v => `${Math.round(v)}%`);
+  addP('regenPct', v => `+${v} Regeneração`, v => `${fmtRegen(v)}%`);
   addP('dmgReducedFromBossPct', v => `${v} menos dano de chefes`, pc1);
   addP('blockPct', v => `${v} Bloqueio`, pc1); // v244
   addP('goldPct', v => `+${v} Ouro`, pc1);
@@ -23167,7 +23171,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v278</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v279</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
