@@ -4851,3 +4851,48 @@ body:not(.fx-lite):not(.fx-off) .tt.ast .tt-head::after{animation:ifxShine 4.2s 
 .ho-sw.on i{left:23px;background:#F2C94C;}
 .as-mode{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:8px 0 2px;}
 .as-mode .tab-chip[disabled]{opacity:.45;}
+/* ===== v282: ᚱ Rúnico + 👑 Conclave dos Tiranos ===== */
+.ifx-run{--ifx:rgba(255,110,30,.3); filter:drop-shadow(0 0 3px rgba(255,120,30,.9));}
+.ifx-asc.ifx-run{--ifx:rgba(255,130,30,.85);}
+body:not(.fx-lite) .ifx-run::before{animation:runBreath 2.4s ease-in-out infinite;}
+@keyframes runBreath{0%,100%{opacity:.35; transform:scale(.9);} 50%{opacity:1; transform:scale(1.12);}}
+.ifx-run > i{background:#ffb23a; box-shadow:0 0 5px #ff6a1a; animation:ifxEmber 1.9s linear infinite;}
+.ifx-run > b{position:absolute; inset:-22%; z-index:2; pointer-events:none; display:block;}
+.ifx-run > b svg{width:100%; height:100%; overflow:visible; animation:runSpin 14s linear infinite;}
+.ifx-run > b text{font-size:11px; fill:#ffb23a; opacity:.85; letter-spacing:1.5px; filter:drop-shadow(0 0 2px #ff5a1a); animation:runFlick 1.8s ease-in-out infinite;}
+@keyframes runSpin{to{transform:rotate(360deg);}}
+@keyframes runFlick{0%,100%{fill:#ff8a1f;} 50%{fill:#ffe066;}}
+body.fx-lite .ifx-run > b svg,body.fx-off .ifx-run > b svg{animation:none;}
+@media (prefers-reduced-motion:reduce){.ifx-run > b svg,.ifx-run > b text{animation:none !important;}}
+.tt.run{--c:#FF8A1F; border:2px solid #FF8A1F; outline:1px solid #6b2a12; animation:runCard 2.4s ease-in-out infinite; background:radial-gradient(circle at 50% 110%, rgba(255,110,30,.18), transparent 60%), var(--bg-elev, #15161c);}
+@keyframes runCard{0%,100%{box-shadow:0 0 16px rgba(255,90,20,.35), 0 8px 24px rgba(0,0,0,.7);} 50%{box-shadow:0 0 32px rgba(255,140,40,.7), 0 8px 24px rgba(0,0,0,.7);}}
+.tt.run .tt-head{background:linear-gradient(90deg, #3a1206, #6b2a12 50%, #3a1206) !important; border-bottom:1px solid #FF8A1F; position:relative; overflow:hidden;}
+.tt.run .tt-head::after{content:""; position:absolute; inset:0; pointer-events:none; background:linear-gradient(105deg, transparent 38%, rgba(255,210,140,.55) 50%, transparent 62%); background-size:260% 100%; background-position:160% 0;}
+body:not(.fx-lite):not(.fx-off) .tt.run .tt-head::after{animation:ifxShine 3.6s ease-in-out infinite;}
+.tt.run .tt-name{background:linear-gradient(90deg,#FFE066,#FF9A1F,#FF3B1F,#FF9A1F,#FFE066); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent !important; text-shadow:none !important; animation:runName 3s linear infinite;}
+@keyframes runName{to{background-position:200% 0;}}
+.ak-tag.run-tag{border-color:#FF7A1A; color:#FFD166; background:linear-gradient(90deg, rgba(255,120,30,.22), rgba(60,20,8,.4)); text-shadow:0 0 6px rgba(255,140,40,.55);}
+.ak-tag.run-tag .nx-k{width:14px; height:14px; vertical-align:-2px;}
+.doll-slot.runic{border-color:#FF8A1F !important; animation:runCard 2.4s ease-in-out infinite;}
+.rg-ic.run{box-shadow:0 0 14px rgba(255,120,30,.75), inset 0 0 10px rgba(255,120,30,.25); animation:runCard 2.4s ease-in-out infinite;}
+.cc-hero{display:flex; gap:12px; align-items:center; padding:12px; border-radius:16px; margin-bottom:10px; background:linear-gradient(135deg, rgba(70,20,8,.8), rgba(14,8,6,.92)); border:1px solid rgba(255,120,30,.45); box-shadow:0 0 18px rgba(255,90,20,.25);}
+.cc-hero img{width:84px; height:84px; flex:0 0 84px; border-radius:50%; filter:drop-shadow(0 0 10px rgba(255,120,30,.55));}
+.cc-hero b{display:block; font-family:var(--font-display); font-size:18px; color:#FFD166;}
+.cc-hero span{display:block; font-size:12px; color:var(--muted,#b9b4a8); margin-top:4px;}
+.cc-wk-t{display:flex; justify-content:space-between; align-items:baseline; gap:8px;}
+.cc-wk-t small{font-size:11px; color:var(--muted,#b9b4a8);}
+.cc-bosses{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:8px;}
+.cc-b{text-align:center; padding:8px 4px; border-radius:12px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.06);}
+.cc-bi{display:block; width:54px; height:54px; margin:0 auto 4px; font-size:36px;}
+.cc-bi .nx-k,.cc-bi img{width:54px; height:54px;}
+.cc-b b{display:block; font-size:12px;} .cc-b small{display:block; font-size:10.5px; color:var(--muted,#b9b4a8);}
+.cc-mode{margin-top:10px;}
+.cc-tirania{border-color:rgba(255,120,30,.55) !important; box-shadow:0 0 14px rgba(255,90,20,.2);}
+.cc-mh{display:flex; justify-content:space-between; align-items:baseline;} .cc-mh b{font-size:15px;} .cc-mh span{font-size:11px; color:var(--muted,#b9b4a8);}
+.cc-mb{display:flex; align-items:center; justify-content:center; gap:6px; margin:8px 0;}
+.cc-mb i{font-style:normal; color:#FF8A1F; font-weight:800;}
+.cc-mbi{width:46px; height:46px; font-size:32px; display:inline-flex; align-items:center; justify-content:center;}
+.cc-mbi .nx-k,.cc-mbi img{width:46px; height:46px;}
+.cc-run-ch{color:#FFD166;} .cc-run-ch .nx-k{width:16px; height:16px; vertical-align:-3px;}
+.cc-runic{margin-top:10px; border-color:rgba(255,120,30,.5) !important;}
+.cc-rh{display:flex; align-items:center; gap:8px; margin-bottom:6px;} .cc-rh .nx-k{width:28px; height:28px;} .cc-rh b{color:#FFB23A;}

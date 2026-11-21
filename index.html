@@ -984,7 +984,9 @@ const RARITIES = [
   { key: 'divino', name: 'Divino', icon: '💠', mult: 5.5, color: '#3FE0D0', special: true, sourceLabel: 'Catacumbas, chefes no Divino, Picos do Inverno Eterno, Santuário do Eclipse, Torre do Abismo, Labirinto da Cripta e Armas da Cripta' },
   { key: 'temporada', name: 'Temporada', icon: '⭐', mult: 4.0, color: '#F2C94C', special: true, sourceLabel: 'exclusivo das Temporadas' },
   // v252: 💎 Astral — a raridade mais forte do jogo. Só na 🌀 Espiral Infinita (Forja Astral e Baús de Marco). Não se troca nem se funde.
-  { key: 'astral', name: 'Astral', icon: '💎', mult: 6.6, color: '#CFE8FF', special: true, noTrade: true, sourceLabel: 'exclusivo da 🌀 Espiral Infinita (Forja Astral e Baús de Marco)' }
+  { key: 'astral', name: 'Astral', icon: '💎', mult: 6.6, color: '#CFE8FF', special: true, noTrade: true, sourceLabel: 'exclusivo da 🌀 Espiral Infinita (Forja Astral e Baús de Marco)' },
+  // v282: ᚱ Rúnico — a raridade mais forte. Só no 👑 Conclave dos Tiranos (Paragon). Não se troca nem se funde.
+  { key: 'runico', name: 'Rúnico', icon: 'ᚱ', mult: 7.6, color: '#FF8A1F', special: true, noTrade: true, sourceLabel: 'exclusivo do 👑 Conclave dos Tiranos (Paragon)' }
 ];
 
 // ============================================================
@@ -1052,6 +1054,7 @@ function rarityBoxStyle(item) {
   const hex = (item && item.rarityColor) || '#B9B4A8';
   const n = parseInt(hex.slice(1), 16);
   const rgb = `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+  if (item && item.rarity === 'runico') return 'border-color:#FF8A1F; background:radial-gradient(circle at 50% 120%, rgba(255,120,30,.38), transparent 60%), linear-gradient(135deg, rgba(60,20,8,.85), rgba(20,8,4,.85)); box-shadow:inset 0 0 16px rgba(255,120,30,.35), 0 0 10px rgba(255,110,30,.45);'; // v282
   if (item && item.rarity === 'astral') return `border-color:#EAF6FF; background:radial-gradient(circle at 0 0, rgba(255,255,255,.55), transparent 16px), radial-gradient(circle at 100% 100%, rgba(255,255,255,.45), transparent 16px), linear-gradient(135deg, rgba(255,255,255,.30) 0 16%, rgba(214,236,255,.20) 16% 36%, rgba(255,255,255,.10) 36% 54%, rgba(190,222,250,.24) 54% 74%, rgba(255,255,255,.18) 74%), rgba(93,136,168,.32); box-shadow:inset 0 0 14px rgba(220,240,255,.30), 0 0 10px rgba(207,232,255,.45);`; // v252: cristal Astral
   return `border-color:${hex}; background:linear-gradient(135deg, rgba(${rgb},0.34), rgba(${rgb},0.10)); box-shadow:inset 0 0 14px rgba(${rgb},0.22), 0 0 6px rgba(${rgb},0.20);`;
 }
@@ -1071,6 +1074,22 @@ const DEMONIACO_RARITY = RARITIES.find(r => r.key === 'demoniaco');
 const SET_RARITY = RARITIES.find(r => r.key === 'set');
 const DIVINO_RARITY = RARITIES.find(r => r.key === 'divino');
 const ASTRAL_RARITY = RARITIES.find(r => r.key === 'astral');
+const RUNICO_RARITY = RARITIES.find(r => r.key === 'runico'); // v282
+function itemNoTrade(it) { const r = it && RARITIES.find(x => x.key === it.rarity); return !!(r && r.noTrade); }
+// v282: ᚱ Marca do Tirano — cada peça Rúnica equipada (anel incluído) dá +2% de dano e −1% de dano recebido contra chefes.
+const RUNIC_MARK = { boss: 0.02, red: 0.01 };
+function runicCount(p) { if (!p || !p.equipment) return 0; const r = ringEquipped(p); return EQUIP_SLOTS.filter(s => p.equipment[s] && p.equipment[s].rarity === 'runico').length + (r && r.r === 'runico' ? 1 : 0); }
+const RUNIC_NAMES = { offhand: 'Escudo Rúnico', head: 'Elmo Rúnico', chest: 'Couraça Rúnica', cape: 'Manto Rúnico', boots: 'Botas Rúnicas', gloves: 'Manoplas Rúnicas', amulet: 'Amuleto Rúnico', artifact: 'Pedra Rúnica' };
+const RUNIC_WEAPON = { guerreiro: 'Espada', mago: 'Cajado', arqueiro: 'Arco' };
+const RUNIC_IMG = { Espada: 'runico-espada', Cajado: 'runico-cajado', Arco: 'runico-arco', offhand: 'runico-escudo', head: 'runico-elmo', chest: 'runico-couraca', cape: 'runico-manto', boots: 'runico-botas', gloves: 'runico-manoplas', amulet: 'runico-amuleto', artifact: 'runico-pedra' };
+function newRunicItem(p, slot) {
+  const it = generateItem(slot, MAX_LEVEL, null, false, RUNICO_RARITY, { noPrim: true });
+  if (slot === 'weapon') { const b = RUNIC_WEAPON[p && p.class] || 'Espada'; it.name = `${b} ${b === 'Espada' ? 'Rúnica' : 'Rúnico'}`; }
+  else it.name = RUNIC_NAMES[slot] || it.name;
+  return it;
+}
+function runicIconKey(item) { const k = item.slot === 'weapon' ? RUNIC_IMG[weaponBaseType(item)] || 'runico-espada' : RUNIC_IMG[item.slot]; return k && NX_ICON_IMG.has(k) ? k : null; }
+const RUNE_RING_SVG = '<svg viewBox="0 0 100 100" aria-hidden="true"><path id="nxrr" d="M50,50 m-41,0 a41,41 0 1,1 82,0 a41,41 0 1,1 -82,0" fill="none"/><text><textPath href="#nxrr">ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟᚠᚢᚦᚨ</textPath></text></svg>';
 // v252: 🌟 Constelação Astral — bónus por cada peça Astral equipada (funciona como um set que serve em qualquer peça).
 const ASTRAL_CONSTELLATION = [
   { count: 2, desc: '+6% HP', hpPct: 0.06 },
@@ -1168,7 +1187,7 @@ const ITEM_BASE_GENDER = {
   // v147: armaduras de Escudo Mágico (mistas e só escudo)
   'Bacinete': 'm', 'Brigantina': 'f', 'Botas de Couro': 'fp', 'Botas Arcanas': 'fp', 'Luvas de Couro': 'fp', 'Luvas Arcanas': 'fp',
   'Amuleto': 'm', 'Colar': 'm', 'Pingente': 'm',
-  'Relíquia': 'f', 'Talismã': 'm', 'Fragmento Antigo': 'm'
+  'Relíquia': 'f', 'Talismã': 'm', 'Fragmento Antigo': 'm', 'Couraça': 'f', 'Pedra': 'f' /* v282 */
 };
 // Formas de cada adjetivo: [masculino, feminino, masc. plural, fem. plural].
 const ITEM_ADJ_FORMS = [
@@ -4772,19 +4791,19 @@ function dualWieldActive(p) {
 // Cada anel tem: raridade · 💎 Engaste (a pedra: Rubi, Esmeralda, Safira, Ametista, Topázio) ·
 // ✍️ Gravações (0–3 conforme a raridade) · 🌟 Poder (só Único+) · 🔨 Lapidação +1…+5 no Ferreiro (+4% por nível ao Engaste e às Gravações).
 // ============================================================
-const RING_RAR = ['comum', 'incomum', 'raro', 'lendario', 'unico', 'demoniaco', 'divino', 'astral'];
+const RING_RAR = ['comum', 'incomum', 'raro', 'lendario', 'unico', 'demoniaco', 'divino', 'astral', 'runico']; // v282: + Rúnico
 const RING_MAX = 40, RING_LAP_MAX = 5, RING_LAP_STEP = 0.04, RING_LAP_GOLD = [5000, 10000, 20000, 35000, 60000];
-const RING_SELL = [300, 600, 1000, 3000, 5000, 7000, 15000, 25000];
+const RING_SELL = [300, 600, 1000, 3000, 5000, 7000, 15000, 25000, 40000];
 const RING_GEMS = {
-  rubi: { name: 'Rubi', icon: '❤️', img: 'anel-rubi', stat: 'dmg', label: 'Dano', vals: [2, 3, 4, 6, 7, 8, 10, 12] },
-  esmeralda: { name: 'Esmeralda', icon: '💚', img: 'anel-esmeralda', stat: 'hp', label: 'HP', vals: [2, 3, 4, 6, 7, 8, 10, 12] },
-  safira: { name: 'Safira', icon: '💙', img: 'anel-safira', stat: 'def', label: 'Defesa', vals: [2, 3, 4, 6, 7, 8, 10, 12] },
-  ametista: { name: 'Ametista', icon: '💜', img: 'anel-ametista', stat: 'crit', label: 'Crítico', vals: [1, 1.5, 2, 3, 3.5, 4, 5, 6] },
-  topazio: { name: 'Topázio', icon: '💛', img: 'anel-topazio', stat: 'gold', label: 'Ouro', vals: [6, 9, 12, 18, 21, 24, 30, 36], luck: [1, 1, 2, 3, 3, 4, 5, 6] }
+  rubi: { name: 'Rubi', icon: '❤️', img: 'anel-rubi', stat: 'dmg', label: 'Dano', vals: [2, 3, 4, 6, 7, 8, 10, 12, 14] },
+  esmeralda: { name: 'Esmeralda', icon: '💚', img: 'anel-esmeralda', stat: 'hp', label: 'HP', vals: [2, 3, 4, 6, 7, 8, 10, 12, 14] },
+  safira: { name: 'Safira', icon: '💙', img: 'anel-safira', stat: 'def', label: 'Defesa', vals: [2, 3, 4, 6, 7, 8, 10, 12, 14] },
+  ametista: { name: 'Ametista', icon: '💜', img: 'anel-ametista', stat: 'crit', label: 'Crítico', vals: [1, 1.5, 2, 3, 3.5, 4, 5, 6, 7] },
+  topazio: { name: 'Topázio', icon: '💛', img: 'anel-topazio', stat: 'gold', label: 'Ouro', vals: [6, 9, 12, 18, 21, 24, 30, 36, 42], luck: [1, 1, 2, 3, 3, 4, 5, 6, 7] }
 };
 const RING_GEM_KEYS = Object.keys(RING_GEMS);
-const RING_ENGR_N = [0, 1, 1, 2, 2, 2, 3, 3];
-const RING_ENGR_F = [0, 1, 1.25, 1.6, 1.8, 2, 2.5, 3];
+const RING_ENGR_N = [0, 1, 1, 2, 2, 2, 3, 3, 3];
+const RING_ENGR_F = [0, 1, 1.25, 1.6, 1.8, 2, 2.5, 3, 3.5];
 const RING_ENGR = {
   chefes: { icon: '👑', label: 'Dano contra chefes', base: 4 },
   roubo: { icon: '🩸', label: 'Roubo de vida', base: 1 },
@@ -4832,7 +4851,7 @@ function ringGemVal(r) { const G = RING_GEMS[r.g]; return G.vals[ringRi(r)] * ri
 function ringLuckVal(r) { const G = RING_GEMS[r.g]; return G.luck ? G.luck[ringRi(r)] * ringLapMult(r) : 0; }
 function ringEngrVal(r, en) { const d = RING_ENGR[en.k]; return d ? d.base * RING_ENGR_F[ringRi(r)] * Math.max(0.7, Math.min(1, Number(en.q) || 0.7)) * ringLapMult(r) : 0; }
 function ringFmt(v) { return (Math.round(v * 10) / 10).toLocaleString('pt-PT'); }
-function ringName(r) { return r.r === 'mitico' && RING_MYTHS[r.my] ? RING_MYTHS[r.my].name : `Anel de ${RING_GEMS[r.g].name}${r.r === 'astral' ? ' Astral' : ''}`; }
+function ringName(r) { return r.r === 'mitico' && RING_MYTHS[r.my] ? RING_MYTHS[r.my].name : (r.r === 'runico' ? 'Anel Rúnico' : `Anel de ${RING_GEMS[r.g].name}${r.r === 'astral' ? ' Astral' : ''}`); }
 function ringEquipped(p) { return p && p.ringEq ? (p.rings || []).find(x => x && x.id === p.ringEq) || null : null; }
 function ringHasPower(p, k) { const r = ringEquipped(p); return !!(r && r.pw === k && ringRi(r) >= RING_POWER_MIN); }
 function ringTotals(p) {
@@ -4847,8 +4866,8 @@ function ringTotals(p) {
   return t;
 }
 function ringIconHtml(r, cls) {
-  const R = ringRar(r), key = r.r === 'mitico' && RING_MYTHS[r.my] ? RING_MYTHS[r.my].img : r.r === 'astral' ? 'astral-anel' : RING_GEMS[r.g].img;
-  return `<span class="rg-ic${cls ? ' ' + cls : ''}${r.r === 'astral' ? ' ast' : r.r === 'mitico' ? ' myth' : ['divino'].includes(r.r) ? ' div' : ''}" style="--rc:${R.color};">${nxEnt(key, '💍')}${r.lap ? `<em>+${r.lap}</em>` : ''}</span>`;
+  const R = ringRar(r), key = r.r === 'mitico' && RING_MYTHS[r.my] ? RING_MYTHS[r.my].img : r.r === 'runico' ? 'runico-anel' : r.r === 'astral' ? 'astral-anel' : RING_GEMS[r.g].img;
+  return `<span class="rg-ic${cls ? ' ' + cls : ''}${r.r === 'runico' ? ' run' : r.r === 'astral' ? ' ast' : r.r === 'mitico' ? ' myth' : ['divino'].includes(r.r) ? ' div' : ''}" style="--rc:${R.color};">${nxEnt(key, '💍')}${r.lap ? `<em>+${r.lap}</em>` : ''}</span>`;
 }
 function ringLinesHtml(r) {
   const G = RING_GEMS[r.g], out = [];
@@ -5135,6 +5154,7 @@ function effectiveStats(player) {
   itemRegenPct += rgT.regen; itemDmgVsBossPct += rgT.boss; dropLuckBonus += rgT.luck; itemXpPct += rgT.xp;
   if (talisman) dmgPctTotal += talDef(talisman).dmgPct || 0;
   if (talisman) { itemDmgVsBossPct += talDef(talisman).bossPct || 0; itemDmgReducedFromBossPct += talDef(talisman).bossRed || 0; }
+  { const nR = runicCount(player); if (nR) { itemDmgVsBossPct += RUNIC_MARK.boss * nR; itemDmgReducedFromBossPct += RUNIC_MARK.red * nR; } } // v282: ᚱ Marca do Tirano
   setBonuses.forEach(b => {
     if (b.dmgPct) dmgPctTotal += b.dmgPct;
     if (b.hpPct) hpPctTotal += b.hpPct;
@@ -5562,6 +5582,138 @@ function ymirTurn(c, p, pStats) {
     else { const d = Math.max(1, Math.round(pStats.hp * YMIR.STORM_PCT)); p.hp = Math.max(0, p.hp - d); addCombatLog({ text: `❄️ Tempestade de Gelo: perdes ${nxNum(d)} HP (precisas de ${YMIR.STORM_RES}% de Resistência ao Gelo para a ignorar).`, cls: 'hit' }); }
   }
   if (y.phase === 3 && Math.random() < YMIR.FREEZE * (1 - resFor(pStats, 'gelo') / 100)) c.ymirFreeze = true;
+}
+
+
+// ============================================================
+// 👑 CONCLAVE DOS TIRANOS (v282) — Desafio Paragon semanal.
+// Todas as semanas, 3 chefes das regiões (de raças diferentes, iguais para todos). ⚔️ Duelo = os 2
+// primeiros ao mesmo tempo; 👑 Tirania = os 3. Combate como as hordas: escolhes o alvo e todos atacam
+// em cada ronda; cada um mantém a sua habilidade e a Fúria. Quando um cai, os outros ficam Enfurecidos.
+// 5 tentativas por dia (partilhadas). Recompensas grandes e a única fonte de itens ᚱ Rúnicos.
+// Simulado com os perfis reais (P1): o mais forte ganha o Duelo sempre e a Tirania ~40–50%; o 2.º ganha o Duelo ~60–75% (sem poções).
+// ============================================================
+const CONC = {
+  TRIES: 5, ENRAGE: 0.15, WEEK_RUN: 0.10,
+  MODES: {
+    duelo: { key: 'duelo', name: 'Duelo', icon: '⚔️', n: 2, hp: 6, dmg: 1.7, def: 2.0, xp: 4, gold: 4, rel: 3, heart: 0.08, div: 0.10, run: 0.01, rolls: 2 },
+    tirania: { key: 'tirania', name: 'Tirania', icon: '👑', n: 3, hp: 12, dmg: 2.45, def: 2.8, xp: 8, gold: 8, rel: 6, heart: 0.20, div: 0.25, run: 0.03, rolls: 3 }
+  }
+};
+function pcW(v) { return `${String(Math.round(v * 1000) / 10).replace('.', ',')}%`; }
+function concWeek() { return isoWeekKey(new Date(hoNow())); }
+function concBosses(wk) {
+  const rng = seededRng(hashStr('conclave:' + (wk || concWeek())));
+  const pool = ALL_BOSSES.slice(), out = [], cats = new Set();
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  pool.forEach(b => { if (out.length < 3 && !cats.has(b.category)) { out.push(b); cats.add(b.category); } });
+  pool.forEach(b => { if (out.length < 3 && !out.includes(b)) out.push(b); });
+  return out;
+}
+function concState(p) {
+  const st = p.conclave = p.conclave && typeof p.conclave === 'object' ? p.conclave : {};
+  if (st.day !== soberanoDay()) { st.day = soberanoDay(); st.tries = 0; }
+  if (st.wk !== concWeek()) { st.wk = concWeek(); st.wkWin = {}; }
+  st.tries = clamp(Math.floor(Number(st.tries) || 0), 0, CONC.TRIES);
+  st.wkWin = st.wkWin && typeof st.wkWin === 'object' ? st.wkWin : {};
+  st.wins = st.wins && typeof st.wins === 'object' ? st.wins : {};
+  st.runic = Math.max(0, Math.floor(Number(st.runic) || 0));
+  return st;
+}
+function concLeft(p) { return CONC.TRIES - concState(p).tries; }
+function concResetMs() { const d = new Date(hoNow()), dow = (d.getDay() + 6) % 7; return new Date(d.getFullYear(), d.getMonth(), d.getDate() - dow + 7).getTime() - d.getTime(); }
+function concEnemy(b, M, P) {
+  const e = paragonEnemyStats(MAX_LEVEL, true, Math.max(1, P));
+  e.hp = Math.round(e.hp * M.hp); e.maxHp = e.hp; e.dmg = Math.max(1, Math.round(e.dmg * M.dmg)); e.def = Math.round(e.def * M.def);
+  return Object.assign(e, { element: null, critImmune: false, category: b.category });
+}
+function concRunChance(p, M) { const st = concState(p); return M.key === 'tirania' && !st.wkWin.tirania ? Math.max(M.run, CONC.WEEK_RUN) : M.run; }
+function renderConclaveBody(body) {
+  const p = App.player, st = concState(p), B = concBosses(), left = concLeft(p), P = paragonOf(p), pc = v => `${String(Math.round(v * 1000) / 10).replace('.', ',')}%`;
+  const lock = P < 1;
+  const modeCard = M => {
+    const bs = B.slice(0, M.n), e = concEnemy(bs[0], M, P), first = !st.wkWin[M.key];
+    return `<div class="card raised cc-mode cc-${M.key}">
+      <div class="cc-mh"><b>${M.icon} ${M.name}</b><span>${M.n} chefes ao mesmo tempo</span></div>
+      <div class="cc-mb">${bs.map(b => `<span class="cc-mbi">${nxCreature(b.name, b.icon)}</span>`).join('<i>+</i>')}</div>
+      <div class="sob-stats"><span>❤️ ${nxNum(e.hp)}</span><span>⚔️ ${nxNum(e.dmg)}</span><span>🛡️ ${nxNum(e.def)}</span></div><p class="tiny muted" style="margin:2px 0 0; text-align:center;">(cada tirano)</p>
+      <p class="tiny" style="margin-top:6px;">🎁 ${M.xp}× XP e ouro de um chefe · 💀 ${M.rel} Relíquias · ${nxEnt('coracao-soberano', '❤️‍🔥')} Coração (${pc(M.heart)}) · 💠 Divino (${pc(M.div)}) · 1 item com +${M.rolls} rolos${first ? ' · 🎁 Baú extra (1.ª vitória da semana)' : ''}</p>
+      <p class="tiny cc-run-ch">${nxEnt('rar-runico', 'ᚱ')} Item Rúnico: <b>${pc(concRunChance(p, M))}</b>${M.key === 'tirania' && first ? ' (1.ª vitória da semana!)' : ''}</p>
+      <button class="btn danger block" data-conc-fight="${M.key}" style="margin-top:8px;"${lock || left <= 0 ? ' disabled' : ''}>${lock ? '🔒 Precisas de Paragon 1' : left <= 0 ? '⏳ Sem tentativas hoje' : `${M.icon} Desafiar (${left}/${CONC.TRIES})`}</button>
+    </div>`;
+  };
+  const owned = (p.inventory || []).filter(i => i.rarity === 'runico').length + EQUIP_SLOTS.filter(sl => p.equipment[sl] && p.equipment[sl].rarity === 'runico').length + (p.rings || []).filter(r => r.r === 'runico').length;
+  body.innerHTML = `<div class="cc-hero">${NX_ICON_IMG.has('conclave') ? `<img src="${nxImgUrl('conclave')}" alt="">` : '<span>👑</span>'}<div><b>Conclave dos Tiranos</b><span>Desafio Paragon semanal. Os tiranos das regiões juntam-se contra ti — todos atacam em cada ronda e, quando um cai, os outros ficam Enfurecidos (+${Math.round(CONC.ENRAGE * 100)}% dano).</span></div></div>
+    <div class="card raised cc-week"><div class="cc-wk-t"><b>Tiranos desta semana</b><small>Mudam daqui a ${hoTimeLeft(concResetMs())}</small></div>
+      <div class="cc-bosses">${B.map((b, i) => `<div class="cc-b"><span class="cc-bi">${nxCreature(b.name, b.icon)}</span><b>${b.name}</b><small>${CATEGORY_INFO[b.category].icon} ${CATEGORY_INFO[b.category].name}${i === 2 ? ' · só Tirania' : ''}</small></div>`).join('')}</div>
+      <p class="tiny muted" style="margin-top:6px;">⚔️ Tentativas hoje: <b>${left}/${CONC.TRIES}</b> (partilhadas entre Duelo e Tirania). Perder gasta a tentativa.</p></div>
+    ${modeCard(CONC.MODES.duelo)}${modeCard(CONC.MODES.tirania)}
+    <div class="card raised cc-runic"><div class="cc-rh">${nxEnt('rar-runico', 'ᚱ')}<b>Itens Rúnicos</b></div>
+      <p class="tiny">A raridade mais forte do jogo (+15% stats do que o Astral), com moldura de runas em brasa. Cai em qualquer peça, incluindo o 💍 Anel. Não se troca nem se funde; melhora-se, Ascende-se e desmancha-se em Peças Rúnicas.</p>
+      <p class="tiny" style="margin-top:4px;">ᚱ <b>Marca do Tirano</b>: cada peça Rúnica equipada dá +${Math.round(RUNIC_MARK.boss * 100)}% de dano e −${Math.round(RUNIC_MARK.red * 100)}% de dano recebido contra chefes (com as 10: +${Math.round(RUNIC_MARK.boss * 1000)}% e −${Math.round(RUNIC_MARK.red * 1000)}%).</p>
+      <p class="tiny muted" style="margin-top:4px;">Tens ${owned} ${owned === 1 ? 'peça Rúnica' : 'peças Rúnicas'}.${st.wins.duelo || st.wins.tirania ? ` Vitórias: ⚔️ ${st.wins.duelo || 0} · 👑 ${st.wins.tirania || 0}.` : ''}</p></div>`;
+  els('[data-conc-fight]').forEach(b => b.addEventListener('click', () => startConclave(b.dataset.concFight)));
+}
+function startConclave(mode) {
+  if (!guardAllowsFight(() => startConclave(mode))) return;
+  const p = App.player, M = CONC.MODES[mode], P = paragonOf(p);
+  if (!M || P < 1) return;
+  const st = concState(p);
+  if (st.tries >= CONC.TRIES) { sfx.error(); toast('Já usaste as tentativas de hoje do Conclave. Volta amanhã!'); return; }
+  sfx.click(); st.tries++; saveGame();
+  const bs = concBosses().slice(0, M.n), B0 = bs[0];
+  App.combat = { _inv0: autoSellInvIds(),
+    kind: 'conclave', isConclave: true, concMode: mode, name: B0.name, icon: B0.icon, level: MAX_LEVEL, isBoss: true, isDungeon: false, paragon: P,
+    enemy: concEnemy(B0, M, P),
+    battleState: { enemyStatus: [], enemyStunned: false, playerDefBuff: null, enemyDefDebuff: null, critBuffActive: false, critBuff: null, potionDefBuff: null, potionAtkBuff: null, elementDefShred: 0, playerBurn: null, playerPoison: null, hpPotionsUsed: 0, bossEnraged: false, enemyTurnCount: 0, enemyCurse: null },
+    cooldowns: {}, log: [], eventApplied: null, ended: false
+  };
+  const c = App.combat;
+  hordeInit(c, bs.slice(1).map(b => concEnemy(b, M, P)));
+  c.horde.forEach((m, i) => { const b = bs[i]; m.label = b.name; m.cname = b.name; m.cicon = b.icon; m.st.bossEnraged = false; m.st.enemyTurnCount = 0; m.st.enemyCurse = null; m.cx = { name: b.name, icon: b.icon }; });
+  resetCombatScreenChrome();
+  showScreen('screen-combat');
+  addCombatLog({ text: `👑 Conclave dos Tiranos · ${M.icon} ${M.name}: ${bs.map(b => `${b.icon} ${b.name}`).join(', ')} enfrentam-te ao mesmo tempo! Toca num tirano para o escolheres como alvo.`, cls: 'hit' });
+  renderCombat();
+}
+// Um tirano caiu (não o último): os outros ficam Enfurecidos.
+function concOnKill(c, m) {
+  c.horde.forEach(o => { if (o === m || o.dead || o.enemy.hp <= 0) return; o.enemy.dmg = Math.round(o.enemy.dmg * (1 + CONC.ENRAGE)); });
+  addCombatLog({ text: `💀 ${m.label} caiu! Os outros tiranos ficam Enfurecidos (+${Math.round(CONC.ENRAGE * 100)}% de dano).`, cls: 'crit' });
+}
+function runicDrop(p, drops) {
+  const slots = EQUIP_SLOTS.concat(['ring']), sl = slots[Math.floor(Math.random() * slots.length)];
+  let name;
+  if (sl === 'ring') { ringsState(p); const r = newRing('runico'); p.rings.push(r); name = ringName(r); }
+  else { const it = newRunicItem(p, sl); p.inventory.push(it); name = it.name; }
+  concState(p).runic++;
+  drops.push(`ᚱ✨ ITEM RÚNICO! ${name}!`);
+  return name;
+}
+function finishConclave() {
+  const c = App.combat, p = App.player, M = CONC.MODES[c.concMode] || CONC.MODES.duelo, st = concState(p), first = !st.wkWin[M.key];
+  const lv = MAX_LEVEL, runCh = concRunChance(p, M);
+  const xpGain = pgXp(Math.round((35 + lv * 4.5) * M.xp * (1 + battleXpBonus(c))));
+  const goldGain = Math.round((30 + lv * 4) * M.gold * (1 + (effectiveStats(p).goldPct || 0)) * (1 + PARAGON_GOLD_PER_P * paragonOf(p)) * (ringHasPower(p, 'ganancia') ? 1.25 : 1));
+  p.gold += goldGain; grantXp(xpGain);
+  p.stats.wins++; p.stats.bossesKilled = (p.stats.bossesKilled || 0) + M.n;
+  st.wins[M.key] = (st.wins[M.key] || 0) + 1; st.wkWin[M.key] = true;
+  const drops = [`${xpGain} XP`, `${goldGain} 🪙 Ouro`];
+  let runic = null;
+  if (Math.random() < runCh) runic = runicDrop(p, drops);
+  grantRelics(p, M.rel, drops);
+  if (Math.random() < M.heart) { p.soberanoHearts = (p.soberanoHearts || 0) + 1; drops.push(`${nxEnt('coracao-soberano', '❤️‍🔥')} Coração do Soberano!`); }
+  const divino = Math.random() < M.div;
+  const item = generateItem(EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)], lv, null, M.rolls, divino ? DIVINO_RARITY : null);
+  p.inventory.push(item);
+  drops.push(`${divino ? '💠✨ ITEM DIVINO! ' : ''}${rarIc(item.rarity, item.rarityIcon)} ${item.name} · ${item.rarityName}`);
+  if (first) { p.chests.push(newChest('equip', lv, 2)); drops.push(`${CHEST_DEFS.equip.icon} ${CHEST_DEFS.equip.name} Nv. ${lv} (1.ª vitória da semana no ${M.name})`); }
+  tickProfessionCooldowns(p);
+  consumeTalismanBattle();
+  saveGame();
+  sfx.evolve();
+  showCombatEnd(true, { xpGain, goldGain, drops, isBoss: true });
+  if (runic) setTimeout(() => { try { fxCallout('ᚱ ITEM RÚNICO!', 'gold big', 2600); fxVibrate([40, 60, 40, 60, 140]); } catch (e) {} }, 500);
 }
 
 function soberanoDay() { const d = new Date(); return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
@@ -6557,6 +6709,7 @@ function todayItems(p) {
   add('diaria', nxEnt('chest', '🎁'), 'Prémio Diário', dailyAvailable(p) ? 'ready' : 'done', dailyAvailable(p) ? 'Por receber' : 'Recebida');
   if (lv >= OB.MIN_LV) { const o = obState(p); add('obelisco', obIc('nx-inline'), 'Obeliscos', o.count >= OB.DAILY ? 'done' : o.spawns.length ? 'ready' : 'todo', `${o.count}/${OB.DAILY} hoje${o.spawns.length ? ` · ${o.spawns.length} no mapa` : ''}`); }
   if (lv >= SOBERANOS[0].minLv) { const t = soberanoTriesSummary(p); add('soberano', nxCreature(SOBERANOS[0].name, '👑'), t.n > 1 ? 'Bosses Soberanos' : 'Boss Soberano', t.left > 0 ? 'todo' : 'done', t.left > 0 ? `${t.left}/${t.max} tentativas` : 'Sem tentativas'); }
+  if (paragonOf(p) >= 1) { const cl = concLeft(p); add('conclave', nxEnt('conclave', '👑'), 'Conclave dos Tiranos', cl > 0 ? 'todo' : 'done', cl > 0 ? `${cl}/${CONC.TRIES} tentativas` : 'Sem tentativas hoje'); } // v282
   if (lv >= HUNT_MIN_LV) { const hs = huntState(p); add('contratos', '📜', 'Contrato grátis', hs.freeUsed ? 'done' : 'ready', hs.freeUsed ? 'Já levantado' : 'No quadro'); }
   if (h) {
     const ready = hoReadyCount(p), free = expeditionSlots(p) - (h.exp || []).length;
@@ -6594,6 +6747,7 @@ function todayBind() {
     else if (k === 'diaria') go('loja', { lojaTab: 'diaria' });
     else if (k === 'obelisco') { sfx.tab(); App.btSheet = 'obelisco'; App.btSheetAnim = true; renderTabBatalha(); } // v221
     else if (k === 'soberano') go('mapa', { mapaTab: 'soberano' });
+    else if (k === 'conclave') go('mapa', { mapaTab: 'conclave' }); // v282
     else if (k === 'contratos') go('loja', { lojaTab: 'contratos' });
     else if (k === 'expedicoes') go('heroi', { heroiTab: 'esconderijo', hoStation: 'expedicoes', guildTab: null });
     else if (k === 'lareira') go('heroi', { heroiTab: 'esconderijo', hoStation: 'lareira', guildTab: null });
@@ -6891,7 +7045,7 @@ function elementInitEnemy(c, enemy, name, named) {
 function elementInit(c) {
   if (!c || !c.enemy) return;
   const named = !!(c.isBoss || c.isMiniBoss || c.isSoberano);
-  if (c.horde) c.horde.forEach(m => elementInitEnemy(c, m.enemy, c.name, named));
+  if (c.horde) c.horde.forEach(m => elementInitEnemy(c, m.enemy, m.cname || c.name, named));
   else elementInitEnemy(c, c.enemy, c.monsterName || c.name, named);
   const e = c.enemy;
   if (e.element && !e._elLogged) {
@@ -6942,7 +7096,7 @@ function enemyHitDamage(c, p, pStats, raw, defEff) {
 }
 // ---------- Resistências e elemento nos itens (derivados do id do item: não se guardam no save) ----------
 const RES_RARITY_MULT = { comum: 1, incomum: 1, raro: 1.1, lendario: 1.2, unico: 1.3, demoniaco: 1.3, set: 1.3, temporada: 1.3, mitico: 1.3, divino: 1.4, astral: 1.5 };
-const RES_TWO_ROLLS = ['lendario', 'unico', 'demoniaco', 'set', 'temporada', 'mitico', 'divino', 'astral'];
+const RES_TWO_ROLLS = ['lendario', 'unico', 'demoniaco', 'set', 'temporada', 'mitico', 'divino', 'astral', 'runico'];
 const _itemResCache = new Map();
 function itemResRange(lv) { return lv >= 200 ? [10, 15] : lv >= 170 ? [8, 12] : lv >= 130 ? [6, 10] : [4, 7]; } // v238: subiu (era 3–5 / 4–7 / 5–9)
 // Devolve { fogo, gelo, eletricidade, terra } (só os que o item tem) ou null.
@@ -9266,6 +9420,12 @@ function renderWikiBody() {
         <p class="tiny" style="margin-top:6px;">${Math.round(PRIM_CHANCE * 100)}% das armas <b>Divinas</b> que caem são <b>Primordiais</b>: uma arma especial por classe, com imagem própria. Tem os mesmos stats de uma arma Divina, mais um <b>Bónus Primordial</b> sorteado e um <b>Efeito Primordial</b> fixo. Pode ser melhorada e Ascendida como qualquer outra arma.</p>
         ${Object.values(PRIM_WEAPONS).map(d => `<p class="tiny" style="margin-top:8px;">${nxEnt(d.img, d.emoji)} <b class="prim-txt">${d.name}</b> <span class="muted">(${CLASSES[d.cls] ? CLASSES[d.cls].name : d.cls})</span><br>${d.icon} ${d.label(d.min).replace(String(d.min), d.min + '–' + d.max)}<br><b>${d.fxName}:</b> ${d.fxDesc}</p>`).join('')}
       </div>
+      <div class="card raised" style="margin-top:12px; border-color:#FF8A1F;">
+        <span class="ak-tag run-tag" style="margin:0 0 6px;">${nxEnt('rar-runico', 'ᚱ')} Rúnico</span>
+        <p class="tiny" style="margin-top:6px;">A raridade mais forte do jogo (stats ×${RUNICO_RARITY.mult.toLocaleString('pt-PT')}, contra ×${ASTRAL_RARITY.mult.toLocaleString('pt-PT')} do Astral), com moldura de runas em brasa. Só cai no <b>👑 Conclave dos Tiranos</b> (Mapa → Desafios · Paragon): ${pcW(CONC.MODES.duelo.run)} no ⚔️ Duelo e ${pcW(CONC.MODES.tirania.run)} na 👑 Tirania (${pcW(CONC.WEEK_RUN)} na 1.ª vitória da semana na Tirania). Pode ser qualquer peça, incluindo o 💍 Anel.</p>
+        <p class="tiny" style="margin-top:4px;">ᚱ <b>Marca do Tirano</b>: cada peça Rúnica equipada dá +${Math.round(RUNIC_MARK.boss * 100)}% de dano e −${Math.round(RUNIC_MARK.red * 100)}% de dano recebido contra chefes. Não se troca nem se funde; melhora-se, Ascende-se e desmancha-se em Peças Rúnicas (forjar custa ${craftForgeCost('runico')}).</p>
+        <p class="tiny" style="margin-top:4px;">👑 <b>Conclave dos Tiranos</b>: todas as semanas 3 chefes das regiões (iguais para todos). ⚔️ Duelo = 2 ao mesmo tempo, 👑 Tirania = os 3. Todos atacam em cada ronda; quando um cai, os outros ficam +${Math.round(CONC.ENRAGE * 100)}% mais fortes. ${CONC.TRIES} tentativas por dia (partilhadas).</p>
+      </div>
     `;
   } else if (t === 'melhorias') {
     body.innerHTML = `
@@ -9967,7 +10127,7 @@ async function listTradeItem(itemId, priceArg) {
   if (tradeBusy) { toast('Aguarda um momento…'); return; }
   const lockedItem = (App.player.inventory || []).find(i => i.id === itemId && i.locked);
   if (lockedItem) { sfx.error(); toast('🔒 Este item está bloqueado.'); return; }
-  if ((App.player.inventory || []).some(i => i.id === itemId && i.rarity === 'astral')) { sfx.error(); toast('💎 Os itens Astrais não se podem trocar.'); return; }
+  if ((App.player.inventory || []).some(i => i.id === itemId && itemNoTrade(i))) { sfx.error(); toast('Os itens Astrais e Rúnicos não se podem trocar.'); return; }
   const price = Number(priceArg);
   if (!Number.isSafeInteger(price) || price < 1 || price > 2147483647) {
     toast('Define um preço inteiro entre 1 e 2 147 483 647 ouro.');
@@ -11502,9 +11662,9 @@ function hoTimeLeft(ms) {
 function hoGold(n) { return `${nxIconSvg('coin', 'nx-inline') || '🪙'}${Number(n).toLocaleString('pt-PT')}`; }
 
 // ---------- Peças (Desmanche → Craft) ----------
-const HIDEOUT_PART_RARITIES = ['comum', 'incomum', 'raro', 'lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'astral']; // v281: + Astral
+const HIDEOUT_PART_RARITIES = ['comum', 'incomum', 'raro', 'lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'astral', 'runico']; // v281: + Astral · v282: + Rúnico
 const HIDEOUT_PART_NAMES = { comum: 'Peça Comum', incomum: 'Peça Incomum', raro: 'Peça Rara', lendario: 'Peça Lendária', unico: 'Peça Única',
-  demoniaco: 'Peça Demoníaca', set: 'Peça de Set', divino: 'Peça Divina', temporada: 'Peça da Temporada', astral: 'Peça Astral' };
+  demoniaco: 'Peça Demoníaca', set: 'Peça de Set', divino: 'Peça Divina', temporada: 'Peça da Temporada', astral: 'Peça Astral', runico: 'Peça Rúnica' };
 function hoPartName(r) { return HIDEOUT_PART_NAMES[r] || 'Peça'; }
 function hoRarity(r) { return RARITIES.find(x => x.key === r) || RARITIES[0]; }
 function hoPartIc(r) {
@@ -12121,7 +12281,7 @@ const CRAFT_JOIN_COST = 3;
 const CRAFT_FORGE_PARTS = 30;
 // v281: 💎 Astral — forjar um item Astral custa só 20 Peças Astrais (os Astrais são raros). 3 Peças Divinas
 // juntam-se em 1 Peça Astral (à mão; a Junção automática não toca nas Divinas).
-const CRAFT_FORGE_PARTS_BY = { astral: 20 };
+const CRAFT_FORGE_PARTS_BY = { astral: 20, runico: 20 };
 function craftForgeCost(r) { return CRAFT_FORGE_PARTS_BY[r] || CRAFT_FORGE_PARTS; }
 const CRAFT_JOIN_EXTRA = { divino: 'astral' };
 const CRAFT_IMPROVE_CHANCE = 0.20;  // v165: era 15%
@@ -12634,7 +12794,7 @@ function bindHideoutStation(key) {
     els('[data-ho-dis]').forEach(b => b.addEventListener('click', async () => {
       const it = App.player.inventory.find(x => x.id === b.dataset.hoDis);
       if (!it) return;
-      const big = ['lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'mitico', 'astral'].includes(it.rarity) || (it.upgrade || 0) >= 5;
+      const big = ['lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'mitico', 'astral', 'runico'].includes(it.rarity) || (it.upgrade || 0) >= 5;
       if (big && !await dismantleConfirm([it])) return;
       dismantleItems([it.id]);
     }));
@@ -13812,10 +13972,10 @@ function openFriendOptions(f) {
 }
 
 // ---------- montar uma proposta ----------
-const RARITY_ORDER_FR = ['astral', 'divino', 'mitico', 'temporada', 'demoniaco', 'unico', 'set', 'lendario', 'raro', 'incomum', 'comum'];
+const RARITY_ORDER_FR = ['runico', 'astral', 'divino', 'mitico', 'temporada', 'demoniaco', 'unico', 'set', 'lendario', 'raro', 'incomum', 'comum'];
 function friendPickRows(items, picked, attr, search) {
   const q = (search || '').trim().toLowerCase();
-  const list = items.filter(it => it.rarity !== 'astral' && (!q || String(it.name || '').toLowerCase().includes(q)))
+  const list = items.filter(it => !itemNoTrade(it) && (!q || String(it.name || '').toLowerCase().includes(q)))
     .sort((a, b) => RARITY_ORDER_FR.indexOf(a.rarity) - RARITY_ORDER_FR.indexOf(b.rarity) || (b.itemLevel || 0) - (a.itemLevel || 0));
   const shown = list.slice(0, 40);
   return (shown.map(it => {
@@ -13831,7 +13991,7 @@ async function renderFriendTradeBuilder(body) {
   const ui = friendsUi();
   const f = friendById(ui.friend);
   if (!f) { ui.view = 'list'; return renderAmigosBody(); }
-  const mine = (App.player.inventory || []).filter(it => !it.locked && it.rarity !== 'astral'); // v252: Astrais não se trocam
+  const mine = (App.player.inventory || []).filter(it => !it.locked && !itemNoTrade(it)); // v252 · v282: Astrais não se trocam
   const d = friendsCache && friendsCache.data;
   const sentToday = Number(d && d.gold_sent_today) || 0;
   const goldLeft = Math.max(0, FRIEND_GOLD_DAILY - sentToday);
@@ -15508,7 +15668,7 @@ function equipPowerCardHtml(p, info) {
     <div class="eq-pow-up">${slots.length ? `<b>▲ ${slots.length} ${slots.length === 1 ? 'peça melhor' : 'peças melhores'} na mochila</b>${gain > 0 ? `<small>até +${gain.toLocaleString('pt-PT')} de Poder</small>` : ''}` : '<span class="muted">Tens as peças mais fortes equipadas</span>'}</div></div>`;
 }
 function equipPieceCardHtml(p, info) {
-  const RO = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral'];
+  const RO = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral', 'runico'];
   const max = Math.max(1, ...EQUIP_SLOTS.map(s => Math.max(info[s].pw, info[s].best ? info[s].best.pw : 0)));
   // A mais fraca: um espaço vazio, ou a de raridade/nível/+Ferreiro mais baixos (fora a arma).
   const rank = s => { const it = p.equipment[s]; return it ? RO.indexOf(it.rarity) * 100000 + (it.itemLevel || 1) * 100 + itemUpLv(it) * 10 + Math.min(9, info[s].pw / 1000) : -1; };
@@ -15542,7 +15702,7 @@ function equipSetsCardHtml(p) {
 }
 function equipDollHtml(p, talisman) {
   const st = effectiveStats(p);
-  const order = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral'];
+  const order = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral', 'runico'];
   let best = null;
   EQUIP_SLOTS.forEach(s => { const it = p.equipment[s]; if (it && (!best || order.indexOf(it.rarity) > order.indexOf(best.rarity))) best = it; });
   const aura = best ? best.rarityColor : '#8a7a5a';
@@ -15553,7 +15713,7 @@ function equipDollHtml(p, talisman) {
     const dualItem = s === 'offhand' && it.slot === 'weapon';
     const socks = (it.sockets || []).length ? `<span class="doll-so">${it.sockets.map(g => `<i class="${g ? 'on' : ''}"></i>`).join('')}</span>` : '';
     const shine = ['unico', 'demoniaco', 'mitico', 'temporada'].includes(it.rarity) ? ' shine' : '';
-    return `<button class="doll-slot filled${wide ? ' wide' : ''}${it.rarity === 'divino' ? ' divine' : it.rarity === 'astral' ? ' divine astral' : ''}${shine}" data-equip-slot="${s}" type="button" style="--rc:${it.rarityColor};">
+    return `<button class="doll-slot filled${wide ? ' wide' : ''}${it.rarity === 'divino' ? ' divine' : it.rarity === 'astral' ? ' divine astral' : it.rarity === 'runico' ? ' divine runic' : ''}${shine}" data-equip-slot="${s}" type="button" style="--rc:${it.rarityColor};">
       ${bt}${it.upgrade ? `<span class="doll-up">+${it.upgrade}</span>` : ''}${it.setKey ? `<span class="doll-set${bt ? ' sh' : ''}" title="Peça de set">●</span>` : ''}${it.locked ? '<span class="doll-lock">🔒</span>' : ''}
       ${dualItem && !dualWieldActive(p) ? '<span class="doll-warn" title="Esta 2.ª arma não está a contar">⚠️</span>' : ''}
       <span class="doll-ic">${itemIconHtml(it)}</span>
@@ -15575,7 +15735,7 @@ function equipDollHtml(p, talisman) {
         ${st.es ? `<span class="es-tot">${esIconHtml()} <b>${st.es}</b></span>` : ''}
       </div>
       ${(() => { const rg = ringEquipped(p); const R = rg ? ringRar(rg) : null; // v267: 💍 Anel
-        return rg ? `<button class="doll-slot filled doll-anel${rg.r === 'divino' ? ' divine' : rg.r === 'astral' ? ' divine astral' : ''}" data-ring-slot type="button" style="--rc:${R.color};">${rg.lap ? `<span class="doll-up">+${rg.lap}</span>` : ''}<span class="doll-ic">${nxEnt(rg.r === 'mitico' && RING_MYTHS[rg.my] ? RING_MYTHS[rg.my].img : rg.r === 'astral' ? 'astral-anel' : RING_GEMS[rg.g].img, '💍')}</span><span class="doll-lbl">Anel</span><span class="doll-band">${R.name}</span></button>`
+        return rg ? `<button class="doll-slot filled doll-anel${rg.r === 'divino' ? ' divine' : rg.r === 'astral' ? ' divine astral' : rg.r === 'runico' ? ' divine runic' : ''}" data-ring-slot type="button" style="--rc:${R.color};">${rg.lap ? `<span class="doll-up">+${rg.lap}</span>` : ''}<span class="doll-ic">${nxEnt(rg.r === 'mitico' && RING_MYTHS[rg.my] ? RING_MYTHS[rg.my].img : rg.r === 'runico' ? 'runico-anel' : rg.r === 'astral' ? 'astral-anel' : RING_GEMS[rg.g].img, '💍')}</span><span class="doll-lbl">Anel</span><span class="doll-band">${R.name}</span></button>`
           : `<button class="doll-slot doll-anel" data-ring-slot type="button"><span class="doll-ic empty">${nxEnt('slot-anel', '💍')}</span><span class="doll-lbl">Anel</span></button>`; })()}
     </div>
     <div class="doll-col">${['amulet', 'cape', 'offhand', 'artifact'].map(s => slot(s)).join('')}</div>
@@ -16320,14 +16480,14 @@ function openChest(chestId) {
 
   saveGame();
   const anim = fxOn();
-  const tier = !revealItem ? '' : ['divino', 'astral'].includes(revealItem.rarity) ? ' rar-divine' : ['lendario', 'unico', 'set', 'temporada', 'demoniaco', 'mitico'].includes(revealItem.rarity) ? ' rar-high' : '';
+  const tier = !revealItem ? '' : ['divino', 'astral', 'runico'].includes(revealItem.rarity) ? ' rar-divine' : ['lendario', 'unico', 'set', 'temporada', 'demoniaco', 'mitico'].includes(revealItem.rarity) ? ' rar-high' : '';
   openModal(`
     <h3 style="margin-bottom:12px;">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)} Baú aberto!</h3>
     ${anim ? `<div class="chest-stage${tier}${oysterPearl ? ' oyster' : ''}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};"><div class="chest-beam"></div><div class="chest-ic">${nxEnt('bau-' + chest.type, CHEST_DEFS[chest.type].icon)}</div>${oysterPearl && oysterPearl !== 'pedra' ? `<div class="chest-pearl">${nxIconSvg('perola-' + oysterPearl) || '⚪'}</div>` : ''}</div>` : ''}
     <div class="card raised${anim ? ' chest-result' + tier : ''}" style="--rc:${revealItem ? revealItem.rarityColor : 'var(--gold-bright)'};">${resultHtml}</div>
     <button class="btn primary block" id="btn-close-modal" style="margin-top:12px;">Fixe!</button>
   `);
-  if (anim && revealItem && ['divino', 'astral'].includes(revealItem.rarity)) fxVibrate([30, 60, 30, 60, 90]);
+  if (anim && revealItem && ['divino', 'astral', 'runico'].includes(revealItem.rarity)) fxVibrate([30, 60, 30, 60, 90]);
   $('btn-close-modal').addEventListener('click', () => { closeModal(); renderHubTab(); });
 }
 
@@ -17368,7 +17528,7 @@ const RAR_FORMS = {
   comum: ['Comum', 'Comum', 'Comuns', 'Comuns'], incomum: ['Incomum', 'Incomum', 'Incomuns', 'Incomuns'],
   raro: ['Raro', 'Rara', 'Raros', 'Raras'], lendario: ['Lendário', 'Lendária', 'Lendários', 'Lendárias'],
   unico: ['Único', 'Única', 'Únicos', 'Únicas'], demoniaco: ['Demoníaco', 'Demoníaca', 'Demoníacos', 'Demoníacas'],
-  divino: ['Divino', 'Divina', 'Divinos', 'Divinas'], astral: ['Astral', 'Astral', 'Astrais', 'Astrais'], set: ['de Set', 'de Set', 'de Set', 'de Set'], temporada: ['de Temporada', 'de Temporada', 'de Temporada', 'de Temporada'],
+  divino: ['Divino', 'Divina', 'Divinos', 'Divinas'], astral: ['Astral', 'Astral', 'Astrais', 'Astrais'], runico: ['Rúnico', 'Rúnica', 'Rúnicos', 'Rúnicas'], set: ['de Set', 'de Set', 'de Set', 'de Set'], temporada: ['de Temporada', 'de Temporada', 'de Temporada', 'de Temporada'],
   mitico: ['Mítico', 'Mítica', 'Míticos', 'Míticas']
 };
 function itemTypeLine(item) {
@@ -17471,12 +17631,13 @@ function itemSheetHtml(item, slot, p, ro) {
     ES_SLOTS.includes(item.slot) ? `<span class="ak-tag ak-${armorKindOf(item)}">${ARMOR_KIND_LABEL[armorKindOf(item)]}</span>` : '',
     itemInnateMedio(item) ? '<span class="ak-tag crypt-tag">🌀 Arma da Cripta</span>' : '',
     itemPrim(item) ? `<span class="ak-tag prim-tag">${nxEnt(itemPrim(item).img, '🔱')} Arma Primordial</span>` : '', // v272
+    item.rarity === 'runico' ? `<span class="ak-tag run-tag">${nxEnt('rar-runico', 'ᚱ')} Marca do Tirano: +${Math.round(RUNIC_MARK.boss * 100)}% dano e −${Math.round(RUNIC_MARK.red * 100)}% dano recebido vs chefes</span>` : '', // v282
     hwAmuletLuck(item) ? '<span class="ak-tag hw-tag">🎃 Halloween</span>' : '',
     xmAmuletXp(item) ? '<span class="ak-tag xm-tag">🎄 Natal</span>' : '',
     itemElement(item) ? `<span class="ak-tag el-tag" style="--ec:${ELEMENT_INFO[itemElement(item)].color};">${elIc(itemElement(item))} ${ELEMENT_INFO[itemElement(item)].name} · vence ${ELEMENT_INFO[ELEMENT_BEATS[itemElement(item)]].icon}</span>` : ''
   ].join('');
   const bonusSlots = `${bonuses.length}/${ITEM_BONUS_MAX_SLOTS}`;
-  return `<div class="tt${item.ascended ? ' asc' : ''}${item.immaculate ? ' imm' : ''}${item.rarity === 'astral' ? ' ast' : ''}" style="--c:${item.rarityColor || '#B9B4A8'};">
+  return `<div class="tt${item.ascended ? ' asc' : ''}${item.immaculate ? ' imm' : ''}${item.rarity === 'astral' ? ' ast' : item.rarity === 'runico' ? ' run' : ''}" style="--c:${item.rarityColor || '#B9B4A8'};">
     <div class="tt-head"><div class="tt-name">${item.immaculate ? '<span class="imm-mk">✦</span> ' : ''}${esc(item.name)}</div></div>
     <div class="tt-body">
       <div class="tt-top"><div class="tt-ic">${itemIconHtml(item)}</div>
@@ -18136,7 +18297,7 @@ function renderLojaBody() {
     if (src === 'eq') {
       cardsHtml = equippedItems.length ? equippedItems.map(slot => smithCardHtml(p, p.equipment[slot], slot)).join('') : `<div class="empty-hint">⚒️ Não tens nada equipado. Usa a aba 🎒 Mochila para melhorar itens sem os equipar.</div>`;
     } else {
-      const RO = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral'];
+      const RO = ['comum', 'incomum', 'raro', 'lendario', 'set', 'unico', 'temporada', 'demoniaco', 'mitico', 'divino', 'astral', 'runico'];
       const f = App.smithInvSlot || 'all';
       const list = (p.inventory || []).filter(it => it && EQUIP_SLOTS.includes(it.slot) && (f === 'all' || it.slot === f) && !(it.upgrade >= 9 && it.ascended))
         .sort((x, y) => RO.indexOf(y.rarity) - RO.indexOf(x.rarity) || (y.itemLevel || 0) - (x.itemLevel || 0) || (y.upgrade || 0) - (x.upgrade || 0));
@@ -19280,9 +19441,9 @@ function mapaGroups(p) {
     { title: 'Catacumbas', tiles: catTiles },
     { title: 'Desafios · Bosses Soberanos', tiles: [{ key: 'soberano', kind: 'soberano', icon: nxCreature(SOBERANOS[0].name, '👑'), label: 'Boss Soberano', sub: `Nv. ${SOBERANOS[0].minLv}+`, scene: 'montanhas',
       locked: (p.level || 1) < SOBERANOS[0].minLv, badge: (() => { const t = soberanoTriesSummary(p); return `${t.left}/${t.max}`; })() }] },
-    { title: 'Desafios · Paragon', tiles: TOWERS.filter(T => T.challenge).map(T => { const run = p.tower && p.tower.key === T.key ? p.tower : null, es = expState(p);
+    { title: 'Desafios · Paragon', tiles: [{ key: 'conclave', kind: 'conclave', icon: nxEnt('conclave', '👑'), label: 'Conclave dos Tiranos', sub: 'Paragon 1+', scene: 'soberano', locked: paragonOf(p) < 1, badge: paragonOf(p) < 1 ? '🔒' : `${concLeft(p)}/${CONC.TRIES}` }].concat(TOWERS.filter(T => T.challenge).map(T => { const run = p.tower && p.tower.key === T.key ? p.tower : null, es = expState(p);
       return { key: 'tower:' + T.key, kind: 'tower', ref: T, icon: nxEnt(T.img && NX_ICON_IMG.has(T.img) ? T.img : 'dungeon-torre', T.icon), label: T.name, sub: 'Paragon 1+', scene: 'torre',
-        locked: paragonOf(p) < 1, badge: run ? `🗺️${(run.path || []).length}/${EXP_ROWS}` : `${Math.max(0, EXP_DAILY - es.n)}/${EXP_DAILY}` }; }) },
+        locked: paragonOf(p) < 1, badge: run ? `🗺️${(run.path || []).length}/${EXP_ROWS}` : `${Math.max(0, EXP_DAILY - es.n)}/${EXP_DAILY}` }; })) },
     { title: 'Torres', tiles: TOWERS.filter(T => !T.challenge).map(T => {
       const run = p.tower && p.tower.key === T.key ? p.tower : null;
       const clears = (p.towerClears && p.towerClears[T.key]) || 0;
@@ -19302,6 +19463,7 @@ function renderMapaBody(tile) {
 
   if (tile.kind === 'tower') { renderTowerBody(body, tile.ref); return; }
   if (tile.kind === 'soberano') { renderSoberanoBody(body); return; }
+  if (tile.kind === 'conclave') { renderConclaveBody(body); return; } // v282
   if (tile.kind === 'halloween') { renderHalloweenBody(body); return; }
   if (tile.kind === 'natal') { renderNatalBody(body); return; } // v224
   if (tile.kind === 'region') {
@@ -19781,8 +19943,12 @@ function hordeInit(c, extraEnemies) {
   c.hordeIdx = 0;
   c.hordeLoot = { xp: 0, gold: 0, drops: [], kills: 0 };
 }
-function hordeSave(c) { const m = c.horde[c.hordeIdx]; HORDE_EKEYS.forEach(k => { m.st[k] = c.battleState[k]; }); m.cx = m.cx || {}; HORDE_CKEYS.forEach(k => { m.cx[k] = c[k]; }); }
-function hordeLoad(c, i) { c.hordeIdx = i; const m = c.horde[i]; HORDE_EKEYS.forEach(k => { c.battleState[k] = m.st[k]; }); HORDE_CKEYS.forEach(k => { c[k] = (m.cx || {})[k]; }); c.enemy = m.enemy; }
+// v282: no Conclave cada tirano guarda também o nome (habilidade), a Fúria e a contagem de golpes.
+const CONC_EKEYS = HORDE_EKEYS.concat(['bossEnraged', 'enemyTurnCount', 'enemyCurse']), CONC_CKEYS = HORDE_CKEYS.concat(['name', 'icon']);
+function hordeEK(c) { return c.isConclave ? CONC_EKEYS : HORDE_EKEYS; }
+function hordeCK(c) { return c.isConclave ? CONC_CKEYS : HORDE_CKEYS; }
+function hordeSave(c) { const m = c.horde[c.hordeIdx]; hordeEK(c).forEach(k => { m.st[k] = c.battleState[k]; }); m.cx = m.cx || {}; hordeCK(c).forEach(k => { m.cx[k] = c[k]; }); }
+function hordeLoad(c, i) { c.hordeIdx = i; const m = c.horde[i]; hordeEK(c).forEach(k => { c.battleState[k] = m.st[k]; }); hordeCK(c).forEach(k => { c[k] = (m.cx || {})[k]; }); c.enemy = m.enemy; }
 function hordeSwitch(c, i) { if (!c.horde || i < 0 || i === c.hordeIdx) return; hordeSave(c); hordeLoad(c, i); }
 function hordeLabel(c) { return c && c.horde ? c.horde[c.hordeIdx].label : (c ? c.name : ''); }
 function hordeAddLoot(c, r) {
@@ -19801,11 +19967,12 @@ function hordeKill(c, m) {
   eliteOnDeath(c, App.player); // v233
   m.dead = true; m.enemy.hp = 0;
   seasonOnEnemyDefeated(c);
-  const r = c.isObelisk ? { xpGain: 0, goldGain: 0, drops: [] } : wildRewardRoll(c); // v190: as ondas do Obelisco não dão espólio
+  const r = c.isObelisk || c.isConclave ? { xpGain: 0, goldGain: 0, drops: [] } : wildRewardRoll(c); // v190: as ondas do Obelisco não dão espólio · v282: Conclave paga no fim
   hordeAddLoot(c, r);
   if (!c.isObelisk) cardOnKill(c); // v237: cada monstro da horda também pode dar carta
   hordeSwitch(c, cur);
-  addCombatLog({ text: `💀 ${m.label} foi derrotado! +${r.xpGain} XP · +${r.goldGain} 🪙`, cls: 'crit' });
+  if (c.isConclave) concOnKill(c, m);
+  else addCombatLog({ text: `💀 ${m.label} foi derrotado! +${r.xpGain} XP · +${r.goldGain} 🪙`, cls: 'crit' });
   sfx.enemyDown();
 }
 // Trata das mortes depois de uma ação. Devolve true se o combate acabou (horda vencida).
@@ -21687,6 +21854,7 @@ function handleEnemyDefeated() {
   cardOnKill(c); // v227: Álbum de Cartas
   if (c.isTower) { finishTowerFight(); return; }
   if (c.isSoberano) { finishSoberano(); return; }
+  if (c.isConclave) { finishConclave(); return; } // v282
   if (c.isHunt) { huntOnEnemyDefeated(); return; }
   if (c.isDungeon) {
     if (c.waveIndex < c.totalWaves - 1) {
@@ -22375,7 +22543,7 @@ function fxShatter(glyph, big) {
   fxSpawn('fx-killflash', pt.x, pt.y, '', 700);
 }
 // Feixes de loot: os itens novos caem num pilar de luz da cor da raridade e voam para a mochila.
-const FX_BEAM_MIN = ['raro', 'lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'mitico', 'astral'];
+const FX_BEAM_MIN = ['raro', 'lendario', 'unico', 'demoniaco', 'set', 'divino', 'temporada', 'mitico', 'astral', 'runico'];
 function fxLootBeams(c) {
   if (!fxOn() || !c || !c._fxInv) return 0;
   const p = App.player, glyph = document.getElementById('cb-enemy-glyph'); if (!glyph) return 0;
@@ -22389,7 +22557,7 @@ function fxLootBeams(c) {
     const d = fxSpawn('fx-beam r-' + it.rarity, x, pt.y + 40, `<i class="col"></i><i class="base"></i><span class="it">${itemIconHtml(it)}</span>`, 1900);
     if (d) { d.style.setProperty('--rc', it.rarityColor || '#fff'); d.style.animationDelay = (i * 140) + 'ms'; d.querySelector('.it').style.animationDelay = (i * 140) + 'ms'; }
   });
-  if (fresh.some(it => it.rarity === 'divino' || it.rarity === 'astral')) fxVibrate([30, 60, 30, 60, 90]); else fxVibrate([20, 40, 20]);
+  if (fresh.some(it => it.rarity === 'divino' || it.rarity === 'astral' || it.rarity === 'runico')) fxVibrate([30, 60, 30, 60, 90]); else fxVibrate([20, 40, 20]);
   return fresh.length;
 }
 function fxShakeScreen(strong) {
@@ -22594,13 +22762,13 @@ function fxVictoryScreen(info) {
 function fxBodySync() {
   try { document.body.classList.toggle('fx-off', !fxOn()); document.body.classList.toggle('fx-lite', fxLevel() === 'reduzidas'); } catch (e) { /* ignora */ }
 }
-const IFX_MAP = { raro: 'raro', lendario: 'lend', unico: 'unico', demoniaco: 'demo', set: 'set', divino: 'div', temporada: 'temp', mitico: 'mit', astral: 'ast' };
+const IFX_MAP = { raro: 'raro', lendario: 'lend', unico: 'unico', demoniaco: 'demo', set: 'set', divino: 'div', temporada: 'temp', mitico: 'mit', astral: 'ast', runico: 'run' };
 function ifxWrap(item, inner) {
   if (!item || !fxOn()) return inner;
   const r = IFX_MAP[item.rarity];
   const asc = !!item.ascended;
   if (!r && !asc) return inner;
-  const parts = r === 'ast' ? '<i></i><i></i><i></i><b></b>' : (asc || r === 'demo') ? '<i></i><i></i><i></i>' : '';
+  const parts = r === 'run' ? `<i></i><i></i><i></i><b>${RUNE_RING_SVG}</b>` : r === 'ast' ? '<i></i><i></i><i></i><b></b>' : (asc || r === 'demo') ? '<i></i><i></i><i></i>' : '';
   return `<span class="ifx${r ? ' ifx-' + r : ''}${asc ? ' ifx-asc' : ''}">${inner}${parts}</span>`;
 }
 // Camada para efeitos fora do combate (por cima de tudo, sem bloquear toques).
@@ -22960,6 +23128,7 @@ function combatSceneKey(c) {
   if (c.isSpiral) return 'espiral'; // v251
   if (c.isExped) return NX_ICON_IMG.has('cena-expedicao') ? 'expedicao' : 'espiral'; // v258
   if (c.isTower) return 'torre';
+  if (c.isConclave) return 'soberano'; // v282
   if (c.isSoberano) return (c.soberanoDef && c.soberanoDef.scene) || 'soberano'; // v205: arena do trono · v210: cada Soberano a sua
   if (c.isHalloween) return 'halloween';
   if (c.isNatal) return 'natal'; // v224
@@ -22996,10 +23165,10 @@ function renderHordeRow(c) {
   const el = $('cb-horde'); if (!el) return;
   if (!c.horde) { el.hidden = true; el.innerHTML = ''; return; }
   el.hidden = false;
-  el.innerHTML = `<span class="cb-h-l">Horda</span>` + c.horde.map((m, i) => {
+  el.innerHTML = `<span class="cb-h-l">${c.isConclave ? 'Tiranos' : 'Horda'}</span>` + c.horde.map((m, i) => {
     const pct = m.dead ? 0 : clamp(m.enemy.hp / m.enemy.maxHp * 100, 0, 100);
     return `<button type="button" class="cb-hchip${i === c.hordeIdx ? ' on' : ''}${m.dead ? ' dead' : ''}" data-horde-i="${i}"${m.dead ? ' disabled' : ''} aria-label="${esc(m.label)}">
-      <span class="cb-h-c">${rmCreatureImg(c.monsterName || c.name, c.icon)}<b>${m.letter}</b>${(i === c.hordeIdx ? c.elite : m.cx && m.cx.elite) ? '<em class="cb-h-el">⭐</em>' : ''}${c.intent && c.intent.en === m.enemy ? `<em class="cb-h-int" style="--c:${INT_TYPES[c.intent.type].color}">${INT_TYPES[c.intent.type].icon}</em>` : ''}</span><span class="cb-h-b"><i style="width:${pct}%"></i></span></button>`;
+      <span class="cb-h-c">${rmCreatureImg(m.cname || c.monsterName || c.name, m.cicon || c.icon)}<b>${m.letter}</b>${(i === c.hordeIdx ? c.elite : m.cx && m.cx.elite) ? '<em class="cb-h-el">⭐</em>' : ''}${c.intent && c.intent.en === m.enemy ? `<em class="cb-h-int" style="--c:${INT_TYPES[c.intent.type].color}">${INT_TYPES[c.intent.type].icon}</em>` : ''}</span><span class="cb-h-b"><i style="width:${pct}%"></i></span></button>`;
   }).join('');
   els('[data-horde-i]', el).forEach(b => b.addEventListener('click', () => {
     const i = Number(b.dataset.hordeI);
@@ -23228,7 +23397,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v281</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v282</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
@@ -23579,9 +23748,15 @@ function migrateLevelCap(p) {
 // Pop-up de novidades: aparece uma vez por conta, depois de iniciar sessão.
 // Para o próximo update basta mudar o id e os textos.
 // Versão mostrada aos jogadores no ecrã de entrada (independente do vNN interno).
-const APP_VERSION_LABEL = 'V 3.0.0';
+const APP_VERSION_LABEL = 'V 3.1.2';
 // Histórico de updates (mais recente primeiro). O primeiro é o do pop-up; a Wiki → Atualizações mostra todos.
 const UPDATE_HISTORY = [
+  { id: 'v282', title: 'V 3.1.2 · O Conclave dos Tiranos! 👑', items: [
+    ['👑', 'Novo desafio Paragon no Mapa: o Conclave dos Tiranos. Enfrenta 2 (Duelo) ou 3 (Tirania) chefes das regiões ao mesmo tempo. Os tiranos mudam todas as semanas.'],
+    ['😡', 'Quando um tirano cai, os outros ficam Enfurecidos (+15% de dano). Tens 5 tentativas por dia.'],
+    ['ᚱ', 'Nova raridade Rúnica, a mais forte do jogo, só no Conclave. Cada peça Rúnica equipada dá a Marca do Tirano: +2% de dano e −1% de dano recebido contra chefes.'],
+    ['🎁', 'Recompensas: muito XP e ouro, Relíquias, Coração do Soberano, Divinos e um baú extra na 1.ª vitória da semana.']
+  ] },
   { id: 'v269', title: 'V 3.0.0 · Chegaram os Anéis! 💍', items: [
     ['💍', 'Novo equipamento: o Anel, por cima da Arma. Cada anel tem uma pedra (Rubi, Esmeralda, Safira, Ametista ou Topázio), Gravações com efeitos extra e, do Único para cima, um Poder especial.'],
     ['🌟', 'Três Anéis Míticos para caçar: Ouroboros (Espiral, andar 80+), Fúria do Moribundo (Moloch) e Olho do Abismo (Ymir), nos Soberanos com Ameaça III ou superior.'],
@@ -24435,7 +24610,7 @@ const NX_ICON_SELECTOR = '.nx-k, .nav-btn .ic, .wiki-tile-ic, .item-ic, .region-
 function nxNorm(t) { return (t || '').replace(/️/g, '').trim(); }
 // v67: ícones em imagem (pasta icons/), feitos a partir da folha de ícones do jogo.
 // Têm prioridade sobre os desenhos em SVG; os que não estão aqui continuam em SVG.
-const NX_ICON_IMG = new Set(["peca-astral","acampamento","npc-contrabandista","reliquia","caixa-selada","chefe-dragao-ancestral-incandescente","pet-dragaoancestral","chefe-dragao-ancestral","monstro-sacerdotisa-das-cinzas","monstro-cria-de-dragao","dungeon-dragao-t4","monstro-guardiao-de-escamas","monstro-cultista-draconico","monstro-wyvern-selvagem","monstro-draconato-guerreiro","chefe-alto-sacerdote-draconico","chefe-wyvern-matriarca","chefe-dragao-ancestral-enfurecido","primordial-espada","primordial-cajado","primordial-arco","nucleo-rubi","nucleo-granada","nucleo-harmonia","anel-ouroboros","anel-abismo","anel-moribundo","anel-rubi","anel-esmeralda","anel-safira","anel-ametista","anel-topazio","astral-anel","slot-anel","dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
+const NX_ICON_IMG = new Set(["conclave","rar-runico","peca-runico","runico-espada","runico-cajado","runico-arco","runico-escudo","runico-elmo","runico-couraca","runico-manto","runico-botas","runico-manoplas","runico-amuleto","runico-pedra","runico-anel","peca-astral","acampamento","npc-contrabandista","reliquia","caixa-selada","chefe-dragao-ancestral-incandescente","pet-dragaoancestral","chefe-dragao-ancestral","monstro-sacerdotisa-das-cinzas","monstro-cria-de-dragao","dungeon-dragao-t4","monstro-guardiao-de-escamas","monstro-cultista-draconico","monstro-wyvern-selvagem","monstro-draconato-guerreiro","chefe-alto-sacerdote-draconico","chefe-wyvern-matriarca","chefe-dragao-ancestral-enfurecido","primordial-espada","primordial-cajado","primordial-arco","nucleo-rubi","nucleo-granada","nucleo-harmonia","anel-ouroboros","anel-abismo","anel-moribundo","anel-rubi","anel-esmeralda","anel-safira","anel-ametista","anel-topazio","astral-anel","slot-anel","dungeon-expedicao","cena-expedicao","rar-astral","astral-sword","astral-axe","astral-spear","astral-bow","astral-crossbow","astral-staff","astral-wand","astral-shield","astral-dagger","astral-quiver","astral-scroll","astral-helmet","astral-crown","astral-armor","astral-cape","astral-boots","astral-gloves","astral-amulet","astral-artifact","dungeon-espiral","cena-espiral","chefe-guardiao-da-espiral","chefe-senhor-das-brasas-eternas","chefe-rainha-do-gelo-sem-fim","chefe-tirano-da-tempestade","chefe-colosso-das-profundezas","dungeon-torre-pactos","cena-pactos","chefe-o-arauto-dos-pactos","chefe-cobrador-de-dividas","chefe-juiza-sem-olhos","monstro-escriba-infernal","monstro-cao-do-juramento","monstro-penitente-acorrentado","monstro-agiota-de-almas","monstro-notario-sombrio","monstro-gargula-selada","monstro-diabo-da-balanca","monstro-corvo-testemunha","intencao-pesado","intencao-feitico","intencao-cura","elite","afixo-vampirico","afixo-espinhos","afixo-furioso","afixo-blindado","afixo-veloz","afixo-regenerador","afixo-explosivo","carta-verso","monstro-arqueira-espectral","monstro-berserker-esqueletico","monstro-demonio-do-crepusculo","chefe-senhor-demonio-primordial","chefe-campea-imortal","monstro-sucubo","monstro-espectro-lunar","monstro-espectro-flamejante","monstro-paladino-caido","monstro-golem-de-obsidiana","monstro-arauto-ossudo","chefe-guardia-do-sol-negro","presente","pet-pinguim","amuleto-estrela","chefe-krampus","monstro-boneco-de-neve-maldito","monstro-duende-travesso","monstro-rena-selvagem","monstro-lobo-da-nevasca","arena","ficha-arena","cena-arena","liga-bronze","liga-prata","liga-ouro","liga-platina","liga-diamante","liga-lenda","dungeon-chama","cena-chama","banner-chama","set-chama","fundo-paragon","paragon-1","paragon-2","talento-furia","talento-egide","talento-golpe","talento-fortuna","talento-sabedoria","talento-impeto","fundo-taberna","fundo-despensa","trabalho-mina","trabalho-floresta","trabalho-lagoa","trabalho-quinta","fundo-estabulo","fundo-honra","fundo-habilidades","fundo-passivas","fundo-feiticos","fundo-armaria","fundo-alquimia","chefe-ymir-o-gigante-de-gelo","chefe-ymir-o-inverno-eterno","chefe-ymir-coracao-de-gelo","cena-ymir","cena-planicies","cena-montanhas","cena-tundra","cena-planalto","cena-corrompidas","cena-florestanegra","cena-pinaculo","cena-submerso","cena-cripta","cena-torre","cena-eclipse","cena-templo","mapa-cidade","fundo-entrada","banner-submerso","mapa-submerso","monstro-tritao-corrompido","monstro-sereia-sombria","monstro-tubarao-abissal","monstro-caranguejo-colossal","monstro-afogado-errante","chefe-rainha-das-mares","chefe-deus-afogado","pet-tubarao","material-dente-tubarao","material-carapaca-caranguejo","material-dente-tubarao-ancestral","material-carapaca-caranguejo-ancestral","mitico-tridente-das-mares","mitico-coroa-afogada","recurso-pedra","recurso-madeira","recurso-comida","vila","vila-salao","vila-serracao","vila-pedreira","vila-quinta","vila-quartel","vila-ferraria","vila-sala-guerra","vila-muralha","vila-armazem","aldeao","aldeao-lenhador","aldeao-pedreiro","aldeao-agricultor","armada","aldeia-goblin","aldeia-bandidos","aldeia-oni","acao-reparar","acao-melhorar","estado-danificado","mapa-vila","craft-resistencias","monstro-obelisco-do-vazio","bau-vazio","bau-vazio2","po-estelar","mitico-ampulheta-quebrada","mitico-arco-do-ultimo-suspiro","mitico-bastiao-do-martir","mitico-botas-do-vento-errante","mitico-capa-das-mil-sombras","mitico-coracao-de-vidro","mitico-coracao-do-tita","mitico-coroa-do-avarento","mitico-egide-da-montanha","mitico-garras-do-berserker","mitico-lamina-das-mil-feridas","mitico-luvas-da-sanguessuga","mitico-manto-da-fenix","mitico-olho-do-ciclope","mitico-pacto-de-sangue","mitico-peitoral-do-eclipse","mitico-prisma-errante","mitico-sandalias-do-peregrino","mitico-sede-do-carrasco","mitico-tempestade-presa","rar-mitico","chefe-sumo-sacerdote-do-eclipse","elemento-fogo","elemento-gelo","elemento-eletricidade","elemento-terra","pocao-elem","resistencias","chefe-rei-abobora","monstro-abobora-demoniaca","monstro-bruxa-da-abobora","monstro-espantalho-maldito","monstro-morcego-vampiro","pet-abobora","amuleto-abobora","coracao-soberano","talisma-soberano","chefe-moloch-o-rei-devorador","chefe-moloch-enfurecido","classe-arqueiro","classe-cacador","classe-cruzado","classe-feiticeiro","classe-guerreiro","classe-mago","classe-mercenario","classe-necromante","classe-paladino","material-escama-dragao-negro","material-escama-salamandra","material-nucleo-cristal","material-pelo-lobo","material-pelo-yeti","material-pena-harpia","material-presa-lobo-gelo","set-celestial","set-dragao","set-luar","set-sombras","chefe-general-oni","chefe-ronin-sem-mestre","chefe-xogum-demoniaco","chefe-xogum-demoniaco-desperto","dungeon-templo-almas","monstro-alma-penada","monstro-arqueiro-kyudo","monstro-kitsune-demoniaca","monstro-monge-sohei","monstro-ninja-das-sombras","monstro-oni-vermelho","monstro-samurai-amaldicoado","monstro-tengu-corvo","pet-kitsune","arma-cripta-espada","arma-cripta-cajado","arma-cripta-arco","chefe-carcereiro-ossudo","chefe-bruxa-das-catacumbas","chefe-guardiao-sem-rosto","chefe-minotauro-da-cripta","chefe-sentinela-de-osso","chefe-viuva-da-cripta","dungeon-labirinto-cripta","monstro-aranha-tumular","monstro-carnical-da-cripta","monstro-cavaleiro-ossudo","monstro-espectro-lamentoso","monstro-esqueleto-errante","monstro-gargula-tumular","monstro-necromante-encapuzado","monstro-rato-da-cripta","chefe-djinn-do-oasis","chefe-rainha-do-inverno-eterno","chefe-rei-dos-herois-caidos","monstro-barbaro-do-gelo","monstro-cao-infernal","monstro-cavaleiro-morto-vivo","monstro-cavaleiro-solar-corrompido","monstro-cruzado-renegado","monstro-devorador-de-estrelas","monstro-elemental-de-areia","monstro-escorpiao-do-deserto","monstro-espectro-prateado","monstro-freira-amaldicoada","monstro-inquisidor-das-trevas","monstro-lobo-do-eclipse","monstro-mamute-glacial","monstro-matriarca-dos-mamutes","monstro-mumia-errante","monstro-sacerdote-do-eclipse","monstro-sacerdotisa-da-lua","monstro-saqueador-das-dunas","monstro-urso-polar-ancestral","monstro-xama-da-nevasca","nucleo-safira","nucleo-ametista","rar-comum","rar-incomum","rar-raro","rar-lendario","rar-unico","rar-demoniaco","rar-set","rar-divino","rar-temporada","gema-escudo","escudo-magico","arm-head-hybrid","arm-chest-hybrid","arm-chest-es","arm-gloves-hybrid","arm-gloves-es","arm-boots-hybrid","arm-boots-es","amigo-guerreiro","amigo-arqueiro","amigo-mago","amigo-berserk","bar","habilidade-terramoto","monstro-monge-corrompido","bau-feitico", "chefe-demonio-maior", "chefe-devorador-do-abismo", "chefe-dragao-estelar", "chefe-fenix-imortal", "chefe-hydra-corrompida", "chefe-imperatriz-do-eclipse", "chefe-jarl-da-nevasca", "chefe-lich-do-abismo", "chefe-nemesis", "chefe-o-herege-coroado", "chefe-rainha-das-aranhas", "chefe-senhor-das-trevas", "chefe-senhor-do-fosso", "chefe-soberano-da-floresta-negra", "chefe-wyvern-alfa", "monstro-coruja-mistica", "chefe-arcanjo-caido", "chefe-avatar-do-caos", "chefe-colosso-de-cristal", "chefe-deus-da-destruicao", "chefe-dragao-flamejante", "chefe-fenrir", "chefe-golem-ancestral", "chefe-imperador-do-vazio", "chefe-leviata-astral", "chefe-rainha-dos-serafins", "chefe-rei-lich", "chefe-tita-da-tempestade", "monstro-escorpiao-negro", "monstro-fenix-estelar", "monstro-golem-de-cristal", "monstro-lobo-lunar", "monstro-minotauro-da-escuridao", "monstro-quimera-astral", "monstro-sentinela-do-vazio", "monstro-serafim-caido", "monstro-serpente-astral", "prato-banquete", "prato-ensopado", "prato-papas", "prato-salada", "prato-sopa", "prato-tarte", "amigos", "guild", "monstro-abominacao", "monstro-cavaleiro-da-morte", "monstro-dragao-negro", "monstro-elemental-de-gelo", "monstro-elemental-de-raio", "monstro-espirito-gelido", "monstro-fenix-filhote", "monstro-golem-de-trovao", "monstro-grifo", "monstro-harpia", "monstro-lich", "monstro-salamandra", "monstro-senhor-do-abismo", "monstro-troll-da-neve", "monstro-wyvern", "monstro-yeti", "chefe-capitao-bandido", "chefe-driade-ancestral", "chefe-kraken-do-gelo", "chefe-rei-goblin", "chefe-urso-alfa", "monstro-demonio-menor", "monstro-driade", "monstro-elemental-de-fogo", "monstro-goblin", "monstro-lobo", "monstro-rato-gigante", "monstro-slime", "chefe-arcanjo-corrompido", "chefe-dragao-de-magma", "chefe-guardiao-do-altar", "chefe-guardiao-lunar", "dungeon-cidadela", "dungeon-cripta", "dungeon-luar", "dungeon-oasis", "dungeon-torre", "dungeon-vulcao", "habilidade-divino", "habilidade-escudo", "habilidade-flechacerteira", "habilidade-investida", "habilidade-relampago", "habilidade-robin", "habilidade-stun", "pet-dragaoestelar", "pet-dragaonegro", "pet-dragon", "pet-fenixestelar", "pet-minotauro", "talisma-eclipse", "talisma-sabedoria", "alquimia-rubi-perfeita", "alquimia-safira-perfeita", "alquimia-granada-perfeita", "alquimia-ametista-perfeita", "bau-pedras", "trofeu-vitoria", "esconderijo", "esconderijo-bau", "esconderijo-boneco", "esconderijo-craft", "esconderijo-desmanche", "esconderijo-expedicoes", "esconderijo-santuario", "peca-comum", "peca-incomum", "peca-raro", "peca-lendario", "peca-unico", "peca-demoniaco", "peca-set", "peca-divino", "peca-temporada", "banner-corrompidas", "banner-florestanegra", "banner-montanhas", "banner-pinaculo", "banner-planalto", "banner-planicies", "banner-tundra", "chefe-general-dos-condenados", "chefe-lich-guardiao", "dungeon-abismo", "dungeon-demonio-t1", "dungeon-eclipse", "dungeon-inverno", "dungeon-reino-fe", "habilidade-ataqueduplo", "habilidade-certeira", "habilidade-flechavenenosa", "habilidade-rotativa", "habilidade-roubaralma", "pet-quimera", "alimento-apple", "alimento-corn", "alimento-onion", "alimento-tomato", "bau-ostra", "bau-temporada1", "dungeon-morte-t2", "habilidade-chuva", "livro-amnesia", "livro-feitico", "livro-ferreiro", "livro-habilidades", "livro-profissoes", "livro-reforco", "pocao-hp", "pocao-hp2", "profissao-cozinheiro", "profissao-ferreiro", "profissao-mineiro", "talisma-fortune", "talisma-protetor", "alimento-carrot", "alimento-potato", "alquimia-ametista", "alquimia-granada", "alquimia-rubi", "alquimia-safira", "bau-equip", "cristal-cristal", "cristal-pedaco", "gema-chefes", "gema-critico", "gema-dano", "gema-defesa", "gema-vida", "habilidade-boladefogo", "habilidade-corpoforte", "habilidade-cura", "habilidade-serrada", "habilidade-vortex", "item-semente", "monstro-bandido", "monstro-golem-de-lava", "monstro-lobo-do-gelo", "perola-azul", "perola-branca", "perola-verde", "perola-vermelha", "pet-bear", "pocao-atk", "pocao-def", "pocao-fortune", "profissao-cacador", "profissao-lenhador", "profissao-pastor", "oasis", "pearl", "pick", "pine", "volcano", "wolf", "zombie", "scorpion", "cauldron", "amulet", "apple", "armor", "artifact", "axe", "banner", "books", "boots", "bow", "bread", "cape", "carrot", "castle", "cathedral", "chest", "clover", "coin", "compass", "corrupt", "crossbow", "crown", "dagger", "demon", "diamond", "eye", "flame", "flask", "fortress", "gear", "gem", "gloves", "goblet", "hammer", "heart", "helmet", "hero", "hourglass", "key", "leaf", "map", "moon", "openbook", "orb", "pack", "paw", "portal", "potion", "pumpkin", "purse", "question", "rune", "scroll", "season", "shield", "skull", "smith", "snow", "sparkle", "spear", "staff", "storm", "sword", "swords", "tome", "tomeGreen", "trade", "wand", "wheat"]);
 // v111: ícones novos (pacote do criador). A versão no endereço obriga o browser a ir buscar os novos.
 const NX_ICON_VER = 187;
 // v189: quando UMA imagem muda, sobe-se só a versão dela aqui (as outras continuam guardadas no telemóvel).
@@ -24664,6 +24839,7 @@ function astralIconKey(item) {
   return k && NX_ICON_IMG.has('astral-' + k) ? 'astral-' + k : null;
 }
 function itemIconInner(item) {
+  if (item && item.rarity === 'runico') { const rk = runicIconKey(item); if (rk) return `<span class="nx-k" data-nx-key="${rk}">${SLOT_ICONS[item.slot] || 'ᚱ'}</span>`; } // v282
   if (item && item.rarity === 'astral') { const ak = astralIconKey(item); if (ak) return `<span class="nx-k" data-nx-key="${ak}">${SLOT_ICONS[item.slot] || '💎'}</span>`; }
   if (hwAmuletLuck(item) && NX_ICON_IMG.has('amuleto-abobora')) return `<span class="nx-k" data-nx-key="amuleto-abobora">📿</span>`; // v174
   if (xmAmuletXp(item) && NX_ICON_IMG.has('amuleto-estrela')) return `<span class="nx-k" data-nx-key="amuleto-estrela">⭐</span>`; // v224
