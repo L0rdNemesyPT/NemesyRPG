@@ -3590,7 +3590,7 @@ function catacumbaRewardsText(cat) {
   if (rw.pedrasChance) parts.push(`${CHEST_DEFS.pedras.icon} Baú de Pedras (${pc(rw.pedrasChance)})`);
   if (rw.skillBookChance) parts.push(`📖 Livro de Habilidades (${pc(rw.skillBookChance)})`);
   if (rw.nephalemChance) parts.push(`💎 Pedra Nephalen (${pc(rw.nephalemChance)})`);
-  if (cat.divinoChance) parts.push(`💠 item Divino Nv. ${cat.bossLv} (${pc(cat.divinoChance)})`);
+  if (cat.divinoChance) parts.push(`💠 item Divino Nv. ${Math.min(MAX_LEVEL, cat.bossLv)} (${pc(cat.divinoChance)})`); // v277: itens no máx. Nv. 200
   if (rw.coreChance) parts.push(`✨ Pedra do Núcleo (${pc(rw.coreChance)})`);
   if (rw.ringRare) parts.push('💍 Anel Lendário ou melhor (garantido)');
   if (cat.paragonScale) parts.push('👑 no Paragon: monstros mais fortes, +25% ouro e +1% Divino por nível de Paragon');
@@ -18621,10 +18621,12 @@ function smugOpen(p, key) {
   p.reliquias -= price; st.opened++;
   st.pity = rar === 'divino' ? 0 : st.pity + 1;
   if (key === 'ring') { const r = newRing(rar); p.rings.push(r); return { ring: r, rar, pityHit, price }; }
-  const it = generateItem(key, Math.min(MAX_LEVEL, heroLv(p)), null, false, RARITIES.find(r => r.key === rar));
+  const it = generateItem(key, smugItemLv(p), null, false, RARITIES.find(r => r.key === rar));
   p.inventory.push(it);
   return { item: it, rar, pityHit, price };
 }
+// v277: a caixa sai ao nível do herói; em Paragon sai sempre ao Nv. 200.
+function smugItemLv(p) { return paragonOf(p) ? MAX_LEVEL : Math.min(MAX_LEVEL, Math.max(1, p.level || 1)); }
 function smugBodyHtml(p) {
   const st = smugState(p), deal = smugDealKey(), say = SMUG_SAYS[Math.floor(Date.now() / 3600000) % SMUG_SAYS.length];
   const pityPct = Math.min(100, Math.round(st.pity / SMUG_PITY * 100)), left = SMUG_PITY - st.pity;
@@ -18633,7 +18635,7 @@ function smugBodyHtml(p) {
     const label = sl.key === 'ring' ? 'Anel' : SLOT_NAMES[sl.key];
     return `<div class="sm-row${isDeal ? ' deal' : ''}">
       <span class="sm-ic">${nxEnt('caixa-selada', '📦')}</span>
-      <div class="sm-mid"><b>Caixa Selada · ${label}</b><small>${sl.key === 'ring' ? '💍 um Anel' : 'um item'} Nv. ${Math.min(MAX_LEVEL, heroLv(p))}${isDeal ? ' · <em>🏷️ Oferta do dia −' + Math.round(SMUG_DEAL * 100) + '%</em>' : ''}</small></div>
+      <div class="sm-mid"><b>Caixa Selada · ${label}</b><small>${sl.key === 'ring' ? '💍 um Anel' : 'um item'} Nv. ${smugItemLv(p)}${isDeal ? ' · <em>🏷️ Oferta do dia −' + Math.round(SMUG_DEAL * 100) + '%</em>' : ''}</small></div>
       <button class="btn small ${can ? 'primary' : 'ghost'}" data-smug="${sl.key}" ${can ? '' : 'disabled'}>${isDeal ? `<s>${sl.price}</s> ` : ''}${pr} ${nxEnt('reliquia', '💀')}</button></div>`;
   }).join('');
   const odds = Object.keys(SMUG_RAR).map(k => { const R = RARITIES.find(r => r.key === k); return `<span style="color:${R.color}">${R.icon} ${R.name} ${SMUG_RAR[k]}%</span>`; }).join(' · ');
@@ -21842,7 +21844,7 @@ function finishCatacumba() {
   // Item Divino: muito raro (cat.divinoChance), só possível no chefe final de uma catacumba.
   if (cat.divinoChance && Math.random() < cat.divinoChance + 0.01 * (c.paragon || 0)) {
     const divSlot = EQUIP_SLOTS[Math.floor(Math.random() * EQUIP_SLOTS.length)];
-    const divineItem = generateItem(divSlot, cat.bossLv, null, false, DIVINO_RARITY);
+    const divineItem = generateItem(divSlot, Math.min(MAX_LEVEL, cat.bossLv), null, false, DIVINO_RARITY); // v277: nunca acima do Nv. 200
     p.inventory.push(divineItem);
     drops.push(`💠✨ ITEM DIVINO! ${divineItem.name}!`);
   }
@@ -23057,7 +23059,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v276</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v277</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
