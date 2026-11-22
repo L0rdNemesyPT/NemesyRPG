@@ -11732,7 +11732,7 @@ const HIDEOUT_STATIONS = [
   { key: 'lareira', name: 'Lareira', short: 'Lareira', icon: '🔥', img: 'flame', lv: 1, x: 15, y: 54,
     desc: 'Descansa junto ao fogo: enche o HP e ficas Descansado (+10% XP durante algumas batalhas). Uma vez a cada 8 horas.' },
   { key: 'craft', name: 'Bancada de Craft', short: 'Craft', icon: '⚒️', img: 'smith', lv: 1, x: 85, y: 54,
-    desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja qualquer peça do teu equipamento +9 com um item de sacrifício do mesmo tipo e 30 peças: melhorar os stats ou ganhar um bónus de Craft (20% / 15% de sucesso).' },
+    desc: 'Junta 3 peças da mesma raridade numa da raridade seguinte, e forja qualquer peça do teu equipamento +9 com um item de sacrifício do mesmo tipo e 30 peças: melhorar os stats ou ganhar um bónus de Craft (35% / 30% de sucesso).' },
   { key: 'desmanche', name: 'Bancada de Desmanche', short: 'Desmanche', icon: '🔨', img: 'hammer', lv: 1, x: 17, y: 84,
     desc: 'Desmancha itens que não queres e recebe peças da mesma raridade, para usar na Bancada de Craft.' },
   // v285: o Boneco de Treino saiu; o Santuário Mítico ficou no lugar dele.
@@ -12377,8 +12377,8 @@ const CRAFT_FORGE_PARTS = 30;
 const CRAFT_FORGE_PARTS_BY = { astral: 20, runico: 20 };
 function craftForgeCost(r) { return CRAFT_FORGE_PARTS_BY[r] || CRAFT_FORGE_PARTS; }
 const CRAFT_JOIN_EXTRA = { divino: 'astral' };
-const CRAFT_IMPROVE_CHANCE = 0.20;  // v165: era 15%
-const CRAFT_BONUS_CHANCE = 0.15;    // v165: era 10%
+const CRAFT_IMPROVE_CHANCE = 0.35;  // v165: era 15% · v288: era 20%
+const CRAFT_BONUS_CHANCE = 0.30;    // v165: era 10% · v288: era 15%
 // v192: Persistência da Forja — cada falhança num item dá +3% na tentativa seguinte nesse item (até +15%); volta a 0 ao acertar.
 const CRAFT_PITY_STEP = 0.03, CRAFT_PITY_MAX = 5;
 const craftPity = item => clamp(Math.floor(Number(item && item.craftPity) || 0), 0, CRAFT_PITY_MAX);
@@ -23552,7 +23552,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v287</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v288</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
