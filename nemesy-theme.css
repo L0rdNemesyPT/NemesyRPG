@@ -4927,3 +4927,17 @@ body:not(.fx-lite):not(.fx-off) .tt.run .tt-head::after{animation:ifxShine 3.6s 
 .ms-stats{display:flex;flex-direction:column;gap:8px;margin-top:6px;padding:8px;border:1px solid #5c6b2a;border-radius:10px;background:#12110b;}
 .ms-altar-ic{display:inline-flex;width:30px;height:30px;vertical-align:middle;margin:-6px 2px -6px 0;}
 .ms-altar-ic img,.ms-altar-ic svg{width:30px;height:30px;}
+
+/* v287: Menu de Criador mais simples */
+.adm-secs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 10px;}
+.adm-sec{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:10px;border:1px solid var(--line-soft,rgba(255,255,255,.12));background:rgba(255,255,255,.04);color:inherit;font-size:12px;cursor:pointer;}
+.adm-sec span{font-size:20px;line-height:1;}
+.adm-sec.on{border-color:var(--gold-bright,#e8c96a);background:rgba(232,201,106,.12);color:var(--gold-bright,#e8c96a);font-weight:700;}
+.adm-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;}
+.adm-tile{display:flex;flex-direction:column;align-items:center;gap:3px;padding:7px 4px;border-radius:10px;border:1px solid var(--line-soft,rgba(255,255,255,.12));background:rgba(255,255,255,.03);color:inherit;cursor:pointer;text-align:center;min-height:62px;}
+.adm-tile.on{border-color:var(--gold-bright,#e8c96a);box-shadow:0 0 8px rgba(232,201,106,.35);background:rgba(232,201,106,.10);}
+.adm-ti-ic{font-size:20px;line-height:1.1;}
+.adm-ti-nm{font-size:10.5px;line-height:1.15;}
+.adm-tile .ho-part{transform:scale(.85);}
+.adm-pick{margin-top:10px;font-size:13px;}
+.adm-log-tg{background:none;border:0;color:inherit;font-weight:700;font-size:14px;padding:0;cursor:pointer;}
