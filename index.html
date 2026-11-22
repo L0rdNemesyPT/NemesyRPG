@@ -5597,8 +5597,9 @@ function ymirTurn(c, p, pStats) {
 const CONC = {
   TRIES: 5, ENRAGE: 0.15, WEEK_RUN: 0.10,
   MODES: {
-    duelo: { key: 'duelo', name: 'Duelo', icon: '⚔️', n: 2, hp: 6, dmg: 1.7, def: 2.0, xp: 4, gold: 4, rel: 3, heart: 0.08, div: 0.10, run: 0.01, rolls: 2 },
-    tirania: { key: 'tirania', name: 'Tirania', icon: '👑', n: 3, hp: 12, dmg: 2.45, def: 2.8, xp: 8, gold: 8, rel: 6, heart: 0.20, div: 0.25, run: 0.03, rolls: 3 }
+    // v286: tiranos mais fortes (testado com os saves reais do topo: Duelo +50% vida/dano, Tirania +50% vida, +39% dano)
+    duelo: { key: 'duelo', name: 'Duelo', icon: '⚔️', n: 2, hp: 9, dmg: 2.55, def: 2.0, xp: 4, gold: 4, rel: 3, heart: 0.08, div: 0.10, run: 0.01, rolls: 2 },
+    tirania: { key: 'tirania', name: 'Tirania', icon: '👑', n: 3, hp: 18, dmg: 3.4, def: 2.8, xp: 8, gold: 8, rel: 6, heart: 0.20, div: 0.25, run: 0.03, rolls: 3 }
   }
 };
 function pcW(v) { return `${String(Math.round(v * 1000) / 10).replace('.', ',')}%`; }
@@ -23495,7 +23496,7 @@ function openSettingsModal() {
     return `<button class="btn small ${App.musicTheme === key ? 'primary' : 'ghost'}" data-music-key="${key}" style="margin-bottom:6px;">${m.icon} ${m.name}</button>`;
   }).join(' ');
   const html = `
-    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v285</span></h3>
+    <h3 style="margin-bottom:12px;">⚙️ Definições <span class="muted" style="font-size:11px;font-weight:400;">v286</span></h3>
     <div class="card raised" style="margin-bottom:12px;">
       <div class="row" style="justify-content:space-between; align-items:center;">
         <span style="font-weight:700;">🎵 Música</span>
